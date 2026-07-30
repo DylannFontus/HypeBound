@@ -143,6 +143,17 @@ export class AudioManager {
   }
 
   /** Crossfade to a looping music slot. */
+  /**
+   * Is this a slot the manifest declares?
+   *
+   * Asked before choosing faction music, so a faction with no track of its own
+   * falls back to the default rather than requesting a slot that does not
+   * exist — which plays nothing and says nothing.
+   */
+  hasSlot(slot: string): boolean {
+    return slot in this.slots;
+  }
+
   playMusic(slot: string, fadeSeconds = 1.2): void {
     if (!this.context || !this.unlocked) return;
     if (this.currentMusicSlot === slot) return;

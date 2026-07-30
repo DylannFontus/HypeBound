@@ -326,6 +326,42 @@ if (strays.length === 0) {
 }
 
 // ---------------------------------------------------------------------------
+// 7. Audio: the manifest and the folder agree
+// ---------------------------------------------------------------------------
+
+console.log("\n7. Every audio file is one a slot points at");
+
+/**
+ * Audio wires up through `data/audio-manifest.json`, so the failure here is a
+ * path that does not match a filename. It is silent in both directions: a slot
+ * pointing at a missing file logs an info and plays nothing, and a file no slot
+ * names is never requested. Neither looks like an error, and the game is meant
+ * to be playable with no audio at all — so this reports, and only fails on a
+ * file nothing can reach.
+ */
+const AUDIO_DIR = path.join(PUBLIC_DIR, "assets", "audio");
+const audioManifest = JSON.parse(readFileSync(path.join(ROOT, "data", "audio-manifest.json"), "utf8"));
+const audioSlots = audioManifest.slots ?? {};
+const wanted = new Map();
+for (const [slot, rel] of Object.entries(audioSlots)) {
+  if (rel) wanted.set(rel.replace(/\\/g, "/"), slot);
+}
+
+const audioOnDisk = existsSync(AUDIO_DIR)
+  ? walkFiles(AUDIO_DIR).filter((f) => /\.(mp3|ogg|wav|m4a)$/i.test(f))
+  : [];
+
+const unreachable = audioOnDisk.filter((file) => !wanted.has(file));
+for (const file of unreachable) {
+  fail(`assets/audio/${file} is not named by any slot in data/audio-manifest.json — nothing will ever play it`);
+}
+
+const present = [...wanted.keys()].filter((rel) => existsSync(path.join(AUDIO_DIR, rel)));
+if (unreachable.length === 0) {
+  ok(`${present.length}/${wanted.size} pointed slot(s) have a file; ${audioOnDisk.length} file(s) on disk, all reachable`);
+}
+
+// ---------------------------------------------------------------------------
 // Coverage, reported and never enforced
 // ---------------------------------------------------------------------------
 

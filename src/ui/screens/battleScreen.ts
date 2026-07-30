@@ -485,8 +485,21 @@ export class BattleScreen {
    * says the phase is rather than from what the caller assumed it would be.
    */
   private async start(): Promise<void> {
-    const factionMusic = `music.battle.${this.options.playerDeck.leaderCardId.split("-")[0] ?? "default"}`;
-    audio.playMusic(factionMusic);
+    /**
+     * The faction comes from the card, not from the shape of its id.
+     *
+     * This used to be `leaderCardId.split("-")[0]`, which produces `idols` for
+     * `idols-lumi-starcall` while the manifest declares
+     * `music.battle.neon-idols`. Not one of the ten prefixes matches its
+     * faction id — `goth` against `gothic-royalty`, `after` against
+     * `afterparty-crew`, and so on — so every faction battle theme resolved to
+     * a slot that does not exist, and every match was silent. It failed
+     * quietly, because an unknown slot is indistinguishable from one with no
+     * file yet.
+     */
+    const leader = this.options.content.leaders[this.options.playerDeck.leaderCardId];
+    const factionSlot = `music.battle.${leader?.faction ?? ""}`;
+    audio.playMusic(audio.hasSlot(factionSlot) ? factionSlot : "music.battle.default");
 
     await this.match.connect();
     this.connected = true;
