@@ -1,0 +1,474 @@
+# Chapter 8 of the HYPEBOUND story campaign.
+#
+# The Order is right about everything in this chapter and it does not help. No
+# one in it is a hypocrite and no one is a fool. A man did exactly what he was
+# told, for two years, and it worked, and he came back to nothing waiting.
+#
+# NOTE TO WHOEVER EDITS THIS FILE: the chapter's argument is that maintaining a
+# thing and inviting somebody to it are two different jobs. That sentence must
+# never appear in the file. It is carried at 18:00 in Episode 5, where the
+# branch changes what is parked in the road in front of him and does not change
+# what he does. If any character ever says it out loud, cut the line.
+#
+# DELIBERATE DEVIATIONS, flagged rather than absorbed:
+#   1. The design (§3.9) follows Prior Wend of the Long Trail, with Sister Fen,
+#      Keeper of the Sign-Out. Neither was ever built. The Order ships two
+#      leaders — Prioress Juniper Vale and Coach Rhett Halloran — and both are
+#      already on the page in Chapter 7. Wend is recast onto Vale. Fen's job,
+#      the sign-out, goes to Halloran, who was working the other end of it in
+#      Chapter 7 — a venue door at two in the morning, turning things off in the
+#      order things are meant to be turned off. Here he writes them down instead.
+#   2. Branch A unlocks the Side Cut the design asks for (§3.9), "Two Years of
+#      Unread". It hangs off "wrote checking" rather than the louder option on
+#      purpose: the branch where he says nothing is the one that needs a scene
+#      where he says it to somebody who was not asking.
+#   3. §3.9 gives Episode 2 the rule Signal Dead Zone as
+#      balanceOverrides { "obsession.fixationCost": 5 }. That path is inert: the
+#      price actually charged comes off the leader card, and the balance number
+#      only decided where the marker sat on the Obsession track — so the
+#      override would have moved the mark without moving the cost. The rule
+#      ships instead as a patch on one leader: Fixation +2, yours only, 3 to 5,
+#      which is the number the design asked for. The Obsession track now reads
+#      its marks off the leader too, so the mark and the price cannot disagree.
+#   4. Episode 5 fights "your own timeline". A script never knows what deck the
+#      player brought, so a guaranteed mirror is not expressible. The episode
+#      carries no RULE line, which is what makes a mirror possible at all — with
+#      rules in play the opponent is deliberately moved off a colliding leader.
+#   5. The finale carries no rule. Not for consistency — Chapters 1, 2 and 5 all
+#      put a rule on their last fight — but because Log Off is already printed on
+#      the Groundskeeper, and a second rule would only blur it.
+#   6. Chapter 7's decision is read as weather, not as information. Ivo has been
+#      off every platform for two years and knows nobody in that group chat, so
+#      he cannot have heard about a pavement at four in the morning whenever it
+#      happened. What travels is only that somebody in this save has already gone
+#      first, badly, at the wrong time.
+#   7. Episodes 4 and 5 are the campaign's first use of DIFFICULTY: advanced —
+#      every shipped chapter runs beginner, casual, intermediate, intermediate,
+#      intermediate, boss. Both are deliberate: Episode 4 is a loaner deck in an
+#      argument the player is meant to lose the point of, and Episode 5 is the
+#      only fight in the chapter that is against the player themself.
+#
+# THE CLOCK. Every stated duration in the file is measured against this:
+#   the 12th  16:00 tub open · 16:12 the message · 16:20 tub shut ·
+#             21:40 Perri leaves with all four · 21:52 the watch goes in, 28 in the
+#             tub · 22:00 sabbath begins, generator off (it is off 22:00-07:00
+#             every night, which is why the forum is up at 14:00 and not at 02:40)
+#   the 13th  02:40 the ninth line · 14:00 the office cabin · 18:00 the porch ·
+#             20:00 the room, forty miles away · 21:01 the second sign-out ·
+#             22:00 sabbath ends, the tub opens
+#   the 14th  06:40 the ridge · 07:30 the top · 07:50 back down · 08:08 the phone ·
+#             08:40 down · 09:20 the car park
+
+TITLE: Log Off
+FACTION: Touch-Grass Order
+ABOUT: Ivo Marsh logged off for two years on the Order's own programme, came back healthy, and found that every friendship he had was a posting schedule that kept running without him. Three dated days at a retreat, a plastic tub, a sign-out log, and a room forty miles away that he is not in.
+
+
+=== EPISODE: The Trailhead
+
+NARRATION: THE TRAILHEAD, THE 12TH — 16:00. Twenty-six guests. Thirty-one devices, because two people brought two, and one person brought four and a piece of paper covering three of them. One plastic tub by the door, and a sign on it that has been laminated twice.
+
+Coach Rhett Halloran: Name, thing, and a reason in the book if you want it back before Sunday. That's the ceremony. There isn't one.
+Odile Pryce: There was a ceremony in year one.
+Coach Rhett Halloran: There was, and it took forty minutes, and I have since learned what I am for.
+
+NARRATION: He is not confiscating anything. He is writing things down in the order things are meant to be written down, which is slower and much harder to argue with.
+
+Dov Pell (three weeks in): Should I do the whistle?
+Coach Rhett Halloran: There's no whistle at the tub, Dov.
+Dov Pell: There's a whistle in the handbook.
+Coach Rhett Halloran: There's a whistle on page nine and it is for the ridge, and I know that, because I typed it.
+
+NARRATION: Perri Reset has been on site since one and has a written exemption for three cameras. She puts four things on the table.
+
+Coach Rhett Halloran: Camera. Camera. That one's a camera. That one's a phone, Ms Reset — it's got a text on it.
+Perri Reset: It shoots 4K.
+Coach Rhett Halloran: It does. And it's a phone.
+Perri Reset: Reset isn't a surname, by the way. It's a handle.
+Coach Rhett Halloran: Noted. In you go, Ms Reset.
+
+NARRATION: She has a Sunday upload, three days of nothing to shoot, and a genuine belief that this is good for people, which is why she came.
+
+Perri Reset: Can I get a receipt for the phone?
+Coach Rhett Halloran: You can have the receipt. You cannot have a photograph of the receipt. There's nothing here to photograph it with, and that's not a policy, that's just Friday.
+
+NARRATION: 16:12. Eight minutes before the tub shuts. A phone in a queue makes a noise it has not made in a very long time, and the man holding it does not move for four of those eight minutes.
+
+POST: THE THURSDAY GROUP — 6 members. "right so. the anchor. tomorrow the 13th, 8pm. FORTY MILES i know. but it is all of us in one room which has never actually happened. hal is bringing the thing." 1 reply: "hal is always bringing the thing".
+
+Ivo Marsh: ...Huh.
+Odile Pryce: Good news?
+Ivo Marsh: It's the first thing anybody's sent me in seven hundred and twenty-eight days.
+Odile Pryce: That's a lot of days.
+Ivo Marsh: It's a hundred and four Thursdays. I worked it out on the bus, which is a thing I now do, on buses.
+
+NARRATION: He puts it in the tub. Nobody makes him. Nobody is even watching by then — Rhett is three people down the queue, logging a tablet.
+
+Perri Reset: Take mine. The 4K one. It's a camera, it's on my exemption, it's got a keyboard.
+Coach Rhett Halloran (from down the table): No.
+Perri Reset: He got a message.
+Coach Rhett Halloran: I know. I heard it.
+Perri Reset: Rhett, he's had one message in two years and it's got a date in it.
+Coach Rhett Halloran: I know that too, and you're right, and it's a phone, and it's going in the tub for the rest of your stay. I'm sorry. That's my B-camera gone and I know it.
+
+NARRATION: She is right and it costs her.
+
+Prioress Juniper Vale: Ms Reset. Before we start. What is it you're actually here for?
+Perri Reset: Seventy-two hours, no phone, three-part cut.
+Prioress Juniper Vale: It is not seventy-two hours. It is a Friday teatime to a Sunday breakfast.
+Perri Reset: Seventy-two rounds better.
+Prioress Juniper Vale: It does. And what you need is somebody's hour four.
+Perri Reset: What I need is somebody's hour four.
+Prioress Juniper Vale: Then we should get it over with, because you're not getting one, and I'd rather you knew by Friday than Sunday.
+
+BATTLE: Perri Reset
+  PLAYS: Blayze Trendall
+  YOU PLAY: Prioress Juniper Vale
+  DIFFICULTY: beginner
+  RULE: clip farm
+  IF YOU LOSE:
+    Perri Reset: One more take. One more and then I'm in the tub, I promise, genuinely.
+    Prioress Juniper Vale: Again.
+
+NARRATION: She leaves at 21:40 with four devices and nothing on any of them, twenty minutes before the tub shuts for a day, and she says thank you on the way out and appears to mean it.
+
+Coach Rhett Halloran: Twenty-seven in the tub. Twenty-five guests, twenty-seven devices, and I got a fourth thing off Ms Reset without raising my voice, which I would like minuted.
+Prioress Juniper Vale: The record shows it. The record is you.
+
+
+=== EPISODE: Digital Sabbath
+
+NARRATION: THE PORCH — the 12th, 21:52. The generator goes off at 22:00 and comes back at 07:00, the way it has every night since the cabins went up, and takes the lights, the kettle and the one laptop with it. Twenty-two hours and eight minutes until a room forty miles away.
+
+NARRATION: The sign-out log already has three lines in it and the sabbath has not technically started. All three read "forecast".
+
+Coach Rhett Halloran: Third one tonight for the forecast. The forecast is nailed to the porch. I nail it there at seven.
+Odile Pryce: People like to check.
+Coach Rhett Halloran: People like to check. That's the entire retreat, Odile, in four words, and I'd put it on the sign if the sign weren't laminated.
+
+Dov Pell: Rhett. Your watch.
+Coach Rhett Halloran: It's a watch, Dov.
+Dov Pell: It counts steps. Page four. Anything that counts something.
+Coach Rhett Halloran: ...
+Dov Pell: I don't make the —
+Coach Rhett Halloran: Put it in the tub, then. I wrote the thing. I'm not going to be the first one round it.
+
+NARRATION: 22:00. The generator stops. It is not silence. It is a hill.
+
+Prioress Juniper Vale: Twenty-four hours, ending at ten tomorrow night. Nobody is locked in and nothing is taken off anybody. If you want your phone you sign the book and you say what for, and that is the whole of it.
+Odile Pryce: What if the what-for is embarrassing?
+Prioress Juniper Vale: Then write it and be embarrassed for eleven minutes, which is the average, and I am not going to be smug about it in front of twenty-five people in the dark.
+
+NARRATION: Hour four arrives on schedule, at 02:00, and somebody cries on schedule, and it is not Ivo, and the Order is entirely unbothered because it is in the literature.
+
+Odile Pryce: I need eleven minutes.
+Coach Rhett Halloran: Reason?
+Odile Pryce: The open rate.
+Coach Rhett Halloran: On?
+Odile Pryce: ...On the newsletter.
+Coach Rhett Halloran: Which one's that, Odile.
+Odile Pryce (hearing it as it leaves her): It's the one about not being online.
+
+NARRATION: She signs the book. She writes it in full, because that is the deal, and she takes her eleven minutes, and she comes back and puts it in the tub and says nothing for a while.
+
+NARRATION: Ivo does not sign out. He walks to the porch six times between ten and two to read a laminated forecast he has already read, and turns over a phone that is not in his pocket, twice, out of a habit two years old that came back within the hour.
+
+Coach Rhett Halloran: That's six.
+Ivo Marsh: Is there a limit?
+Coach Rhett Halloran: There's no limit. There's a log, and I read it, and there's no line in it for walking.
+
+BATTLE: Hour Four
+  PLAYS: Prioress Juniper Vale
+  DIFFICULTY: casual
+  RULE: signal dead zone
+  IF YOU LOSE:
+    Odile Pryce: Day one's the hard one. You'll be glad on Sunday. Everyone always is.
+    Ivo Marsh: Again.
+
+NARRATION: They are glad on Sunday. That is not a lie, and there is a folder in the office cabin with nine hundred cards in it saying so, and every single one of them is signed.
+
+
+=== EPISODE: Ivo Comes Back
+
+NARRATION: THE TUB, IN THE DARK — the 13th, 02:40. Four hours and forty minutes into a twenty-four-hour sabbath. Seventeen hours and twenty minutes until a room forty miles away.
+
+NARRATION: Rhett is up because Rhett is always up. He is standing about ten feet away with his back half turned.
+
+Ivo Marsh: I need it for a minute.
+Coach Rhett Halloran: You need it for as long as you need it. Book's on the nail.
+
+NARRATION: The log's ninth line. Name, time, and a reason column that is one word wide by custom and infinite by design.
+
+Ivo Marsh: What do people put.
+Coach Rhett Halloran: "Kids." "Work." "Dad." One bloke last spring put "the fight", which I thought was fair.
+Ivo Marsh: Right.
+
+NARRATION: He writes "checking". No object. Nothing named. Then he reads a message from 16:12 yesterday eleven times, and does not reply to it, and puts the phone back.
+
+NARRATION: He has had nothing open for two years and he still stands at that tub the way a man stands at a desk with nine tabs up, working a list nobody has patched since he left.
+
+Ivo Marsh: I did every single thing you people told me. I'm not being sarcastic. It worked. I sleep now. I hadn't slept properly since I was twenty-four.
+Coach Rhett Halloran: I know. It's in the folder.
+Ivo Marsh: I just want somebody to tell me who I was supposed to have told.
+
+BATTLE: Ivo Marsh
+  PLAYS: Skree Nine-Tabs
+  DIFFICULTY: intermediate
+  IF YOU LOSE:
+    Ivo Marsh: I'm not asking anybody for anything. I'm standing next to a tub.
+    Coach Rhett Halloran: Again.
+
+NARRATION: He does not raise his voice once. Nobody at that tub raises their voice all weekend, and the sheet still says "checking".
+
+CHOICE: Nine lines on a sheet and one of them is his, and the reason column says nothing.
+  * Tell him what it's for.
+      REMEMBER: told them what it's for
+      REMEMBER: ivo said it + 1
+      Ivo Marsh: There's a room. Tonight, eight, forty miles. It's everybody I've ever known and it's the first time all six of us will have been in the same room, and I've missed a hundred and four Thursdays, and I would like to not miss this.
+      Coach Rhett Halloran: ...Right.
+      NARRATION: He crosses out "checking" with one line, which is against his own procedure, and writes it in full, because the sheet is for accurate reasons.
+      Coach Rhett Halloran: Minibus at six. I'll drive it. I'll have you back for the tub at ten and nobody has to have a conversation about it.
+      Ivo Marsh: That's your Saturday.
+      Coach Rhett Halloran: It's four hours of my Saturday and I do a door twice a month for strangers. Sit down, you look grey.
+  * Write "checking" and hand it back.
+      REMEMBER: wrote checking
+      NARRATION: One word, no object, and a pencil put back on its string.
+      Coach Rhett Halloran: That's you signed back in, then.
+      Ivo Marsh: That's me signed back in.
+      NARRATION: Rhett reads the log at 07:00 every morning because that is the job. He reads the ninth line at 07:00 and he does not mention it to Juniper, or to Odile, or to Ivo, or to anybody at all, ever.
+
+
+=== SIDE CUT: Two Years of Unread
+UNLOCKED BY: wrote checking
+
+NARRATION: 05:00 on the 13th. Two hours until the generator, nine until the office cabin, fifteen until a room forty miles away. Rhett is in the long cabin with a head torch and the log book, doing at five what he normally does at seven.
+
+Coach Rhett Halloran: You're up.
+Ivo Marsh: I'm up.
+Coach Rhett Halloran: There's no line in the book for up.
+
+NARRATION: Ivo does not sign the phone out. He sits on the step with his hands inside his sleeves and tells a man he met on Friday what is in an inbox he has not opened.
+
+Ivo Marsh: Four thousand one hundred and forty.
+Coach Rhett Halloran: You've counted them.
+Ivo Marsh: I haven't looked at one of them. I know the number because the number is on the icon and the icon is on the screen you can't get past.
+
+NARRATION: He can recite the shape of it without reading a word of it. Three thousand nine hundred and eleven from the group, in a rhythm he could draw. Two hundred and twenty-nine from the platform, saying it had noticed.
+
+Ivo Marsh: It's the subtraction that gets me.
+Coach Rhett Halloran: Go on.
+Ivo Marsh: Four thousand one hundred and forty messages, and not one of them addressed to me.
+
+BATTLE: Four Thousand One Hundred and Forty
+  PLAYS: Cassia Cache
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    NARRATION: Nothing in there has moved in two years. It is all exactly where it was and it will still be there at seven.
+    Ivo Marsh: Again.
+
+Coach Rhett Halloran: Right.
+Ivo Marsh: Right?
+Coach Rhett Halloran: I'm not going to say a thing about it, because I'd say it badly and you'd have to be polite about it at twenty past five in the morning. But I've heard it now. It isn't only in your head any more. That's the whole of what just happened and it isn't nothing.
+
+
+=== EPISODE: The Office Cabin
+
+NARRATION: THE OFFICE CABIN — the 13th, 14:00. Sixteen hours into the sabbath, eight to go. Six hours until a room forty miles away. One laptop, one generator, and a door sign that reads BACK ON THE 14TH, which is true — it is a Sunday, and they will be.
+
+NARRATION: The Order maintains a private forum. It is nine years old. At 14:00 it stands at thirty-nine thousand nine hundred and eighty-eight posts, which is a fraction over twelve a day, every day, since the year it started.
+
+Prioress Juniper Vale: I want the nine-year thread closed and I am aware of exactly how that sounds, and I would like it minuted that I am aware.
+Coach Rhett Halloran: Minuted.
+Prioress Juniper Vale: It is twelve a day, Rhett. We run a retreat that costs people four hundred pounds and a weekend to get them to zero, and we post twelve a day.
+Coach Rhett Halloran: It started as a washing-up rota.
+Prioress Juniper Vale: I know what it started as.
+Coach Rhett Halloran: Then lost property. Then somebody put the forecast on it so I'd stop being asked. Nobody voted on any of that because no single step was worth a vote.
+
+IF told them what it's for:
+  NARRATION: There is a minibus key on the desk between them. It has been there since about three in the morning and neither of them has moved it.
+  Prioress Juniper Vale: And that?
+  Coach Rhett Halloran: That's four hours of my Saturday.
+  Prioress Juniper Vale: That is also an exception nobody wrote down.
+  Coach Rhett Halloran: It is exactly that. Same thing, smaller. If you're closing the thread you should probably take the key as well, and I'd think less of you, and you'd be right.
+  NARRATION: Ivo is in the doorway. Everything he could say about the thread would also be about the key, and the key is currently his.
+  Prioress Juniper Vale: Mr Marsh. You have been at zero for two years, which makes you the only qualified person in this room. Should we close it?
+  Ivo Marsh: ...You're asking me because I'm the one holding the exception.
+  Prioress Juniper Vale: I am asking you because you are the only one here who has found out what happens afterwards.
+  Ivo Marsh: Then don't close it. Whatever that's worth from a man in a doorway.
+OTHERWISE:
+  NARRATION: Ivo is in the doorway with the log book, because Rhett sent him for it, and he is the only person in the room who knows what nine unbroken years of anything is worth, and he cannot say so without explaining how he knows.
+  Prioress Juniper Vale: Sorry — do you need us?
+  Ivo Marsh: No. No, you're fine.
+
+Prioress Juniper Vale: Nine years of people close with that thread.
+Coach Rhett Halloran: Nine years of people close with that thread. Say the other half.
+Prioress Juniper Vale: And nine years of people would have to be told they are being closed for their own good, by us, having not asked them. Yes. I can hear it.
+
+BATTLE: The Thread
+  PLAYS: Coach Rhett Halloran
+  YOU PLAY: Prioress Juniper Vale
+  DIFFICULTY: advanced
+  RULE: suppressed reach
+  IF YOU LOSE:
+    Coach Rhett Halloran: Thread's still open. It's been open nine years. It'll be open at seven tomorrow.
+    Prioress Juniper Vale: Again.
+
+NARRATION: The argument runs forty minutes. In that forty minutes eleven posts arrive from people on a hill with no reception, because the box is in the cupboard behind the drying room and the cupboard was never the internet, technically, and that was the whole basis of it.
+
+Prioress Juniper Vale: Thirty-nine thousand nine hundred and ninety-nine.
+Coach Rhett Halloran: Don't.
+Prioress Juniper Vale: I am going to post the motion to the thread. Where else would I post it.
+
+NARRATION: Post forty thousand is a motion to close the forum, posted to the forum, by the Prioress, at 14:40 on a Saturday. Twelve posts have arrived inside one argument, which is a day's average, and nobody in the room needs that pointed out.
+
+Coach Rhett Halloran: Point of order.
+Prioress Juniper Vale: Go on.
+Coach Rhett Halloran: Nobody ever wrote it down. That's the finding. Not that we were wrong — that in nine years of a rota becoming a thing, not one of us ever wrote down that it had. So write it down. Then we're an order with a forum, in writing, and people can decide about us with the whole of it in front of them.
+Prioress Juniper Vale: That is a much worse outcome for me personally.
+Coach Rhett Halloran: It is. It's also the only one that's true.
+
+IF told them what it's for:
+  NARRATION: The key stays on the desk. Nobody says anything about the key.
+OTHERWISE:
+  Ivo Marsh: Can I say one thing.
+  Prioress Juniper Vale: Please.
+  Ivo Marsh: Don't close it. That's — that's all. Don't close a thing that's been running nine years because you've had a bad feeling about it on a Saturday.
+  NARRATION: He puts the log book on the desk and goes, and neither of them asks, and he spends the next three hours certain that he said too much.
+
+
+=== EPISODE: The Tub Opens at Ten
+
+NARRATION: THE PORCH — the 13th, 18:00. Two hours until a room forty miles away. He has his boots on. He has had his boots on since four.
+
+IF told them what it's for:
+  NARRATION: The minibus is in front of the porch with the engine running and Rhett in it, not looking at the porch, doing the thing where a man reads a laminated forecast he nailed up himself.
+OTHERWISE:
+  NARRATION: There is a road in front of the porch with nothing on it, which is what is normally on it.
+
+NARRATION: He stands there for eleven minutes with his boots on and he does not move, and the light is the good light, and a bird does something impressive that he can now name.
+
+IF told them what it's for:
+  NARRATION: At 18:11 he takes his boots off and puts them by the door with everybody else's, and Rhett takes the minibus back to the shed and never mentions it to anybody again.
+OTHERWISE:
+  NARRATION: At 18:11 he takes his boots off and puts them by the door with everybody else's.
+
+NARRATION: 21:01. Fifty-nine minutes of sabbath left. The room forty miles away started an hour and one minute ago. He signs the book for the second time this weekend, and the reason column takes him a while.
+
+NARRATION: Four thousand one hundred and forty unread. Three thousand nine hundred and eleven of them are the group. The other two hundred and twenty-nine are the platform, at intervals, over two years, saying it had noticed and would like him to come back.
+
+Ivo Marsh: Nine.
+Odile Pryce: Sorry?
+Ivo Marsh: I searched my own name. Nine results. Seven of them are the same poll about moving the Thursday, because seven people reposted it. One's a photo I'm at the back of. One's the rota.
+Odile Pryce: ...That's nine.
+Ivo Marsh: That's nine. Two years, and I'm in my own life as an admin item.
+
+NARRATION: What he is playing against is the version that came back healthy — eight hours a night, a bus route, a bird book — which by now fights precisely like the Order.
+
+BATTLE: The One Who Came Back Healthy
+  PLAYS: Prioress Juniper Vale
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    The One Who Came Back Healthy: I'm actually fine. That's not a deflection. That's the problem.
+    Ivo Marsh: Again.
+
+NARRATION: 22:00. The generator stops for the night and the tub opens by torchlight, and twenty-eight devices come out of it, and twenty-six of them light up. One of the two that does not is a watch.
+
+CHOICE: It is in his hand and it is not doing anything.
+  * Delete the account.
+      REMEMBER: deleted it
+      Ivo Marsh: Rhett. Have you got a pen.
+      Coach Rhett Halloran: I've got a pencil on a string.
+      Ivo Marsh: Course you have.
+      NARRATION: He copies nine phone numbers onto the back of a spare sign-out sheet, in pencil, slowly, checking each one twice. Then he deletes it. Nine, which is the same as the search results, and nobody points that out.
+  * Keep it. Change what it's for.
+      REMEMBER: changed what it's for
+      REMEMBER: ivo said it + 1
+      NARRATION: He makes exactly one post with it, and it is not a comeback post. It is a calendar invite. Thursday, 21:00, repeating.
+      Odile Pryce: What's that?
+      Ivo Marsh: I have just volunteered to be the person who sends the reminder every week for the rest of my life.
+      Odile Pryce: On purpose?
+      Ivo Marsh: I watched it happen in real time and I did it anyway, which I think is the definition.
+
+
+=== EPISODE: The Groundskeeper
+
+NARRATION: THE RIDGE — the 14th. Fifty minutes up in the dark, leaving at 06:40, which is the last thing on the schedule before the minibus does its one run. It is two miles and it is the short end of an eleven-mile trail that has been walked by the same man since before there was anything to log off from, throughout it, and after it.
+
+NARRATION: 07:30, at the top. There is a tin box screwed to a post with a pencil on a string. Nine hundred and forty names. Nobody has ever checked it against anything.
+
+The Groundskeeper: You'll be in there. Everybody's in there.
+Ivo Marsh: I don't remember doing it.
+The Groundskeeper: You did it on the fourteenth of March, two years ago, at about this time, and you wrote a line under it, which most don't.
+
+POST: THE SUMMIT REGISTER — page 63, in pencil, weathered. "IVO M — 14/03. nobody knows I'm up here and that is the point."
+
+Ivo Marsh: ...Right.
+The Groundskeeper: I signed you off that morning. I asked you twice whether you were sure, because that's what I do, and you were, and you were right to be. You looked like a man who hadn't sat down in a year.
+Ivo Marsh: I hadn't.
+
+NARRATION: He is warm. He has been warm for forty years. He has taken it off nine hundred people and every one of them wrote him a card afterwards and there is a folder of them in the office cabin.
+
+The Groundskeeper: So. Third time of asking, and I'll do it the same way I did it then. Give it to me and go and live up here for a bit. It's not a trick and there's no bill.
+Ivo Marsh: I know it isn't.
+The Groundskeeper: Then I'd take it, if I were you.
+
+Ivo Marsh: Did you know? At the time. That there was nobody keeping the seat.
+The Groundskeeper: I knew the day you stopped. It's in the log — a man signs out and doesn't sign back in, and I write that down, because writing it down is the job.
+Ivo Marsh: And you didn't write to me.
+The Groundskeeper: No.
+Ivo Marsh: Why.
+The Groundskeeper: Because you asked us to make it possible for you to go. Somebody has to hold the door for that, and holding a door means not calling a man back through it. I've held it for nine hundred people and I have not written to a single one of them, and I would do the same for you tomorrow.
+
+NARRATION: There is a draft in an outbox on a machine in a cupboard behind a drying room, dated day four hundred and eleven, which says "Are you coming back" and has no question mark on it, because he was not going to make it a question.
+
+BATTLE: The Groundskeeper
+  PLAYS: The Groundskeeper
+  DIFFICULTY: boss
+  IF YOU LOSE:
+    The Groundskeeper: Come back up when you're ready. It'll be here. It's always here, that's the one thing it does.
+    Ivo Marsh: Again.
+
+Ivo Marsh: I'm not asking to be talked out of anything. I did the two years, they worked, I'd do them again.
+The Groundskeeper: Then what are you asking.
+Ivo Marsh: For one of you to say out loud that this is a bad outcome.
+The Groundskeeper: ...
+Ivo Marsh: That's it. That's the whole thing I came up here for.
+The Groundskeeper: I can't do that, son. I've watched this hill for forty years and I've never once seen a man get worse up here, and I'd be lying, and you'd hear it.
+
+NARRATION: Nobody apologises. Nobody is wrong. The ridge does not move. They start down at 07:50, and it takes fifty minutes, same as it takes everybody.
+
+IF ivo said it is at least 2:
+  NARRATION: 08:08, eighteen minutes into the way down, a phone rings in his coat. Not a notification. A ring — one person, choosing a minute, from somewhere with a kettle on.
+  NARRATION: He looks at it for a long time, because a ringing phone turns out to be the one piece of the old world he thought he would never have to relearn.
+  Ivo Marsh: ...Hiya.
+
+NARRATION: THE CAR PARK — the 14th, 09:20. A minibus with one run in it. Twenty-five people who will mostly not see each other again, and a few who absolutely will.
+
+IF deleted it:
+  Odile Pryce: Can I have one of the nine?
+  Ivo Marsh: You want a phone number. Written in pencil. On a sign-out sheet.
+  Odile Pryce: I've got a newsletter about not being online, mate, I'm not in a position to be embarrassed about anything.
+  NARRATION: He writes it on the back of the sheet, on his knee, and hands it over, and she puts it in a boot.
+OTHERWISE:
+  NARRATION: The invite has one acceptance by Sunday morning. It is Hal, and the reply is "oh thank god", and there is nothing else in it, and there does not need to be.
+
+NARRATION: He rings Hal Munn from the car park, standing beside a minibus with the door open, which makes it the first call he has made to anybody in two years to the day.
+
+IF said it out loud:
+  Ivo Marsh: I'm going to do this badly and I'm going to do it first, because somebody has to and it's never once been me.
+  Hal Munn (on the phone): ...Go on then.
+  Ivo Marsh: Thank you for keeping it going. Eleven years. I never said.
+  NARRATION: Nobody helps him and nobody fills the gap, and it takes about nine seconds, and the door of the minibus stays open the entire time.
+OTHERWISE:
+  Ivo Marsh: What time do you do it?
+  Hal Munn (on the phone): Nine. It's been nine for eleven years.
+  Ivo Marsh: Nine. Right. Nine.
+  Ivo Marsh: ...Is there a spreadsheet.
+  Hal Munn: There's a spreadsheet.
+  Ivo Marsh: Of course there's a spreadsheet.
+  NARRATION: He writes the time down on paper, which he does not need to do, having been told the same thing by a calendar a hundred and four times without opening it once.
+
+POST: a plastic tub on a porch with four devices put back in it, photographed on the 14th and posted eleven days later by somebody on their fourth retreat. Caption: "back on the 14th, like it said on the door". 12 likes. Recovered from GLIMMR — platform offline.
+
+Coach Rhett Halloran: You're on the sheet twice.
+Ivo Marsh: I know. I'd like to be on it again in October.

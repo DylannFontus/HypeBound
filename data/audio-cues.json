@@ -1,0 +1,341 @@
+{
+  "_readme": [
+    "ACCESSIBILITY AUDIO CUES — 13-accessibility.md §11.",
+    "",
+    "WHY THIS FILE EXISTS. Known gap 34 read: 'the cue points fire and carry their",
+    "own gain, but every audio slot in this build is empty, so there is no sound to",
+    "play.' That was true and it was the wrong conclusion. §11 does not specify",
+    "audio *files* — it specifies a **cue character** for each of its 34 rows:",
+    "'two-note rising chime', 'single low tone', 'discrete ticks, rising pitch',",
+    "'hollow descending tone, pitch drops per stack'. Those are descriptions of a",
+    "waveform, and a waveform is something an AudioContext can make out of nothing.",
+    "So the cues are synthesised. No files, no downloads, no licence, and no empty",
+    "slot pretending to be a sound.",
+    "",
+    "THE BINDING RULE, from §11: 'every cue has a visual twin. No cue is the only",
+    "notification of anything.' Every row here names the twin it accompanies, and",
+    "`checkCueData` fails on a cue that names none.",
+    "",
+    "CAPTIONS. §11 marks some rows captioned; those carry `caption`, which the",
+    "sound-captions setting prints on screen. A captioned row with no caption text",
+    "is a caption setting that shows nothing, so that is a load error too.",
+    "",
+    "DISTINCTNESS. A cue nobody can tell from another cue is worse than silence,",
+    "because it reads as the game having got it wrong. Two cues may not share a",
+    "tone sequence, and the test asserts it — the same mechanical guardrail §7.2's",
+    "palette check applies to colour.",
+    "",
+    "WAVES. sine / triangle / square / sawtooth are oscillators; 'noise' is a",
+    "filtered burst, which is what 'paper slide', 'glass tap' and 'crumple' are.",
+    "`hz` on a noise tone sets the filter's centre rather than a pitch."
+  ],
+
+  "cues": [
+    {
+      "id": "turnStartedYou",
+      "row": 1,
+      "event": "Your turn starts",
+      "character": "Two-note rising chime",
+      "twin": "Turn banner, and End Turn enabling",
+      "caption": "Your turn",
+      "tones": [
+        { "hz": 587.33, "ms": 110, "wave": "sine" },
+        { "hz": 880, "ms": 260, "wave": "sine" }
+      ]
+    },
+    {
+      "id": "turnStartedEnemy",
+      "row": 2,
+      "event": "Opponent's turn starts",
+      "character": "Single low tone",
+      "twin": "Turn banner",
+      "tones": [{ "hz": 174.61, "ms": 320, "wave": "sine", "gain": 0.6 }]
+    },
+    {
+      "id": "ropeStarted",
+      "row": 3,
+      "event": "The turn rope begins",
+      "character": "Pulsing heartbeat",
+      "twin": "The timer ring turning to rope, and the countdown numeral appearing",
+      "caption": "15 seconds remaining",
+      "tones": [
+        { "hz": 98, "ms": 90, "wave": "sine" },
+        { "hz": 82.41, "ms": 140, "wave": "sine", "delayMs": 130 }
+      ]
+    },
+    {
+      "id": "ropeTick",
+      "row": 4,
+      "event": "The last five seconds",
+      "character": "Discrete tick, rising pitch",
+      "twin": "The numeral counting down",
+      "tones": [{ "hz": 1046.5, "ms": 45, "wave": "square", "gain": 0.3 }]
+    },
+    {
+      "id": "lethalAvailable",
+      "row": 5,
+      "event": "Lethal available on the enemy leader",
+      "character": "Bright three-note sting",
+      "twin": "Skull badge and the LETHAL label on the preview",
+      "caption": "Lethal available",
+      "tones": [
+        { "hz": 880, "ms": 70, "wave": "triangle" },
+        { "hz": 1108.73, "ms": 70, "wave": "triangle" },
+        { "hz": 1479.98, "ms": 280, "wave": "triangle" }
+      ]
+    },
+    {
+      "id": "confluenceAvailable",
+      "row": 6,
+      "event": "A Confluence became available",
+      "character": "Two-tone interval matching the pair",
+      "twin": "The Confluence button appearing",
+      "caption": "Confluence available",
+      "tones": [
+        { "hz": 440, "ms": 150, "wave": "sine" },
+        { "hz": 659.26, "ms": 240, "wave": "sine" }
+      ]
+    },
+    {
+      "id": "confluenceActivated",
+      "row": 7,
+      "event": "A Confluence was activated",
+      "character": "Chord resolve",
+      "twin": "Flourish and the Confluence name banner",
+      "caption": "Confluence activated",
+      "tones": [
+        { "hz": 523.25, "ms": 260, "wave": "sine" },
+        { "hz": 659.26, "ms": 260, "wave": "sine", "delayMs": 0 },
+        { "hz": 783.99, "ms": 380, "wave": "sine", "delayMs": 0 }
+      ]
+    },
+    {
+      "id": "resonanceActivated",
+      "row": 8,
+      "event": "Perfect Resonance",
+      "character": "Long harmonic swell",
+      "twin": "Resonance banner",
+      "caption": "Perfect Resonance",
+      "tones": [
+        { "hz": 329.63, "ms": 700, "wave": "sine" },
+        { "hz": 493.88, "ms": 700, "wave": "sine", "delayMs": 0, "gain": 0.6 },
+        { "hz": 987.77, "ms": 700, "wave": "sine", "delayMs": 0, "gain": 0.3 }
+      ]
+    },
+    {
+      "id": "obsessed",
+      "row": 9,
+      "event": "Obsession reached 8",
+      "character": "Detuned warning drone",
+      "twin": "The OBSESSED label on the meter",
+      "caption": "Obsessed — you take +1 damage",
+      "tones": [
+        { "hz": 116, "ms": 620, "wave": "sawtooth", "gain": 0.5 },
+        { "hz": 123, "ms": 620, "wave": "sawtooth", "delayMs": 0, "gain": 0.5 }
+      ]
+    },
+    {
+      "id": "fullFixation",
+      "row": 10,
+      "event": "Full Fixation at 10",
+      "character": "Rising arpeggio and impact",
+      "twin": "Full Fixation banner",
+      "caption": "Full Fixation",
+      "tones": [
+        { "hz": 392, "ms": 70, "wave": "square", "gain": 0.4 },
+        { "hz": 523.25, "ms": 70, "wave": "square", "gain": 0.4 },
+        { "hz": 659.26, "ms": 70, "wave": "square", "gain": 0.4 },
+        { "hz": 90, "ms": 300, "wave": "sine" }
+      ]
+    },
+    {
+      "id": "yourLeaderDamaged",
+      "row": 12,
+      "event": "Your leader took damage",
+      "character": "Deep impact thud",
+      "twin": "Health orb and its numeral",
+      "tones": [{ "hz": 70, "ms": 260, "wave": "sine" }]
+    },
+    {
+      "id": "enemyLeaderDamaged",
+      "row": 13,
+      "event": "The enemy leader took damage",
+      "character": "Brighter impact",
+      "twin": "Health orb and its numeral",
+      "tones": [{ "hz": 196, "ms": 180, "wave": "triangle" }]
+    },
+    {
+      "id": "elementalBonus",
+      "row": 14,
+      "event": "An elemental bonus applied",
+      "character": "High grace note over the impact",
+      "twin": "The +1 chip on the damage preview",
+      "tones": [{ "hz": 1567.98, "ms": 90, "wave": "sine", "gain": 0.45 }]
+    },
+    {
+      "id": "friendlyDefeated",
+      "row": 15,
+      "event": "One of your characters was defeated",
+      "character": "Descending two-note",
+      "twin": "Dissolve and the battle log entry",
+      "tones": [
+        { "hz": 392, "ms": 110, "wave": "triangle" },
+        { "hz": 261.63, "ms": 260, "wave": "triangle" }
+      ]
+    },
+    {
+      "id": "enemyDefeated",
+      "row": 16,
+      "event": "An enemy character was defeated",
+      "character": "Bright break",
+      "twin": "Dissolve and the battle log entry",
+      "tones": [
+        { "hz": 1046.5, "ms": 60, "wave": "square", "gain": 0.35 },
+        { "hz": 1318.51, "ms": 140, "wave": "triangle" }
+      ]
+    },
+    {
+      "id": "shieldAbsorbed",
+      "row": 17,
+      "event": "A Shield absorbed the damage",
+      "character": "Glass tap",
+      "twin": "The broken-shield icon",
+      "tones": [
+        { "hz": 2637.02, "ms": 45, "wave": "sine", "gain": 0.4 },
+        { "hz": 3200, "ms": 60, "wave": "noise", "gain": 0.25 }
+      ]
+    },
+    {
+      "id": "statusApplied",
+      "row": 18,
+      "event": "A negative status landed on one of yours",
+      "character": "Short dissonant tick",
+      "twin": "The status icon appearing",
+      "tones": [
+        { "hz": 311.13, "ms": 60, "wave": "square", "gain": 0.3 },
+        { "hz": 329.63, "ms": 60, "wave": "square", "delayMs": 0, "gain": 0.3 }
+      ]
+    },
+    {
+      "id": "reactionTriggered",
+      "row": 19,
+      "event": "A Reaction triggered",
+      "character": "Card-flip whoosh and sting",
+      "twin": "The Reaction revealing, and the log entry",
+      "caption": "Reaction triggered",
+      "tones": [
+        { "hz": 1800, "ms": 110, "wave": "noise", "gain": 0.28 },
+        { "hz": 698.46, "ms": 200, "wave": "triangle" }
+      ]
+    },
+    {
+      "id": "cardDrawn",
+      "row": 22,
+      "event": "A card was drawn",
+      "character": "Paper slide",
+      "twin": "The card entering your hand",
+      "tones": [{ "hz": 2400, "ms": 90, "wave": "noise", "gain": 0.16 }]
+    },
+    {
+      "id": "cardBurned",
+      "row": 23,
+      "event": "A card burned because the hand was full",
+      "character": "Short crumple",
+      "twin": "The \"Lost in the Feed\" toast",
+      "caption": "Hand full — a card was lost",
+      "tones": [
+        { "hz": 900, "ms": 70, "wave": "noise", "gain": 0.3 },
+        { "hz": 420, "ms": 110, "wave": "noise", "gain": 0.22 }
+      ]
+    },
+    {
+      "id": "burnout",
+      "row": 24,
+      "event": "Burnout damage",
+      "character": "Hollow descending tone",
+      "twin": "The numeral and the Burnout label",
+      "caption": "Burnout",
+      "tones": [
+        { "hz": 220, "ms": 200, "wave": "sine" },
+        { "hz": 146.83, "ms": 340, "wave": "sine" }
+      ]
+    },
+    {
+      "id": "invalidAction",
+      "row": 25,
+      "event": "An action was refused",
+      "character": "Short muted buzz, never harsh",
+      "twin": "Red outline and the reason toast",
+      "tones": [{ "hz": 146.83, "ms": 130, "wave": "square", "gain": 0.22 }]
+    },
+    {
+      "id": "victory",
+      "row": 26,
+      "event": "You won",
+      "character": "Victory sting",
+      "twin": "The victory sequence",
+      "caption": "Victory",
+      "tones": [
+        { "hz": 523.25, "ms": 130, "wave": "triangle" },
+        { "hz": 659.26, "ms": 130, "wave": "triangle" },
+        { "hz": 783.99, "ms": 130, "wave": "triangle" },
+        { "hz": 1046.5, "ms": 460, "wave": "triangle" }
+      ]
+    },
+    {
+      "id": "defeat",
+      "row": 27,
+      "event": "You lost",
+      "character": "Soft resolve, never mocking",
+      "twin": "The defeat sequence",
+      "caption": "Defeat",
+      "tones": [
+        { "hz": 440, "ms": 200, "wave": "sine", "gain": 0.5 },
+        { "hz": 349.23, "ms": 480, "wave": "sine", "gain": 0.5 }
+      ]
+    },
+    {
+      "id": "menuFocus",
+      "row": 30,
+      "event": "Keyboard focus moved",
+      "character": "Soft tick",
+      "twin": "The focus ring",
+      "tones": [{ "hz": 1244.51, "ms": 30, "wave": "sine", "gain": 0.18 }]
+    },
+    {
+      "id": "menuActivate",
+      "row": 31,
+      "event": "Activate",
+      "character": "Confirm blip",
+      "twin": "The screen changing",
+      "tones": [
+        { "hz": 987.77, "ms": 45, "wave": "sine", "gain": 0.25 },
+        { "hz": 1318.51, "ms": 80, "wave": "sine", "gain": 0.25 }
+      ]
+    },
+    {
+      "id": "rewardClaimed",
+      "row": 32,
+      "event": "A reward was claimed",
+      "character": "Sparkle",
+      "twin": "The reward animation",
+      "tones": [
+        { "hz": 1760, "ms": 45, "wave": "sine", "gain": 0.22 },
+        { "hz": 2093, "ms": 45, "wave": "sine", "gain": 0.2 },
+        { "hz": 2637.02, "ms": 120, "wave": "sine", "gain": 0.18 }
+      ]
+    },
+    {
+      "id": "objectiveComplete",
+      "row": 34,
+      "event": "A mission or achievement completed",
+      "character": "Two-note complete",
+      "twin": "The toast and the badge",
+      "caption": "Objective complete",
+      "tones": [
+        { "hz": 659.26, "ms": 120, "wave": "triangle" },
+        { "hz": 987.77, "ms": 300, "wave": "triangle" }
+      ]
+    }
+  ]
+}

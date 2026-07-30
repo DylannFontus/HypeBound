@@ -1,0 +1,390 @@
+# Chapter 7 of the HYPEBOUND story campaign.
+#
+# Nothing happens in this chapter, on purpose. A night out ends, and ending it
+# well takes six episodes.
+#
+# DELIBERATE DEVIATIONS, flagged rather than absorbed:
+#   1. Branch A unlocks the Side Cut the design asks for (§3.8), "The Long Walk",
+#      which is nine metres of pavement and takes a whole episode. It is also
+#      still true that Branch A changes lines inside the later scenes; the side
+#      cut is extra, and the chapter reads whole without it.
+#   2. The design's leaders Dez Threehours and Marlo Nightbus were never built —
+#      §14 flags them as proposed and leaves final names to a faction guide that
+#      does not exist yet. The chapter follows Half-Four Mari, who did ship, and
+#      keeps Dez and Marlo as members of the group chat. If a faction guide ever
+#      names them differently, this file needs updating.
+#   3. "Nobody Dies at the Diner" is not a rule in the library. It is what it
+#      always was in the spec — both leaders on Armor 10 — set with the battle
+#      properties directly.
+#
+# Reads decisions from Chapter 1 and Chapter 4. Both have a standing OTHERWISE;
+# the chapter reads complete for somebody who has played nothing else.
+
+TITLE: Last Call
+FACTION: Afterparty Crew
+ABOUT: Six people, four cities, one thread since 2016. The music stopped two minutes ago and nobody has noticed. Ending a night well turns out to be a logistics problem with one sentence buried in it.
+
+
+=== EPISODE: The Group Chat Never Sleeps
+
+NARRATION: THE VENUE — 01:52. The music is not faded out. It is switched off at the wall, by somebody whose shift ended at two, and five people find out they have been shouting.
+
+Dez Threehours (still shouting): — AND THAT IS WHY YOU NEVER —
+Dez Threehours: ...oh.
+Half-Four Mari: Yeah.
+
+NARRATION: Mari is holding four phones, two coats and somebody's badge. She has been holding them since half eleven and has not once been asked to.
+
+Coach Rhett Halloran: Right. Out we go. PA's off, bar lights next, then the fans.
+DJ Last Call: Give us twenty minutes.
+Coach Rhett Halloran: I can't give you twenty minutes. The cleaners start at three and they have somewhere to be at six, same as you.
+DJ Last Call: Ten.
+Coach Rhett Halloran: You've said ten twice.
+
+NARRATION: He is not throwing anybody out. He is turning things off in the order things are meant to be turned off, which is slower and much harder to argue with.
+
+Marlo Nightbus: I should go, actually.
+Half-Four Mari: Mm.
+Marlo Nightbus: No, I mean it, I've got — I'm going to go.
+Half-Four Mari: Mm.
+
+NARRATION: Marlo Nightbus has announced that he is leaving roughly every twenty minutes since nine o'clock. He is on sparkling water. He drove nobody here and has nowhere to drive.
+
+NARRATION: In Deej's tote bag there is a speaker at forty-one per cent, which has been losing to the venue PA all night and has just, for the first time, won.
+
+DJ Last Call: There we go.
+Coach Rhett Halloran: Mate. No.
+DJ Last Call: One song. It's the last one.
+Coach Rhett Halloran: It is never the last one. I do this door twice a month and it has never once been the last one.
+
+BATTLE: Coach Rhett Halloran
+  PLAYS: Coach Rhett Halloran
+  YOU PLAY: Half-Four Mari
+  DIFFICULTY: beginner
+  RULE: blown fuse
+  IF YOU LOSE:
+    Coach Rhett Halloran: Fans off. That's the last one gone.
+    Half-Four Mari: Again.
+
+Coach Rhett Halloran: Forty-one minutes it took to get five of you through one door.
+Half-Four Mari: That's quick for us.
+Coach Rhett Halloran (genuinely): It really was. Most groups I've never met. Go safe.
+
+NARRATION: It is 02:33. The speaker is at thirty-six per cent and there is nothing left for it to lose to.
+
+
+=== EPISODE: Rideshare Roulette
+
+NARRATION: THE RIDESHARE — 02:33. Fixed seating, a stranger driving, and everything anybody says gets said sideways to a headrest.
+
+THE APP (flat): YOUR RIDE WILL ARRIVE IN ELEVEN MINUTES. THIS IS NOT A PROMISE. IT IS AN ESTIMATE.
+Half-Four Mari: It's an estimate.
+Dez Threehours: It said eleven minutes twenty minutes ago.
+THE APP (flat): YOUR RIDE WILL ARRIVE IN ELEVEN MINUTES.
+
+NARRATION: Sindri Quan is asleep in the footwell. He got in first, went down within ninety seconds, and will not resurface until twenty to six.
+
+Dez Threehours: I've got all six, by the way. Don't worry about it.
+Half-Four Mari: Dez.
+Dez Threehours: Send it over whenever.
+
+NARRATION: Dez Threehours has said "send it over whenever" since 2016. Nobody has ever sent it over. It is the longest-running unresolved thing in the group chat and everybody in the car knows it and nobody is going to be the one who ruins it.
+
+POST: bibi (typing) · 02:51 · "are we at the diner yet"
+POST: bibi · 02:52 · "im in a different city and i am more informed about this night than any of you"
+
+NARRATION: Bibi Tran is four cities away and has been in every part of this evening. She has not been in a room with any of them since spring.
+
+DJ Last Call: Mari. Aux.
+Half-Four Mari: The driver's got the radio on.
+DJ Last Call: The driver would love this.
+Half-Four Mari: The driver has been alone in a car for six hours and has chosen what he wants to listen to.
+DJ Last Call: ...Fair.
+
+NARRATION: The speaker goes in the footwell next to Sindri, at twenty-nine per cent, losing to a local station playing something nobody in the car would admit to knowing.
+
+THE APP (flat): YOUR RIDE HAS ARRIVED. TRIP DURATION: THIRTY-EIGHT MINUTES. QUOTED: ELEVEN.
+
+BATTLE: THE APP
+  PLAYS: Cassia Cache
+  DIFFICULTY: casual
+  IF YOU LOSE:
+    THE APP (flat): RECALCULATING.
+    Half-Four Mari: Again.
+
+NARRATION: 03:11. They get out nine metres from a diner door. The trip was thirty-eight minutes against an eleven-minute quote, and Dez has already paid, and nobody is going to bring it up.
+
+
+=== EPISODE: Someone's Not Okay
+
+NARRATION: NINE METRES FROM THE DINER DOOR — 03:11. There is no reason to be standing on this pavement. There are no chairs, no service, nothing being turned off and nobody asking them to move.
+
+NARRATION: They stand there for forty-nine minutes.
+
+Marlo Nightbus: I should go.
+Dez Threehours: You've been going since nine.
+Marlo Nightbus: I know.
+
+NARRATION: Bibi is searching the thread from four cities away, for a photograph of a dog that somebody posted in March, and the search does not find the dog.
+
+POST: bibi · 03:19 · "wrong search. anyway. deej why do you have forty-one messages that all say the same thing"
+POST: bibi · 03:20 · [41 results — "yeah no im fine its just been a long few months" — earliest: 9 November]
+
+NARRATION: Nobody says anything for a while. On the bollard the speaker is at nineteen per cent, playing to a pavement.
+
+Half-Four Mari: Forty-one.
+DJ Last Call: It's a figure of speech.
+Half-Four Mari: It's eleven words. You haven't changed one of them since November, and November is eight months.
+DJ Last Call: It's what you say.
+Half-Four Mari: It is. It's exactly what you say.
+
+NARRATION: She does not ask him how he is. She has never once asked anybody how they are, and everyone standing on this pavement has at some point been grateful for that.
+
+DJ Last Call: Can we not do this here.
+Dez Threehours: We're not doing anything.
+DJ Last Call: You're all standing in a semicircle.
+Marlo Nightbus: We're standing on a pavement. It's a coincidence about the shape.
+
+NARRATION: What is standing in front of them is not quite Deej. It is the version of him that is fine, which has been doing all the talking since about November, and it is extremely good at this.
+
+BATTLE: The Version That Is Fine
+  PLAYS: DJ Last Call
+  DIFFICULTY: intermediate
+  IF YOU LOSE:
+    The Version That Is Fine: I'm fine, it's just been a long few months.
+    Half-Four Mari: Again.
+
+NARRATION: It is 04:00. There is a diner nine metres away with a table in it and nobody has walked towards it yet.
+
+CHOICE: Nine metres from a door nobody is walking through.
+  * Say it tonight. On a pavement, badly, now.
+      REMEMBER: said it out loud
+      REMEMBER: deej heard it + 1
+      Dez Threehours: Deej. Mate. I've paid for six of everything since 2016 because it is the only way I know how to ask.
+      DJ Last Call: ...
+      Dez Threehours: That's it. That's the whole thing. I'm not good at this either.
+      NARRATION: Nobody fills the gap. Marlo, who has been leaving since nine, does not leave.
+  * Not here. Not on a pavement.
+      REMEMBER: waited for a better time
+      Half-Four Mari: Not out here.
+      Dez Threehours: Mari —
+      Half-Four Mari: Not on a pavement at four in the morning nine metres from a table. Inside. Sitting down. With chips.
+      NARRATION: It is not avoidance and everybody standing there knows the difference. It is a room, chosen on purpose, twenty steps away.
+
+
+=== SIDE CUT: The Long Walk
+UNLOCKED BY: waited for a better time
+
+NARRATION: It is nine metres from the pavement to the door of the diner. It is the longest nine metres anybody here will walk this year.
+
+Half-Four Mari: We're going in.
+DJ Last Call: We're going in.
+Half-Four Mari: You've said that twice now and moved about a metre.
+DJ Last Call: I'm pacing myself.
+
+NARRATION: Dez and Marlo have gone ahead, which is the kindest thing either of them does all night, and neither of them would describe it that way or admit it was a decision.
+
+DJ Last Call: If we sit down it's a conversation.
+Half-Four Mari: Yeah.
+DJ Last Call: Standing up it's just late.
+Half-Four Mari: Yeah. That's the whole difference and you've spotted it, so we may as well go in.
+
+NARRATION: He gets to about six metres and stops, and reads a laminated menu in a window that he has read before and does not need.
+
+DJ Last Call: There's a thing I haven't said since about November.
+Half-Four Mari: I know.
+DJ Last Call: You don't know what it is.
+Half-Four Mari: I know there's one. That's the bit I've got and I've had it since March.
+
+BATTLE: Nine Metres
+  PLAYS: Half-Four Mari
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    DJ Last Call: One more song and then we'll go in.
+    Half-Four Mari: Again.
+
+NARRATION: Inside, two people have ordered for five, and nobody says anything about the door, and nobody is going to.
+
+
+=== EPISODE: The Diner at 4
+
+NARRATION: THE DINER — 04:00. A table. A booth that faces inward. Time that has stopped costing money by the minute.
+
+NARRATION: The booth seats six and there are five of them, and the spare seat fills up anyway.
+
+IF broke the streak:
+  NARRATION: There is a man in the booth behind them who has been there since three, alone, with a coffee he has not touched, and Mari nods at him on the way past and he nods back.
+  Half-Four Mari: Tobi. Chips are coming.
+  NARRATION: He does not answer, and he does not join them, and he does not leave. At some point somebody puts a plate on his table without discussing it.
+OTHERWISE:
+  NARRATION: The sixth seat is taken up by four phones, two coats and a badge, which is the arrangement Mari has been carrying since half eleven and is glad to put down.
+
+Sindri Quan (asleep): ...
+Dez Threehours: He's been out since the car.
+Marlo Nightbus: He's fine. He does this. He'll wake up and ask something we answered two hours ago.
+
+NARRATION: Eleven refills. Seventy-nine minutes. Not one decision is made about anything.
+
+IF said it out loud:
+  DJ Last Call: About the pavement.
+  Dez Threehours: You don't have to —
+  DJ Last Call: No, I'm — I'm going to say a thing and it's going to be badly constructed.
+  DJ Last Call: I don't know how to end a night. That's it. That's the whole diagnosis. Everybody else has a thing after this and I have got the bit where everyone's still here.
+OTHERWISE:
+  DJ Last Call: Nobody's going to say it, are they.
+  Half-Four Mari: Not tonight, no.
+  DJ Last Call: Good. That's — yeah. Good.
+  NARRATION: He looks relieved for about four seconds, and then does not look relieved, and orders more chips.
+
+NARRATION: On the table between the sugar and the ketchup, the speaker is at eleven per cent, on the lowest volume it has. There is a socket by the window. Nobody has the cable.
+
+DJ Last Call: One song. Quietly.
+Half-Four Mari: Quietly.
+
+BATTLE: DJ Last Call
+  PLAYS: DJ Last Call
+  YOU PLAY: Half-Four Mari
+  DIFFICULTY: intermediate
+  YOUR ARMOR: 10
+  THEIR ARMOR: 10
+  IF YOU LOSE:
+    DJ Last Call: Nobody's going anywhere. That's the good bit.
+    Half-Four Mari: Again.
+
+NARRATION: Nothing is solved. Everybody is better. Those two facts sit at the table together for seventy-nine minutes and neither of them gives way, and at no point does anybody name what is happening.
+
+Marlo Nightbus: I should go.
+Dez Threehours: Yeah.
+Marlo Nightbus: In a bit.
+
+
+=== EPISODE: Everyone Goes Home
+
+NARRATION: THE BUS STOP — 05:19. Outdoors, in public, with a timetable bolted to the shelter that nobody at the table gets a vote on.
+
+NARRATION: Prioress Juniper Vale is walking the other way, in daylight, because she slept.
+
+Prioress Juniper Vale: Morning.
+Half-Four Mari: Morning.
+Prioress Juniper Vale (reading the timetable): First service, six o'clock. Forty-one minutes.
+Prioress Juniper Vale: That is the only bit of tonight nobody here gets a vote on, and I mean that kindly.
+DJ Last Call: You're up early.
+Prioress Juniper Vale: I'm up on time. It's a different thing and I'm not going to be smug about it in front of five people at a bus stop.
+
+NARRATION: She is not sneering and she is not recruiting. The Order has now closed this night from both ends, politely, and neither time as a villain.
+
+IF kept the name:
+  POST: bibi · 05:24 · [a photograph, four years old — a car park, four people eating badly off a wall]
+  POST: bibi · 05:24 · "the show ended an hour ago and nobody has gone home"
+  Dez Threehours: That's the car park by the Dome.
+  Half-Four Mari: That's four years ago.
+  Dez Threehours: I can name everyone in it.
+  Marlo Nightbus: So can I. That's the bit that gets me.
+OTHERWISE:
+  POST: bibi · 05:24 · [a photograph, four years old — a car park, four people eating badly off a wall]
+  POST: bibi · 05:24 · "who is the fourth person"
+  Dez Threehours: No idea.
+  Marlo Nightbus: None at all.
+  Half-Four Mari: Somebody was, though. For a whole night, somebody was.
+
+NARRATION: The speaker is at nine per cent on the bench. The first stranger to walk past does not turn around.
+
+BATTLE: Prioress Juniper Vale
+  PLAYS: Prioress Juniper Vale
+  DIFFICULTY: intermediate
+  RULE: the crowd carries you
+  IF YOU LOSE:
+    Prioress Juniper Vale: The six o'clock does not care who won.
+    Half-Four Mari: Again.
+
+Prioress Juniper Vale: Thirty-one minutes.
+Prioress Juniper Vale: For what it is worth — and I am aware of exactly how I am dressed for saying it — this is the good part. Not the venue. This.
+
+CHOICE: The night has run out of rooms.
+  * End it here. This was the good part.
+      REMEMBER: ended the night
+      REMEMBER: deej heard it + 1
+      Half-Four Mari: We stop here.
+      DJ Last Call: There's a place on the ring road that does —
+      Half-Four Mari: I know. We stop here.
+      NARRATION: She does not explain it and nobody asks her to. Marlo, who has been leaving since nine, is the last to sit down.
+  * One more place. There is always one more place.
+      REMEMBER: one more place
+      DJ Last Call: There's a place on the ring road.
+      Dez Threehours: Is it open?
+      DJ Last Call: It's always open.
+      NARRATION: It is not always open. It is open, tonight, and four of them go, and the four who go do not regret it and the one who stays does not regret that either.
+
+
+=== EPISODE: DJ Last Call
+
+NARRATION: THE SAME BENCH — 05:41. Nineteen minutes to the six. The speaker is at four per cent.
+
+Sindri Quan (waking): Are we going to the diner?
+Dez Threehours: We went to the diner.
+Sindri Quan: Was it good?
+Half-Four Mari: It was the best bit.
+Sindri Quan: Brilliant. (asleep again)
+
+NARRATION: Deej stands up with the speaker, at four per cent, which is one more song and most of another.
+
+DJ Last Call: Four per cent. That's one more and most of another. Sit down.
+
+IF said it out loud:
+  DJ Last Call: I heard you. On the pavement. I want that on record before I do this.
+  Half-Four Mari: Do what.
+  DJ Last Call: The thing where I don't let it be over.
+OTHERWISE:
+  DJ Last Call: Nobody said anything all night and I want you to know I clocked it.
+  Half-Four Mari: We know you clocked it.
+  DJ Last Call: Right. Good. I'm going to do the thing anyway.
+
+NARRATION: He is not a stranger and this is not a reveal. He has been here since the venue and everybody has watched him do this before, and the reason is different tonight and everybody has worked out what it is.
+
+DJ Last Call: If it ends, you all go to four different cities.
+DJ Last Call: That's not a complaint. That's just what the ending is. It isn't a bus, it's four cities, and I'm the only one who has to be here for the bit where it happens.
+Half-Four Mari: You're not.
+DJ Last Call: I'm holding the speaker.
+Half-Four Mari: You're holding the speaker.
+
+BATTLE: DJ Last Call
+  PLAYS: boss-dj-last-call
+  DIFFICULTY: boss
+  IF YOU LOSE:
+    DJ Last Call: One more.
+    Half-Four Mari: Again.
+
+NARRATION: He does not lose. He runs out of battery. The speaker hits zero somewhere in the second chorus and he finishes the song anyway, out loud, at a bus stop, to four people and a stranger on the top deck.
+
+IF said it out loud:
+  Dez Threehours: That was terrible.
+  DJ Last Call: It was.
+  Dez Threehours: Send it over whenever.
+  NARRATION: Something about the way he says it is different, and nobody comments on that either, and it is the last time this year anybody will have to.
+OTHERWISE:
+  Dez Threehours: That was terrible.
+  DJ Last Call: It was.
+  NARRATION: Dez does not say the thing. He will say it in about three weeks, on a phone, badly, and it will land the same because it always does.
+
+IF ended the night:
+  NARRATION: The six comes at six. Three of them get on it and two of them walk, and the walking is not a statement about anything, it is that the walk is nice at six.
+  Marlo Nightbus: Right. I'm going.
+  Half-Four Mari: You are, actually.
+  Marlo Nightbus: I am, actually.
+OTHERWISE:
+  NARRATION: The place on the ring road turns out to be open, and does the worst coffee any of them has ever been served, and none of the four who went would give it back.
+  DJ Last Call: Told you it was open.
+  Half-Four Mari: You did not know it was open.
+  DJ Last Call: I did not know it was open.
+
+IF deej heard it is at least 2:
+  NARRATION: At the door of the bus he holds the speaker out to Mari, flat, at zero per cent, in the way you hand somebody a thing you do not want to be carrying any more.
+  DJ Last Call: Hold this for me.
+  Half-Four Mari: For how long?
+  DJ Last Call: Dunno. A bit.
+  NARRATION: She has been holding everyone's things since half eleven and this is the first one she was asked for.
+
+POST: five people at a bus stop, taken from the top deck of the six o'clock by somebody who was not with them. Caption: "not sure what happened here but he is still going". 41 likes. Recovered from GLIMMR — platform offline.
+
+Half-Four Mari: Save that one.
+DJ Last Call: Already did.

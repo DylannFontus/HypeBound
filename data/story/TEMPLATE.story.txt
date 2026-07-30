@@ -1,0 +1,86 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  A CHAPTER TEMPLATE. COPY THIS FILE TO START A NEW ONE.
+#
+#  1. Copy this file and give it a new name, ending in .story.txt
+#     (for example: 02-the-server-is-closing.story.txt)
+#  2. Delete these notes and write your own story.
+#  3. Save. That's it — the game finds it on its own.
+#
+#  Files are listed in the game in file-name order, so numbering them at the
+#  front (01-, 02-, 03-) is how you decide what comes first.
+#
+#  Any line starting with # is a note to yourself. The game never shows it.
+#  Blank lines are free — use as many as you like.
+#
+#  Full instructions: HOW-TO-WRITE-A-CHAPTER.md, in this same folder.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+# ── The chapter's details. These three lines go at the very top. ─────────────
+
+TITLE: The Name Of Your Chapter
+FACTION: Neon Idols
+ABOUT: One or two sentences describing the chapter. This is what the player reads on the chapter list before they start.
+
+
+# ── Episode one. A chapter can have as many episodes as you like. ────────────
+
+=== EPISODE: The Name Of Your First Episode
+
+# Narration is anything the reader sees that nobody says out loud.
+NARRATION: A room, somewhere, at an unreasonable hour.
+
+# A character speaks by putting their name before a colon. That's the whole
+# rule — you never have to introduce a character or list them anywhere.
+Lumi Starcall: This is how somebody says something.
+Rin Halfstep: And this is somebody else answering.
+
+# Brackets after the name set their expression. Any word works.
+Lumi Starcall (smiling): You can put a mood in brackets.
+Rin Halfstep (nervous): Any word at all. It shows next to their name.
+
+# POST puts something on screen as a social-media post instead of speech.
+POST: 4,180 people are watching this. Comments are disabled.
+
+
+# ── A choice. Everything under an option only happens if it's picked. ────────
+
+CHOICE: What do you want to ask the player?
+  * The first thing they can pick.
+      REMEMBER: they were kind
+      Lumi Starcall: This line only plays if they picked the first one.
+  * The second thing they can pick.
+      Lumi Starcall: And this one only plays if they picked the second.
+
+# Back out at this indentation, so this plays whichever they picked.
+Rin Halfstep: Anyway.
+
+
+# ── Reacting to a choice, here or in a much later episode. ───────────────────
+
+IF they were kind:
+  Lumi Starcall: You remembered.
+OTHERWISE:
+  Lumi Starcall: You didn't, and that's fine too.
+
+
+# ── A battle. Only the first line is required. ───────────────────────────────
+
+BATTLE: The Name Of Whoever They Fight
+  PLAYS: Cyra Swipe
+  DIFFICULTY: casual
+  IF YOU LOSE:
+    Lumi Starcall: These lines play after a loss, then the battle is offered again.
+
+Lumi Starcall: And this plays once they've won.
+
+
+# ── A second episode. Copy this heading as many times as you need. ───────────
+
+=== EPISODE: The Name Of Your Second Episode
+
+NARRATION: Later.
+Lumi Starcall: What the chapter remembers carries from one episode to the next.
+
+IF they were kind:
+  Rin Halfstep: Still true, three episodes later.

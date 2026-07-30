@@ -1,0 +1,77 @@
+{
+  "_readme": [
+    "HEADLINER BANNERS. 07-economy-and-monetization.md §3.2 and §4.",
+    "",
+    "A banner is a three-week featured run built around one featured Legendary, two",
+    "featured Epics and four spotlighted Rares. It concentrates odds and adds pity and",
+    "targeting. It NEVER GATES: §3.2 is explicit that every card on a banner enters the",
+    "general Drop pool and the crafting catalogue on its release day, so there is no",
+    "such thing as a banner-exclusive card. That is why the pool below is the whole",
+    "collection and the featured list is only a rate-up.",
+    "",
+    "WHY THE POOL IS NOT LISTED. Listing a banner's pool would be listing the entire",
+    "card set, and every card added afterwards would silently miss it. The pool is",
+    "derived from the content index; a banner authors only what it FEATURES.",
+    "",
+    "RERUNS ARE PUBLISHED, NOT PROMISED. §4 requires 'a published rerun calendar on the",
+    "banner page' and at least two reruns within 12 months of debut. Each banner",
+    "therefore carries its run windows as data, all of them, from the start - a rerun",
+    "you can read the date of is the difference between a schedule and a rumour.",
+    "checkBannerData() refuses a banner with fewer than three runs, and refuses runs",
+    "that overlap each other.",
+    "",
+    "FIRST-TIME REWARDS. §4.1: the first ×1 pull on each banner is free, and the first",
+    "×10 grants that banner's themed card back, once. Both are per banner and persist",
+    "across its reruns - a rerun is the same banner, not a new one to be paid for again."
+  ],
+
+  "banners": [
+    {
+      "_note": [
+        "Debut banner. The featured Legendary is Neon Idols' Prime Diva; the two",
+        "featured Epics and four spotlighted Rares are all from the same faction, which",
+        "is what makes a banner legible as a theme rather than as a list."
+      ],
+      "id": "encore-that-never-ends",
+      "name": "The Encore That Never Ends",
+      "blurb": "Aurora has not left the stage since the first upload. Nobody has told her she can.",
+      "factionId": "neon-idols",
+      "featuredLegendary": "idols-prime-diva-aurora",
+      "featuredEpics": ["idols-center-position", "idols-holo-concert"],
+      "spotlightedRares": [
+        "idols-hype-choreographer",
+        "idols-voltage-idol",
+        "idols-encore-diva",
+        "idols-power-ballad"
+      ],
+      "runs": [
+        { "startAt": "2026-07-06T00:00:00.000Z", "weeks": 3 },
+        { "startAt": "2026-11-02T00:00:00.000Z", "weeks": 3 },
+        { "startAt": "2027-03-01T00:00:00.000Z", "weeks": 3 }
+      ]
+    },
+    {
+      "_note": [
+        "The second banner runs immediately after the first, so the banner page always",
+        "has something live during Season 1 and the two never overlap."
+      ],
+      "id": "second-funeral",
+      "name": "The Second Funeral",
+      "blurb": "Gothic Royalty buried the fandom twice. The second one had better catering.",
+      "factionId": "gothic-royalty",
+      "featuredLegendary": "goth-vespertine-final-requiem",
+      "featuredEpics": ["goth-duchess-of-dead-threads", "goth-court-of-second-funerals"],
+      "spotlightedRares": [
+        "goth-widows-bargain",
+        "goth-twenty-year-grudge",
+        "goth-thornhedge-sentinel",
+        "goth-portrait-that-watches"
+      ],
+      "runs": [
+        { "startAt": "2026-07-27T00:00:00.000Z", "weeks": 3 },
+        { "startAt": "2026-11-23T00:00:00.000Z", "weeks": 3 },
+        { "startAt": "2027-03-22T00:00:00.000Z", "weeks": 3 }
+      ]
+    }
+  ]
+}

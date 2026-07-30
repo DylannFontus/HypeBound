@@ -1,0 +1,130 @@
+{
+  "_readme": [
+    "The local news feed — 03-screens-and-navigation.md §4.2.2.",
+    "",
+    "Offline, the feed is this file. Two rules make an article checkable rather than",
+    "merely written:",
+    "",
+    "1. NUMBERS ARE TOKENS, NEVER TYPED. `{banner.legendaryRate}` resolves from the",
+    "   same balance data the roller uses. A number typed in here would be a number",
+    "   that stops being true the day somebody re-balances, and nobody would notice",
+    "   — which is exactly what policy F1 exists to prevent. `checkNewsData` fails on",
+    "   any token it cannot resolve, and on any brace left in the text.",
+    "",
+    "2. AN ARTICLE THAT LINKS SOMEWHERE MUST LINK SOMEWHERE THAT EXISTS. `link.screen`",
+    "   is checked against the routes the news screen can actually open.",
+    "",
+    "`subject` binds an article to one season or banner by id, so {subject.name} and",
+    "{subject.ends} mean a fixed thing forever rather than 'whatever is running now'.",
+    "",
+    "Dates are ISO 8601. `publishedAt` is what the list sorts and filters by, and what",
+    "the inbox reads when it posts an announcement."
+  ],
+
+  "categories": [
+    { "id": "event", "name": "Event", "blurb": "Seasons, banners and anything with a date on it." },
+    { "id": "update", "name": "Update", "blurb": "What changed in the game itself." },
+    { "id": "dev-blog", "name": "Dev Blog", "blurb": "Why something works the way it does." }
+  ],
+
+  "articles": [
+    {
+      "id": "second-funeral-live",
+      "category": "event",
+      "title": "The Second Funeral is live",
+      "publishedAt": "2026-07-27T00:00:00.000Z",
+      "subject": { "kind": "banner", "id": "second-funeral" },
+      "summary": "Gothic Royalty take the banner for three weeks. Same published odds as every banner before it, and the return dates are already on the calendar.",
+      "body": [
+        "{subject.name} runs until {subject.ends}. It features one Legendary, two Epics and four spotlighted Rares, and the odds are the same ones every banner in this game has ever used: {banner.legendaryRate} Legendary, {banner.epicRate} Epic, {banner.rareRate} Rare, {banner.commonRate} Common.",
+        "Those odds are fixed for the life of the banner. They cannot be adjusted per player, they do not react to how much you have pulled, and the only state-dependent parts of the roll are the two published guarantees: an Epic or better inside every {banner.epicWindow} pulls, and your Target Card outright on pull {banner.hardPity}.",
+        "Nothing here is exclusive. Every card on the banner is in Merch Drops and craftable with Signal from the same day — a banner concentrates odds and adds targeting, and that is all it does.",
+        "It reruns twice, and both dates were published before it opened."
+      ],
+      "link": { "screen": "banner", "label": "Open the banner" }
+    },
+    {
+      "id": "encore-that-never-ends",
+      "category": "event",
+      "title": "The Encore That Never Ends has finished its first run",
+      "publishedAt": "2026-07-26T00:00:00.000Z",
+      "subject": { "kind": "banner", "id": "encore-that-never-ends" },
+      "summary": "Neon Idols close their debut run. It returns twice, and everything you built up on it carries over.",
+      "body": [
+        "{subject.name} ran from {subject.starts} to {subject.ends}, and it will be back — the rerun calendar was published on the day it opened, which is the whole point of publishing one.",
+        "Your Encore Meter, your wishlist, your Target Card and your pull history all persist across a rerun, because a rerun is the same banner rather than a new one. Fifty pulls spread across three runs reach the guarantee exactly as fifty pulls in one run would.",
+        "Backstage Tokens do not expire either. Every pull grants {banner.tokensPerPull}, and the shop that spends them is always open."
+      ],
+      "link": { "screen": "banner", "label": "See the rerun calendar" }
+    },
+    {
+      "id": "season-one-first-upload",
+      "category": "event",
+      "title": "Season 1: First Upload",
+      "publishedAt": "2026-07-06T00:00:00.000Z",
+      "subject": { "kind": "season", "id": "s1-first-upload" },
+      "summary": "The Hype Wave's first season. Fifty tiers, an Encore that keeps paying, and an Archive Pass that never expires.",
+      "body": [
+        "{subject.name} runs until {subject.ends}. The pass is {pass.tiers} tiers on a free track, with a Backstage Pass laying a second reward on every one of them, and the Encore tiers past {pass.tiers} keep paying {pass.encoreClout} Clout each for as long as you keep going.",
+        "It is fed by the same XP your account level is. There is no pass-only currency to grind and no daily cap on how much of it you can earn in one sitting.",
+        "If the season ends with your pass unfinished, it becomes an Archive Pass: it keeps earning {pass.archiveRate} of every XP you make, for as long as it takes, and the Backstage Pass can still be bought on it and claimed back through every tier you already passed. Nothing about a season ending takes anything away from you.",
+        "Falling behind is handled by Wave Rebound rather than by pressure. Below the pace line, XP is worth more; above it, it is not. The pass will tell you which one you are on and will never put a countdown on it."
+      ],
+      "link": { "screen": "pass", "label": "Open the Hype Wave" }
+    },
+    {
+      "id": "eight-currents",
+      "category": "update",
+      "title": "The Eight Currents, and the nine Confluences",
+      "publishedAt": "2026-07-06T00:00:00.000Z",
+      "summary": "Every card belongs to a Current. Pure decks unlock Perfect Resonance; dual decks trade it for Confluence combos.",
+      "body": [
+        "There are {currents} Currents and {confluences} Confluences across {factions} factions and {cards.collectible} collectible cards, and the choice they force is the spine of deckbuilding: a deck that commits to one Current unlocks Perfect Resonance, and a deck that runs two gives that up in exchange for the Confluence the pair produces.",
+        "The advantage cycle is a closed loop — every Current beats one and loses to another, and no Current is left out of it. That is checked on every build rather than asserted here.",
+        "Each Current also carries a rim profile on its cards that is readable with the colour ignored, so the signal survives colourblindness and a bad monitor both."
+      ],
+      "link": { "screen": "collection", "label": "Open the collection" }
+    },
+    {
+      "id": "no-streaks",
+      "category": "dev-blog",
+      "title": "There is no streak, and there is never going to be one",
+      "publishedAt": "2026-07-01T00:00:00.000Z",
+      "summary": "Why the Stream Check-In has no consecutive-day requirement, and why missions bank instead of expiring.",
+      "body": [
+        "The Stream Check-In is {checkIn.steps} steps a month and you claim one on each calendar day you open the game. Log in on six scattered days and you have claimed six steps. There is no counter to break, nothing resets if you skip a fortnight, and the last step pays the same card back in either case.",
+        "Missions work the same way: dailies bank for three days rather than expiring overnight, and the Weekly Restock banks for four weeks. Nothing in this game is designed so that leaving costs you something.",
+        "This is a rule rather than a preference. A reward with a banking window of zero fails validation, which means the version of this game where a streak quietly appears does not build.",
+        "The Rookie Road is the one deliberate exception in the other direction: for your first {missions.rookieDays} days, dailies pay double. Catching up is subsidised; keeping up never has to be."
+      ],
+      "link": { "screen": "missions", "label": "Open Missions" }
+    },
+    {
+      "id": "how-the-odds-are-kept-honest",
+      "category": "dev-blog",
+      "title": "How the odds are kept honest",
+      "publishedAt": "2026-07-01T00:00:00.000Z",
+      "summary": "Published rates, no dynamic luck, and a patch-notes page that the build refuses to let drift.",
+      "body": [
+        "Every random grant in this game prints its exact odds next to the button that rolls it, to the same precision used internally — a Merch Drop costs {drop.price} Clout for {drop.size} cards at a {drop.legendaryRate} Legendary rate with a guaranteed Legendary every {drop.pity} Drops, and the banner prints its own table the same way.",
+        "The disclosure and the roller read the same numbers out of the same file. They are not two copies that could disagree; there is only one.",
+        "Odds are also fixed for a product's lifetime. There is no per-player tuning, no engagement-reactive luck, and no quiet adjustment between releases — the only things that move a roll are the published pity rules.",
+        "That last promise needed enforcing rather than stating. The patch notes carry a snapshot of the economy for the version they describe, and the build fails if the newest snapshot and the shipped numbers disagree. Changing an odd without publishing the change is not something a careless afternoon can do."
+      ],
+      "link": { "screen": "patchnotes", "label": "Read the patch notes" }
+    },
+    {
+      "id": "the-doomscroll",
+      "category": "update",
+      "title": "The Doomscroll runs four acts",
+      "publishedAt": "2026-06-24T00:00:00.000Z",
+      "summary": "A roguelike run with a branching map, a temporary deck, and an optional true finale you have to route towards.",
+      "body": [
+        "Pick one of two run leaders, take a fifteen-card temporary deck and thirty health that carries between fights, and descend a branching seven-floor map per act to a faction boss.",
+        "Act four is optional and entered only by holding three Signal Fragments, one from each earlier act's first Elite. The cost is paid on the map rather than in a currency: you walk into the harder fight or you route around it, and finishing without the fragments still wins the run.",
+        "Nothing in a run touches your collection. It is its own deck, its own economy and its own difficulty curve, and losing it costs nothing but the time you spent."
+      ],
+      "link": { "screen": "doomscroll", "label": "Start a run" }
+    }
+  ]
+}

@@ -1,0 +1,274 @@
+{
+  "_readme": [
+    "COSMETICS. The reward layer the progression tracks were queuing behind.",
+    "",
+    "WHAT IS AUTHORED HERE vs WHAT IS DERIVED. Only the parts that are a joke or a",
+    "named thing in the design live in this file: the ten faction titles (08 §13 names",
+    "them exactly), the emblem each faction's card back is drawn with, and the emote",
+    "phrases. Everything visual is DERIVED from content the game already has - a card",
+    "back is the faction's colour plus its emblem, a profile frame is its crest ring, a",
+    "portrait badge is the character's own art. That is the same bargain the card",
+    "renderer already makes, and it means adding a faction gets cosmetics for free.",
+    "",
+    "PER-ENTITY COSMETICS ARE NOT LISTED, THEY ARE GENERATED. There are twenty leaders",
+    "and several hundred characters, and 08 §13 asks for a title per leader ('Voice of",
+    "<Leader>') and per character ('<Character>'s #1 Fan'). Cataloguing those by hand",
+    "would be several hundred lines that say the same thing, and every one of them a",
+    "chance to name a card that does not exist. cosmetics.ts generates them from the",
+    "content index instead, so they cannot drift out of sync with the cards.",
+    "",
+    "IDS ARE 'kind:scope:entity[:n]'. The kind is a slot you equip into; the entity is",
+    "what it was earned from. tests/cosmetics.test.ts checks every id a reward can",
+    "grant resolves to a real cosmetic, in both directions."
+  ],
+  "titles": {
+    "_note": [
+      "08 §13's table, verbatim. One per faction, earned at Faction Mastery rank 20.",
+      "Titles are text-only and purely cosmetic, which is why they are the one",
+      "cosmetic kind that needs no art pipeline at all."
+    ],
+    "neon-idols": "Center Stage",
+    "gothic-royalty": "Eternal Mourner",
+    "viral-influencers": "Certified Trendsetter",
+    "corporate-creators": "Chief Hype Officer",
+    "digital-demons": "Cursed Hardware",
+    "cosplay-champions": "Best in Show",
+    "afterparty-crew": "Sees the Sunrise",
+    "touch-grass-order": "Actually Went Outside",
+    "algorithm-syndicate": "The Recommendation",
+    "meme-collective": "Living Meme"
+  },
+  "emblems": {
+    "_note": [
+      "The shape drawn on a faction's card back and inside its profile frame. The",
+      "renderer knows these ten names; adding an eleventh needs a case in",
+      "drawEmblem(), which the test enforces so a typo cannot ship a blank back."
+    ],
+    "neon-idols": "starburst",
+    "gothic-royalty": "rose",
+    "viral-influencers": "spiral",
+    "corporate-creators": "grid",
+    "digital-demons": "sigil",
+    "cosplay-champions": "visor",
+    "afterparty-crew": "glass",
+    "touch-grass-order": "leaf",
+    "algorithm-syndicate": "eye",
+    "meme-collective": "stamp"
+  },
+  "awards": {
+    "_note": [
+      "Cosmetics that belong to no faction, leader or character - the ones handed out",
+      "by achievements (08 §9) and by achievement-point milestones. Everything else in",
+      "this file is derived from an entity that supplies its own colour and emblem;",
+      "these have nobody to inherit from, so they carry their own.",
+      "",
+      "The five titles here are 08 §13's, verbatim, and §13 is where each one's source",
+      "is written down. 'kind' has to match the slot the id names, which cosmetics.ts",
+      "enforces - otherwise 'frame:award:stormfront' would resolve to a title and be",
+      "worn in the frame slot, drawing nothing."
+    ],
+    "chronically-online": {
+      "kind": "title",
+      "name": "Chronically Online",
+      "source": "Achievement — 500 matches played",
+      "color": "#8fd6ff"
+    },
+    "certified-grass-toucher": {
+      "kind": "title",
+      "name": "Certified Grass Toucher",
+      "source": "Achievement — Log Off Speedrun",
+      "color": "#7fd67f"
+    },
+    "stormfront": {
+      "kind": "title",
+      "name": "Stormfront",
+      "source": "Achievement — all 9 Confluences",
+      "color": "#b8a6ff"
+    },
+    "multifandom-menace": {
+      "kind": "title",
+      "name": "Multifandom Menace",
+      "source": "Achievement — win with all 10 factions",
+      "color": "#ff9ad2"
+    },
+    "terminally-levelled": {
+      "kind": "title",
+      "name": "Terminally Levelled",
+      "source": "Achievement — account level 60",
+      "color": "#ffd27f"
+    },
+    "hoard": {
+      "kind": "frame",
+      "name": "The Hoard",
+      "source": "Achievement — own 300 distinct cards",
+      "color": "#ffc46b",
+      "emblem": "hoard"
+    },
+    "trophy-shelf": {
+      "kind": "frame",
+      "name": "Trophy Shelf",
+      "source": "250 achievement points",
+      "color": "#c9b46b",
+      "emblem": "laurel"
+    },
+    "full-wall": {
+      "kind": "frame",
+      "name": "Full Wall",
+      "source": "500 achievement points",
+      "color": "#ffe9a8",
+      "emblem": "trophy"
+    },
+    "closet-cosplayer": {
+      "kind": "badge",
+      "name": "Closet Cosplayer",
+      "source": "Achievement — own 20 cosmetics",
+      "color": "#ff8fb0"
+    },
+    "fresh-poster": {
+      "kind": "title",
+      "name": "Fresh Poster",
+      "source": "First Stream — finish the tutorial",
+      "color": "#7fd8ff"
+    },
+    "day-one": {
+      "kind": "cardBack",
+      "name": "Day One",
+      "source": "First Stream — finish the tutorial",
+      "color": "#ff9f5c",
+      "emblem": "sunrise"
+    },
+    "perfect-run": {
+      "kind": "title",
+      "name": "Perfect Run",
+      "source": "The Gauntlet — a 12-win run",
+      "color": "#ffcf6b"
+    },
+    "gauntlet": {
+      "kind": "cardBack",
+      "name": "Gauntlet Card Back",
+      "source": "The Gauntlet — five card-back tokens, or one 12-win run",
+      "color": "#e0b45c",
+      "emblem": "bracket"
+    }
+  },
+  "seasons": {
+    "_note": [
+      "One block per Hype Wave season (08 §10). A season's cosmetics are a colour, an",
+      "emblem, a title and three emote phrases - everything else about them is derived,",
+      "which is why adding a season is data rather than art. The card back also comes in",
+      "tints: same emblem, different colour, which is what 08 §10.3 means by 'card-back",
+      "tints' among the Backstage track's minor cosmetics.",
+      "",
+      "Seasonal cosmetics are NOT permanently exclusive - 08 §10.3's Rerun Vault returns",
+      "them to the shop two seasons later. Nothing here is missable, which is why none of",
+      "it is announced with a countdown."
+    ],
+    "s1-first-upload": {
+      "name": "First Upload",
+      "title": "First Uploader",
+      "color": "#6fd3ff",
+      "emblem": "signal",
+      "tints": ["#6fd3ff", "#a98bff", "#ff8fc4", "#7fe0b0", "#ffd48a"],
+      "emote": {
+        "first": "First!",
+        "set": ["Subscribed.", "This is my first upload, be nice.", "Sorry for the audio."]
+      }
+    },
+    "s2-second-account": {
+      "name": "Second Account",
+      "title": "Alt Account Enjoyer",
+      "color": "#c48bff",
+      "emblem": "mask",
+      "tints": ["#c48bff", "#7fb8ff", "#ff9c7f", "#8fe6c4", "#e8d17f"],
+      "emote": {
+        "first": "This is not my main.",
+        "set": ["Nobody knows it's me.", "My main would never.", "Different vibe over here."]
+      }
+    }
+  },
+  "banners": {
+    "_note": [
+      "The themed card back a Headliner Banner grants on your first ×10 pull (07 §4.1).",
+      "One per banner, and kept across the banner's reruns - a rerun is the same banner,",
+      "so it does not hand out a second copy of the same back."
+    ],
+    "encore-that-never-ends": { "name": "The Encore That Never Ends", "color": "#ff6fb5", "emblem": "starburst" },
+    "second-funeral": { "name": "The Second Funeral", "color": "#8f6fd9", "emblem": "rose" }
+  },
+  "checkIn": {
+    "_note": [
+      "08 §11's step-10 reward: a monthly rotating cosmetic. One card back per month,",
+      "chosen by the calendar month rather than by a streak - the whole point of §11 is",
+      "that there are no streaks, so which one you get depends on WHEN, never on HOW",
+      "OFTEN. Emblems are reused from the faction set on purpose: these are minor",
+      "cosmetics, and inventing twelve more shapes for them would be twelve shapes.",
+      "",
+      "Twelve entries covers a year. Year two repeats, and until more are authored a",
+      "player who already owns that month's back gets nothing new from step 10 - which",
+      "checkCheckInData() reports rather than hides. That is a content problem, not a",
+      "code one, and the honest fix is more months."
+    ],
+    "rotation": [
+      { "id": "january-resolution", "name": "New Year, Same Feed", "color": "#8fd6ff", "emblem": "signal" },
+      { "id": "february-parasocial", "name": "Parasocial February", "color": "#ff8fb0", "emblem": "rose" },
+      { "id": "march-touch-grass", "name": "Allegedly Outside", "color": "#7fd67f", "emblem": "leaf" },
+      { "id": "april-fool", "name": "Committed to the Bit", "color": "#ffd27f", "emblem": "stamp" },
+      { "id": "may-algorithm", "name": "Served To You", "color": "#a98bff", "emblem": "eye" },
+      { "id": "june-encore", "name": "One More Song", "color": "#ff9ad2", "emblem": "starburst" },
+      { "id": "july-rerun", "name": "Rerun Season", "color": "#9fe8ff", "emblem": "spiral" },
+      { "id": "august-hiatus", "name": "On Hiatus", "color": "#c9b46b", "emblem": "glass" },
+      { "id": "september-relaunch", "name": "Rebrand Incoming", "color": "#7fb8ff", "emblem": "grid" },
+      { "id": "october-cursed", "name": "Cursed Hardware", "color": "#b56cff", "emblem": "sigil" },
+      { "id": "november-backlog", "name": "The Backlog", "color": "#ffc46b", "emblem": "hoard" },
+      { "id": "december-wrapped", "name": "Wrapped, Unfortunately", "color": "#8fe6c4", "emblem": "visor" }
+    ]
+  },
+  "emotes": {
+    "_note": [
+      "Faction emote I lands at Faction Mastery rank 12, set II at rank 15, and a",
+      "leader emote at Leader Mastery 3. They join the six the battle HUD already",
+      "ships, which stay unlocked from the start - a game that starts you with no way",
+      "to say 'well played' is worse than one with no unlockables."
+    ],
+    "faction": {
+      "neon-idols": { "first": "Please look forward to it.", "set": ["That was the choreography.", "Encore. I insist."] },
+      "gothic-royalty": {
+        "first": "How lovely of you to attend.",
+        "set": ["We shall remember this.", "It ended years ago. Do keep up."]
+      },
+      "viral-influencers": { "first": "Clipping that.", "set": ["No thoughts. Just wins.", "Day one of being honest."] },
+      "corporate-creators": { "first": "Let's circle back.", "set": ["Great energy, genuinely.", "I'll take that offline."] },
+      "digital-demons": { "first": "You agreed to this.", "set": ["See clause fourteen.", "OK"] },
+      "cosplay-champions": { "first": "I made this.", "set": ["Hot glue holds.", "The seam's on the inside."] },
+      "afterparty-crew": { "first": "One more.", "set": ["We should do this every year.", "It's not that late."] },
+      "touch-grass-order": { "first": "Have you eaten?", "set": ["There's no hurry.", "It's a nice evening."] },
+      "algorithm-syndicate": {
+        "first": "We've taken the liberty.",
+        "set": ["Because you watched.", "Autoplay in 5."]
+      },
+      "meme-collective": { "first": "Motion to table.", "set": ["Carried unanimously.", "There is no leader."] }
+    },
+    "leader": {
+      "idols-lumi-starcall": "Fifteen minutes to stage.",
+      "idols-dj-kilowatt": "Levels are good.",
+      "goth-leader-morvina-vane": "You may be seated.",
+      "goth-leader-alaric-thornheart": "Chapter two is coming along.",
+      "viral-leader-blayze-trendall": "Camera's steady.",
+      "viral-leader-cyra-swipe": "The wave's cresting.",
+      "corp-leader-cressida-vale": "I read your exit interview.",
+      "corp-leader-sterling-bright": "Broadly, yes.",
+      "demon-leader-ashvyre-dropped-frames": "Eleven frames. Yours.",
+      "demon-leader-blue-screen-baron": "It's recoverable.",
+      "cosplay-vera-foamhammer": "Mind the seam.",
+      "cosplay-kiko-thousand-faces": "Never twice.",
+      "after-leader-dj-last-call": "One more song.",
+      "after-leader-half-four-mari": "I've got you.",
+      "grass-leader-juniper-vale": "The long way round.",
+      "grass-leader-rhett-halloran": "Second half.",
+      "algo-leader-don-sortino": "You wanted the next one.",
+      "algo-leader-cassia-cache": "I keep everything.",
+      "meme-leader-chairperson-nobody": "I am not the leader.",
+      "meme-leader-skree-nine-tabs": "All nine are essential."
+    }
+  }
+}

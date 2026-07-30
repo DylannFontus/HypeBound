@@ -1,0 +1,504 @@
+[
+  {
+    "id": "idols-lumi-starcall",
+    "name": "Lumi Starcall",
+    "title": "Prime Voice of the Neon Stage",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "halo",
+    "secondaryCurrent": "pulse",
+    "tags": ["idol", "performer"],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "aura",
+        "ops": [
+          { "op": "aura", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "tag": ["idol"] } }, "health": 1 }
+        ],
+        "text": "Your Idols have +0/+1."
+      }
+    ],
+    "fixation": {
+      "name": "Center Spotlight",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [
+        { "op": "buff", "target": { "select": "triggering" }, "attack": 1, "health": 1 },
+        { "op": "applyStatus", "target": { "select": "triggering" }, "status": "shielded" }
+      ],
+      "text": "Give a friendly character +1/+1 and Shielded."
+    },
+    "ultimate": {
+      "name": "Final Encore",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board" }, "attack": 2, "health": 2 },
+        { "op": "draw", "count": 1 }
+      ],
+      "text": "Give your characters +2/+2. Draw a card."
+    },
+    "effects": [],
+    "text": "Your Idols have +0/+1.",
+    "flavor": "She has never once missed a cue. Ask her about it. She will tell you."
+  },
+  {
+    "id": "idols-dj-kilowatt",
+    "name": "DJ Kilowatt",
+    "title": "Architect of the Drop",
+    "faction": "neon-idols",
+    "current": "pulse",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "pulse",
+    "secondaryCurrent": "halo",
+    "tags": ["performer", "tech"],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "afterparty",
+        "condition": { "kind": "cardsPlayedThisTurnAtLeast", "value": 3 },
+        "ops": [
+          { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 2 }
+        ],
+        "text": "Afterparty: if you played 3 or more cards this turn, deal 2 damage to the enemy leader."
+      }
+    ],
+    "fixation": {
+      "name": "Drop the Bass",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "any", "zone": "board" },
+      "ops": [
+        { "op": "damage", "target": { "select": "triggering" }, "amount": 2 },
+        { "op": "applyStatus", "target": { "select": "triggering" }, "status": "scorched" }
+      ],
+      "text": "Deal 2 damage to a character and apply **Scorched** to it."
+    },
+    "ultimate": {
+      "name": "Blackout Finale",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "damage", "target": { "select": "all", "side": "enemy", "zone": "board" }, "amount": 3 },
+        { "op": "lockHype", "amount": 2 }
+      ],
+      "text": "Deal 3 damage to all enemy characters. Overload (2)."
+    },
+    "effects": [],
+    "text": "Afterparty: if you played 3 or more cards this turn, deal 2 damage to the enemy leader.",
+    "flavor": "The crowd does not know the song. The crowd will know the song."
+  },
+
+  {
+    "id": "idols-stan-account",
+    "name": "Stan Account",
+    "faction": "neon-idols",
+    "current": "pulse",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": ["fan"],
+    "keywords": ["viral"],
+    "effects": [],
+    "text": "**Viral.** *(When you play this, add a copy to your hand that costs (1) less.)*",
+    "flavor": "Bio: 24. She/her. Lumi protection squad. Do not perceive me."
+  },
+  {
+    "id": "idols-backup-dancer",
+    "name": "Backup Dancer",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": ["idol", "performer"],
+    "keywords": ["collab"],
+    "collab": { "kind": "tag", "value": "idol" },
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "tag": ["idol"], "excludeSelf": true } }, "min": 1 },
+        "ops": [{ "op": "buff", "target": { "select": "self" }, "attack": 1, "health": 1 }],
+        "text": "**Collab (Idol):** this gains +1/+1."
+      }
+    ],
+    "text": "**Collab (Idol):** this gains +1/+1.",
+    "flavor": "Every formation needs someone who counts the beats out loud."
+  },
+  {
+    "id": "idols-stage-tech",
+    "name": "Stage Tech",
+    "faction": "neon-idols",
+    "current": "pulse",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 3,
+    "tags": ["tech"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "tag": ["idol"] } }, "min": 1 },
+        "ops": [{ "op": "draw", "count": 1 }],
+        "text": "On play: if you control an Idol, draw a card."
+      }
+    ],
+    "text": "On play: if you control an Idol, draw a card.",
+    "flavor": "Runs the lights, the fog, the pyro, and four people's emotional lives."
+  },
+  {
+    "id": "idols-hype-choreographer",
+    "name": "Hype Choreographer",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 2,
+    "attack": 2,
+    "health": 2,
+    "tags": ["idol", "performer"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board", "filter": { "excludeSelf": true }, "optional": true },
+        "ops": [{ "op": "buff", "target": { "select": "triggering" }, "attack": 1, "health": 1 }],
+        "text": "On play: give another friendly character +1/+1."
+      }
+    ],
+    "text": "On play: give another friendly character +1/+1.",
+    "flavor": "\"Again. From the top. You were beautiful and it was wrong.\""
+  },
+  {
+    "id": "idols-voltage-idol",
+    "name": "Voltage Idol",
+    "faction": "neon-idols",
+    "current": "pulse",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 3,
+    "health": 3,
+    "tags": ["idol", "performer"],
+    "keywords": ["overload"],
+    "overload": 1,
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "enemy", "zone": "board", "optional": true },
+        "ops": [{ "op": "damage", "target": { "select": "triggering" }, "amount": 2 }],
+        "text": "On play: deal 2 damage to an enemy character."
+      }
+    ],
+    "text": "On play: deal 2 damage to an enemy character. **Overload (1).**",
+    "flavor": "Her in-ear monitors have a surge protector. It has never once been enough."
+  },
+  {
+    "id": "idols-encore-diva",
+    "name": "Encore Diva",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 3,
+    "health": 4,
+    "tags": ["idol", "performer"],
+    "keywords": ["spotlight", "inspire"],
+    "effects": [
+      {
+        "trigger": "inspire",
+        "ops": [{ "op": "buff", "target": { "select": "self" }, "attack": 1 }],
+        "text": "**Inspire:** this gains +1/+0."
+      }
+    ],
+    "text": "**Spotlight.** **Inspire:** this gains +1/+0.",
+    "flavor": "The show ends when SHE says it ends."
+  },
+  {
+    "id": "idols-center-position",
+    "name": "Center Position",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 5,
+    "attack": 4,
+    "health": 5,
+    "tags": ["idol", "performer"],
+    "keywords": ["spotlight"],
+    "effects": [
+      {
+        "trigger": "aura",
+        "ops": [
+          { "op": "aura", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "tag": ["idol"], "excludeSelf": true } }, "attack": 1 }
+        ],
+        "text": "Your other Idols have +1/+0."
+      }
+    ],
+    "text": "**Spotlight.** Your other Idols have +1/+0.",
+    "flavor": "Nine members. One camera. The math is brutal."
+  },
+  {
+    "id": "idols-graduation-stage",
+    "name": "Graduation Stage",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 6,
+    "attack": 4,
+    "health": 6,
+    "tags": ["idol", "performer"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "excludeSelf": true } }, "attack": 1, "health": 1 },
+          { "op": "applyStatus", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "excludeSelf": true } }, "status": "shielded" }
+        ],
+        "text": "On play: give your other characters +1/+1 and Shielded."
+      }
+    ],
+    "text": "On play: give your other characters +1/+1 and Shielded.",
+    "flavor": "Everyone cried. Even the merch table staff. Especially the merch table staff."
+  },
+  {
+    "id": "idols-prime-diva-aurora",
+    "name": "Aurora, Prime Diva",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 7,
+    "attack": 5,
+    "health": 6,
+    "tags": ["idol", "performer"],
+    "keywords": ["spotlight", "inspire"],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "excludeSelf": true } }, "attack": 2, "health": 2 }
+        ],
+        "text": "On play: give your other characters +2/+2."
+      },
+      {
+        "trigger": "inspire",
+        "ops": [{ "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }],
+        "text": "**Inspire:** restore 2 health to your leader."
+      }
+    ],
+    "text": "**Spotlight.** On play: give your other characters +2/+2. **Inspire:** restore 2 health to your leader.",
+    "flavor": "Twelve years at the top. She remembers every single name in the front row."
+  },
+
+  {
+    "id": "idols-fan-chant",
+    "name": "Fan Chant",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": ["performance"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [{ "op": "buff", "target": { "select": "triggering" }, "attack": 2, "health": 1 }],
+        "text": "Give a friendly character +2/+1."
+      }
+    ],
+    "text": "Give a friendly character +2/+1.",
+    "flavor": "Eight thousand people. One syllable. Perfectly on the beat."
+  },
+  {
+    "id": "idols-light-stick-wave",
+    "name": "Light Stick Wave",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": ["performance"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [{ "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board" }, "attack": 1, "health": 1 }],
+        "text": "Give your characters +1/+1."
+      }
+    ],
+    "text": "Give your characters +1/+1.",
+    "flavor": "The colour changes on cue. Nobody organised this. Everybody organised this."
+  },
+  {
+    "id": "idols-synchronized-debut",
+    "name": "Synchronized Debut",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "action",
+    "rarity": "common",
+    "cost": 3,
+    "tags": ["performance"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [{ "op": "summon", "cardId": "token-backup-idol", "count": 2 }],
+        "text": "Summon two 1/1 Backup Idols."
+      }
+    ],
+    "text": "Summon two 1/1 Backup Idols.",
+    "flavor": "Rehearsed for nine months. Airs for ninety seconds."
+  },
+  {
+    "id": "idols-comeback-single",
+    "name": "Comeback Single",
+    "faction": "neon-idols",
+    "current": "pulse",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": ["performance"],
+    "keywords": ["rushwind"],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "enemy", "zone": "board" },
+        "ops": [{ "op": "damage", "target": { "select": "triggering" }, "amount": 3 }],
+        "text": "Deal 3 damage to an enemy character."
+      },
+      {
+        "trigger": "rushwind",
+        "ops": [{ "op": "draw", "count": 1 }],
+        "text": "**Rushwind:** draw a card."
+      }
+    ],
+    "text": "Deal 3 damage to an enemy character. **Rushwind:** draw a card.",
+    "flavor": "Two years of silence, then a chorus engineered in a war room."
+  },
+  {
+    "id": "idols-power-ballad",
+    "name": "Power Ballad",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 4,
+    "tags": ["performance"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [
+          { "op": "heal", "target": { "select": "triggering" }, "amount": 4 },
+          { "op": "applyStatus", "target": { "select": "triggering" }, "status": "shielded" },
+          { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+        ],
+        "text": "Restore 4 health to a friendly character and give it Shielded. Restore 2 health to your leader."
+      }
+    ],
+    "text": "Restore 4 health to a friendly character and give it Shielded. Restore 2 health to your leader.",
+    "flavor": "The key change arrives exactly when you have run out of excuses not to cry."
+  },
+
+  {
+    "id": "idols-oshi-no-heart",
+    "name": "Oshi Mark",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "equipment",
+    "rarity": "rare",
+    "cost": 2,
+    "equipAttack": 1,
+    "equipHealth": 2,
+    "grantKeywords": ["parasocial"],
+    "tags": ["gear", "fan"],
+    "keywords": [],
+    "effects": [],
+    "text": "Equipped character has +1/+2 and **Parasocial**.",
+    "flavor": "You picked a favourite. The favourite is now load-bearing."
+  },
+  {
+    "id": "idols-arena-tour",
+    "name": "Arena Tour",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "location",
+    "rarity": "rare",
+    "cost": 4,
+    "durability": 3,
+    "tags": ["venue", "performance"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [{ "op": "buff", "target": { "select": "triggering" }, "attack": 1, "health": 1 }],
+        "text": "Activate (once per turn): give a friendly character +1/+1."
+      }
+    ],
+    "text": "Activate (once per turn): give a friendly character +1/+1. Durability 3.",
+    "flavor": "Twelve cities. Four continents. One collectively hallucinated sleep schedule."
+  },
+  {
+    "id": "idols-emergency-lightstick",
+    "name": "Emergency Light Stick",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": ["fan", "gear"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyAttacksLeader",
+        "ops": [
+          { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 4 },
+          { "op": "applyStatus", "target": { "select": "leader", "side": "friendly" }, "status": "armor", "amount": 2 }
+        ],
+        "text": "Reaction — when the enemy attacks your leader: restore 4 health to your leader and give it Armor 2."
+      }
+    ],
+    "text": "Reaction — when the enemy attacks your leader: restore 4 health to your leader and give it Armor 2.",
+    "flavor": "Break glass in case of narrative low point."
+  },
+  {
+    "id": "idols-holo-concert",
+    "name": "Hologram Concert",
+    "faction": "neon-idols",
+    "current": "pulse",
+    "type": "event",
+    "rarity": "epic",
+    "cost": 5,
+    "durationTurns": 3,
+    "tags": ["performance", "tech"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [{ "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board" }, "attack": 1, "health": 1 }],
+        "text": "Event (3 turns) — at the start of your turns: give your characters +1/+1."
+      }
+    ],
+    "text": "Event (3 turns) — at the start of your turns: give your characters +1/+1.",
+    "flavor": "She has not aged in six years and the ticket price reflects that."
+  }
+]

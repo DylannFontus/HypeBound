@@ -1,0 +1,344 @@
+/**
+ * The player's hand, rendered as a DOM strip beneath the board.
+ *
+ * Keeping the hand out of the 3D scene solves three problems at once: with a
+ * steep top-down camera anything near the viewer compresses into the bottom
+ * edge of the frustum, cards drawn in-scene inevitably overlap the play area,
+ * and perspective makes their text harder to read. As DOM it sits in its own
+ * reserved strip below the board, renders at whatever size we choose, and stays
+ * pixel-crisp.
+ *
+ * Dragging starts here and finishes on the board: the bar tracks the pointer
+ * and hands the coordinates to BattleView, which owns all the rules decisions.
+ */
+
+import type { CardDef, ContentIndex, PlayerView } from "../../engine/types";
+import { checkPlayable } from "../../engine/intents";
+import { renderCardToCanvas } from "../cardRenderer/renderCard";
+import { CARD_H, CARD_W } from "../cardRenderer/palette";
+import { HOLD_MS, HOLD_TOLERANCE_PX } from "./gestures";
+
+export interface HandBarCallbacks {
+  /** pointer moved while dragging a card; return true if it is over a drop zone */
+  onDragMove: (instanceId: string, clientX: number, clientY: number) => void;
+  /** pointer released; the view decides whether to play or cancel */
+  onDragEnd: (instanceId: string, clientX: number, clientY: number) => void;
+  onDragStart: (instanceId: string) => void;
+  /** right-click: show the card's details until dismissed */
+  onInspect: (card: CardDef) => void;
+  /** press-and-hold: show the card enlarged until the returned closer is called */
+  onPeek: (card: CardDef) => () => void;
+}
+
+interface HandEntry {
+  instanceId: string;
+  cardId: string;
+  element: HTMLElement;
+  playable: boolean;
+}
+
+export class HandBar {
+  readonly root: HTMLElement;
+  private entries: HandEntry[] = [];
+  private view: PlayerView | null = null;
+  private proxy: (() => never) | null = null;
+  private dragging: { instanceId: string; ghost: HTMLElement; pointerId: number } | null = null;
+
+  constructor(
+    container: HTMLElement,
+    private readonly content: ContentIndex,
+    private readonly callbacks: HandBarCallbacks
+  ) {
+    this.root = document.createElement("div");
+    this.root.className = "hand-bar";
+    container.appendChild(this.root);
+  }
+
+  /** `stateProxy` is owned by BattleView; the bar borrows it for playability. */
+  setStateProvider(provider: () => never): void {
+    this.proxy = provider;
+  }
+
+  sync(view: PlayerView): void {
+    this.view = view;
+    const hand = view.you.hand;
+    const seen = new Set(hand.map((c) => c.instanceId));
+
+    // drop entries whose cards have left the hand
+    for (const entry of [...this.entries]) {
+      if (!seen.has(entry.instanceId)) {
+        entry.element.classList.add("leaving");
+        const node = entry.element;
+        window.setTimeout(() => node.remove(), 220);
+        this.entries = this.entries.filter((e) => e !== entry);
+      }
+    }
+
+    // add new cards
+    for (const instance of hand) {
+      if (this.entries.some((e) => e.instanceId === instance.instanceId)) continue;
+      const card = this.content.cards[instance.cardId];
+      if (!card) continue;
+      const element = this.createCardElement(card, instance.instanceId);
+      this.entries.push({ instanceId: instance.instanceId, cardId: instance.cardId, element, playable: false });
+      this.root.appendChild(element);
+    }
+
+    // keep DOM order matching hand order
+    this.entries.sort(
+      (a, b) =>
+        hand.findIndex((c) => c.instanceId === a.instanceId) - hand.findIndex((c) => c.instanceId === b.instanceId)
+    );
+    for (const entry of this.entries) this.root.appendChild(entry.element);
+
+    this.refreshPlayability();
+    this.applyKeyboardFocus();
+    this.layout();
+  }
+
+  /**
+   * Mark the card the keyboard cursor is on.
+   *
+   * A class rather than DOM focus: these are `div`s inside a canvas-anchored
+   * layer, and moving real focus into the hand would take it away from the
+   * board's key handler on every arrow press.
+   */
+  setKeyboardFocus(instanceId: string | null): void {
+    this.keyboardFocus = instanceId;
+    this.applyKeyboardFocus();
+  }
+
+  private keyboardFocus: string | null = null;
+
+  private applyKeyboardFocus(): void {
+    for (const entry of this.entries) {
+      entry.element.classList.toggle("kb-focus", entry.instanceId === this.keyboardFocus);
+    }
+  }
+
+  private createCardElement(card: CardDef, instanceId: string): HTMLElement {
+    const element = document.createElement("div");
+    element.className = "hand-card";
+    element.dataset["instanceId"] = instanceId;
+
+    // renderCardToCanvas sets an inline width/height for standalone use; the
+    // hand sizes its cards from the bar height in CSS, and inline styles would
+    // win over the stylesheet, so clear them.
+    const canvas = renderCardToCanvas(card, 260);
+    canvas.style.width = "";
+    canvas.style.height = "";
+    element.appendChild(canvas);
+
+    element.addEventListener("pointerdown", (event) => {
+      if (event.button === 2) return;
+      const entry = this.entries.find((e) => e.instanceId === instanceId);
+      if (!entry?.playable) return;
+      event.preventDefault();
+      this.beginDrag(instanceId, element, event);
+    });
+
+    element.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      this.callbacks.onInspect(card);
+    });
+
+    return element;
+  }
+
+  private refreshPlayability(): void {
+    const view = this.view;
+    const proxy = this.proxy;
+    if (!view || !proxy) return;
+    const yourTurn = view.activeSeat === view.seat && view.phase === "main";
+
+    for (const entry of this.entries) {
+      const result = checkPlayable(proxy(), this.content, view.seat, entry.instanceId);
+      entry.playable = result.ok;
+      entry.element.classList.toggle("playable", result.ok);
+      entry.element.classList.toggle("unplayable", !result.ok && yourTurn);
+      const card = this.content.cards[entry.cardId];
+      entry.element.title = card ? `${card.name} — ${card.text}` : "";
+    }
+  }
+
+  /** Fan the cards, overlapping them when the hand is large. */
+  private layout(): void {
+    const count = this.entries.length;
+    if (count === 0) return;
+
+    const available = this.root.clientWidth || window.innerWidth;
+    const cardWidth = this.entries[0]?.element.offsetWidth || 210;
+
+    /**
+     * The reference's hand spacing follows roughly `pitch = K / n`: a few cards
+     * sit apart with a gap, and as the hand fills they slide into an overlap
+     * rather than the hand growing wider. K is scaled to our card size.
+     */
+    const K = cardWidth * 7;
+    const maxTotal = available - 60;
+    const step = count > 1 ? Math.min(cardWidth + 16, K / count, maxTotal / (count - 1)) : 0;
+    const totalWidth = step * (count - 1) + cardWidth;
+    const startX = (available - totalWidth) / 2;
+
+    /**
+     * Small hands stay flat and upright; from four cards the fan snaps on.
+     * The rotation is deliberately exaggerated well past what the positional
+     * sag requires — measuring the reference showed roughly 3x, and that
+     * overstatement is most of what makes a hand look expensive.
+     */
+    const fanned = count >= 4;
+    const maxTilt = fanned ? 16 : 0;
+
+    this.entries.forEach((entry, index) => {
+      const t = count > 1 ? index / (count - 1) - 0.5 : 0;
+      entry.element.style.left = `${startX + index * step}px`;
+      entry.element.style.zIndex = String(10 + index);
+      entry.element.style.setProperty("--tilt", `${t * 2 * maxTilt}deg`);
+      entry.element.style.setProperty("--lift", `${fanned ? Math.abs(t) * 22 : 0}px`);
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Drag
+  // -------------------------------------------------------------------------
+
+  /** Screen positions and playability of every hand card, for automation. */
+  debugCards(): { instanceId: string; cardId: string; type: string; ok: boolean; screen: { x: number; y: number } }[] {
+    return this.entries.map((entry) => {
+      const rect = entry.element.getBoundingClientRect();
+      return {
+        instanceId: entry.instanceId,
+        cardId: entry.cardId,
+        type: this.content.cards[entry.cardId]?.type ?? "?",
+        ok: entry.playable,
+        screen: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+      };
+    });
+  }
+
+  private beginDrag(instanceId: string, element: HTMLElement, event: PointerEvent): void {
+    const card = this.content.cards[this.cardIdOf(instanceId)];
+    const ghost = document.createElement("div");
+    ghost.className = "hand-drag-ghost";
+    if (card) {
+      const ghostCanvas = renderCardToCanvas(card, 200);
+      ghostCanvas.style.width = "";
+      ghostCanvas.style.height = "";
+      ghost.appendChild(ghostCanvas);
+    }
+    document.body.appendChild(ghost);
+
+    element.classList.add("dragging");
+    this.dragging = { instanceId, ghost, pointerId: event.pointerId };
+    this.moveGhost(event.clientX, event.clientY);
+
+    this.callbacks.onDragStart(instanceId);
+
+    /**
+     * Press-and-hold blows the card up instead of playing it. A hold and the
+     * start of a drag are indistinguishable at pointerdown, so we arm both: the
+     * peek opens if the pointer has stayed put, and moving afterwards simply
+     * dismisses it and carries on with the drag. Nothing about pausing before
+     * you drag should cost you the play.
+     */
+    const originX = event.clientX;
+    const originY = event.clientY;
+    let closePeek: (() => void) | null = null;
+
+    const detach = (): void => {
+      window.clearTimeout(holdTimer);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+    };
+
+    const holdTimer = window.setTimeout(() => {
+      if (!card) return;
+      closePeek = this.callbacks.onPeek(card);
+      // the drag ghost would otherwise sit on top of the enlarged card
+      ghost.style.visibility = "hidden";
+    }, HOLD_MS);
+
+    const endPeek = (): void => {
+      if (!closePeek) return;
+      closePeek();
+      closePeek = null;
+      ghost.style.visibility = "";
+    };
+
+    const onMove = (moveEvent: PointerEvent): void => {
+      if (moveEvent.pointerId !== event.pointerId) return;
+      if (Math.hypot(moveEvent.clientX - originX, moveEvent.clientY - originY) > HOLD_TOLERANCE_PX) {
+        window.clearTimeout(holdTimer);
+        endPeek();
+      }
+      this.moveGhost(moveEvent.clientX, moveEvent.clientY);
+      this.callbacks.onDragMove(instanceId, moveEvent.clientX, moveEvent.clientY);
+    };
+
+    const onUp = (upEvent: PointerEvent): void => {
+      if (upEvent.pointerId !== event.pointerId) return;
+      detach();
+      this.endDrag();
+      if (closePeek) {
+        endPeek();
+        this.callbacks.onDragEnd(instanceId, -1, -1); // held still: a look, not a play
+        return;
+      }
+      this.callbacks.onDragEnd(instanceId, upEvent.clientX, upEvent.clientY);
+    };
+
+    const onCancel = (): void => {
+      detach();
+      endPeek();
+      this.endDrag();
+      this.callbacks.onDragEnd(instanceId, -1, -1); // off-screen = cancel
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+  }
+
+  private cardIdOf(instanceId: string): string {
+    return this.entries.find((e) => e.instanceId === instanceId)?.cardId ?? "";
+  }
+
+  private moveGhost(x: number, y: number): void {
+    if (!this.dragging) return;
+    this.dragging.ghost.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+  }
+
+  /** Abort any in-progress drag (Escape, right-click, or completion). */
+  endDrag(): void {
+    if (!this.dragging) return;
+    this.dragging.ghost.remove();
+    const entry = this.entries.find((e) => e.instanceId === this.dragging?.instanceId);
+    entry?.element.classList.remove("dragging");
+    this.dragging = null;
+  }
+
+  isDragging(): boolean {
+    return this.dragging !== null;
+  }
+
+  draggingInstanceId(): string | null {
+    return this.dragging?.instanceId ?? null;
+  }
+
+  /** Height of the bar in CSS pixels — the board reserves this space. */
+  height(): number {
+    return this.root.offsetHeight;
+  }
+
+  resize(): void {
+    this.layout();
+  }
+
+  dispose(): void {
+    this.endDrag();
+    this.root.remove();
+  }
+}
+
+export { CARD_W, CARD_H };

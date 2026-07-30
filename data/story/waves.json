@@ -1,0 +1,53 @@
+{
+  "_readme": [
+    "The menu of wave sets a story writer can pick from with a WAVES: line.",
+    "Writers never edit this file - they pick a name from HOW-TO-WRITE-A-CHAPTER.md.",
+    "A wave set is an ordered sequence of boards that arrive DURING the battle, one at a time.",
+    "text is printed word for word on the pre-battle brief, above the schedule: the player is never surprised.",
+    "side says whose board the waves land on. Waves arrive strictly in order, at most one per turn.",
+    "characters are CARD NAMES, exactly as printed on the card - not ids. A misspelling is reported with the closest name that would have worked.",
+    "A wave needs at least one cue. onBoardClear: true arrives once that side has no characters left; onTurn: n arrives on their nth turn. Both means whichever comes first.",
+    "Wave characters are DEALT, not played: nothing in a wave costs Hype, counts as a card played, or fires an on-play effect. They arrive with summoning sickness unless the entry says ready: true.",
+    "A wave may not be larger than the board (6 characters), because the surplus would have nowhere to stand.",
+    "Any key starting with an underscore is a note and is ignored."
+  ],
+  "the-support-queue": {
+    "name": "The Support Queue",
+    "text": "The queue arrives in three bands, on the schedule the rollout is on. A band lands as soon as their side of the board is empty — and lands anyway, on the day it was scheduled for, if it is not.",
+    "side": "opponent",
+    "_note": [
+      "Written for Chapter 9, Episode 4. The labels are the chapter's own prose:",
+      "band one at nine, band two at noon, band three on Thursday, two days after",
+      "everybody has stopped watching for it.",
+      "",
+      "Band one is scheduled only - it goes out at nine whatever the board looks",
+      "like, and the board is empty on turn one anyway. Bands two and three lead",
+      "with the board-clear cue and keep a date as a backstop, so a player who",
+      "ignores the board and races the leader still meets the whole rollout.",
+      "",
+      "Nine bodies across a match sounds like a lot and is not, because the",
+      "board-clear cue can only fire on a board the player has already cleared:",
+      "the reward for winning the board is more board. Nothing here is bigger",
+      "than a 4/4, and nothing arrives able to attack."
+    ],
+    "waves": [
+      {
+        "label": "09:00 — band one",
+        "onTurn": 1,
+        "characters": ["Anon Poster", "Anon Poster", "Lurker"]
+      },
+      {
+        "label": "12:00 — band two",
+        "onBoardClear": true,
+        "onTurn": 4,
+        "characters": ["Two Tabs Open", "Repost Brigade", "First Poster"]
+      },
+      {
+        "label": "THURSDAY — band three",
+        "onBoardClear": true,
+        "onTurn": 7,
+        "characters": ["The Whole Basement Turns Up", "Doomscroller"]
+      }
+    ]
+  }
+}

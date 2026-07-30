@@ -1,0 +1,4100 @@
+{
+  "id": "puzzles",
+  "kind": "puzzle",
+  "decks": {
+    "puz-player": {
+      "name": "Puzzle Hand",
+      "leaderCardId": "meme-leader-skree-nine-tabs",
+      "cards": [
+        "after-bad-idea-committee"
+      ]
+    },
+    "puz-rival-tide": {
+      "name": "Puzzle Rival",
+      "leaderCardId": "algo-leader-cassia-cache",
+      "cards": [
+        "goth-crypt-usher"
+      ]
+    },
+    "puz-player-idols": {
+      "name": "Puzzle Hand (Idols)",
+      "leaderCardId": "idols-lumi-starcall",
+      "cards": [
+        "idols-fan-chant"
+      ]
+    },
+    "puz-player-demon": {
+      "name": "Puzzle Hand (Demons)",
+      "leaderCardId": "demon-leader-ashvyre-dropped-frames",
+      "cards": [
+        "demon-thermal-imp"
+      ]
+    }
+  },
+  "stages": [
+    {
+      "id": "p1-ratio-required",
+      "title": "Ratio Required",
+      "teaches": "Lethal · Currents — the order you attack in is the puzzle",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player",
+        "puz-rival-tide"
+      ],
+      "seed": 201,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "meme-first-poster",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "viral-drama-channel",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "corp-unpaid-intern"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p1-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Win this turn. Their bodyguard has to fall first, and you only get one swing at the leader afterwards — so it matters which character you spend on the wall."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p1-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 3
+      }
+    },
+    {
+      "id": "p2-encore-encore",
+      "title": "Encore, Encore",
+      "teaches": "Lethal · Confluence — two Currents buy a second swing",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "confluence"
+      ],
+      "decks": [
+        "puz-player",
+        "puz-rival-tide"
+      ],
+      "seed": 202,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "viral-first-follower",
+              "algo-queue-jumper"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 8
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p2-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Eight health, and you have four attack on the board. The two cards in your hand are not there to trade — they are there because of what they are."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p2-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 4
+      }
+    },
+    {
+      "id": "p3-bait-the-clip",
+      "title": "Bait the Clip",
+      "teaches": "Lethal · Reactions — a Reaction that kills your attacker cancels the attack",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player",
+        "puz-rival-tide"
+      ],
+      "seed": 203,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "meme-first-poster",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "viral-drama-channel",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 2,
+            "cardId": "viral-drama-channel",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "corp-unpaid-intern"
+          },
+          {
+            "op": "reaction",
+            "seat": 1,
+            "cardId": "goth-twenty-year-grudge"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p3-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Their bodyguard blocks the way, and a face-down Reaction deals 3 to whatever attacks their characters — killing your attacker before its blow ever lands. Something has to walk into that. Choose which."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p3-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 3
+      }
+    },
+    {
+      "id": "p4-terminally-devoted",
+      "title": "Terminally Devoted",
+      "teaches": "Lethal · Obsession — Parasocial pays twice, and it has to be paid first",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "obsession"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 204,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "obsession",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "cosplay-hall-runway-rookie",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "corp-unpaid-intern",
+            "ready": true
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant"
+            ]
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 8
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p4-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Eight health, one card, one Hype, and two Obsession — one short of your Fixation. Both of your characters can be given +2/+1. Only one of them will pay you back for it."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p4-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 2
+      }
+    },
+    {
+      "id": "p5-hold-the-line",
+      "title": "Hold the Line",
+      "teaches": "Survival · statuses — Scorched resolves at the end of YOUR turn, before they ever swing",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 205,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "corp-unpaid-intern",
+            "health": 1,
+            "statuses": [
+              {
+                "id": "scorched",
+                "remainingTurns": null
+              }
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant"
+            ]
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p5-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Survive their turn. Your bodyguard has Spotlight, so nothing can walk past it — but it is Scorched and on 1 health, and Scorched burns at the end of YOUR turn, not theirs."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p5-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 2
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 2
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p6-peaked-too-early",
+      "title": "Peaked Too Early",
+      "teaches": "Economy · Trending & Rushwind — the big card gets cheaper AND better if it goes last",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 206,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 5
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "meme-first-poster",
+              "meme-first-poster",
+              "viral-follower-frenzy"
+            ]
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 7
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p6-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Seven health and five Hype. Follower Frenzy costs five on its own — but it is Trending, and it has Rushwind. Both of those care about what you did before you played it."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p6-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 6
+      }
+    },
+    {
+      "id": "p7-louder-each-time",
+      "title": "Louder Each Time",
+      "teaches": "Combo · Repost — the third copy hits hardest, so they all go to the same place",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 207,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 6
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "meme-same-joke-but-louder",
+              "meme-same-joke-but-louder"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "viral-drama-channel",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-foam-knight"
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "demon-popup-impling"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p7-louder-each-time-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Their bodyguard has four health and you are holding two copies of the same two-damage joke. Repost makes each copy hit harder than the last — but only if the earlier ones were already told."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p7-louder-each-time-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 7
+      }
+    },
+    {
+      "id": "p8-rush-hour",
+      "title": "Rush Hour",
+      "teaches": "Combo · Rushwind — warm the crowd up first and the same card hits for one more",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 208,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "meme-first-poster",
+              "viral-ratio-bomb"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "corp-unpaid-intern"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 2
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p8-rush-hour-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Three Hype, two cards, and a three-health bodyguard in the way. Ratio Bomb deals two — unless something went before it."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p8-rush-hour-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 4
+      }
+    },
+    {
+      "id": "p9-mutually-assured",
+      "title": "Mutually Assured",
+      "teaches": "Currents · Halo and Veil — the only pair that beats each other, both ways",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 209,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "demon-glitch-familiar",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "meme-first-poster",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "corp-lobby-greeter"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 2
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p9-mutually-assured-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Their bodyguard is Halo and has three health. One of your two characters beats Halo and one does not — and whichever you send in, the other one is your only shot at the leader."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p9-mutually-assured-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 2
+      }
+    },
+    {
+      "id": "p10-blank-stare",
+      "title": "Blank Stare",
+      "teaches": "Survival · Cancel — you can only silence one of them, so silence the one that kills you",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 210,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "algo-shadowban-notice"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "goth-crypt-usher",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 4
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p10-blank-stare-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Survive their turn. You are on four health and they have five attack across two bodies. You can blank exactly one of them."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p10-blank-stare-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 4
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 4
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p11-shield-wall",
+      "title": "Shield Wall",
+      "teaches": "Survival · Shielded — it negates one instance of damage, so it goes where the big one lands",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 211,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "cosplay-sacred-adhesive"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "corp-unpaid-intern"
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "token-backup-idol"
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p11-shield-wall-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Two four-attack bodies and you are on three health. Your bodyguard has Spotlight, so the first of them has to go through it — the question is whether it is still standing for the second."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p11-shield-wall-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 3
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 3
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p12-second-wind",
+      "title": "Second Wind",
+      "teaches": "Lethal · Fixation — one body, two swings, and a bodyguard in between",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-demon",
+        "puz-rival-tide"
+      ],
+      "seed": 212,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "obsession",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "demon-popup-impling",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "goth-crypt-usher"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 10
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p12-second-wind-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "One character, one bodyguard, and three health behind it. Redline costs three Obsession and two of your own health — you have exactly three Obsession."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p12-second-wind-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 3
+      }
+    },
+    {
+      "id": "p13-sanctuary",
+      "title": "Sanctuary",
+      "teaches": "Currents · Confluence — a free card is still a Current played",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "confluence"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 213,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "corp-onboarding-packet",
+              "idols-fan-chant"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "corp-unpaid-intern",
+            "health": 1,
+            "statuses": [
+              {
+                "id": "scorched",
+                "remainingTurns": null
+              }
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p13-sanctuary-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "One Hype, two cards, and a Scorched bodyguard that burns to death at the end of your turn. Sanctuary would shield it and scrub the burn off — but Sanctuary wants a Root card and a Halo card played this turn, and you can only afford one of them. Unless one of them pays for itself."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p13-sanctuary-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 2
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 2
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p14-starflare",
+      "title": "Starflare",
+      "teaches": "Currents · Confluence — Shielded stops damage, not Starflare",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "confluence"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 214,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "viral-hype-intern",
+              "algo-preroll-runner"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "viral-drama-channel",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-foam-knight",
+            "statuses": [
+              {
+                "id": "shielded",
+                "remainingTurns": null
+              }
+            ]
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p14-starflare-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Their bodyguard is Shielded, so the first hit it takes simply does not happen. Your two cheap characters are a Cinder and a Pulse — which is the pair that lights Starflare, and Starflare does not care about Shielded."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p14-starflare-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 3
+      }
+    },
+    {
+      "id": "p15-cold-water",
+      "title": "Cold Water",
+      "teaches": "Currents · Pulse beats Tide — same attack, different answer",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 215,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "idols-voltage-idol",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "demon-popup-impling",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-foam-knight"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p15-cold-water-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Both of your characters hit for three. Their bodyguard is Tide with four health, so three is not enough — unless the one swinging has the Current that beats Tide."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p15-cold-water-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 2
+      }
+    },
+    {
+      "id": "p16-weather-front",
+      "title": "Weather Front",
+      "teaches": "Survival · Weakened — taking the teeth out beats patching the wound",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 216,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 4
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "grass-weather-front",
+              "corp-approved-messaging"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "token-backup-idol"
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "demon-popup-impling",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "meme-chronic-poster",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 4
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p16-weather-front-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Six attack is pointed at your four health, and you have four Hype — enough for exactly one of the two cards in your hand. One of them adds health. The other takes attack away."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p16-weather-front-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 5
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 5
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p17-sandstorm",
+      "title": "Sandstorm",
+      "teaches": "Currents · Confluence — two Currents make a Confluence, but only the right two",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "confluence"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 217,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "grass-trail-journal",
+              "meme-bump-the-thread",
+              "neutral-clip-it"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "after-chatstorm-piper",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "algo-rerun-anchor",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 2,
+            "cardId": "algo-impressions-broker",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 5
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p17-sandstorm-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Six attack across three bodies, and you are on five. Three Hype buys two of your three cards — and which two decides which Confluence you get, not whether you get one."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p17-sandstorm-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 4
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 4
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p18-obsessed",
+      "title": "Obsessed",
+      "teaches": "Survival · Obsession — past eight, every hit you take is worth one more",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 218,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "obsession",
+            "seat": 0,
+            "value": 7
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "corp-lobby-greeter",
+              "viral-hype-intern"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "goth-crypt-usher",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "goth-crypt-usher",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p18-obsessed-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Two one-attack bodies against your three health. That is survivable — but you are on seven Obsession, and at eight every enemy source hits for one more."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p18-obsessed-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 3
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 3
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p19-bloom",
+      "title": "Bloom",
+      "teaches": "Currents · Confluence — Tide and Root are the only pair that mends a character",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "confluence"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 219,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "algo-watch-later-clerk",
+              "grass-phone-basket",
+              "neutral-clip-it"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "cosplay-foam-knight",
+            "health": 1,
+            "maxHealth": 4
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "meme-chronic-poster",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "goth-crypt-usher",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 1
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p19-bloom-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Your bodyguard is down to one health and there are two of them out there — the first kills it, the second walks past it to you, and you are on one. Two of your three cards are a Tide and a Root, which is the pair that mends. The third is a Pulse that pairs with neither."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p19-bloom-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 3
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 3
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p20-full-hand",
+      "title": "Full Hand",
+      "teaches": "Economy · the hand limit — a card drawn with no room is burned, not held",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 220,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 4
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "meme-first-poster"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "demon-sign-here",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "token-backup-idol",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p20-full-hand-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Your hand is full and the card that finishes this is two down in your deck. The draw spell frees its own slot as it leaves your hand — but it fetches two, and the second one has nowhere to land."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p20-full-hand-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 5
+      }
+    },
+    {
+      "id": "p21-cold-start",
+      "title": "Cold Start",
+      "teaches": "Lethal · Raid — a body played this turn cannot swing unless it says otherwise",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 221,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "demon-popup-impling",
+              "meme-first-poster"
+            ]
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 2
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p21-cold-start-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Two Hype and two bodies in hand: a three-attack one and a two-attack one. Their leader is on two, and only one of these can actually swing today."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p21-cold-start-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 3
+      }
+    },
+    {
+      "id": "p22-collab",
+      "title": "Collab",
+      "teaches": "Combo · Collab — the bonus checks the board, so the order you build it in matters",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 222,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "demon-thermal-imp",
+              "demon-glitch-familiar"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "viral-drama-channel",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-foam-knight"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p22-collab-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Their bodyguard has four health and your only ready character hits for three. The Imp is a Demon that grows if another Demon is already standing beside it — and the Familiar brings one of its own."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p22-collab-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 4
+      }
+    },
+    {
+      "id": "p23-tempest-sweep",
+      "title": "Storm Warning",
+      "teaches": "Currents · Confluence — Tempest's other half sweeps a wide board, one damage at a time",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "confluence"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 223,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "meme-bump-the-thread",
+              "neutral-clip-it"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "token-follower",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "token-follower",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 2,
+            "cardId": "token-follower",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 3,
+            "cardId": "token-follower",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p23-tempest-sweep-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Four one-health bodies, four damage, and you are on three. One clean kill is not enough — you need to thin the whole row, and Gale plus Pulse is the pair that does it."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p23-tempest-sweep-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 4
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 4
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p24-blackflame",
+      "title": "Blackflame",
+      "teaches": "Currents · Confluence — when nothing in your hand deals damage, the Confluence is your removal",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "confluence"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 224,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "viral-hype-intern",
+              "demon-sign-here"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "viral-drama-channel",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "goth-crypt-usher"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p24-blackflame-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "A two-health bodyguard is in the way and neither card in your hand does a point of damage. One is Cinder and one is Veil — which is the pair that burns."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p24-blackflame-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p25-inspire",
+      "title": "Inspired",
+      "teaches": "Combo · Inspire — supporting anything friendly wakes it up, including itself",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 225,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "idols-encore-diva",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 6
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p25-inspire-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Six health and one three-attack character. The card in your hand adds two — which is still one short, unless the character it lands on notices."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p25-inspire-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p26-flow",
+      "title": "Flow",
+      "teaches": "Combo · Flow — pulling a friend back out of the fight is what sets it off",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 226,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "algo-re-upload"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "algo-rerun-anchor",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "token-backup-idol"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p26-flow-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Your anchor hits for two and they are on three. Re-Upload pulls a friendly character back to your hand — pull the wrong one and you have thrown away your only attacker."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p26-flow-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p27-double-duty",
+      "title": "Double Duty",
+      "teaches": "Lethal · Spotlight — two bodyguards, two answers, and only one of them is a card",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 227,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "neutral-clip-it"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "viral-drama-channel",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "meme-first-poster",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "goth-crypt-usher"
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "goth-crypt-usher"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p27-double-duty-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Two bodyguards, both of which have to fall before anything reaches the leader — and three health behind them. You have two characters and one spell, which is exactly one answer too few unless the spell does a bodyguard's worth of work."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p27-double-duty-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p28-prism-neutral",
+      "title": "Nobody's Friend",
+      "teaches": "Currents · Prism — it beats nothing and nothing beats it, so bring the bigger number",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 228,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "idols-voltage-idol",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "meme-token-gremlin-soggy",
+            "health": 4
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p28-prism-neutral-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Their bodyguard is Prism, which no Current beats and which beats no Current back. Your Pulse character has been carrying the elemental bonus all game and it is worth nothing here."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p28-prism-neutral-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p29-full-fixation",
+      "title": "Full Fixation",
+      "teaches": "Lethal · Obsession — at ten, the Ultimate is free, which is the only way to afford both",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "obsession"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 229,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "obsession",
+            "seat": 0,
+            "value": 10
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "token-backup-idol",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "token-backup-idol",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 7
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p29-full-fixation-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Two one-attack bodies and seven health to get through. Your Ultimate costs seven Obsession and your Fixation costs three — you have ten, and you need both."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p29-full-fixation-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p30-cheap-imitation",
+      "title": "Cheap Imitation",
+      "teaches": "Combo · Viral — the copy costs one less, and a free card still counts as a card played",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 230,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 4
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "idols-stan-account",
+              "viral-follower-frenzy"
+            ]
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p30-cheap-imitation-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Four Hype and a five-cost finisher. The little Pulse character makes a copy of itself that costs one less — and Follower Frenzy gets cheaper for every card that went before it."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p30-cheap-imitation-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p31-last-call",
+      "title": "Last Call",
+      "teaches": "Lethal · Last Call — some damage arrives on your next turn, which still counts",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 231,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "after-one-more-song",
+              "viral-hot-take"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "goth-crypt-usher"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 2
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p31-last-call-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "One Hype, two cards, and a leader on two that your board cannot touch. One of these cards deals damage now, to something that is not the leader. The other deals it later, to something that is."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p31-last-call-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p32-bodyguard-detail",
+      "title": "Bodyguard Detail",
+      "teaches": "Survival · Equipment — Spotlight can be handed out, so hand it to something that can take a hit",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 232,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "meme-laminated-bylaws"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "token-backup-idol"
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 1,
+            "cardId": "demon-doomscroll-fiend"
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p32-bodyguard-detail-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Eight attack pointed at three health. Nothing on your board has Spotlight — but the Bylaws grant it, along with +1/+2. Whoever you pin it on is going to be attacked twice."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p32-bodyguard-detail-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 3
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 3
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p33-eclipse",
+      "title": "Eclipse",
+      "teaches": "Currents · Confluence — turn the aura off and the numbers go back to what the cards say",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "confluence"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 233,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "idols-light-stick-wave",
+              "demon-sign-here"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "idols-center-position",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "token-backup-idol",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 2,
+            "cardId": "token-backup-idol",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 7
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p33-eclipse-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Their leader is standing behind a Centre Position, which is quietly giving both of its Idols an extra point of attack. Seven health, and what is coming is worth exactly that — unless the aura stops counting."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p33-eclipse-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 4
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 4
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p34-chain",
+      "title": "Chain Reaction",
+      "teaches": "Combo · Chain — the bonus reads the board, so the friend has to arrive first",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 234,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "after-bad-influence",
+              "after-karaoke-gremlin"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "meme-ironic-poster",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "goth-crypt-usher"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 2
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p34-chain-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Their bodyguard has two health and your one ready character hits for exactly two — spend it there and there is nothing left for the leader. Bad Influence deals two as well, but only if another Afterparty character is already standing when it lands."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p34-chain-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p35-slow-burn",
+      "title": "Slow Burn",
+      "teaches": "Currents · Scorched — the burn lands at the end of the turn of whoever is carrying it",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 235,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "viral-hot-take"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "viral-drama-channel",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "goth-crypt-usher",
+            "health": 2
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p35-slow-burn-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Their bodyguard has two health and one Hype buys a point of damage plus a burn. The burn resolves at the end of THEIR turn, not yours — so it clears the way without costing you your attack."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p35-slow-burn-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p36-backup-dancers",
+      "title": "No Substitute",
+      "teaches": "Survival · Spotlight — bodies do not protect you, Spotlight does",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 236,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "idols-synchronized-debut",
+              "corp-lobby-greeter"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p36-backup-dancers-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Four attack against three health, and three Hype. One card gives you two bodies. The other gives you one — and the only thing on the board that anything is obliged to attack."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p36-backup-dancers-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 4
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 4
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p37-deep-breath",
+      "title": "Deep Breath",
+      "teaches": "Economy · Burnout — an empty deck is a clock, and it is already running",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 237,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 1
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "meme-bump-the-thread"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "meme-first-poster",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 2
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p37-deep-breath-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Their leader is on two and so is your board. Your deck is empty, you are on one health, and the card in your hand draws you another one."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p37-deep-breath-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p38-thin-ice",
+      "title": "Thin Ice",
+      "teaches": "Survival · Armor — it soaks damage before your health does, so small hits stop mattering",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 238,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "ai",
+        "difficulty": "intermediate"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 3
+          },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": [
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant",
+              "idols-fan-chant"
+            ],
+            "rest": "empty"
+          },
+          {
+            "op": "deckOrder",
+            "seat": 1,
+            "cards": [],
+            "rest": "empty"
+          },
+          {
+            "op": "armor",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "algo-shadowban-notice"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-token-hall-champion",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 1,
+            "cardId": "meme-ironic-poster",
+            "ready": true
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 0,
+            "value": 1
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p38-thin-ice-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "One health and two Armor, against a four and a two. You can blank one of them — and Armor is spent before your health is, which changes which one is actually dangerous."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p38-thin-ice-solve",
+          "until": {
+            "when": "turnAtLeast",
+            "value": 4
+          }
+        }
+      ],
+      "objective": {
+        "when": "turnAtLeast",
+        "value": 4
+      },
+      "failIf": {
+        "when": "leaderHealthAtMost",
+        "seat": "you",
+        "value": 0
+      }
+    },
+    {
+      "id": "p39-closing-time",
+      "title": "Closing Time",
+      "teaches": "Lethal · a Confluence is removal you did not have to draw",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "confluence"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 239,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 2
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "viral-hype-intern",
+              "algo-preroll-runner"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 0,
+            "slot": 0,
+            "cardId": "idols-voltage-idol",
+            "ready": true
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "cosplay-foam-knight"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 3
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p39-closing-time-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Your Pulse character could clear that Tide bodyguard on its own — and then there is nothing left to swing at the leader. The two cards in your hand deal no damage between them, but they are a Cinder and a Pulse."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p39-closing-time-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    },
+    {
+      "id": "p40-last-word",
+      "title": "Last Word",
+      "teaches": "Lethal · the whole set — a Confluence to clear it, Raid to reach them, and exactly enough Hype",
+      "reveal": [
+        "hand",
+        "hype",
+        "endTurn",
+        "leaderHealth",
+        "targeting",
+        "damagePreview",
+        "statusIcons",
+        "currentBadges",
+        "confluence"
+      ],
+      "decks": [
+        "puz-player-idols",
+        "puz-rival-tide"
+      ],
+      "seed": 240,
+      "firstSeat": 0,
+      "opponent": {
+        "kind": "idle"
+      },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          {
+            "op": "turn",
+            "seat": 0,
+            "value": 4
+          },
+          {
+            "op": "hand",
+            "seat": 0,
+            "cards": [
+              "viral-hype-intern",
+              "algo-preroll-runner",
+              "meme-first-poster",
+              "meme-first-poster"
+            ]
+          },
+          {
+            "op": "board",
+            "seat": 1,
+            "slot": 0,
+            "cardId": "goth-crypt-usher"
+          },
+          {
+            "op": "leaderHealth",
+            "seat": 1,
+            "value": 4
+          }
+        ]
+      },
+      "beats": [
+        {
+          "id": "p40-last-word-brief",
+          "say": [
+            {
+              "speaker": "Puzzle",
+              "text": "Four Hype, four cards, an empty board of your own, a bodyguard in the way and four health behind it. Everything in your hand is needed and there is exactly one order that spends it all."
+            }
+          ],
+          "allow": [],
+          "until": {
+            "when": "acknowledged"
+          }
+        },
+        {
+          "id": "p40-last-word-solve",
+          "until": {
+            "when": "matchEnded"
+          }
+        }
+      ],
+      "objective": {
+        "when": "leaderHealthAtMost",
+        "seat": "opponent",
+        "value": 0
+      },
+      "failIf": {
+        "when": "turnAtLeast",
+        "value": 99
+      }
+    }
+  ]
+}

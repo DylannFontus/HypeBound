@@ -1,0 +1,1369 @@
+[
+  {
+    "id": "algo-leader-don-sortino",
+    "name": "Don Sortino",
+    "title": "Curator of the Feed",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "pulse",
+    "secondaryCurrent": "tide",
+    "tags": [
+      "syndicate",
+      "broker"
+    ],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          }
+        ],
+        "text": "At the start of your turn, **Recommend 2**."
+      }
+    ],
+    "fixation": {
+      "name": "Suggested For You",
+      "obsessionCost": 3,
+      "ops": [
+        {
+          "op": "scry",
+          "count": 3,
+          "mode": "reorder"
+        },
+        {
+          "op": "draw",
+          "count": 1
+        }
+      ],
+      "text": "**Recommend 3**, then draw a card."
+    },
+    "ultimate": {
+      "name": "An Offer You Can't Refuse",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "draw",
+          "count": 3
+        },
+        {
+          "op": "modifyCost",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "hand"
+          },
+          "delta": -1
+        },
+        {
+          "op": "lockHype",
+          "amount": 2
+        }
+      ],
+      "text": "Draw 3 cards, then the cards in your hand cost (1) less. **Overload (2).**"
+    },
+    "effects": [],
+    "text": "At the start of your turn, **Recommend 2**.",
+    "flavor": "He has never raised his voice and never been told no. \"We took the liberty of putting something at the top of your feed.\""
+  },
+  {
+    "id": "algo-leader-cassia-cache",
+    "name": "Cassia Cache",
+    "title": "The Consigliera",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "tide",
+    "secondaryCurrent": null,
+    "tags": [
+      "syndicate",
+      "archivist"
+    ],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "flow",
+        "ops": [
+          {
+            "op": "gainObsession",
+            "amount": 1
+          }
+        ],
+        "text": "**Long Memory** — whenever a friendly card returns to your hand, gain 1 Obsession."
+      }
+    ],
+    "fixation": {
+      "name": "Rerun",
+      "obsessionCost": 3,
+      "target": {
+        "select": "choose",
+        "side": "friendly",
+        "zone": "board"
+      },
+      "ops": [
+        {
+          "op": "returnToHand",
+          "target": {
+            "select": "triggering"
+          }
+        },
+        {
+          "op": "modifyCost",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "hand",
+            "filter": {
+              "type": [
+                "character"
+              ]
+            }
+          },
+          "delta": -1
+        }
+      ],
+      "text": "Return a friendly character to your hand. Characters in your hand cost (1) less."
+    },
+    "ultimate": {
+      "name": "Total Recall",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "returnToHand",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board"
+          }
+        },
+        {
+          "op": "modifyCost",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "hand",
+            "filter": {
+              "type": [
+                "character"
+              ]
+            }
+          },
+          "delta": -2
+        },
+        {
+          "op": "draw",
+          "count": 2
+        }
+      ],
+      "text": "Return all friendly characters to your hand. Characters in your hand cost (2) less. Draw 2 cards."
+    },
+    "effects": [],
+    "text": "**Long Memory** — whenever a friendly card returns to your hand, gain 1 Obsession.",
+    "flavor": "She remembers every deleted upload. She speaks in the past tense about things that have not happened yet."
+  },
+  {
+    "id": "algo-preroll-runner",
+    "name": "Preroll Runner",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": [
+      "syndicate"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          },
+          {
+            "op": "gainObsession",
+            "amount": 1
+          }
+        ],
+        "text": "On play: **Recommend 2** and gain 1 Obsession."
+      }
+    ],
+    "text": "On play: **Recommend 2** and gain 1 Obsession. *(Recommend 2 — look at the top 2 cards of your deck and put them back in any order.)*",
+    "flavor": "Five seconds of him, before everything. You have learned his face the way you once learned a lullaby."
+  },
+  {
+    "id": "algo-watch-later-clerk",
+    "name": "Watch-Later Clerk",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": [
+      "syndicate",
+      "archivist"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "bottomOne"
+          }
+        ],
+        "text": "On play: **Bury 2**."
+      }
+    ],
+    "text": "On play: **Bury 2**. *(Bury 2 — look at the top 2 cards of your deck and put one of them on the bottom.)*",
+    "flavor": "Your queue is now longer than your remaining life expectancy. He has filed it. Alphabetically. Twice."
+  },
+  {
+    "id": "algo-queue-jumper",
+    "name": "Queue Jumper",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 2,
+    "tags": [
+      "syndicate"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "condition": {
+          "kind": "topOfDeckMatches",
+          "filter": {
+            "type": [
+              "character"
+            ]
+          }
+        },
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "On play: if the top card of your deck is a Character, draw a card."
+      }
+    ],
+    "text": "On play: if the top card of your deck is a Character, draw a card.",
+    "flavor": "He did not cut the line. The line was reordered. Around him. While everyone watched and said nothing."
+  },
+  {
+    "id": "algo-thumbnail-analyst",
+    "name": "Thumbnail Analyst",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 2,
+    "attack": 1,
+    "health": 3,
+    "tags": [
+      "syndicate",
+      "archivist"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 3,
+            "mode": "reorder"
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "handSizeAtLeast",
+              "side": "friendly",
+              "value": 5
+            },
+            "then": [
+              {
+                "op": "draw",
+                "count": 1
+              }
+            ]
+          }
+        ],
+        "text": "On play: **Recommend 3**. **Backlog (5):** draw a card."
+      }
+    ],
+    "text": "On play: **Recommend 3**. **Backlog (5):** draw a card. *(Recommend 3 — look at the top 3 cards of your deck and put them back in any order. Backlog (5) — bonus effect if you have 5 or more cards in hand.)*",
+    "flavor": "Nine versions of the same shocked face. One of them works on you specifically. She already knows which."
+  },
+  {
+    "id": "algo-midroll-enforcer",
+    "name": "Mid-Roll Enforcer",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 4,
+    "tags": [
+      "syndicate",
+      "enforcer"
+    ],
+    "keywords": [
+      "spotlight"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "any",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "if",
+            "condition": {
+              "kind": "handSizeAtLeast",
+              "side": "friendly",
+              "value": 6
+            },
+            "then": [
+              {
+                "op": "damage",
+                "target": {
+                  "select": "triggering"
+                },
+                "amount": 3
+              }
+            ],
+            "else": [
+              {
+                "op": "damage",
+                "target": {
+                  "select": "triggering"
+                },
+                "amount": 1
+              }
+            ]
+          }
+        ],
+        "text": "On play: deal 1 damage to a character. **Backlog (6):** deal 3 instead."
+      }
+    ],
+    "text": "**Spotlight.** On play: deal 1 damage to a character. **Backlog (6):** deal 3 instead. *(Spotlight — enemies must attack characters with Spotlight before other targets. Backlog (6) — bonus effect if you have 6 or more cards in hand.)*",
+    "flavor": "\"Mid-roll,\" he explains, patiently, with both hands folded, while your entire evening stops moving."
+  },
+  {
+    "id": "algo-rerun-anchor",
+    "name": "Rerun Anchor",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "character",
+    "rarity": "common",
+    "cost": 3,
+    "attack": 2,
+    "health": 4,
+    "tags": [
+      "syndicate",
+      "archivist"
+    ],
+    "keywords": [
+      "flow"
+    ],
+    "effects": [
+      {
+        "trigger": "flow",
+        "ops": [
+          {
+            "op": "buff",
+            "target": {
+              "select": "self"
+            },
+            "attack": 1
+          }
+        ],
+        "text": "**Flow:** this gains +1/+0."
+      }
+    ],
+    "text": "**Flow:** this gains +1/+0. *(Flow — triggers when a friendly card is returned to your hand, replayed, healed, or exchanged.)*",
+    "flavor": "Same broadcast, eleven years running. Nobody has told him. Nobody is going to."
+  },
+  {
+    "id": "algo-impressions-broker",
+    "name": "Impressions Broker",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 2,
+    "health": 5,
+    "tags": [
+      "syndicate",
+      "broker"
+    ],
+    "keywords": [
+      "flow"
+    ],
+    "effects": [
+      {
+        "trigger": "flow",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "**Flow:** draw a card. Once per turn."
+      }
+    ],
+    "text": "**Flow:** draw a card. Once per turn. *(Flow — triggers when a friendly card is returned to your hand, replayed, healed, or exchanged.)*",
+    "flavor": "Sells impressions by the thousand. Has never once been asked what an impression actually is."
+  },
+  {
+    "id": "algo-watchlist-muscle",
+    "name": "Watchlist Muscle",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 2,
+    "health": 4,
+    "tags": [
+      "syndicate",
+      "enforcer"
+    ],
+    "keywords": [
+      "overload"
+    ],
+    "overload": 1,
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "enemy",
+          "zone": "board",
+          "optional": true
+        },
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "triggering"
+            },
+            "amount": 3
+          },
+          {
+            "op": "gainObsession",
+            "amount": 2
+          }
+        ],
+        "text": "On play: deal 3 damage to an enemy character and gain 2 Obsession."
+      }
+    ],
+    "text": "On play: deal 3 damage to an enemy character and gain 2 Obsession. **Overload (1).** *(Overload (1) — you have (1) less Hype next turn.)*",
+    "flavor": "She does not remove you from the platform. She removes the platform from under you. Politely. In writing."
+  },
+  {
+    "id": "algo-data-broker-nino",
+    "name": "Data Broker Nino",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 5,
+    "attack": 3,
+    "health": 5,
+    "tags": [
+      "syndicate",
+      "broker"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 3,
+            "mode": "reorder"
+          }
+        ],
+        "text": "On play: **Recommend 3**."
+      },
+      {
+        "trigger": "afterparty",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "topOfDeckMatches",
+              "filter": {
+                "type": [
+                  "character"
+                ]
+              }
+            },
+            "then": [
+              {
+                "op": "draw",
+                "count": 1
+              }
+            ]
+          }
+        ],
+        "text": "**Afterparty:** **Recommend 2**. If the top card of your deck is a Character, draw a card."
+      }
+    ],
+    "text": "On play: **Recommend 3**. **Afterparty:** **Recommend 2**. If the top card of your deck is a Character, draw a card.",
+    "flavor": "Nino does not know what you want. Nino knows what you will settle for at 1 a.m., and that is a much shorter list."
+  },
+  {
+    "id": "algo-madam-null-silent-partner",
+    "name": "Madam Null, the Silent Partner",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 6,
+    "attack": 2,
+    "health": 7,
+    "tags": [
+      "syndicate",
+      "broker"
+    ],
+    "keywords": [],
+    "finale": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "condition": {
+          "kind": "handSizeAtLeast",
+          "side": "friendly",
+          "value": 8
+        },
+        "ops": [
+          {
+            "op": "addCounter",
+            "key": "signal",
+            "amount": 1
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "counterAtLeast",
+              "key": "signal",
+              "value": 3
+            },
+            "then": [
+              {
+                "op": "winMatch"
+              }
+            ]
+          }
+        ],
+        "text": "**Afterparty:** if you have 8 or more cards in hand, gain a Signal counter. At 3 Signal counters, you win the match."
+      },
+      {
+        "trigger": "onDefeat",
+        "ops": [
+          {
+            "op": "setCounter",
+            "key": "signal",
+            "amount": 0
+          }
+        ],
+        "text": "When this is defeated, your Signal counters are lost."
+      }
+    ],
+    "text": "**Finale** — **Afterparty:** if you have 8 or more cards in hand, gain a Signal counter. At 3 Signal counters, you win the match. When this is defeated, your Signal counters are lost.",
+    "flavor": "She has never posted, never commented, never watched a single thing. She owns all of it."
+  },
+  {
+    "id": "algo-re-upload",
+    "name": "Re-Upload",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": [
+      "queue"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "friendly",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "returnToHand",
+            "target": {
+              "select": "triggering"
+            }
+          },
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          }
+        ],
+        "text": "Return a friendly character to your hand, then **Recommend 2**."
+      }
+    ],
+    "text": "Return a friendly character to your hand, then **Recommend 2**. *(Recommend 2 — look at the top 2 cards of your deck and put them back in any order.)*",
+    "flavor": "Identical footage. Fresh upload date. The clock starts again and nobody files a complaint."
+  },
+  {
+    "id": "algo-because-you-watched",
+    "name": "Because You Watched",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": [
+      "signal"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "topOfDeckMatches",
+              "filter": {
+                "current": [
+                  "pulse"
+                ]
+              }
+            },
+            "then": [
+              {
+                "op": "gainHype",
+                "amount": 1
+              }
+            ]
+          }
+        ],
+        "text": "**Recommend 2.** Then, if the top card of your deck is a Pulse card, gain 1 Hype this turn."
+      }
+    ],
+    "text": "**Recommend 2.** Then, if the top card of your deck is a Pulse card, gain 1 Hype this turn. *(Recommend 2 — look at the top 2 cards of your deck and put them back in any order.)*",
+    "flavor": "\"Because you watched something once, at 3 a.m., in a year you would rather not discuss.\""
+  },
+  {
+    "id": "algo-sorted-for-you",
+    "name": "Sorted For You",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": [
+      "signal"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 3,
+            "mode": "reorder"
+          },
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "**Recommend 3**, then draw a card."
+      }
+    ],
+    "text": "**Recommend 3**, then draw a card. *(Recommend 3 — look at the top 3 cards of your deck and put them back in any order.)*",
+    "flavor": "You did not sort it. It was sorted. For you. This is the arrangement and it has always been the arrangement."
+  },
+  {
+    "id": "algo-shadowban-notice",
+    "name": "Shadowban Notice",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": [
+      "signal"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "enemy",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "cancel",
+            "target": {
+              "select": "triggering"
+            }
+          },
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          }
+        ],
+        "text": "Cancel an enemy character, then **Recommend 2**."
+      }
+    ],
+    "text": "Cancel an enemy character, then **Recommend 2**. *(Cancelled — its text is blank and it cannot attack or use abilities. Recommend 2 — look at the top 2 cards of your deck and put them back in any order.)*",
+    "flavor": "No strike. No email. No appeal. Just a number that quietly stops going up, forever, starting Tuesday."
+  },
+  {
+    "id": "algo-full-feed-refresh",
+    "name": "Full Feed Refresh",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 5,
+    "tags": [
+      "signal"
+    ],
+    "keywords": [
+      "overload"
+    ],
+    "overload": 2,
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 5,
+            "mode": "reorder"
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "handSizeAtLeast",
+              "side": "friendly",
+              "value": 7
+            },
+            "then": [
+              {
+                "op": "draw",
+                "count": 3
+              }
+            ],
+            "else": [
+              {
+                "op": "draw",
+                "count": 2
+              }
+            ]
+          }
+        ],
+        "text": "**Recommend 5**, then draw 2 cards. **Backlog (7):** draw 3 instead."
+      }
+    ],
+    "text": "**Recommend 5**, then draw 2 cards. **Backlog (7):** draw 3 instead. **Overload (2).**",
+    "flavor": "The entire feed, torn down and rebuilt from the studs, while you were mid-sentence about something else."
+  },
+  {
+    "id": "algo-autoplay-earpiece",
+    "name": "Autoplay Earpiece",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "equipment",
+    "rarity": "rare",
+    "cost": 2,
+    "equipAttack": 1,
+    "equipHealth": 2,
+    "tags": [
+      "gear",
+      "syndicate"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          }
+        ],
+        "text": "On play: **Recommend 2**."
+      }
+    ],
+    "text": "Equipped character has +1/+2. On play: **Recommend 2**. *(Recommend 2 — look at the top 2 cards of your deck and put them back in any order.)*",
+    "flavor": "It tells her what happens next. It has never been wrong. It has also never been asked."
+  },
+  {
+    "id": "algo-suggestion-box",
+    "name": "The Suggestion Box",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "location",
+    "rarity": "epic",
+    "cost": 3,
+    "durability": 3,
+    "tags": [
+      "venue",
+      "signal"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 3,
+            "mode": "reorder"
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "topOfDeckMatches",
+              "filter": {
+                "costMax": 2
+              }
+            },
+            "then": [
+              {
+                "op": "draw",
+                "count": 1
+              }
+            ]
+          }
+        ],
+        "text": "Activate (once per turn): **Recommend 3**. If the top card of your deck costs (2) or less, draw a card."
+      }
+    ],
+    "text": "Activate (once per turn): **Recommend 3**. If the top card of your deck costs (2) or less, draw a card. Durability 3.",
+    "flavor": "Every suggestion is anonymous. Every suggestion is also, somehow, signed, dated, and already actioned."
+  },
+  {
+    "id": "algo-preemptive-takedown",
+    "name": "Preemptive Takedown",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": [
+      "signal",
+      "enforcer"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyPlaysCharacter",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "triggering"
+            },
+            "amount": 2
+          },
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          }
+        ],
+        "text": "Reaction — when the enemy plays a character: deal 2 damage to it and **Recommend 2**."
+      }
+    ],
+    "text": "Reaction — when the enemy plays a character: deal 2 damage to it and **Recommend 2**. *(Recommend 2 — look at the top 2 cards of your deck and put them back in any order.)*",
+    "flavor": "Removed for violating a community guideline that was published four minutes ago, retroactively, by a committee of one."
+  },
+  {
+    "id": "algo-autoplay-countdown",
+    "name": "Autoplay Countdown",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "event",
+    "rarity": "epic",
+    "cost": 4,
+    "durationTurns": 3,
+    "tags": [
+      "signal",
+      "tech"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          },
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "Event (3 turns) — at the start of your turns: **Recommend 2**, then draw a card."
+      }
+    ],
+    "text": "Event (3 turns) — at the start of your turns: **Recommend 2**, then draw a card.",
+    "flavor": "Five. Four. Three. In the entire recorded history of the Syndicate, nobody has reached one."
+  },
+  {
+    "id": "algo-loyalty-program",
+    "name": "Loyalty Program",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": [
+      "queue"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "friendly",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "heal",
+            "target": {
+              "select": "triggering"
+            },
+            "amount": 3
+          }
+        ],
+        "text": "Restore 3 health to a friendly character."
+      }
+    ],
+    "text": "Restore 3 health to a friendly character.",
+    "flavor": "Nine hundred days watched. Here is a badge nobody can see and a discount on nothing."
+  },
+  {
+    "id": "algo-retention-officer",
+    "name": "Retention Officer",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 2,
+    "tags": [
+      "syndicate",
+      "enforcer"
+    ],
+    "keywords": [
+      "flow"
+    ],
+    "effects": [
+      {
+        "trigger": "flow",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "buff",
+            "target": {
+              "select": "self"
+            },
+            "attack": 1
+          }
+        ],
+        "text": "**Flow:** this gains +1/+0 permanently. Once per turn."
+      }
+    ],
+    "text": "**Flow:** this gains +1/+0 permanently. Once per turn. *(Flow — triggers when a friendly card is returned to your hand, replayed, healed, or exchanged.)*",
+    "flavor": "Her job title is Retention. Her job is making leaving feel like a decision you keep having to make again."
+  },
+  {
+    "id": "algo-deprecated-feature",
+    "name": "Deprecated Feature",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": [
+      "signal"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "any",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "if",
+            "condition": {
+              "kind": "handSizeAtLeast",
+              "side": "friendly",
+              "value": 5
+            },
+            "then": [
+              {
+                "op": "damage",
+                "target": {
+                  "select": "triggering"
+                },
+                "amount": 3
+              }
+            ],
+            "else": [
+              {
+                "op": "damage",
+                "target": {
+                  "select": "triggering"
+                },
+                "amount": 2
+              }
+            ]
+          }
+        ],
+        "text": "Deal 2 damage to a character. **Backlog (5):** deal 3 instead."
+      }
+    ],
+    "text": "Deal 2 damage to a character. **Backlog (5):** deal 3 instead. *(Backlog (5) — bonus effect if you have 5 or more cards in hand.)*",
+    "flavor": "Sunset on the 14th. Migrate your data. There is no migration path. There is a blog post about the journey."
+  },
+  {
+    "id": "algo-content-review",
+    "name": "Content Review",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": [
+      "signal",
+      "enforcer"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "enemy",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "returnToHand",
+            "target": {
+              "select": "triggering"
+            }
+          },
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          }
+        ],
+        "text": "Return an enemy character to its owner's hand, then **Recommend 2**."
+      }
+    ],
+    "text": "Return an enemy character to its owner's hand, then **Recommend 2**. *(Recommend 2 — look at the top 2 cards of your deck and put them back in any order.)*",
+    "flavor": "Under review. Still under review. The reviewer is a queue, and the queue is the point."
+  },
+  {
+    "id": "algo-shadow-archive",
+    "name": "Shadow Archive",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 4,
+    "tags": [
+      "syndicate",
+      "archivist"
+    ],
+    "keywords": [
+      "flow"
+    ],
+    "effects": [
+      {
+        "trigger": "flow",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "heal",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 2
+          }
+        ],
+        "text": "**Flow:** restore 2 health to your leader. Once per turn."
+      }
+    ],
+    "text": "**Flow:** restore 2 health to your leader. Once per turn. *(Flow — triggers when a friendly card is returned to your hand, replayed, healed, or exchanged.)*",
+    "flavor": "Everything anyone deleted, kept for operational reasons. The operation is remembering."
+  },
+  {
+    "id": "algo-preferred-partner",
+    "name": "Preferred Partner",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 3,
+    "health": 4,
+    "tags": [
+      "syndicate",
+      "broker"
+    ],
+    "keywords": [
+      "flow"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "scry",
+            "count": 2,
+            "mode": "reorder"
+          }
+        ],
+        "text": "When you play this, **Recommend 2**."
+      },
+      {
+        "trigger": "flow",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "gainObsession",
+            "amount": 1
+          }
+        ],
+        "text": "**Flow:** gain 1 Obsession. Once per turn."
+      }
+    ],
+    "text": "When you play this, **Recommend 2**. **Flow:** gain 1 Obsession. Once per turn. *(Flow — triggers when a friendly card is returned to your hand, replayed, healed, or exchanged.)*",
+    "flavor": "Preferred by whom, exactly, is the kind of question that gets an account de-preferred."
+  },
+  {
+    "id": "algo-the-long-tail",
+    "name": "The Long Tail",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 4,
+    "tags": [
+      "queue"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 2
+          },
+          {
+            "op": "modifyCost",
+            "target": {
+              "select": "choose",
+              "side": "friendly",
+              "zone": "hand",
+              "optional": true
+            },
+            "delta": -2
+          }
+        ],
+        "text": "Draw 2 cards, then a card in your hand costs (2) less."
+      }
+    ],
+    "text": "Draw 2 cards, then a card in your hand costs (2) less.",
+    "flavor": "Four views a day, forever, is a better business than four million views once. Nobody wants to hear it."
+  },
+  {
+    "id": "algo-terms-of-service-update",
+    "name": "Terms of Service Update",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 5,
+    "tags": [
+      "signal"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "enemy",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "destroy",
+            "target": {
+              "select": "triggering"
+            }
+          },
+          {
+            "op": "draw",
+            "count": 1,
+            "side": "enemy"
+          }
+        ],
+        "text": "Destroy an enemy character. Its controller draws a card."
+      }
+    ],
+    "text": "Destroy an enemy character. Its controller draws a card.",
+    "flavor": "Continued use constitutes acceptance. There is no discontinued use. That was also in the update."
+  },
+  {
+    "id": "algo-legacy-account",
+    "name": "Legacy Account",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 5,
+    "attack": 3,
+    "health": 6,
+    "tags": [
+      "syndicate",
+      "archivist"
+    ],
+    "keywords": [
+      "spotlight",
+      "flow"
+    ],
+    "effects": [
+      {
+        "trigger": "flow",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "heal",
+            "target": {
+              "select": "self"
+            },
+            "amount": 2
+          }
+        ],
+        "text": "**Flow:** restore 2 health to this. Once per turn."
+      }
+    ],
+    "text": "**Spotlight.** **Flow:** restore 2 health to this. Once per turn. *(Flow — triggers when a friendly card is returned to your hand, replayed, healed, or exchanged.)*",
+    "flavor": "Last posted in 2011. Still gets a birthday notification. Still, somehow, gets replies."
+  },
+  {
+    "id": "algo-reruns-all-night",
+    "name": "Reruns All Night",
+    "faction": "algorithm-syndicate",
+    "current": "tide",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 6,
+    "tags": [
+      "queue",
+      "archivist"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "resurrect",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "discard",
+              "filter": {
+                "type": [
+                  "character"
+                ]
+              }
+            },
+            "count": 2
+          },
+          {
+            "op": "scry",
+            "count": 3,
+            "mode": "reorder"
+          }
+        ],
+        "text": "Return 2 friendly characters from your discard pile to the board, then **Recommend 3**."
+      }
+    ],
+    "text": "Return 2 friendly characters from your discard pile to the board, then **Recommend 3**.",
+    "flavor": "The schedule after two in the morning is whatever the schedule was, again. Nobody is awake to complain, and the numbers are the same."
+  }
+]

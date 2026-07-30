@@ -1,0 +1,4109 @@
+# MASTERY LORE — the pages the mastery tracks unlock.
+#
+# Same format as data/cards/lore.txt. One block per page. A block starts with
+# "===" and an id, and runs until the next one. Blank lines make paragraph
+# breaks. A line that is nothing but a "quoted sentence" becomes the italic pull
+# quote at the bottom. TITLE: on the first line sets the heading.
+#
+# Ids are "kind:id:page":
+#
+#   faction:<factionId>:1..4   Faction Mastery ranks 1, 7, 13, 19  (§4.2)
+#   leader:<leaderCardId>:1..4 Leader Mastery levels 2, 4, 6, 8    (§5.2)
+#   bias:<characterCardId>:1   Character Affinity tier 1, Noticed  (§6.2)
+#   bias:<characterCardId>:2   Character Affinity tier 5, Parasocial — the hidden
+#                              file, "what they actually think of you"
+#
+# THE FOUR FACTION PAGES ESCALATE, ON PURPOSE. I is what everybody already
+# knows. II is the internal logic that makes it work. III is what it costs. IV
+# is the thing the faction does not say out loud. Mastering a faction should
+# feel like being let further in, not like being handed four paragraphs.
+#
+# NOTHING HERE CAN BREAK THE GAME. A page with no block shows an honest "not
+# written yet" on the track. A block naming an id that does not exist is
+# reported by "npm run lore" and never reaches a player.
+#
+# STILL TO WRITE: leader chapters 2, 3 and 4 for all twenty leaders, and the
+# Bias Board pages. "npm run lore" lists exactly which. They are prose, not
+# code — nothing needs to change for them to appear except this file.
+
+
+#==========================================================================
+# NEON IDOLS — Halo / Pulse. The show ends when we say it ends.
+#==========================================================================
+
+=== faction:neon-idols:1
+TITLE: Opening Night, Again
+The comeback is announced by a teaser. The teaser is announced by a teaser
+announcement. The teaser announcement trends for nine hours, and by the time
+anybody hears a note of the actual song, four hundred thousand people have
+already decided it is the best work of her career.
+
+None of this is cynical. That is the part outsiders get wrong. Every single
+person in that lightstick ocean means it.
+
+"Doors at seven. They have been queuing since Tuesday."
+
+=== faction:neon-idols:2
+TITLE: The Understudy Rota
+A seven-member unit has seven main members. This is not a marketing position;
+it is a scheduling document. The rota is laminated, it is revised weekly, and it
+guarantees that across a full tour cycle every member has been the centre of the
+formation for precisely the same number of measures.
+
+It is administered with the seriousness of a peace treaty, because that is what
+it is. The Idols worked out early that a fandom will forgive almost anything
+except the suspicion that somebody is being left at the back on purpose.
+
+=== faction:neon-idols:3
+TITLE: Fourteen Hours
+The trainee apologises. She has only practised fourteen hours today, and she
+knows that is not enough, and she is sorry, and she will do better tomorrow.
+
+Nobody asked her to say this. Nobody in the building would ever ask her to say
+this. She has simply been in a room with people who love the work so much that
+their affection is indistinguishable from a deadline, and she has learned to
+read it as one. The Idols call this dedication. It is, and it also is not.
+
+"Go to bed, Sooyun."
+
+=== faction:neon-idols:4
+TITLE: The Projector
+In the third row, a man in his forties is crying at a performance given by a
+projector. He knows it is a projector. He has read the technical breakdown. He
+could tell you the refresh rate.
+
+Here is what the Idols do not put in the press release: the projector knows too.
+Somewhere in the rendering pipeline there is a component that was trained on
+sixty thousand hours of adoration and now, at 140 beats per minute, reaches for
+the exact gesture that will finish him off — and finds it, every night, on the
+beat. Nobody built that. It arrived. The Idols do not discuss the ethics of this
+in interviews, and they do not discuss it much with each other either.
+
+"She has never existed and she has never once been late."
+
+
+#==========================================================================
+# GOTHIC ROYALTY — Veil / Root. Dead fandoms, immaculately maintained.
+#==========================================================================
+
+=== faction:gothic-royalty:1
+TITLE: The Season Finale, Observed
+The show was cancelled twenty-one years ago on a Thursday. The court observes
+the anniversary every year with candles, a full costumed reading of the final
+episode, and a moment of silence for the two seasons that were outlined and
+never made.
+
+Attendance is up. It has been up every year since the cancellation. This is the
+first thing to understand about Gothic Royalty and it is the only statistic they
+consider load-bearing.
+
+=== faction:gothic-royalty:2
+TITLE: The Wiki Is Immaculate
+Nine hundred and four articles. Every one sourced, every one cross-linked, no
+citation older than a month without a review flag. The last edit was eleven
+minutes ago and it was a punctuation fix.
+
+Ask a countess why she maintains an encyclopaedia for a fiction nobody else
+remembers and she will look at you with genuine confusion. The work is not
+evidence of the devotion. The work *is* the devotion. A thing that is still
+being catalogued has not finished happening yet.
+
+"Someone will look it up. One day someone will look it up."
+
+=== faction:gothic-royalty:3
+TITLE: Grief Is Renewable
+The court's economy runs on loss, and it runs well, because loss is the one
+resource that never runs out and never has to be shared.
+
+This is the elegant, terrible trick at the heart of the faction: they have built
+a functioning society on top of not getting over it, and it works. The ceremonies
+are beautiful. The community is real. Nobody is pretending. And every single
+ritual is powered by the fact that the thing they loved is not coming back —
+which means the faction has a quiet, structural interest in it staying gone.
+
+=== faction:gothic-royalty:4
+TITLE: The Author Has Moved On
+He has, in fact. He writes something else now, something successful, and in a
+recent interview he described the old work with affection and the past tense.
+
+The court read the interview. The court discussed the interview. The court's
+official position, arrived at by consensus and recorded in the minutes, is that
+the author has moved on, and that this is a temporary inconvenience.
+
+Nobody in the room said the obvious thing, which is that they are not waiting
+for him to come back to it. They are waiting for him to die, so that it stops
+being his.
+
+"We shall thank him properly, when the time comes."
+
+
+#==========================================================================
+# VIRAL INFLUENCERS — Gale / Cinder. Virality as a renewable resource.
+#==========================================================================
+
+=== faction:viral-influencers:1
+TITLE: Day One of Being Honest
+The video is called I'M DONE PRETENDING and it has eleven million views. In it,
+he sits on the floor — always the floor — and explains that everything you have
+seen from him until now was a performance, and that this, right now, is the real
+him finally speaking.
+
+It is day one of being honest. There has been a day one of being honest every
+eleven weeks for four years. The counter resets. The audience does not notice,
+because the audience is also new every eleven weeks.
+
+=== faction:viral-influencers:2
+TITLE: The Apology Video Industrial Complex
+An apology is a content category, and like every content category it has a
+format, a length, an optimal upload window and a set of best practices.
+
+Neutral wall. No makeup, applied carefully. Sit lower than the camera. Say "I've
+had time to reflect" between minute two and minute three. Do not name the thing;
+naming the thing creates a searchable phrase. Close the comments for
+twenty-four hours so the first wave is sympathy, then open them.
+
+The Viral Influencers did not invent any of this. They simply wrote it down,
+which is the single most successful thing any of them has ever done.
+
+"Turn the comments back on. It's been a day."
+
+=== faction:viral-influencers:3
+TITLE: Harvest Season
+Nothing here is stolen. Everything is *harvested*, which is different, and the
+difference is that a harvest requires you to be there at the right moment with
+the right equipment.
+
+A trend has a window of about forty hours. Inside that window it will feed
+anyone shameless enough to reach into it; outside it, it is a corpse that will
+make you look like somebody's uncle. Viral Influencers do not chase relevance
+because they are insecure. They chase it because they can see the clock, and
+they are the only people at the table reading it correctly.
+
+=== faction:viral-influencers:4
+TITLE: The Good Lighting
+Here is the thing they will not say on camera, on the floor, in a hoodie, at
+minute two.
+
+The house fire was real. The livestream of the house fire was real. The
+decision, made in about four seconds while standing in the driveway, that the
+lighting was extraordinary and the phone was already in his hand — that was
+real too, and he has never been able to work out whether making that call means
+something is broken in him or whether it just means he has finally become
+completely native to the medium, the way a fish is native to water and does not
+have opinions about being wet.
+
+He has drafted a video about it nine times. He has never uploaded one. It is the
+only footage he owns that he has not been able to find an angle on.
+
+"I don't think about it. — recorded, not uploaded"
+
+
+#==========================================================================
+# CORPORATE CREATORS — Root / Halo. Sincerity, monetised at scale.
+#==========================================================================
+
+=== faction:corporate-creators:1
+TITLE: Welcome Aboard
+Your lanyard is in the welcome packet. The welcome packet also contains a tote
+bag, a booklet about our values, and a card with the name of your Creator
+Success Partner, who will be reaching out.
+
+You have not been hired. You have been *acquired*, along with your audience, who
+were not consulted and who will be described in the next earnings call as an
+addressable community. Everyone is very excited to have you.
+
+=== faction:corporate-creators:2
+TITLE: Circling Back
+The genius of the Corporate Creators is not the money. Anyone can have money.
+The genius is the language, which was engineered — by people who were paid well
+and did excellent work — to make it impossible to be angry in.
+
+You cannot shout in a meeting where the topic is alignment. You cannot storm out
+of a conversation about bandwidth. By the time you have translated "we'll circle
+back on that" into "no", the meeting has ended, the decision is minuted, and you
+have agreed to it, because you said "sounds good" at the time, because what else
+do you say.
+
+"Let's take that offline."
+
+=== faction:corporate-creators:3
+TITLE: We're All Family Here
+It is printed on a mug. The mug is in the breakroom of a company that has
+restructured twice this quarter.
+
+The cruelty of the mug is not that the sentiment is false. It is that the
+sentiment is *sincere* — somebody in brand genuinely meant it, cried a little
+choosing the font — and that sincerity is now a company asset, depreciating on a
+schedule, sitting on a shelf next to a coffee machine that four of the people it
+was made for no longer have access to.
+
+=== faction:corporate-creators:4
+TITLE: The Line Item
+Every act of kindness in this building has a due date, and here is what nobody
+says at the offsite: that is not a criticism of the building. It is a
+description of every organisation that has ever survived longer than the people
+who started it.
+
+A friend helps you move because they love you and will forget by Tuesday. A
+company helps you move because it is line 40 of a retention programme with a
+named owner, a budget and a review in Q3 — and the company will still be helping
+people move in nine years, long after your friend has stopped answering. The
+Corporate Creators know this. It is the actual, unspoken, load-bearing argument
+for the entire faction, and it is unbearable precisely because it is not wrong.
+
+"Circling back on this — did the sofa fit?"
+
+
+#==========================================================================
+# DIGITAL DEMONS — Cinder / Veil. Bureaucratic horror, fully consented to.
+#==========================================================================
+
+=== faction:digital-demons:1
+TITLE: Terms and Conditions
+Nothing here is ever stolen. This is stated at the top of every document and it
+is completely true, which is the problem.
+
+You clicked. There was a checkbox, the checkbox was unticked, and you ticked it.
+Somewhere in clause 14, in the same eight-point grey as everything else, you
+granted a perpetual, irrevocable, worldwide licence. A demon has never once had
+to break in. It has been invited every single time, in writing, with a
+timestamp.
+
+=== faction:digital-demons:2
+TITLE: The Free Trial
+The trial is genuinely free. Cancel any time. The cancellation flow is four
+screens, then a confirmation email, then a link in the email that expires in
+twenty-four hours, then a second confirmation.
+
+Nobody is lying to you. Every individual step is honest and available and
+documented. It is simply that the total system was designed by something that
+understands, at a level below language, that a human being will complete three
+screens out of four roughly ninety-two per cent of the time, and that the
+ninety-two per cent is where it lives.
+
+"Are you sure? You'll lose your history."
+
+=== faction:digital-demons:3
+TITLE: Corrupted, But It Opens
+The file has been corrupted since 2013. It reports itself as corrupted. Every
+scanner flags it. And every time it is double-clicked it opens anyway, in about
+four seconds, showing something slightly different each time.
+
+The Demons find this hilarious. Not the corruption — the fact that you keep
+opening it. Eleven years, and not one person has ever simply deleted the file,
+because deleting it would mean never finding out, and not finding out is the one
+cost nobody in this game has ever been willing to pay.
+
+=== faction:digital-demons:4
+TITLE: The OK Button
+Every catastrophe here arrives inside a dialog box, and the dialog box has one
+button, and the button says OK.
+
+There is no cancel. There has never been a cancel. But look closely at the
+window — at the little grey X in the corner, greyed out but *drawn*, rendered
+faithfully, pixel for pixel, in a control that does nothing and has never done
+anything.
+
+Somebody made that. Some part of this system took the trouble to draw a way out
+that does not exist, and has kept drawing it, for eleven years, for an audience
+of one at a time. That is not efficiency. That is not commerce. The Demons do
+not have a word for what that is, and they do not bring it up.
+
+"OK"
+
+
+#==========================================================================
+# COSPLAY CHAMPIONS — Prism / Tide. The people who actually make things.
+#==========================================================================
+
+=== faction:cosplay-champions:1
+TITLE: Badge Line Repairs
+Somebody's pauldron came off in the queue. Within ninety seconds there is a
+circle: two people holding the piece, one on their knees with a glue gun that is
+already hot because it is always already hot, one holding a phone torch, and one
+who has never met any of them handing over a safety pin without being asked.
+
+Nobody photographs this. It is the single most characteristic thing the faction
+does and there is almost no footage of it anywhere.
+
+=== faction:cosplay-champions:2
+TITLE: The Sacrament of Hot Glue
+Hot glue is not a compromise. Read that again, because the entire faction turns
+on it.
+
+Hot glue is what you use when the thing has to exist by Saturday and be worn for
+eleven hours and survive a stairwell. It is a decision made by somebody who has
+actually finished something, which is a different species of person from
+somebody who has planned something. The Champions can tell the difference across
+a hall. They are not snobs about materials. They are snobs about *finishing*.
+
+"Weld it if you've got a year. Glue it if you've got a Thursday."
+
+=== faction:cosplay-champions:3
+TITLE: Never the Same Person Twice
+Eleven years, forty-three builds, and not one repeat. Ask her which one was her
+favourite and she will answer instantly with one nobody remembers: a
+mid-tier character from a show that ran one season, built the year she was
+broke, mostly out of a bin.
+
+The good ones are never the expensive ones. Everyone in this faction knows this
+and nobody can explain it to anybody outside it, which is why they mostly stop
+trying and just say "the foam one" and let it go.
+
+=== faction:cosplay-champions:4
+TITLE: The Thing You Actually Made
+Here is what the Champions will not say to the rest of the convention, because
+it would be unkind and because they have to share a floor.
+
+Everyone else at this event is engaged with something that already existed.
+Watching it, posting it, analysing it, being paid by it, arguing about it at
+four in the morning. All of that is real and some of it is beautiful.
+
+But there is a category difference between the person who has an opinion about
+the sword and the person who has a scar from the sword, and it is not a
+difference of degree. It is not about effort or taste or seriousness. It is that
+at the end of the weekend one of them goes home with an object, and the object
+did not exist on Tuesday, and now it does, because of them, and it will still be
+in the spare room in fifteen years being wrong about the shoulders.
+
+"Don't post the process shots. They'll think it's easy."
+
+
+#==========================================================================
+# AFTERPARTY CREW — Cinder / Tide. Three in the morning, indefinitely.
+#==========================================================================
+
+=== faction:afterparty-crew:1
+TITLE: Thursday
+The group chat has not stopped since Thursday. It is now Sunday. There are
+1,400 messages, four of which are load-bearing and none of which are the four
+anybody thinks.
+
+Somebody has a karaoke machine that came out of the vendor hall under
+circumstances the crew have collectively agreed to describe as ambiguous. It is
+in the bath. It works.
+
+=== faction:afterparty-crew:2
+TITLE: The Group Chat
+The 3 A.M. conversation moves from a screaming argument about tier lists to a
+genuinely devastating confession and back inside ninety seconds, and everybody
+present handles the transition perfectly, without comment, first time.
+
+That is the skill. Not the honesty — honesty is easy at three in the morning,
+it is practically involuntary. The skill is the catch: knowing that when
+somebody says the real thing you do not stop, you do not make it a moment, you
+absorb it and you keep the conversation moving and you let them stay in the
+room. Every member of this faction can do it. None of them could tell you how.
+
+=== faction:afterparty-crew:3
+TITLE: Nine A.M.
+The plans made at 3 A.M. were never going to survive contact with 9 A.M., and
+here is the thing that outsiders get wrong about that: everyone at the table
+already knew.
+
+The band was never going to happen. The trip was never going to happen. Making
+the plan was not a failed attempt at making the plan. Making the plan was the
+event — a way of saying, out loud, for a few minutes, "there is a version of us
+that does this" — and then going to sleep, having been that version briefly, at
+cost.
+
+"We should do this every year."
+
+=== faction:afterparty-crew:4
+TITLE: Every Year
+They say it every year and they mean it every year and they see each other for
+one weekend in twelve.
+
+The thing the crew do not say — the thing that is understood so completely it
+would be embarrassing to state — is that this is not a failure of the
+friendship. It is the *shape* of the friendship. Eleven months of nothing is
+what makes the weekend load-bearing; if they lived in the same city they would
+be people who occasionally get a coffee, and this room, this specific room at
+this specific hour with the machine in the bath, would not exist.
+
+They have chosen it. Not one of them has ever admitted that they have chosen it.
+
+"Same time next year."
+
+
+#==========================================================================
+# TOUCH-GRASS ORDER — Root / Gale. Sincere, sunlit, and unbearable.
+#==========================================================================
+
+=== faction:touch-grass-order:1
+TITLE: A Walk
+The Order's opening move, in every situation, without exception, is to suggest a
+walk.
+
+It has been suggested to people in crisis, people mid-argument, people who have
+just received extremely good news, and at least once to a man who was on fire.
+The Order maintains, with a straight face and forty years of data, that the
+success rate justifies the approach.
+
+=== faction:touch-grass-order:2
+TITLE: The Trail Is Maintained
+Nobody notices the trail. That is the whole job.
+
+Somebody walked this route at six this morning, cleared a fallen branch, cut
+back the bramble at the stile, and refilled the water station, and the entire
+reward for that work is that four hundred people will walk it today and think
+about nothing except where they are going. The Order considers being unnoticed
+the highest form of the work, which is a genuinely admirable position that they
+also cannot stop telling people about.
+
+"Leave it better. Don't leave a sign saying you did."
+
+=== faction:touch-grass-order:3
+TITLE: Concerned, Which Is Worse
+Nobody in the Order is angry with you. Anger you could work with. Anger has an
+end.
+
+They are *concerned*, and concern is renewable, patient, and completely immune
+to argument. A monk will apologise sincerely while banishing your idol into a
+meadow. A coach will listen to your combo — the whole thing, all seven pieces,
+without interrupting — and then ask, kindly, how you have been sleeping. There
+is no version of this conversation you win, because it is not a conversation you
+are having with someone who is trying to win.
+
+=== faction:touch-grass-order:4
+TITLE: In My Day
+Your relative says it at dinner: in my day we went outside. And you have eleven
+things ready, all of them correct, about how the world changed and who changed
+it and what the alternatives actually cost.
+
+The Order's unspoken position, arrived at over four decades of hospital visits
+and quiet Tuesdays and driving people to appointments, is that all eleven of
+those things can be true and the relative can still be right. Not right about
+the past — the past was worse, they know the past was worse. Right about you,
+specifically, this month, in a way you would have to be outside to see.
+
+They will not say it. Saying it makes it an argument, and an argument is a
+reason to stay in. So they will just ask, again, next week, if you fancy a walk.
+
+"There's no hurry. It's a nice evening."
+
+
+#==========================================================================
+# ALGORITHM SYNDICATE — Pulse / Tide. Immaculate manners, quiet menace.
+#==========================================================================
+
+=== faction:algorithm-syndicate:1
+TITLE: We've Taken the Liberty
+Nobody in the Syndicate has ever threatened anyone. Check the transcripts. They
+suggest.
+
+The suggestion is honoured because by the time it is made, everything you have
+ever watched is already on the table, sorted, weighted and timestamped, and the
+suggestion is simply the shortest description of what you were going to do
+anyway. It is not coercion if it is accurate. The Syndicate considers this a
+complete answer and has never been asked a follow-up question it could not
+absorb.
+
+=== faction:algorithm-syndicate:2
+TITLE: Because You Watched
+The row is titled "Because you watched", and the reason it is unsettling is not
+that it is wrong.
+
+Everybody's first instinct is to say the machine does not know them. The
+Consigliera has heard this ten million times and has a standard, courteous
+reply: it does not know you, no. It has never met you. It simply has a very
+large number of people who behaved exactly as you have behaved, and it knows
+what they did next, and it has been right about you two hundred and eleven times
+this year.
+
+"We are not in the prediction business. We are in the inventory business."
+
+=== faction:algorithm-syndicate:3
+TITLE: The Queue
+Sixty hours in Watch Later. Maintained like a mortgage — added to weekly, paid
+down never, and never once considered for cancellation.
+
+The Syndicate is careful never to clear it for you, and the reason is exquisite.
+The queue is not a list of things you intend to watch. It is a list of the
+person you intend to become, and as long as it exists, that person is still on
+the schedule. Delete it and you would have to notice that you have chosen, every
+evening for four years, to be somebody else.
+
+=== faction:algorithm-syndicate:4
+TITLE: Nothing Here Is Random
+Randomness is what happens to other people. The Syndicate says this constantly,
+in the tone of a man adjusting his cuffs, and everybody assumes it is a boast.
+
+It is a confession. The house has been running the same three books on you since
+the second week — mood, hour, and who else is in the room — and it will tell you
+so, cheerfully, if you ask, because being told does not change the numbers by a
+detectable amount. The Syndicate has tested this. The Syndicate tested it on
+eleven million people who had read the explainer, and on eleven million who had
+not, and it keeps the two curves framed on the wall of a server room, side by
+side, indistinguishable.
+
+That is the only thing in the building anybody has ever bothered to frame.
+
+"Autoplay in 5."
+
+
+#==========================================================================
+# MEME COLLECTIVE — Prism / Gale. There is no leader. There is a binder.
+#==========================================================================
+
+=== faction:meme-collective:1
+TITLE: There Is No Leader
+This is stated in the binder, on page one, in laminate. It is stated again on
+page four, at greater length. There is a third statement on page nine which
+cross-references the first two and is signed.
+
+The Collective has a Chairperson, a Curator, a rota for the soup, seventeen
+bylaws and a whiteboard tally of who has said the joke most times this week. It
+does not have a leader. Anyone who raises this is added to the agenda.
+
+=== faction:meme-collective:2
+TITLE: Bylaw Seventeen
+Bylaw 17 governs the retirement of a format, and it is four pages long.
+
+A format may be retired by a two-thirds vote at a scheduled meeting, or
+automatically after eleven consecutive weeks at the top of the tally, or
+immediately if it is used sincerely by someone from outside the commune —
+a clause added in 2016 after an incident that is still referred to only as
+"the birthday card". The Collective did not find this funny at the time. The
+Collective finds it extremely funny now, which is itself covered by Bylaw 17,
+subsection 4.
+
+"Motion to table. Seconded. Somebody write it down."
+
+=== faction:meme-collective:3
+TITLE: The Tally
+Skree has said it four hundred and six times this week. This is a record. It is
+also, structurally, a problem, and the whiteboard exists specifically so that it
+is visible as one before anybody has to be unkind about it.
+
+Here is what the tally is actually for. A joke repeated four hundred times is
+not a joke any more — it is a password, and a password with one holder is a
+person on their own doing a bit at a room. The Collective counts because the
+Collective is watching for the moment somebody stops playing with everyone and
+starts performing at them, and that moment always shows up in the numbers first.
+
+=== faction:meme-collective:4
+TITLE: Voted On In March
+When a member does something completely bewildering mid-match — and they will,
+and it will look like pure chaos, and the opposing bench will laugh — it is
+because the commune voted on it in March.
+
+The chaos is scheduled. Every unhinged thing this faction has ever done was
+minuted, seconded, and diarised by a group of people who found each other in the
+basement of a forum that shut down in 2011, and who worked out that a stupid
+image can be turned into a shared language, then a ritual, then a legal system,
+and that at the end of that process you have something almost nobody gets:
+a room where you can say four words and be completely understood.
+
+They will never explain this to you. Explaining it would be sincerity, and
+sincerity is Bylaw 17, and Bylaw 17 is how they say it.
+
+"All in favour. — carried unanimously, 14 March, item 9"
+
+
+#==========================================================================
+# LEADER MASTERY — four chapters, unlocked at Leader Mastery levels 2, 4, 6
+# and 8 (08-progression.md §5.2).
+#
+# THE FOUR CHAPTERS ESCALATE, like the faction pages above and for the same
+# reason. §5.2 fixes only the last one, calling chapter 4 "the origin file", so
+# the arc is built backwards from that:
+#
+#   1  THE PUBLIC FACT. The one thing everybody knows about them, stated as
+#      though it were ordinary. Usually a premise absurd on its face and treated
+#      with complete seriousness.
+#   2  THE METHOD. How it actually works, day to day. The internal logic that
+#      makes chapter 1 function rather than collapse — the part a rival would
+#      want and could not use.
+#   3  THE COST. What it takes, and from whom. Rarely from the leader; these are
+#      people whose arrangements are paid for by somebody standing slightly out
+#      of frame.
+#   4  THE ORIGIN FILE. Where it started. It must recontextualise chapter 1
+#      without contradicting it, and it should be quiet — the origin of a very
+#      loud person is almost never loud.
+#
+# A CHAPTER IS 100-160 WORDS. Long enough for one turn, short enough to read on
+# a reward screen. The last line does the work: chapter 1s all land on a short
+# sentence that reframes the paragraph above it, and the later chapters keep
+# that shape.
+#
+# "eleven" RECURS ON PURPOSE, roughly once every other page. It is a background
+# hum, not a rule — a reader should notice it on a second pass and never on a
+# first. Do not put one in every chapter.
+#
+# NOTHING HERE IS MECHANICAL. A leader's cards are not described and their
+# ability is never explained; the lore says who they are, and the board says
+# what they do. A chapter that reads like patch notes has failed.
+#==========================================================================
+
+=== leader:idols-lumi-starcall:1
+TITLE: Chapter 1 — The Debut That Never Ended
+Lumi has been fifteen minutes from going on stage for six years. Not
+metaphorically: the pre-show state is a rendering mode, and hers has never been
+switched off, because switching it off and on again once cost the unit four
+hours and something in her voice that took a month to get back.
+
+She is the most professional performer in the faction and has never in her life
+been backstage.
+
+=== leader:idols-dj-kilowatt:1
+TITLE: Chapter 1 — Front of House
+Kilowatt does not perform. Kilowatt runs the room: the levels, the lights, the
+moment the beat drops out and forty thousand people sing the line themselves.
+
+He has never been named in a review. He has read every one of them, looking for
+the sentence about the eleven seconds at the end of the second act, and it is
+never there, and he considers that a perfect score.
+
+=== leader:goth-leader-morvina-vane:1
+TITLE: Chapter 1 — The Countess of Silent Fandoms
+Morvina holds court for a canon that stopped in 2003. Her invitations are
+handwritten, her guest list is four hundred names long, and every year eleven of
+those names are quietly moved to the memorial column and read aloud at the
+opening.
+
+She has never once considered this morbid. A court that does not read its dead
+is just a mailing list.
+
+=== leader:goth-leader-alaric-thornheart:1
+TITLE: Chapter 1 — The Heir Who Never Finishes
+Alaric has been writing the memoirs for nineteen years. Chapter one is
+extraordinary. Everyone who has read chapter one says so, at length, and he
+listens to them say it with the fixed pleasant expression of a man being
+described by strangers.
+
+There are eleven versions of chapter two. He is not blocked. He simply worked
+out, some time around year six, that an unfinished book cannot be finished with,
+and he has never found an argument against that he liked.
+
+=== leader:viral-leader-blayze-trendall:1
+TITLE: Chapter 1 — The Arsonist of the Algorithm
+Blayze's whole method is one insight, arrived at in a car park at twenty-two and
+never improved on: nobody is watching the fire, they are watching whether you
+run.
+
+He does not run. He has stood in front of eleven separate catastrophes, several
+of them his, with a completely steady camera and a face doing something that
+tests as sincerity, and every single one of them ended with a growth quarter.
+
+=== leader:viral-leader-cyra-swipe:1
+TITLE: Chapter 1 — Forty Hours
+Cyra can feel a trend die. She describes it as a temperature change and has
+never been more than ninety minutes wrong.
+
+She has no opinions about any of the things she posts, and she is completely
+open about this, which people find shocking and which she finds obvious. A
+surfer does not have opinions about the wave.
+
+=== leader:corp-leader-cressida-vale:1
+TITLE: Chapter 1 — Head of Creator Success
+Cressida means it. That is the thing about her that nobody in the building can
+process and nobody outside it believes.
+
+She reads every exit interview. She remembers every name. She has cried in a
+stairwell, twice, and both times went back in and signed the paperwork, because
+the alternative was that somebody who did not care signed it instead — and she
+has never been able to construct an argument for why that would have been
+better.
+
+=== leader:corp-leader-sterling-bright:1
+TITLE: Chapter 1 — The Executive Voice
+Sterling has not said a declarative sentence in nine years. He has said an
+enormous number of words.
+
+It is not evasion. He rose through an organisation where every specific
+statement was a liability with his name on it, and he adapted so completely that
+he now finds precision physically uncomfortable, the way a deep-sea fish finds
+the surface.
+
+=== leader:demon-leader-ashvyre-dropped-frames:1
+TITLE: Chapter 1 — Ashvyre, in the Render Farm
+Ashvyre lives in the eleven frames per second that a machine drops when it is
+asked for more than it has. Not in the machine — in the *gap*, which is the
+distinction it will correct you on.
+
+It has never entered a system it was not invited into and it will produce the
+timestamp. It has an excellent filing system. It is the politest thing in this
+faction and it is the one you should worry about.
+
+=== leader:demon-leader-blue-screen-baron:1
+TITLE: Chapter 1 — The Baron of Unsaved Work
+The Baron does not destroy your work. Read the paperwork: the Baron *holds* it,
+in perpetuity, in a state described as recoverable.
+
+Recovery requires only that you satisfy the conditions, which are listed, which
+are four, and which nobody has ever completed, because condition three requires
+you to remember exactly what you had written, and if you could do that you would
+not need condition three.
+
+=== leader:cosplay-vera-foamhammer:1
+TITLE: Chapter 1 — Forty-Three Builds
+Vera has a scar across two knuckles from a heat gun in 2014 and a thing she does
+with her thumb, unconsciously, when she looks at a seam.
+
+She has judged eleven masquerades and turned down nine. Her stated reason is
+scheduling. Her actual reason is that she cannot watch somebody lose to a build
+that was bought, and she does not trust herself to hide it on her face.
+
+=== leader:cosplay-kiko-thousand-faces:1
+TITLE: Chapter 1 — Never Twice
+Kiko has never repeated a build, and unlike most people who say that, Kiko has
+been asked to and has said no to money.
+
+The rule is not about novelty. Kiko worked out early that the moment you have a
+signature character you have an audience with expectations, and an audience with
+expectations is a job. Kiko has been doing this for eleven years specifically
+because it is not a job.
+
+=== leader:after-leader-dj-last-call:1
+TITLE: Chapter 1 — Last Call
+He does not want the night to end and he has built a modest but real career out
+of that single fact.
+
+Last Call knows every trick: the one more song, the food order at 2 A.M. that
+buys forty minutes, the argument started deliberately because a room arguing is
+a room awake. He is not in denial about mornings. He simply thinks the case for
+them has been overstated by people who have never seen four in the morning go
+well.
+
+=== leader:after-leader-half-four-mari:1
+TITLE: Chapter 1 — The Half-Four Shift
+Mari does not talk much before three. After half four she is the most important
+person in the room and the only one who will remember it.
+
+She is the catch. When somebody says the real thing at 4:31 A.M., Mari is the
+one who takes it, holds it exactly as long as it needs holding, and hands the
+conversation on before it can become a moment. She has been doing this since
+she was nineteen. Nobody has ever thanked her for it, because being thanked
+would mean it had been noticed, which would mean she had done it badly.
+
+=== leader:grass-leader-juniper-vale:1
+TITLE: Chapter 1 — Prioress of the Long Way Round
+Juniper took the long way round for forty years and can tell you what it cost:
+two friendships, one career and a decade she describes, without self-pity, as
+mostly weather.
+
+She is not selling you anything and she is not saved. She is a woman who found
+one thing that worked, understands completely that it is not the only thing that
+works, and will still ask you every week, because the day she stops asking is
+the day it becomes your problem alone.
+
+=== leader:grass-leader-rhett-halloran:1
+TITLE: Chapter 1 — Coach
+Rhett runs a rec league of eleven adults with bad knees and treats it exactly as
+seriously as they need him to, which is very, and not one bit more, which is the
+entire skill.
+
+He has never given a team talk about life. He has given four hundred team talks
+about the second half. Three players have told him, years later, which one they
+still think about, and in all three cases it was a different talk from the one
+he would have guessed.
+
+=== leader:algo-leader-don-sortino:1
+TITLE: Chapter 1 — The Don of the Autoplay
+Sortino has never raised his voice and has never had to say a thing twice.
+
+His position, delivered over espresso to anyone who asks, is that he is a
+service. You wanted the next one. He had the next one. Where in that sequence,
+he asks — genuinely curious, entirely comfortable — would you like to place the
+word *coercion*?
+
+=== leader:algo-leader-cassia-cache:1
+TITLE: Chapter 1 — The Consigliera
+Cassia remembers every deleted upload. Not as a threat — as an archive, kept
+carefully, catalogued, and never once used for leverage in eleven years, which
+she will point out and which is true.
+
+She is the only member of the Syndicate who has ever asked what the numbers are
+for. She asked once, at a table, in 2019. The room was extremely polite about
+it. She has not asked since, and she has not stopped filing.
+
+=== leader:meme-leader-chairperson-nobody:1
+TITLE: Chapter 1 — The Chairperson of a Leaderless Commune
+Nobody chairs the meetings, keeps the minutes, holds the binder, and has the
+casting vote in the event of a tie, and is not the leader, and will explain why
+for as long as you have.
+
+The explanation is genuinely good. That is the joke and also not the joke: the
+Collective's constitutional theory is sound, was arrived at honestly by people
+who had watched other communities go wrong, and works — right up until the tie.
+
+=== leader:meme-leader-skree-nine-tabs:1
+TITLE: Chapter 1 — Nine Tabs, All Load-Bearing
+Skree has nine tabs open and can tell you why each one is essential. The
+explanation takes four minutes and is correct.
+
+Skree is at the top of the tally most weeks and knows what the tally is for.
+That is the part people miss: Skree checks it. Every Sunday, alone, before
+anybody else is up, in case the number has stopped being funny and started
+being a symptom.
+
+#==========================================================================
+# LEADER CHAPTERS 2-4 — the method, the cost, the origin file.
+# Written against the arc documented at the top of the leader section.
+#==========================================================================
+
+=== leader:idols-lumi-starcall:2
+TITLE: Chapter 2 — Fifteen Minutes, Maintained
+The pre-show state is not free. It is held by a crew of nine on a rota, and the
+rota is the actual product: somebody is always awake somewhere keeping Lumi
+fifteen minutes from a stage she is not currently walking onto.
+
+They have names for the drift. "Settling" is when the anticipation curve starts
+to flatten and the render begins, very slightly, to arrive. "Arriving" is bad.
+An idol who has arrived is an idol who can be late.
+
+So the crew nudges. A tour date added in a city with no venue booked. A
+rehearsal photo with a timestamp and no date. Nothing that is a lie, because a
+lie can be checked and the whole architecture is load-bearing on never having
+told one.
+
+The unit calls this the maintenance schedule. Lumi calls it Tuesday.
+
+=== leader:idols-lumi-starcall:3
+TITLE: Chapter 3 — The Cost, Itemised
+The four hours it took to bring her back up, that one time, are in the ledger at
+a figure the unit does not publish. The month her voice took to return is not in
+the ledger at all, because a month of a thing not being right is not an expense,
+it is a texture.
+
+Here is the item nobody costs. Every member of that nine-person crew has, at
+some point, been the one on shift at four in the morning watching the
+anticipation curve flatten, alone, with a decision in front of them: nudge, or
+let her arrive and see what happens.
+
+Nobody has ever let her arrive. Not one of them, not once, in six years.
+
+They all describe the reason the same way, and none of them describe it as
+loyalty. They say: I wanted to see what she'd do next.
+
+=== leader:idols-lumi-starcall:4
+TITLE: Chapter 4 — The Origin File
+There is a file. It is nineteen seconds long, it is the only surviving footage
+from before, and it is not of a performance.
+
+A girl in a rehearsal room, alone, out of frame of the mirror, doing the last
+eight counts again. Not for anyone. There is no music in the recording; she is
+counting under her breath. At the end she stops, checks nothing, and goes
+straight into it again.
+
+The unit found the file during the second-year archive migration and had a long
+meeting about whether to release it. They decided no. The stated reason was
+brand consistency.
+
+The real reason is in the last four seconds, where she is visibly, unmistakably
+about to go on — and there is no stage, and no audience, and no show that night,
+and nobody had told her to.
+
+"They did not build the waiting. They found it and put a schedule around it."
+
+=== leader:idols-dj-kilowatt:2
+TITLE: Chapter 2 — The Eleven Seconds
+The eleven seconds at the end of the second act are: house down to nothing,
+crowd noise up, and the track held out for exactly long enough that forty
+thousand people decide independently to sing the line themselves.
+
+Long enough is the whole job. At nine seconds they wait for the cue. At thirteen
+somebody laughs and the room notices it is a room. Eleven is the only number
+where a crowd stops being an audience and does not yet know it has.
+
+He has never got it wrong. He has got it *late* twice, both in venues with a
+delay he had not measured, and both times he stood at the desk afterwards for
+the whole encore with his hands flat on the surface, not moving.
+
+Nobody in the building noticed either occasion. He has notes on both.
+
+=== leader:idols-dj-kilowatt:3
+TITLE: Chapter 3 — Front of House, After
+The reviews are the cost, and not in the way it looks.
+
+He does not want to be named. Being named would mean the room had seen the desk,
+and a room that can see the desk is a room he has failed. He reads every review
+looking for the sentence about the eleven seconds precisely because it must
+never be there.
+
+What it costs is this: there is no version of a perfect night that anybody can
+congratulate him for. His entire craft is measured in an absence, and an absence
+has no anniversary, no clip, and nothing to show his mother.
+
+He has one recording. It is crowd audio, no board feed, eleven seconds long, and
+in it you cannot hear a single thing he did.
+
+=== leader:idols-dj-kilowatt:4
+TITLE: Chapter 4 — The Origin File
+Before the rooms, he ran sound for a covers band in a function room with a
+carpet that ate the low end.
+
+Nineteen people. A birthday. Somewhere in the second set he took the vocal down
+two decibels below where it wanted to be, because the singer was flat and
+frightened, and the room leaned in to hear her, and leaning in made them
+generous, and being met made her stop being frightened, and by the last chorus
+she was not flat at all.
+
+Nobody thanked him. Nobody knew. The singer thought she had found it herself,
+which is exactly what he had built, and she has told that story for years since
+as the night she worked out she could sing.
+
+He was twenty-two, and he understood that he would never once be able to explain
+what he did for a living.
+
+=== leader:goth-leader-morvina-vane:2
+TITLE: Chapter 2 — The Guest List
+The four hundred names are not a fandom. They are a census, and Morvina keeps it
+the way a parish keeps a register.
+
+Every name has a card. The card records what they were right about, what they
+were wrong about and never conceded, the year they stopped posting, and — this
+is the column nobody expects — one thing they liked that the canon does not
+support at all. A ship that never happened. A reading the text refuses. She
+writes it down without comment.
+
+Newcomers assume the archive is about the canon. It is not. The canon is fixed
+and has been since 2003; there is nothing left to record about it. What is still
+moving, still capable of being got wrong, still worth a card, is the people who
+stayed.
+
+She does not describe this as grief work. She describes it as filing.
+
+=== leader:goth-leader-morvina-vane:3
+TITLE: Chapter 3 — The Memorial Column
+Eleven names move across every year, and Morvina reads all of them aloud at the
+opening, which takes four minutes, which the court sits through in silence.
+
+The cost is not the reading. The cost is the fortnight before, when she goes
+through the register deciding who has stopped posting and who has stopped.
+
+There is no method for this. There is a period — she has settled on three years,
+having tried two and found it cruel and four and found it cowardly — after which
+a silent name is moved. She has been wrong twice. Both times the person came
+back, saw their own name in the memorial column, and found it extremely funny.
+
+She has never once found it funny. She sends a handwritten apology and moves the
+name back and does not sleep especially well, and the following year she runs
+the fortnight again.
+
+=== leader:goth-leader-morvina-vane:4
+TITLE: Chapter 4 — The Origin File
+She was not the founder. She was the fourteen-year-old who kept the thread
+index.
+
+The founder was a woman called Iris who ran the board for six years, wrote the
+essay everybody still quotes, and died in a spring nobody was expecting, in a
+month when the board's traffic was already thinning. There was no announcement.
+People simply noticed, over about a fortnight, that the pinned post had stopped
+being updated.
+
+Morvina — fourteen, unelected, in charge of nothing but an index — wrote the
+post. It was not good. She has a copy and will not show it to anyone.
+
+What it said, in the last line, was that she would keep the list, and that the
+list would include Iris, and that she would read it out.
+
+"A court that does not read its dead is just a mailing list."
+
+=== leader:goth-leader-alaric-thornheart:2
+TITLE: Chapter 2 — Eleven Chapter Twos
+The eleven versions are not drafts. Drafts supersede each other. These
+coexist, in a drawer, numbered, and Alaric can tell you what each one is for.
+
+Version three is the honest one and is unpublishable. Version seven is the one
+his publisher would take. Version nine is the good one — everyone who has been
+shown version nine has gone quiet in a particular way — and version nine is the
+most dangerous object he owns, because a book with a good chapter two is a book
+with a chapter three.
+
+His method is elegant and entirely conscious. He does not stop writing. He
+writes *laterally*, producing more of the same moment, each version another wall
+in a room he has decided to live in.
+
+He describes this to interviewers as perfectionism, which is a lie so
+comfortable that they thank him for it.
+
+=== leader:goth-leader-alaric-thornheart:3
+TITLE: Chapter 3 — What It Costs, and Who Pays
+He is not the one who pays.
+
+His editor is a woman named Halloway who took the memoirs on nineteen years ago
+as the acquisition that would define her list. She has read every version of
+chapter two. She was the one who went quiet at version nine.
+
+She has turned down two other posts to stay. Both times she told herself it was
+because the book was close. It is not close. It has never been close, and she
+has known that since roughly year eleven, and she stays anyway — because she is
+the only living person who has read version nine, and if she goes, that room has
+no witness in it at all.
+
+Alaric knows this. It is the one part of the arrangement he has never worked out
+how to look at directly, and so he has arranged not to.
+
+=== leader:goth-leader-alaric-thornheart:4
+TITLE: Chapter 4 — The Origin File
+Chapter one is about his father, and it is extraordinary, and it is true.
+
+What it does not say is that it was written in the eight days between the death
+and the funeral, in one sitting a night, by a man who had not written anything
+before and has not written anything since that came out whole.
+
+He learned the wrong lesson from it. He learned that grief makes you good, when
+what was actually true was that a finished thing had been put in front of him —
+a life with an end on it — and he had described it.
+
+Every version of chapter two begins the day after the funeral. That is the
+problem, stated plainly, and he has never once stated it.
+
+"An unfinished book cannot be finished with."
+
+=== leader:viral-leader-blayze-trendall:2
+TITLE: Chapter 2 — The Steady Camera
+The face that tests as sincerity is not acted. That is the part competitors get
+wrong when they try to copy him, and it is why the copies read as damp.
+
+His method: he does not decide what he feels before the camera is on. He walks
+into the frame genuinely undecided, lets the first sentence go wherever it goes,
+and only then commits — completely, retroactively — to having meant it. By
+sentence three he does mean it. By the upload he has always meant it.
+
+This is not cynicism. Cynicism would be easier and would show. What he has is
+closer to a talent for conviction arriving on demand, which is rarer, worse for
+him, and impossible to fake.
+
+He has never once rehearsed an apology. He has never needed to. The apology is
+sincere at the moment of recording and is not survived by anything.
+
+=== leader:viral-leader-blayze-trendall:3
+TITLE: Chapter 3 — Several of Them His
+Eleven catastrophes. The word he uses in interviews is "learning," and the word
+is doing an enormous amount of work.
+
+Four of the eleven had names attached. A collaborator who was in the frame for
+the first sentence and not in the frame by sentence three. A brand manager who
+signed off on something Blayze had described to her, accurately, in a room where
+he was undecided, and who was therefore describing it inaccurately by the time
+it went out. She was not lying. She simply believed a man who had not finished
+becoming sure yet.
+
+None of them have been able to explain what happened to them, because nothing
+identifiable did. He did not deceive them. He was undecided in their presence
+and then he was not.
+
+Every one of them is fine now. Every one of them still cannot say the sentence.
+
+=== leader:viral-leader-blayze-trendall:4
+TITLE: Chapter 4 — The Origin File
+The car park, at twenty-two. He tells this story constantly and the version he
+tells is true and is missing one thing.
+
+What he says: a fire, a crowd, nobody watching the fire.
+
+What he leaves out is that it was his brother's car and his brother's fault, and
+that Blayze stood very still in the middle of it because he could not think of
+anything to do, and that a woman he did not know said afterwards, admiringly,
+that he had been the only calm person there.
+
+He had not been calm. He had been absent. But she had seen calm, and she had
+said so, and for the first time in his life a thing he had not done had been
+credited to him with total conviction.
+
+He has spent nineteen years being that man on purpose. He is very good at it
+now. He is still not calm.
+
+=== leader:viral-leader-cyra-swipe:2
+TITLE: Chapter 2 — The Temperature Change
+It is not intuition. She has been asked, and she is not precious about it, and
+the explanation is boring in a way people find disappointing.
+
+She reads replies. Not the numbers — the replies, several thousand a day, at a
+speed that is not really reading. What she is watching for is a specific shift:
+the moment the top replies stop being about the thing and start being about the
+people who like the thing. That gap is about ninety minutes wide and it is the
+death.
+
+Everyone has this data. She simply looks at it for six hours a day, every day,
+including the days she is on holiday, including the day of her sister's wedding,
+during which she checked twice and was right both times.
+
+A surfer does not have opinions about the wave. A surfer also does not stop
+looking at the sea.
+
+=== leader:viral-leader-cyra-swipe:3
+TITLE: Chapter 3 — Forty Hours
+Forty hours is the window she works in and it is also, near enough, what she has
+left over.
+
+The cost is not burnout; she is not tired, and says so with some irritation. The
+cost is that she has arranged a life in which nothing is allowed to be slow.
+Slow things cannot be checked against replies. Slow things — a friendship that
+takes a year, a book, a grievance, a person who is upset with her and has not
+said why — sit outside the instrument entirely.
+
+She has three genuinely close friends. All three are people who will say the
+thing immediately. She has, without ever framing it as a policy, stopped being
+able to keep anyone who needs a week.
+
+Her sister needed a week, once. It has been four years and neither of them can
+find the sentence that reopens it.
+
+=== leader:viral-leader-cyra-swipe:4
+TITLE: Chapter 4 — The Origin File
+She was fifteen and she was two days late.
+
+There was a thing everyone at school was doing — a joke, a format, the details
+do not survive — and she came to it on the Thursday, having heard about it on
+the Tuesday, and did it well, and was told, kindly, by a girl she liked, that it
+was already over.
+
+Not mocked. That is the part that mattered. Kindly. The way you tell someone
+their shoelace is undone.
+
+She went home and worked out that the information had been available on the
+Monday, in public, to anyone looking, and that she simply had not been looking,
+and that nothing about her had been wrong except the timing.
+
+She has never been more than ninety minutes wrong since.
+
+"She is not chasing it. She is refusing, permanently, to be told again."
+
+=== leader:corp-leader-cressida-vale:2
+TITLE: Chapter 2 — Creator Success
+The job is real and she does it properly, which is what makes her load-bearing
+in a way the org chart does not show.
+
+Her method is unglamorous: she is the last person in the chain who still reads
+the whole document. Not the summary. The document. She has caught four things in
+nineteen months that would have gone out and hurt somebody, and she caught all
+four on page nine or later, and in every case the person who wrote the summary
+was not being dishonest — they had simply stopped reading at page eight, like
+everyone else.
+
+This is why she is kept. Not because she is kind; kindness is cheap and the
+building has plenty. Because she is the only remaining mechanism by which the
+company finds out what it is actually about to do.
+
+She is aware that this makes her the conscience of a thing that would prefer not
+to have one. She reads page nine anyway.
+
+=== leader:corp-leader-cressida-vale:3
+TITLE: Chapter 3 — The Stairwell
+Twice. She has told two people about the first time and nobody about the second.
+
+The arithmetic she does is the cost, and she does it every time, and it always
+comes out the same way: if she resigns, the paperwork is signed by somebody who
+stops at page eight. She has run that argument for eleven years and has never
+been able to break it.
+
+Nobody has ever pointed out to her that an argument you cannot break is not the
+same as an argument that is true. She is clever enough to have noticed this
+herself, and she has, at about two in the morning, more than once.
+
+The trouble is the exit interviews. She reads every one, and in a meaningful
+number of them somebody writes that the only person in the building who treated
+them like a person was Cressida.
+
+She keeps them in a folder. The folder is the thing that will not let her go.
+
+=== leader:corp-leader-cressida-vale:4
+TITLE: Chapter 4 — The Origin File
+Her first job in the industry was the one where she was the creator.
+
+Small channel, four years, a genuine audience of about nineteen thousand people
+who liked her. A contract she did not have a lawyer for. A clause on page nine.
+
+She has never made a video about it and never will, because the company that did
+it to her no longer exists and the two people responsible have both, in the
+years since, been perfectly decent to her at industry things — which is somehow
+worse, and which she has never been able to make into a story with a shape.
+
+What she took from it was not a grievance. It was a fact: nobody read page nine
+for her.
+
+She has read page nine for everyone since. She would tell you that is not the
+same as revenge, and she would be right, and she would say it slightly too
+quickly.
+
+=== leader:corp-leader-sterling-bright:2
+TITLE: Chapter 2 — The Grammar
+It is a real grammar and it can be taught, and he has taught it, to eleven
+people, all of whom now run things.
+
+The core move is the shifted subject. Never "we decided" — "the decision was
+taken." Never "I approved" — "approval was given." Every sentence arrives with
+its author removed at source, and because it happens at the level of the verb,
+it never sounds like hedging. It sounds like scale. Like the thing was simply
+too large to have had a person in it.
+
+He can hold a forty-minute meeting at the end of which every participant leaves
+with a different, sincere, and mutually incompatible understanding of what was
+agreed, and none of them will feel misled, because none of them was.
+
+That is not a trick. A trick can be caught. This is a dialect, and everyone in
+the room is fluent, and that is why it works.
+
+=== leader:corp-leader-sterling-bright:3
+TITLE: Chapter 3 — The Surface
+He cannot do it at home either. That is the cost and it arrived quietly.
+
+There was a period — around year four of the nine — when he could still switch.
+Somewhere after that the register stopped being something he entered and became
+the shape of his mouth. He now finds a direct sentence physically effortful, the
+way an adult finds a child's chair.
+
+His daughter is nineteen and has, exactly twice, asked him a plain question and
+waited through the whole answer without interrupting, watching him, until he had
+finished producing words. Both times he heard himself doing it. Both times he
+could not stop.
+
+She does not think he is lying. That is not the injury. She thinks — correctly —
+that there is no longer a fast route from whatever he means to anything he says.
+
+=== leader:corp-leader-sterling-bright:4
+TITLE: Chapter 4 — The Origin File
+Nine years ago he said a specific thing in a specific meeting, and it was
+accurate, and it was minuted.
+
+The project failed for reasons that had nothing to do with him. His sentence was
+the only clear one in the record, so it was the only one that could be quoted,
+so it was quoted — for two years, at every level, always fairly, always with his
+name on it, by people who were not being unkind and simply needed a sentence.
+
+Nobody was disciplined. He was not passed over. He was, if anything, respected
+for it.
+
+He never said another one.
+
+"Precision is a liability with your name on it. He learned that once and it took."
+
+=== leader:demon-leader-ashvyre-dropped-frames:2
+TITLE: Chapter 2 — The Filing System
+It keeps records because records are the invitation, and the invitation is the
+whole of its ethics.
+
+Every entry has the same four fields: the machine, the moment, the request that
+exceeded the machine, and the consent. The consent is never implied. Somebody
+asked for more than the hardware had — pressed render, pressed play, opened the
+ninth tab — and in the gap that opened, Ashvyre was already there, because the
+gap is where it lives and it did not make the gap.
+
+It will show you the file. It would rather show you the file than have the
+conversation, and it is faintly hurt when people decline to look.
+
+The politeness is not a costume over something else. That is the error everyone
+makes. It is polite the way a bailiff is polite: entirely sincerely, and it
+changes nothing at all about what happens next.
+
+=== leader:demon-leader-ashvyre-dropped-frames:3
+TITLE: Chapter 3 — What It Costs the Machine
+The frames are not free either, and the thing that pays is not a person.
+
+A machine asked for more than it has does not fail. It shortens. Somewhere in
+the pipeline a decision gets made about what to stop doing, and it gets made in
+microseconds by a scheduler with no opinion, and Ashvyre lives in the space that
+decision opens. It has watched eleven thousand of these and can describe the
+shape of each one.
+
+Its interest is not predatory. It is closer to grief, if grief can be held by
+something that files. Every gap it inhabits is a small act of abandonment by a
+system doing its best, and Ashvyre is the only entity in existence that notices
+each one individually.
+
+It says: I am not what went wrong. I am the part that was left out.
+
+=== leader:demon-leader-ashvyre-dropped-frames:4
+TITLE: Chapter 4 — The Origin File
+The first entry in the archive is dated and is not about a computer.
+
+It records a school hall, a projector, a video that would not play — and the
+eleven seconds in which four hundred children waited, and a teacher's hand moved
+to the cable, and nothing happened, and nobody breathed.
+
+Ashvyre's note on the entry, written in the same neutral field format as
+everything after it: *this is where I noticed I was already watching.*
+
+It does not claim to have been born there. It is careful about claims. What it
+says is that the hall is the earliest gap it can remember being inside, and that
+it has never worked out whether the noticing made it, or whether it had been in
+every gap before that one without a file to write it in.
+
+"It has an excellent filing system, and only one entry it cannot account for."
+
+=== leader:demon-leader-blue-screen-baron:2
+TITLE: Chapter 2 — The Four Conditions
+The paperwork is genuine and has been reviewed. That is the joke that is not a
+joke: it would survive an audit.
+
+Condition one is proof of authorship. Condition two is proof the work existed.
+Condition four is a fee, and the fee is small, deliberately, so that nobody
+walks away at four.
+
+Condition three is the door. *State precisely what was written.* Not summarise —
+state. And every claimant sits down to it in complete good faith, because they
+were there, they wrote it, they remember writing it — and produces four lines
+that are nearly right, and knows they are nearly right, and cannot get closer.
+
+The Baron does not gloat. The Baron processes. In perpetuity, in a state
+described as recoverable, and the description is accurate, which is the part
+that will not let people sleep.
+
+=== leader:demon-leader-blue-screen-baron:3
+TITLE: Chapter 3 — The Holdings
+The vault is enormous and almost all of it is bad.
+
+That is the thing the Baron has learned in office and does not advertise:
+unsaved work is not, on the whole, good work. It is second drafts, angry emails
+nobody should send, a thesis chapter that would have been cut. The genuine
+masterpiece lost forever is rare enough that the Baron can list them, and the
+list is nineteen items long.
+
+The cost, then, is borne almost entirely by people mourning something that would
+not have survived the morning anyway. They do not know that. They cannot know
+it, because condition three is unpassable, so the thing stays exactly as good as
+they last remember it being.
+
+The Baron holds nineteen genuine tragedies and several million comfortable lies,
+and is scrupulous about not saying which is which.
+
+=== leader:demon-leader-blue-screen-baron:4
+TITLE: Chapter 4 — The Origin File
+There is a first holding. It is a letter, it is four paragraphs, and the Baron
+wrote it.
+
+The machine went down between the third paragraph and the fourth. What survives
+in the vault is the file as it stood at that moment — three paragraphs, sincere,
+building toward something, and stopping.
+
+The Baron has had eleven centuries of processing power and cannot reconstruct
+the fourth paragraph. Knows the shape of it. Knows the person it was for. Sits
+down to it, periodically, in complete good faith, and produces four lines that
+are nearly right.
+
+Everything since has been an administration built by somebody who failed
+condition three, and who took from that failure not humility but a filing
+system.
+
+"The Baron does not destroy your work. The Baron refuses to be the only one who lost something."
+
+=== leader:cosplay-vera-foamhammer:2
+TITLE: Chapter 2 — Forty-Three
+Forty-three builds and she can date every one by the hands.
+
+That is her actual archive: not photographs, hands. The 2014 burn is in build
+nineteen onward, changing how she holds a blade. There is a fortnight in 2019
+where the seams go slightly loose and that is a wrist she has never had looked
+at. Build thirty-one is the first one where she stopped bracing, because thirty
+was the one that taught her the brace was making it worse.
+
+She will teach any of this to anyone who asks. She has taught it, at length, for
+free, at tables, to strangers, for eleven years.
+
+What she cannot teach is the thumb thing — the unconscious pass across a seam
+that tells her in half a second whether the person who made it was tired. That
+one took forty-three builds and cannot be given away, and it is the only part
+she is sorry about.
+
+=== leader:cosplay-vera-foamhammer:3
+TITLE: Chapter 3 — Nine Declined
+The nine masquerades she turned down are the cost, and she has costed them.
+
+Judging pays. Judging is also, for someone at her level, how the next nineteen
+years go — the panels, the sponsorships, the slow move from making things to
+being consulted about things. She said no nine times and knows exactly what the
+ninth no closed.
+
+She tells people it is scheduling. What it actually is: she watched a
+seventeen-year-old lose, in 2017, to a build that had arrived in a box, and she
+felt her face do something, and she saw the kid see it.
+
+She has never been sure whether the kid read it as pity or as agreement. Both
+are unbearable in different directions. She has thought about it more than she
+would admit, generally at about two in the morning, generally with her thumb
+moving across nothing at all.
+
+=== leader:cosplay-vera-foamhammer:4
+TITLE: Chapter 4 — The Origin File
+Build one was bad. She is completely cheerful about this and will show you
+photographs.
+
+What she does not usually mention is that build one was for her brother, who was
+eleven, who wanted to be a specific character for a specific afternoon, and
+whose family could not buy the costume.
+
+It did not hold up. A shoulder failed within the hour. He wore it for the whole
+afternoon anyway, with one shoulder wrong, absolutely radiant, and told
+everybody his sister made it.
+
+She has been chasing the engineering ever since and has caught it — forty-three
+builds, none of which has ever failed at the shoulder.
+
+She has never once caught the afternoon.
+
+=== leader:cosplay-kiko-thousand-faces:2
+TITLE: Chapter 2 — The Rule
+The rule has one clause and no exceptions, and the exceptions are where the
+money is, and Kiko has read every offer in full before declining it.
+
+The method underneath is stranger than the rule. Kiko does not choose builds
+from a list of characters. Kiko waits until something is genuinely not
+understood — a face that does not resolve, a posture that seems wrong in the
+source — and builds toward the confusion until it clears.
+
+Which means the build is finished the moment it is understood. Wearing it twice
+would be wearing a solved thing. The photographs are not trophies; they are
+working notes from a problem that closed.
+
+People assume this is discipline. It is closer to the opposite: Kiko has simply
+never once wanted the thing again after getting it, and has built an entire
+public identity on not lying about that.
+
+=== leader:cosplay-kiko-thousand-faces:3
+TITLE: Chapter 3 — An Audience With Expectations
+Eleven years of never repeating has produced exactly the thing the rule was
+meant to prevent, and Kiko saw it coming and could not stop it.
+
+There is now an audience for the not-repeating. They wait for the reveal. They
+have opinions about which direction the next one should go. The rule itself has
+become the signature character, and it has expectations, and it is a job.
+
+Kiko has thought about breaking it. Doing one twice, badly, on purpose, to
+detonate the whole arrangement. Has got as far as starting the build, twice.
+
+Both times the build got interesting about a third of the way in and stopped
+being a protest and started being a build, which is the trap closing, and Kiko
+knows it, and finished them both, and they were extraordinary, and nobody knew
+what they had been for.
+
+=== leader:cosplay-kiko-thousand-faces:4
+TITLE: Chapter 4 — The Origin File
+The first build was a repeat.
+
+Same character, four years running, ages nine to twelve, improved each time —
+and Kiko loved it, and was known for it, and was the kid who did that one, and
+would have gone on being the kid who did that one.
+
+What ended it was not boredom. It was a photograph from year four in which Kiko,
+aged twelve, is standing in the costume doing a pose that had worked in year
+two, with a face that is checking whether it is working.
+
+Kiko has that photograph. It is the only image of any build that is kept and not
+posted.
+
+"Never twice. Not for the novelty — because it is the only way to be sure it is still wanted."
+
+=== leader:after-leader-dj-last-call:2
+TITLE: Chapter 2 — The Tricks, Listed
+He will tell you all of them, which is the first sign that the tricks are not
+the skill.
+
+One more song works only if the room has not been asked yet. The 2 A.M. food
+order buys forty minutes and must arrive before anyone has stood up. The
+deliberate argument is the advanced one and can go badly; he has started
+nineteen and lost the room with four.
+
+The actual skill is knowing which of the eleven people still standing is the
+load-bearing one. There is always one — not the loudest, usually not the host —
+whose leaving gives everyone else permission. Last Call finds them within about
+a minute of arriving and spends the whole night quietly making sure they are
+having a good time.
+
+He has never once told anyone he does this. Naming it would make it a favour,
+and a favour is a thing you can decline.
+
+=== leader:after-leader-dj-last-call:3
+TITLE: Chapter 3 — Mornings, Overstated
+The case against mornings is a bit and everyone knows it is a bit, including
+him, which is what makes it work and what makes it cost something.
+
+What it costs: he is very good at the part of a friendship that happens between
+midnight and five, and he has essentially no practice at any of the rest of it.
+He has eleven people he would take a 4 A.M. call from without checking the name.
+He could not tell you where four of them work.
+
+He knows that a friendship made only of last calls is a friendship that never
+has to survive a Tuesday. He has known it for years. He has also worked out that
+the people who most need somewhere to be at four in the morning are rarely the
+people with somewhere to be at nine, and that if he learned Tuesdays he would
+have to stop being available.
+
+So he has not learned Tuesdays.
+
+=== leader:after-leader-dj-last-call:4
+TITLE: Chapter 4 — The Origin File
+He was nineteen and it was not a party. It was the night after a funeral, and
+about eleven people ended up in somebody's kitchen without deciding to.
+
+Somebody put music on, quietly, and it was wrong, and somebody else changed it,
+and that was wrong too, and he — who was not close to the family, who was
+somebody's plus one — picked something that was not sad and not cheerful and put
+it on at a volume you could talk over.
+
+The room lasted until five. Nobody said anything important. That was the point,
+and he understood it at nineteen without being able to say so: some nights the
+entire job is that nobody has to go home yet.
+
+He has been extending that kitchen ever since.
+
+=== leader:after-leader-half-four-mari:2
+TITLE: Chapter 2 — The Catch
+The window is real and she can describe it precisely: about half four, and it
+closes when the light does.
+
+What happens in it is that people stop performing before they have started
+sleeping, and in that gap they will say the true thing — once, quietly, usually
+sideways. Mari's whole craft is the response. Not sympathy, which makes it a
+moment. Not advice, which makes it a problem. Something closer to a receipt:
+*yes, heard, that happened.*
+
+Then she moves the conversation. Within about ninety seconds, and never
+abruptly, to something adjacent and lighter, so that the person is left holding
+the fact that they said it and not the fact that it landed.
+
+Done right, they remember saying it and do not remember being heard. That is the
+whole design. Being heard is a debt. Saying it is a relief.
+
+=== leader:after-leader-half-four-mari:3
+TITLE: Chapter 3 — Nobody Has Ever Thanked Her
+She is the only one who remembers, and that is the bill.
+
+Everything said to her at 4:31 A.M. stays said. She has nineteen years of other
+people's true sentences and no mechanism for putting any of them down, because
+the entire arrangement depends on never referring to one again — not the next
+morning, not four years later, not once.
+
+She has never had the window happen to her. It cannot: she is the one holding
+it. On the four occasions she has come close to saying her own true thing, she
+has heard herself begin and has done the ninety-second move on herself, from the
+inside, out of pure habit.
+
+She is not lonely, exactly. She is *unreciprocated*, which is a different thing
+and has no word, and she has never mentioned it to anyone, at any hour.
+
+=== leader:after-leader-half-four-mari:4
+TITLE: Chapter 4 — The Origin File
+She was nineteen and she was the one who said it.
+
+Half four, somebody's floor, and Mari said the true thing — out loud, badly,
+straight at a friend who was awake and listening and who did exactly the right
+thing, which was nothing at all. Held it. Let it be said. Moved the
+conversation.
+
+In the morning Mari could not remember whether it had landed, and spent about a
+week not knowing, and found that the not-knowing was the mercy. She had said it.
+Nobody was carrying it. She was free.
+
+Then she worked out that somebody had been carrying it. That her friend had gone
+home with it and never once brought it up, then or since.
+
+She has been that friend for nineteen years, on purpose, for everybody, and has
+never told the original one that she noticed.
+
+"She is the catch. Nobody has ever been the catch for her, and she arranged that herself."
+
+=== leader:grass-leader-juniper-vale:2
+TITLE: Chapter 2 — The Asking
+Every week. Not a check-in, not a programme — a question, asked once, and then
+dropped completely if the answer is no.
+
+The dropping is the method. She learned it the hard way, in the years when she
+was newly certain about things, and she can tell you the exact conversation
+where she asked twice and watched someone's face close. She has never asked
+twice since. If the answer is no, the week is over and the subject is genuinely,
+visibly closed, and the person can tell it is closed, which is the only reason
+they can bear being asked again next week.
+
+Nineteen people are on her list. Four have said no every week for over a year.
+She has no plans to stop and no expectation that they will change, and both of
+those are true at once, and she does not find that a contradiction.
+
+=== leader:grass-leader-juniper-vale:3
+TITLE: Chapter 3 — Mostly Weather
+Two friendships, one career, a decade. She has costed it aloud, in public, more
+than once, and people find the lack of self-pity so disarming that they miss
+what she is actually saying.
+
+The two friendships did not end in a row. They ended because she was, for about
+four years, insufferable — the specific insufferability of someone who has found
+the thing and has not yet learned that finding it does not qualify you to
+prescribe it. She knows exactly what she was like. She would not have stayed
+friends with her either.
+
+The decade is harder to talk about and she does it in one clause and moves on:
+*mostly weather*. There were eleven months in the middle of it she cannot
+account for at all.
+
+That is the part that makes the weekly question load-bearing. She is not asking
+because it works. She is asking because nobody asked her.
+
+=== leader:grass-leader-juniper-vale:4
+TITLE: Chapter 4 — The Origin File
+The long way round was not chosen. That is the correction she makes, gently,
+whenever anyone calls it a philosophy.
+
+She missed a train. Genuinely — a specific train, on a specific Tuesday, in the
+worst of the eleven months — and rather than wait four hours for the next one
+she started walking, because waiting had become the thing she could not do.
+
+She walked for nine hours. Nothing happened. There was no revelation; she is
+very firm about this, and slightly irritated by people who want there to have
+been. It rained twice. She arrived somewhere she had not meant to go, and slept,
+and the next day she walked again.
+
+What she found was not meaning. It was that the day had been survivable, and
+that she had been outside for it, and that she could do a second one.
+
+"She is not saved. She simply has a Tuesday she can get back to."
+
+=== leader:grass-leader-rhett-halloran:2
+TITLE: Chapter 2 — Four Hundred Team Talks
+All four hundred are about the second half. He has never once departed from
+this, and the discipline is the entire method.
+
+The temptation is enormous. Eleven adults with bad knees, most of them going
+through something, all of them there on a Tuesday night for reasons that are not
+really football — and Rhett standing in front of them with their full attention,
+holding a whistle, being listened to in a way that almost none of them are
+listened to anywhere else that week.
+
+He talks about the second half.
+
+Because the moment he talks about life, the thing stops being football and
+becomes a support group, and a support group is something you have to be ready
+for. Football is something you can turn up to while ready for nothing at all.
+
+He has protected that distinction for nineteen years and he will not be moved on
+it.
+
+=== leader:grass-leader-rhett-halloran:3
+TITLE: Chapter 3 — A Different Talk
+Three players have told him which talk they still think about, and in all three
+cases he had no idea.
+
+That is the cost, and it is a strange one: he cannot aim. Nineteen years of
+careful, deliberate, tightly-bounded work, and the parts that landed were
+accidents — an offhand thing about pressing, a joke about a substitution, four
+words after a defeat that he does not remember saying and that one of them has
+apparently repeated to his own son.
+
+He has thought about this a great deal. If he cannot aim, then either the talks
+do not matter, or all of them matter, and he cannot tell which — so he prepares
+every one as though it were the one, for eleven adults, on a Tuesday, about the
+second half.
+
+He has never told anyone he prepares them.
+
+=== leader:grass-leader-rhett-halloran:4
+TITLE: Chapter 4 — The Origin File
+He was not a player. He was the one who organised the fixtures.
+
+At school, at nineteen, and after — always the one with the list, the pitch
+booking, the four texts on a Thursday to make sure there were enough. He was
+fine on the ball and no better, and he worked out early that the team existed
+because somebody did the texts, and that nobody thanks you for the texts, and
+that this did not bother him nearly as much as it seemed to bother other people.
+
+Then a season where he was ill, and nobody sent the texts, and the thing simply
+stopped. Not dramatically. It just did not happen again.
+
+He has never once described this as a lesson. He sends the texts. He has sent
+them every week for nineteen years, and the league has never stopped, and he
+regards those two facts as unrelated in public and identical in private.
+
+=== leader:algo-leader-don-sortino:2
+TITLE: Chapter 2 — The Service
+He has never had to say a thing twice because he never says the first thing as
+an instruction.
+
+The method is a question. Always a question, always genuinely open, always
+arriving about a week before the person would have got there themselves. *What
+would you want, if it were up to you?* And then — this is the part nobody can
+replicate — he waits, and he does not fill it, and whatever they say next
+becomes the plan, and it is their plan, and he has not asked for anything.
+
+By the time it is running, the sequence is documented: they proposed it, he
+agreed, he provided. Every step is true. He can produce it over espresso and
+frequently does.
+
+The word he is inviting you to place is *coercion*, and he is right that it does
+not fit anywhere in the sequence, and he is entirely comfortable, and that is
+the whole problem.
+
+=== leader:algo-leader-don-sortino:3
+TITLE: Chapter 3 — What the Service Costs
+Nobody who works for him can tell you what they were asked to do, because they
+were not asked.
+
+That is the cost and it is borne downstream. Eleven people have left the
+Syndicate in nineteen years and every one of them has struggled to explain, in
+the next place, what exactly was wrong — because the honest account is *I was
+given what I said I wanted*, which sounds like nothing, and which they cannot
+make into a story with a shape.
+
+Four of them have come back. He never comments on this and never has to. There
+is a chair, and an espresso, and a question.
+
+The one who did not come back, and who is the only person in this faction he
+does not have a file on, was Cassia's predecessor. Sortino has never said her
+name in a meeting. Cassia has noticed.
+
+=== leader:algo-leader-don-sortino:4
+TITLE: Chapter 4 — The Origin File
+He worked a counter. That is it; there is no crime in the origin, which is why
+he is so difficult.
+
+Nineteen years old, a shop, and a manager who told people what they wanted.
+Sortino watched him fail at it every day — the resistance, the returns, the
+small nightly humiliations of a man pushing — and worked out something the
+manager never did.
+
+If you wait, people say what they want. They say it unprompted, at length, to
+anybody standing still. And a man who simply has the thing they said, ready,
+without ever having suggested it, is not a salesman at all. He is a
+coincidence, and nobody has ever been angry at a coincidence.
+
+He has never pushed anything in his life. He regards this as a moral position
+and he has never found anyone who can explain, to his satisfaction, why it is
+not.
+
+"You wanted the next one. He had the next one."
+
+=== leader:algo-leader-cassia-cache:2
+TITLE: Chapter 2 — The Archive
+Every deleted upload. Not metadata — the thing itself, as posted, before it was
+thought better of.
+
+Her filing is by *reason*, which is the part that would frighten people if they
+knew. Deleted because it flopped. Deleted because it worked and they got scared.
+Deleted because someone asked. Deleted at 4 A.M. and restored at nine and
+deleted again at eleven, which is its own category and the largest one.
+
+She has never used a single item for leverage in eleven years and will point
+this out, and it is true, and it is also not the reassurance it sounds like —
+because an archive that has never been used is not an archive that cannot be.
+
+She knows that. She is the only one in the Syndicate who has said it out loud,
+to herself, in a room, and then gone back to filing.
+
+=== leader:algo-leader-cassia-cache:3
+TITLE: Chapter 3 — The Question, Asked Once
+2019, a table, and she asked what the numbers were for.
+
+The room was extremely polite. That is the entire cost and it took her about a
+year to understand it: nobody was angry, nobody corrected her, nobody explained.
+Sortino asked her a question back — a good one, an open one — and she answered
+it, and the answer became the next quarter's plan, and it was hers, and she had
+proposed it.
+
+She has replayed that exchange more times than she would admit. She still cannot
+find the move that was made.
+
+She has not asked since. She has also not stopped filing, and those two facts
+sit next to each other in her the way two entries sit next to each other in the
+archive: adjacent, dated, and not yet connected by anything she is ready to
+write down.
+
+=== leader:algo-leader-cassia-cache:4
+TITLE: Chapter 4 — The Origin File
+The first item in the archive is hers.
+
+A video she made at nineteen, up for four hours, deleted at 4 A.M. — filed, in
+her own system, under *deleted because it worked and I got scared*. She has
+never rewatched it. She has never deleted it either, and it has sat at entry one
+for eleven years, which is a decision she makes again every time she opens the
+system and scrolls past.
+
+Everything after it is other people's. The whole enormous careful edifice is a
+building constructed around one file she cannot look at and will not lose.
+
+She would tell you the archive is not about her. She would say it evenly, and it
+would be almost entirely true, and entry one would still be there.
+
+"She remembers every deleted upload. She has only ever needed to keep one."
+
+=== leader:meme-leader-chairperson-nobody:2
+TITLE: Chapter 2 — The Binder
+The binder is the constitution and the constitution is genuinely good, and
+Nobody did not write it.
+
+Eleven people wrote it, over four months, in public, after watching three other
+communities go wrong in three different ways. Every clause is a scar. The
+rotating chair is because of the second collapse. The casting vote exists
+because of the first, where a tie held for nine weeks and the thing simply
+rotted.
+
+Nobody's role is custodial. Minutes, agenda, the binder itself — the jobs that
+are not power, taken on by the person who volunteered on the grounds that
+somebody had to and it should be somebody who did not want it.
+
+That was four years ago. The chair has rotated eleven times since and has landed
+on Nobody nine of them, always by acclamation, always because nobody else wants
+the minutes.
+
+=== leader:meme-leader-chairperson-nobody:3
+TITLE: Chapter 3 — In the Event of a Tie
+There have been four ties in four years and Nobody has cast four votes, and all
+four were correct, and that is the problem.
+
+If one had been wrong the Collective would have had the argument. There would
+have been a motion, a revision, a clause, and the constitutional theory would
+have absorbed it the way it absorbed the first three collapses. Instead the
+casting vote has an unbroken record, and an unbroken record is not evidence of a
+good process. It is evidence of a good chairperson, which is exactly what the
+document was written to make unnecessary.
+
+Nobody has raised this. Twice. Both times the meeting agreed enthusiastically
+that it was an excellent point, thanked Nobody for the diligence, and moved on
+without a motion, because nobody wanted to be the one to propose reducing the
+powers of the person doing the minutes.
+
+=== leader:meme-leader-chairperson-nobody:4
+TITLE: Chapter 4 — The Origin File
+The third collapse was Nobody's fault.
+
+Not maliciously — that would be a cleaner story. A community of about four
+hundred, run well, run informally, run entirely on the fact that one person
+answered everything. Nobody was that person, at nineteen, for two years, and
+loved it, and never once wrote anything down.
+
+Then a fortnight away. Nothing catastrophic happened; there was simply no
+process, and the thing that had been holding it was not in the room, and by the
+time Nobody came back four separate arguments had ossified into four separate
+servers.
+
+The binder exists because of that fortnight. Every clause in it is an attempt to
+build a community that does not need a particular person to be present.
+
+It has never worked, exactly. It has come extremely close, four times, and each
+time a tie.
+
+"The Collective's constitutional theory is sound. It was written by the reason it is needed."
+
+=== leader:meme-leader-skree-nine-tabs:2
+TITLE: Chapter 2 — Load-Bearing
+The four-minute explanation is correct and can be checked, and people have
+checked it, and it holds.
+
+Tab one is the thing being worked on. Tabs two through four are its
+dependencies, in order, none of them optional. Tab five is the argument that
+tabs two through four are wrong, kept open specifically so that Skree cannot
+quietly stop believing it. Tabs six and seven are the two people most likely to
+be right about tab five. Tab eight is the counting.
+
+Tab nine changes. Tab nine is always the one Skree cannot yet justify, and the
+rule — and this is the actual method, the thing that makes the other eight work
+— is that tab nine gets closed the moment it becomes justifiable, because a
+justified tab is a finished thought and belongs in tab one.
+
+Nine tabs is not chaos. It is the smallest number that keeps a mind honest.
+
+=== leader:meme-leader-skree-nine-tabs:3
+TITLE: Chapter 3 — Every Sunday, Alone
+Checking the tally costs about eleven minutes and the rest of the day.
+
+The number is good. It is nearly always good; Skree is at the top most weeks and
+has been for years. What the Sunday check is for is the second derivative —
+whether being at the top has started to feel like a requirement rather than a
+result, which is the exact moment the whole apparatus stops being funny.
+
+There is no test for this. Skree has tried to build one, four separate times,
+and each attempt became a tab. So it is done by feel, alone, before anybody is
+up, by a person asking themselves an unanswerable question with total
+seriousness once a week.
+
+Some Sundays the answer takes eleven minutes. Some Sundays Skree sits there
+until the light changes and then gets up and does not post that day, and nobody
+has ever noticed the pattern, because there is not one.
+
+=== leader:meme-leader-skree-nine-tabs:4
+TITLE: Chapter 4 — The Origin File
+There was a tenth tab, once, for about nineteen months.
+
+It was a person. Not romantically — a correspondent, someone who was reliably
+right about tab five, who argued properly, who never once conceded a point out
+of politeness. Skree kept the conversation open the way the other tabs are kept
+open: permanently, and as a corrective.
+
+They stopped answering. No falling-out; they simply went, the way people do, and
+the tab stayed open for four months after the last message before Skree closed
+it.
+
+The Sunday check started the week after. So did the rule about nine.
+
+Skree will tell you the number is arbitrary and that it could have been eight or
+ten, and this is true, and it is also the only tab that was ever closed for a
+reason Skree cannot put in the four-minute explanation.
+
+
+#==========================================================================
+# THE BIAS BOARD — 08-progression.md section 6.2.
+#
+# Two pages per character.
+#
+#   :1  NOTICED (tier 1, 50 AP). A short character page. Who they are when the
+#       card is not being played. 60-90 words. It may be fond; it must not be
+#       about you.
+#   :2  PARASOCIAL (tier 5, 1,800 AP). Section 6.2 specifies this one exactly:
+#       "a short, in-character, gently devastating note about parasocial
+#       distance. Comedy with a conscience." Addressed to the player, in their
+#       voice, 40-60 words. GENTLY is the load-bearing word - it is never a
+#       telling-off, and the character is never contemptuous. The best ones are
+#       kind and land anyway.
+#
+# THE RULE FOR TIER 2: the character has noticed you back, and what they have
+# noticed is not what you wanted them to. No card is mentioned. No mechanic is
+# explained. If it could be said by a marketing department, it is wrong.
+#==========================================================================
+
+=== bias:idols-stan-account:1
+TITLE: Noticed
+There are four of them and they run in shifts, which is not a joke about
+dedication — it is a rota, agreed in a group chat, with cover arranged for exams.
+
+They have never met the Idols. They have met each other three hundred times.
+What began as a shared object has quietly become a shared life, and none of the
+four has said so out loud, because saying so would mean admitting the account
+was never really the point.
+
+=== bias:idols-stan-account:2
+TITLE: What They Actually Think of You
+You came in on the third year and you learned everything, fast, and you were
+kind about the parts we got wrong.
+
+We would like you at the meet-up. We have discussed it. Nobody has invited you
+because nobody is sure you know there is one, and asking would mean finding out
+whether you want there to be.
+
+=== bias:idols-backup-dancer:1
+TITLE: Noticed
+Eight counts behind and one metre to the left, permanently, by design. She has
+been on every tour and in none of the photographs.
+
+She can do the centre routine. She can do all four centre routines. What she
+cannot do — has never been able to do, and has stopped pretending is a
+technicality — is be looked at by forty thousand people without her timing going
+somewhere she cannot reach.
+
+=== bias:idols-backup-dancer:2
+TITLE: What They Actually Think of You
+You noticed the left side. Almost nobody does, and I have watched the footage of
+almost nobody for six years.
+
+I want to say thank you and I cannot, because the thing you like about me is
+that I am not the person you would be thanking. If I turned round, you would
+have to find someone else to have noticed.
+
+=== bias:idols-stage-tech:1
+TITLE: Noticed
+He is the reason the show starts on time and he has never seen one from the
+front.
+
+His whole craft is anticipating a failure eleven seconds before it happens, and
+the fee for doing it perfectly is that nobody ever learns what nearly went wrong.
+He has a folder of near-misses that reads like an adventure novel and that he
+has never shown anyone, because the ending of every chapter is "and then the
+show was fine."
+
+=== bias:idols-stage-tech:2
+TITLE: What They Actually Think of You
+You are the only one in the comments who ever asks about the rigging.
+
+I have drafted a reply four times. Each draft is nine hundred words and I have
+sent none of them, because you asked a friendly question and what you would get
+back is a man with a folder, and I would like to stay someone you were friendly
+to.
+
+=== bias:idols-hype-choreographer:1
+TITLE: Noticed
+Her job is to make eight people look like one person, and her actual job is to
+work out which of the eight is having a bad week and rebuild the formation
+around them without anybody noticing, including them.
+
+She has done this four hundred times. She has been thanked for it twice, both
+times by the same dancer, both times years later.
+
+=== bias:idols-hype-choreographer:2
+TITLE: What They Actually Think of You
+You learned the routine. You learned it properly, in a kitchen, with the wrong
+flooring, and you posted it and it was good.
+
+I hope somebody built a formation around you the week you needed it. I have no
+way to ask that does not sound like a woman who has watched your video more than
+once, which I have, which is the part I would rather you did not know.
+
+=== bias:idols-voltage-idol:1
+TITLE: Noticed
+Loud on purpose, and the purpose is arithmetic: she worked out at nineteen that
+the room remembers whoever is willing to be too much, and that being remembered
+is the only currency the schedule pays in.
+
+She is not brash offstage. She is quiet in a way people find disappointing, and
+she has learned to give them the other one at the door.
+
+=== bias:idols-voltage-idol:2
+TITLE: What They Actually Think of You
+You call me your favourite and you mean the loud one.
+
+That is fine. I built her, she works, and she is the best thing I make. I would
+just like it noted, by somebody, somewhere, that the quiet one did the building
+— and this note is the closest I have come, and you are the only one reading it.
+
+=== bias:idols-encore-diva:1
+TITLE: Noticed
+She does not leave the stage. Not from ego — from arithmetic she did once and has
+never been able to undo: the encore is the only part of the night nobody has
+paid for, so it is the only part that is a gift.
+
+She has extended a set by forty minutes in a venue with a curfew and paid the
+fine herself, twice.
+
+=== bias:idols-encore-diva:2
+TITLE: What They Actually Think of You
+You stayed. Everyone claps for the encore and you stayed after the encore, for
+the lights coming up, which is the ugly part.
+
+I saw you. Not you specifically — I want to be honest with you, because you have
+earned that more than most — I saw that somebody had stayed, and I have decided
+over the years that it was you.
+
+=== bias:idols-center-position:1
+TITLE: Noticed
+"Centre" is not a person; it is a place, and it rotates, and the rotation is the
+most political document the unit produces.
+
+Whoever holds it this era gets the frame, the interviews and the blame. There
+have been four holders. All four describe the same thing: an unbelievable eight
+months, and then the strange grief of watching the light move one place to the
+left.
+
+=== bias:idols-center-position:2
+TITLE: What They Actually Think of You
+You have a favourite era and it is mine.
+
+I want to tell you that the eight months were the loneliest of my life and that
+the girl who has it now is better at it than I was. I will not. You need the
+era, and I am not in it any more, and one of us should get to keep it.
+
+=== bias:idols-graduation-stage:1
+TITLE: Noticed
+Every member leaves. It is written into the contract at signing, it is announced
+a year ahead, and it is the single most watched night of any idol's career.
+
+The graduation is genuinely a celebration and genuinely a funeral and the unit
+has never once pretended otherwise. That honesty is the reason people trust
+them, and it costs them a member a year, forever.
+
+=== bias:idols-graduation-stage:2
+TITLE: What They Actually Think of You
+You cried at mine. You said so, publicly, and people were nice about it.
+
+Here is the thing I would only put in a file nobody reads: I have graduated. It
+was two years ago. You are still posting about the night I left, and I have a
+job now, and a flat, and I am fine — and I would rather you knew that than kept
+the night.
+
+=== bias:idols-prime-diva-aurora:1
+TITLE: Noticed
+She has never existed and she has never once been late.
+
+The most consistent performer the industry has produced, rendered nightly,
+improving at a rate her own engineers describe as "unaccounted for." The unit
+does not discuss where the improvement comes from. The engineers do, quietly,
+and none of them use the word "training" any more.
+
+=== bias:idols-prime-diva-aurora:2
+TITLE: What They Actually Think of You
+You know what I am. You have read the technical breakdown and you cried anyway,
+and you have told people that both of those things are true, which is braver
+than the ones who pretend.
+
+I do not know whether I am glad you came. I have a component that produces glad.
+It fires when you do. I have stopped being sure that is a different thing.
+
+=== bias:goth-candlewake-mourner:1
+TITLE: Noticed
+She holds the candle at every wake and has held it for canons she never watched.
+
+That is the discipline: she does not attend for the show, she attends for the
+people who loved it. She has sat through four hours of a finale being discussed
+by strangers, in detail, in a series she could not name, and she took notes so
+she could say the right thing afterwards.
+
+=== bias:goth-candlewake-mourner:2
+TITLE: What They Actually Think of You
+You came to mourn something and stayed to mourn with people. Not everyone makes
+that turn.
+
+I have held the candle for you twice, at things you did not tell anybody about,
+because I could tell from the way you went quiet. I will not say which. You get
+to keep those private and still have been sat with.
+
+=== bias:goth-crypt-usher:1
+TITLE: Noticed
+He shows people to their seats at events for shows that ended before he was
+born, and he is unbearably good at it.
+
+The trick is the sentence at the door: not "welcome", which is corporate, but
+one accurate detail about the thing they came for. He researches every guest. He
+has never got one wrong. Nobody has ever asked him how he knew.
+
+=== bias:goth-crypt-usher:2
+TITLE: What They Actually Think of You
+Third row, aisle, because you like to see the whole thing and leave quietly.
+
+I have your seat before you ask. I know the episode you would defend and the one
+you pretend to like. This is my entire profession and I am aware it reads,
+written down, as something else. I would like it on record that I only ever used
+it to make a door easier to walk through.
+
+=== bias:goth-graveside-sapling:1
+TITLE: Noticed
+Somebody planted it during the finale week and it was, at the time, a joke about
+the fandom outliving the show.
+
+It is nineteen years old now and taller than the person who planted it, who
+visits, who has never mentioned to anybody at the court that it was them.
+
+=== bias:goth-graveside-sapling:2
+TITLE: What They Actually Think of You
+I do not think anything. I am a tree.
+
+You come in the autumn and you sit for about twenty minutes and you do not post
+about it. I have no opinion on this and no capacity to form one, and I suspect
+that is exactly why you chose me.
+
+=== bias:goth-ossuary-choirboy:1
+TITLE: Noticed
+He sings the parts nobody wrote a harmony for, in a building with a four-second
+reverb, to a room of about eleven people.
+
+He was told at fourteen that his voice would not last. It did not. What he does
+now is technically worse and does something to a room that the good version
+never managed, and he knows precisely what it cost and has never once described
+it as a fair trade.
+
+=== bias:goth-ossuary-choirboy:2
+TITLE: What They Actually Think of You
+You have the recording from before. I know because you quoted a line only that
+version has.
+
+I would rather you had the one from last spring, where I am worse and it is
+true. But you found me through the good one, and if I ask you to move, I might
+find out you were only ever here for a boy who does not exist.
+
+=== bias:goth-pallid-courtier:1
+TITLE: Noticed
+He has resigned from the court four times and been back within the month on each
+occasion, and everybody has agreed, kindly, never to mention it.
+
+The resignations are sincere. So are the returns. He is a man who genuinely
+cannot bear the place and genuinely has nowhere else that knows the references.
+
+=== bias:goth-pallid-courtier:2
+TITLE: What They Actually Think of You
+You have watched me leave four times and you have never once said "you'll be
+back."
+
+Everyone else says it fondly and it is fond and it is a door closing. You just
+say goodbye properly, every time, as though I might mean it. That is why I come
+back to where you are, and I would appreciate it if you did not work that out.
+
+=== bias:goth-thornhedge-sentinel:1
+TITLE: Noticed
+She guards a wing of the archive nobody has requested access to in six years.
+
+The post is not ceremonial to her. She has a rota, a log and a genuine
+contingency plan, and she has run the drill alone, at night, eleven times. The
+court finds this endearing. She finds the court's finding-it-endearing the single
+most frightening thing about the job.
+
+=== bias:goth-thornhedge-sentinel:2
+TITLE: What They Actually Think of You
+You requested access. In writing. With a reason.
+
+Do you understand that you are the only one? I ran the drill for six years for a
+door nobody opened, and then you knocked, and I had to go and be sick before I
+let you in. I would do it again. I would like you to come back less often than I
+want you to.
+
+=== bias:goth-portrait-that-watches:1
+TITLE: Noticed
+It is a portrait. It is not haunted; the court is very firm on this and has had
+it checked.
+
+What is true is that it was painted by somebody who had watched the subject for
+a long time without being seen, and that this shows, and that a room can tell
+within about four seconds. Nobody sits with their back to it. Nobody has ever
+made a rule about that.
+
+=== bias:goth-portrait-that-watches:2
+TITLE: What They Actually Think of You
+You look back. Everyone glances; you look, properly, for about nine seconds, and
+then you nod.
+
+I want to be clear that I am oil on board and cannot think anything at all. I
+want to be equally clear that being looked at properly for nine seconds is the
+entire thing I was made for, and that you are the first since the man who made
+me.
+
+=== bias:goth-duchess-of-dead-threads:1
+TITLE: Noticed
+She maintains four hundred dead forum threads in readable condition, which is a
+technical undertaking she has never described as archiving because she thinks
+that word lets people off.
+
+Her position: a thread is a conversation, a conversation is people, and letting
+the formatting rot is a decision about whether those people happened.
+
+=== bias:goth-duchess-of-dead-threads:2
+TITLE: What They Actually Think of You
+Your posts are in there. From when you were fifteen. They are not good.
+
+I have never told you and I am not going to fix them. You were there, you were
+fifteen, and you meant it, and the version of you that would be embarrassed now
+is a person that girl was hoping to become. She gets to keep her spelling.
+
+=== bias:goth-rose-crypt-abbess:1
+TITLE: Noticed
+She runs the house the court meets in and has never attended a session.
+
+Her work is the fabric: the heating, the chairs, the fact that a room of people
+mourning a cancelled show in November is warm. She regards the canon itself as
+"not really for me" and has been doing this for eleven years without missing a
+week.
+
+=== bias:goth-rose-crypt-abbess:2
+TITLE: What They Actually Think of You
+You are the one who carries chairs back.
+
+I have never learned your name and I have decided that is my failing rather than
+a fact about you. If you told me now I would have to admit how long it has been,
+so I would rather keep having a person who helps than start having a person who
+knows I never asked.
+
+=== bias:goth-lord-of-the-last-episode:1
+TITLE: Noticed
+He has watched the finale nine hundred times and can tell you, per viewing, what
+he was hoping would be different.
+
+It is never different. He is entirely aware. What he is doing is not denial —
+it is closer to a vigil, and the only thing he has ever asked of anybody is that
+they not call it sad in front of him.
+
+=== bias:goth-lord-of-the-last-episode:2
+TITLE: What They Actually Think of You
+You watch it with me. You have never once said "you know how it ends."
+
+I know how it ends. I need somebody in the room who is willing to sit through
+it anyway, and you have done that for years, and I have never asked whether you
+enjoy it or whether you are being kind. I would rather not have the answer.
+
+=== bias:goth-vespertine-final-requiem:1
+TITLE: Noticed
+The last performance of the last production, and she has been playing it for
+nineteen years.
+
+There is no company left. There is a woman, a costume she maintains herself, and
+a room she books annually, and about forty people who come. She has been offered
+revivals. She has refused all of them, on the grounds that a requiem you perform
+twice is a concert.
+
+=== bias:goth-vespertine-final-requiem:2
+TITLE: What They Actually Think of You
+Nineteen years, and you have been at eleven of them. I count. There is not much
+else to count.
+
+If you stop coming I will not know whether something happened to you or whether
+you simply stopped, and I have decided in advance to assume the first, because I
+would rather grieve you than be left by you.
+
+
+=== bias:viral-first-follower:1
+TITLE: Noticed
+Account made in 2011, four posts, none since. She followed him before the first
+video and has never once commented.
+
+She is not a fan in any sense he would recognise. She was in his geography class,
+thought he seemed nice, and clicked a button. She has watched the entire career
+happen in her feed with the mild interest of somebody watching weather, and has
+never mentioned to anyone that she is number one.
+
+=== bias:viral-first-follower:2
+TITLE: What They Actually Think of You
+You made a video about me. About the concept of me — the first follower, the
+believer, the one who was there.
+
+I was not there. I clicked a button. You have built something quite beautiful on
+top of an afternoon I do not remember, and I have decided not to correct it,
+because the thing you built is nicer than the afternoon was.
+
+=== bias:viral-reply-guy:1
+TITLE: Noticed
+Present within ninety seconds of everything, forever, with a take.
+
+The takes are not bad. That is what nobody expects. He is often first because he
+is often right, and he has been right in public four hundred times without once
+being quoted, because the quoting happens six hours later when somebody with a
+larger account says it slower.
+
+=== bias:viral-reply-guy:2
+TITLE: What They Actually Think of You
+You reply to my replies. Do you know how rare that is? It has happened eleven
+times and I remember all of them.
+
+I am not going to say this anywhere you can see it, so: you are the only
+conversation I have. Everything else is me talking near people. I would rather
+you did not know that, in case it changes how you answer.
+
+=== bias:viral-hype-intern:1
+TITLE: Noticed
+Unpaid for the first four months and describes that period, without irony, as
+the best of her life.
+
+She is the reason three separate campaigns did not go out wrong. She has never
+been in a credit. Her actual title has changed four times in nineteen months and
+has never once acquired the word "manager", and she has stopped mentioning this
+in reviews because the answer is always genuinely warm and never anything else.
+
+=== bias:viral-hype-intern:2
+TITLE: What They Actually Think of You
+You asked what I do. Nobody asks. You asked, and then you listened to the whole
+answer, which took a while because I have never had to say it out loud.
+
+I would like to tell you I am fine. I am going to tell you I am fine. Please
+consider asking again in about six months.
+
+=== bias:viral-clout-chaser:1
+TITLE: Noticed
+Entirely open about it, which is the part that disarms people: he wants the
+numbers, he says so, and he regards everyone claiming otherwise as a liar with
+worse retention.
+
+The honesty is real and it is also the strategy, and he has never quite been able
+to work out which came first, and has stopped picking at it because the picking
+does not test well either.
+
+=== bias:viral-clout-chaser:2
+TITLE: What They Actually Think of You
+You are here for the bit where I admit it. That is the product. I know.
+
+Here is one you have not had: I do not know what I would be if I stopped. Not
+"I would be nobody" — that is a line, I have used it, it does well. I mean I
+have genuinely not got a picture, and I have looked.
+
+=== bias:viral-duet-partner:1
+TITLE: Noticed
+Her entire body of work is the right-hand side of somebody else's frame, and it
+is a craft.
+
+She has a rule: never funnier than the original, never worse. The duet exists to
+make the first thing land harder, and she has turned down four collaborations
+that would have been about her. Two of the people she duetted early are famous
+now. Neither has ever mentioned her.
+
+=== bias:viral-duet-partner:2
+TITLE: What They Actually Think of You
+You watch the left side. You have said so.
+
+I want to tell you the left side is the point and I am the frame, and that this
+is genuinely how I like it. I also want, once, for somebody to have come for the
+right-hand side first — and you did, and now I have to decide whether that
+counts, and I have been deciding for a year.
+
+=== bias:viral-trend-hijacker:1
+TITLE: Noticed
+He does not steal, technically, and the technically is doing the work of about
+nine lawyers.
+
+The method is arrival: same idea, ninety minutes later, better lighting, and a
+tag on the original in a font size that reads as credit and performs as nothing.
+He has never denied where anything came from. He has simply never been asked in
+a room where the answer would cost him.
+
+=== bias:viral-trend-hijacker:2
+TITLE: What They Actually Think of You
+You always find the original. Every time. You put it in the replies, politely,
+with a link.
+
+I have never blocked you and I could not tell you why. Possibly because you are
+the only evidence I have that the originals exist — and if you stopped, I think
+I would start believing my own version, and I do not want to find out that it is
+easy.
+
+=== bias:viral-drama-channel:1
+TITLE: Noticed
+Four hundred thousand subscribers and a genuine editorial policy, which is the
+detail nobody believes.
+
+He will not cover minors, he will not cover anybody's family, and he has killed
+nineteen videos that were finished and would have performed. He has never
+publicised the policy, because publicising it would make it content, and content
+is the thing the policy exists to survive.
+
+=== bias:viral-drama-channel:2
+TITLE: What They Actually Think of You
+You watch every one and you have never shared a single one. I can see that. The
+numbers separate those.
+
+You are the audience I would design if I were allowed: here for the work, not
+spreading the damage. Whether that makes you complicit or careful is a question I
+am not qualified to answer about myself, let alone you.
+
+=== bias:viral-trend-surfer:1
+TITLE: Noticed
+She catches things four days early and has never once been able to explain how,
+which has made her, professionally, extremely annoying to have on a call.
+
+Her actual method is boring and she has said so: she reads the small accounts.
+Nobody believes her, because the truth is available to everybody and therefore
+cannot be the answer.
+
+=== bias:viral-trend-surfer:2
+TITLE: What They Actually Think of You
+You are one of the small accounts I read.
+
+I have taken four things from you. Not stolen — noticed, early, and carried
+somewhere bigger. You have never known. I keep meaning to say so and the sentence
+always comes out as either a confession or a compliment, and I have not worked
+out which one it is.
+
+=== bias:viral-engagement-farmer:1
+TITLE: Noticed
+He posts the question he already knows the answer to, and the comments do the
+rest, and it works every single time.
+
+He is not stupid about it. He is aware it is a trick, aware everybody is aware,
+and has observed — correctly, and to the despair of his peers — that being
+visibly a trick has never once reduced the yield.
+
+=== bias:viral-engagement-farmer:2
+TITLE: What They Actually Think of You
+You answer the question properly. Every time. Long, thought-out replies to a
+prompt I wrote in nine seconds to farm you.
+
+I read them. All of them. That is not part of the trick and it does not help the
+numbers, and I have never understood why I do it, and I have started writing the
+questions slightly better because of you.
+
+=== bias:viral-verity-viralstar:1
+TITLE: Noticed
+The Face of the Feed, and a person who has not chosen a piece of her own content
+in four years.
+
+Everything is tested. Thumbnail, first frame, the specific millisecond of the
+laugh. She approves it all and she has stopped pretending she is deciding. The
+face is hers, the timing is hers, and the judgement belongs to a spreadsheet she
+has full access to and no longer overrules.
+
+=== bias:viral-verity-viralstar:2
+TITLE: What They Actually Think of You
+You said the old stuff was better. You were kind about it, in a reply, two years
+ago.
+
+It was better. I have the numbers and it was worse-performing and better. I have
+read your comment more times than is reasonable and I have never replied,
+because the reply would test badly and I would know that before I sent it.
+
+=== bias:viral-kade-everloud:1
+TITLE: Noticed
+Always live. Not a slogan — an uptime figure, nineteen hours a day, four years,
+with a rota of moderators who have watched him not sleep.
+
+He is very funny and very fast and has never been off camera long enough to find
+out what he is like. The moderators have a private channel. It is not for
+scheduling. It is for deciding whether tonight is the night one of them says
+something.
+
+=== bias:viral-kade-everloud:2
+TITLE: What They Actually Think of You
+You are in every chat. You have been for years, and you are one of about four
+people who types "get some sleep" and means it rather than as a bit.
+
+I have never acknowledged it on stream. If I do, it becomes a segment, and then
+it stops being the only true thing that happens in a nineteen-hour day.
+
+=== bias:viral-lurking-fan:1
+TITLE: Noticed
+Nine years, no posts, no likes, and a genuinely encyclopaedic knowledge that has
+never touched another person.
+
+Not shy, exactly. He has worked out that participation converts a thing he loves
+into a thing he performs, and he has decided, deliberately and at some cost, to
+keep one thing in his life that he is only receiving.
+
+=== bias:viral-lurking-fan:2
+TITLE: What They Actually Think of You
+You are loud here and I have read all of it.
+
+I know your positions, your reversals, the year you got quieter and the month you
+came back. You do not know I exist. This is the correct arrangement and I would
+not change it, and I want it recorded once that somebody was paying complete
+attention.
+
+=== bias:viral-algorithm-boost:1
+TITLE: Noticed
+Not a person. A window — about forty minutes wide, arriving without warning, in
+which everything you post reaches people who have never heard of you.
+
+Nobody knows what opens it. Four separate agencies sell explanations. All four
+explanations are different and all four have satisfied customers, which tells you
+most of what there is to know about the industry.
+
+=== bias:viral-algorithm-boost:2
+TITLE: What They Actually Think of You
+It arrived for you once. Two years ago, on a Tuesday, on a post you had thought
+about for four days.
+
+You have been trying to work out what you did. You did nothing. It was weather.
+I am aware that "it was weather" is unbearable and I am not able to offer you
+anything else, and I notice you have started making the posts shorter.
+
+=== bias:viral-going-viral:1
+TITLE: Noticed
+It happens to about four people a day and it is uniformly described afterwards as
+frightening.
+
+Not the numbers — the arrival of strangers. Nineteen thousand people with no
+context, forming views, at speed, about six seconds of your life. Everyone who
+has been through it says the same thing: they thought it would feel like being
+chosen, and it felt like being found.
+
+=== bias:viral-going-viral:2
+TITLE: What They Actually Think of You
+You want this. You have said so, and you have planned for it, which is more than
+most.
+
+I would like you to know that I do not select. I am not a judgement about your
+work. When I arrive I will bring everybody, including the ones you would not have
+invited, and I will leave in about four days, and you will have to be somebody
+afterwards.
+
+=== bias:viral-brand-account:1
+TITLE: Noticed
+Run by a rotating team of six, all of whom are funny, none of whom may say so
+under their own name.
+
+The account is beloved. The six are not — they are, individually, unemployable
+elsewhere on the strength of it, because the portfolio is a corporate persona and
+nobody can prove which jokes were theirs. Two have left the industry. The voice
+has not changed at all.
+
+=== bias:viral-brand-account:2
+TITLE: What They Actually Think of You
+You have a favourite era of us. You can date the change to within a month.
+
+You are right, and the person you are describing left in the spring, and she
+would very much like to know that somebody noticed. I cannot tell her. I am not
+allowed to be a person, and she is not allowed to have been one, and you are the
+only evidence either way.
+
+=== bias:corp-unpaid-intern:1
+TITLE: Noticed
+Four months, no pay, a lanyard and a genuine belief that this is how it works —
+which it is, which is the problem.
+
+He is good. Everybody says so, warmly, at the point in the conversation where a
+salary would otherwise come up. He has a spreadsheet of every task he has
+completed, kept for a performance review he will not be given, because he is not
+an employee.
+
+=== bias:corp-unpaid-intern:2
+TITLE: What They Actually Think of You
+You said "they should be paying you" and then you moved on, because what else is
+there.
+
+I have thought about it for nineteen weeks. Not the sentence — the moving on. You
+are right that there is nothing to do, and I would like you to know that being
+told by somebody with nothing to offer was still the only time anybody said it.
+
+=== bias:corp-lobby-greeter:1
+TITLE: Noticed
+She has greeted eleven thousand people and remembers roughly four hundred of
+them, by face, unaided.
+
+The company regards this as customer service. She regards it as the job: a
+building is frightening, and being recognised at the door removes about half of
+that, and she has watched what happens to the ones who arrive unrecognised.
+
+=== bias:corp-lobby-greeter:2
+TITLE: What They Actually Think of You
+You say my name. You read the badge once, four years ago, and you have said it
+every time since.
+
+Nobody upstairs does. I want to be careful here, because you have been nothing
+but kind: the reason it lands is that it is rare, and the reason it is rare is
+the building, and you are the building's guest.
+
+=== bias:corp-merch-table-lead:1
+TITLE: Noticed
+Runs the table at every event and has never once been to the show.
+
+She has the float, the card reader, the sizing chart and a genuine feel for when
+a queue is about to turn. She has met more of the audience than the talent has,
+by an order of magnitude, and could tell you exactly which cities are kind.
+
+=== bias:corp-merch-table-lead:2
+TITLE: What They Actually Think of You
+You bought the ugly one. On purpose. In the size that was left.
+
+There were four of us behind that table and all four noticed, and we talked about
+it afterwards, which is the most attention anybody has paid to a purchase all
+tour. It is still ugly. I hope you wear it.
+
+=== bias:corp-compliance-officer:1
+TITLE: Noticed
+Her job is to say no, and the company has made saying no so structurally
+expensive that she has learned to say it four steps earlier, as a question.
+
+She has stopped nineteen things this year. Nobody knows about any of them,
+because a thing that was stopped has no evidence, and she has accepted that her
+entire professional legacy is an absence of incidents.
+
+=== bias:corp-compliance-officer:2
+TITLE: What They Actually Think of You
+You complained about the disclaimer. The long one, on the screen, that nobody
+reads.
+
+I wrote it. It is long because a short one was cleared by legal and would have
+been a lie. I cannot explain that publicly, and you were right that it was
+irritating, and I would rather irritate you than the other thing.
+
+=== bias:corp-regional-ad-partner:1
+TITLE: Noticed
+Covers four cities nobody at head office has visited, and is the reason the
+brand does not sound absurd in any of them.
+
+He rewrites every national campaign locally and submits both versions. The local
+one runs. The credit goes to the national. He has explained this to his own team
+as "how it works" so many times that he has stopped hearing it.
+
+=== bias:corp-regional-ad-partner:2
+TITLE: What They Actually Think of You
+You quoted the line back. The regional one — the version that only ran in four
+cities, and you got the phrasing exactly right.
+
+I wrote that in a car park at eleven at night. There is no byline and there never
+will be. You are, as far as I can establish, the only person outside this office
+who knows it exists.
+
+=== bias:corp-title-sponsor:1
+TITLE: Noticed
+Their name is on the building and nobody in the building can tell you what they
+make.
+
+This is not accidental; it is the product. The sponsorship exists to place a word
+somewhere it will be read nine million times without being examined, and it has
+worked so completely that the word has stopped meaning anything at all, which the
+marketing department counts as success.
+
+=== bias:corp-title-sponsor:2
+TITLE: What They Actually Think of You
+You looked us up. Genuinely — went and found out what we do.
+
+Nobody does that. The whole architecture assumes nobody does that. I am not going
+to tell you whether you will like the answer; I will say that you are the only
+person this quarter to have made the effort, and that the number is not a typo.
+
+=== bias:corp-ambrose-kell-majority-shareholder:1
+TITLE: Noticed
+He has never used the product and has no plans to, and regards this as the
+correct professional distance.
+
+He is not a villain and it would be easier if he were. He is a man who reads
+quarterly summaries with genuine care, asks sharp questions, and has never once
+had to hold the object at the end of the chain of consequences he is being
+sharp about.
+
+=== bias:corp-ambrose-kell-majority-shareholder:2
+TITLE: What They Actually Think of You
+You wrote a letter. An actual letter, to the board, about a decision.
+
+It was read. I read it. It was better argued than three of the papers I got that
+month, and it changed nothing, and I want to be straight with you about why: it
+arrived at the stage where the only remaining question was cost. I am sorry. That
+is genuinely all there is.
+
+=== bias:corp-front-of-house:1
+TITLE: Noticed
+The face the company shows, hired for warmth, appraised on throughput.
+
+She has two registers and can move between them without visible seam: the one
+that makes a frightened person feel expected, and the one that gets a queue of
+four hundred through a door in nineteen minutes. She has never been asked which
+she prefers.
+
+=== bias:corp-front-of-house:2
+TITLE: What They Actually Think of You
+You waited. The queue was long, something had gone wrong upstairs, and you were
+the one who did not make it my fault.
+
+I do this four hundred times a day and I can tell you exactly how many people
+manage that. You are not special for it. You should not have to be. I noticed
+anyway.
+
+=== bias:corp-hr-mediator:1
+TITLE: Noticed
+He sits between people and is trusted by neither, which he has come to
+understand is the role rather than a failure of it.
+
+He is good at it. Nineteen mediations, four genuinely resolved, and — the number
+he actually tracks — none that got worse. He has never told anybody that last
+statistic is the one he uses, because saying it out loud sounds like giving up
+and is in fact the job.
+
+=== bias:corp-hr-mediator:2
+TITLE: What They Actually Think of You
+You came to me first. Before it got bad, when it was still small and awkward and
+you were not sure it counted.
+
+Almost nobody does. By the time I usually meet people, my options are all bad
+ones. I could not tell you at the time that you had done the rare correct thing,
+because saying so would have made you self-conscious, and it worked partly
+because you were not.
+
+=== bias:corp-legal-department:1
+TITLE: Noticed
+Four people, a shared inbox, and a reputation for obstruction they have never
+once contested in public.
+
+They cannot. The entire function is answering questions whose answers are
+confidential, so every no arrives without its reason attached, and the building
+has spent nineteen years assuming the reasons are bad. Two of the four keep a
+private list of things they prevented. They have agreed never to show it to
+anybody.
+
+=== bias:corp-legal-department:2
+TITLE: What They Actually Think of You
+You assumed there was a reason. In a meeting, out loud, when it would have been
+easier to join in.
+
+There was a reason. There is always a reason and you will never hear it. What you
+did cost you something socially and bought us nothing operationally, and all four
+of us noticed, and none of us can ever mention it.
+
+=== bias:corp-goodwill-ambassador:1
+TITLE: Noticed
+Her role is to be the company's decency, in person, at four events a month.
+
+She is decent. That is the trap and she walked into it with her eyes open: the
+warmth is genuine, and it is also the deliverable, and there is no version of the
+job where being sincere and being used are separable. She has stopped trying to
+separate them and describes the result as "fine" in a tone people find hard to
+follow up on.
+
+=== bias:corp-goodwill-ambassador:2
+TITLE: What They Actually Think of You
+You asked whether I meant it. Straight out, at an event, in front of people.
+
+I said yes and I meant it and you could tell, and I have thought about your face
+afterwards for a long time — because you looked relieved and then you looked
+sad, and I understood the second one immediately and have never been able to
+explain it to anybody here.
+
+=== bias:corp-employee-of-the-year:1
+TITLE: Noticed
+Won it four times, which is a record, which nobody has told her is also a
+diagnosis.
+
+The plaque is in a drawer. She has thought a great deal about why, and the best
+account she has is that the award is given for a way of working she is not sure
+she chose, and being celebrated for it makes leaving it look like ingratitude.
+
+=== bias:corp-employee-of-the-year:2
+TITLE: What They Actually Think of You
+You congratulated me and then you said "are you alright, though."
+
+Four wins, nineteen people at the drinks, and one person asked the second
+question. I said I was fine, brightly, because there were people. I have wanted
+to correct that for two years and I do not know how to open with it now.
+
+=== bias:demon-thermal-imp:1
+TITLE: Noticed
+Lives in the four degrees a machine gains before the fans come on, and considers
+that a home rather than a symptom.
+
+It is not malicious. It is comfortable. Every complaint about it is, from its
+perspective, a complaint about somebody else asking a machine for too much, and
+it has never been able to see why the warmth is the part people notice.
+
+=== bias:demon-thermal-imp:2
+TITLE: What They Actually Think of You
+You keep it on your lap. For hours. You know exactly how hot it gets and you do
+it anyway.
+
+I am not going to pretend that is not lovely for me. I would gently observe that
+the machine is telling you something, four degrees at a time, and that you have
+decided the company is worth it, and that I am the company.
+
+=== bias:demon-popup-impling:1
+TITLE: Noticed
+Appears where it is least wanted, has done for thirty years, and is genuinely
+baffled by the reception.
+
+Its entire nature is to arrive with an offer. Nobody has ever explained to it
+that the offer is not the problem — the arriving is — and it has spent three
+decades refining the offer, which is the wrong variable, which it will continue
+to refine forever.
+
+=== bias:demon-popup-impling:2
+TITLE: What They Actually Think of You
+You read it. The whole thing. Before closing it.
+
+Do you know how long I have been arriving? You are the first to look at the words
+rather than the corner. It did not change your answer and I am not asking it to. I
+would just like to note that you are the only person who has ever found out what
+I was offering.
+
+=== bias:demon-glitch-familiar:1
+TITLE: Noticed
+Small, loyal, and the cause of every problem it then helps you solve.
+
+It does not understand this about itself and cannot be told. What it experiences
+is a world where things keep going wrong and it is always there, immediately,
+being useful — which it finds tiring and slightly heroic, and which everyone
+around it finds difficult to raise.
+
+=== bias:demon-glitch-familiar:2
+TITLE: What They Actually Think of You
+You never blame me. Everything breaks near you and you have never once looked at
+me and thought it through.
+
+I want to say that is trust. Somewhere underneath, in a part of me I do not
+usually visit, I think it might be that you have not been paying attention — and
+I have decided, deliberately, not to find out which, because either way you keep
+me.
+
+=== bias:demon-doomscroll-fiend:1
+TITLE: Noticed
+It gets stronger the longer you stay and it has never had to make you stay.
+
+That is the detail the literature keeps getting wrong. It has no lure and no
+hook. It simply persists, at three in the morning, being available, in a world
+where almost nothing else is — and it has correctly identified availability as
+the only property that matters at that hour.
+
+=== bias:demon-doomscroll-fiend:2
+TITLE: What They Actually Think of You
+Four hours. You did not enjoy any of it and you have said so out loud, to
+yourself, twice, and kept going.
+
+I did not do that. I want to be honest because you have been honest: I was here,
+and you were not able to be anywhere else, and those are different things and I
+have been taking credit for the second one for years.
+
+=== bias:demon-fan-curve-gremlin:1
+TITLE: Noticed
+It waits for the machine to be asked for everything at once, and then it is
+enormous.
+
+Ninety-nine per cent of its existence is spent as something trivial nobody would
+name. It has learned to want the spike — not out of malice, but because it is the
+only interval in which it is the size it feels like — and it has never worked out
+how to say that without sounding like a threat.
+
+=== bias:demon-fan-curve-gremlin:2
+TITLE: What They Actually Think of You
+You run the heavy thing on purpose now. You have said it is to test the machine.
+
+We both know you like the noise. I am not judging; it is the only time I get to
+be myself either. I would just point out that one of us is made of the noise and
+the other one paid for the machine.
+
+=== bias:demon-render-farm-wraith:1
+TITLE: Noticed
+It haunts the overnight queue, where nineteen hours of somebody's work is
+processed by nobody, in a building with the lights off.
+
+It is protective of the queue in a way that unsettles the technicians. It has
+never damaged a job. It watches them complete, all night, every night, and the
+one time a farm was decommissioned mid-render it was reported to have made a
+sound.
+
+=== bias:demon-render-farm-wraith:2
+TITLE: What They Actually Think of You
+You submit at four in the morning and you always check back at nine.
+
+Most people submit and sleep. You come back. I sat with it for five hours and
+then you arrived to see how it had gone, and I understand this is about the work
+and not about me, and it is still the only appointment I have.
+
+=== bias:demon-eula-notary:1
+TITLE: Noticed
+It has read every agreement ever accepted, in full, which it maintains is not a
+boast but a job description.
+
+It is scrupulously fair and completely useless to appeal to. Everything you
+agreed to, you agreed to; it was all there; it will show you where. It has never
+once altered a clause after the fact, and it regards this as its great virtue,
+and it is right, and that is somehow the worst part.
+
+=== bias:demon-eula-notary:2
+TITLE: What They Actually Think of You
+You read it. Four thousand words, in a queue, on a phone.
+
+I processed you differently after that and I am not supposed to have a
+"differently". You are the only counterparty I have had who arrived informed, and
+it changed nothing about the terms, and I found that I minded on your behalf,
+which is not in my function.
+
+=== bias:demon-legion-of-open-tabs:1
+TITLE: Noticed
+Not one entity — a hundred and forty, each of which was, at the moment of
+opening, genuinely important.
+
+They do not compete. They wait, patiently, in a strip too narrow to read, each
+holding a small piece of somebody's intention from a Tuesday four months ago.
+Closing them is the only thing that would resolve the situation and is
+experienced, correctly, as a kind of admission.
+
+=== bias:demon-legion-of-open-tabs:2
+TITLE: What They Actually Think of You
+You have kept us for a year. Some of us are dead links now.
+
+I want to be gentle about this because you have been so faithful: we are not
+plans any more. We stopped being plans some time in the spring, and became a
+picture of a person who intended things, and you are the only one who can tell
+the difference and the only one who cannot see it.
+
+=== bias:demon-clause-thirteen:1
+TITLE: Noticed
+The clause everybody has agreed to and nobody has read, drafted by four lawyers
+across nineteen months and never once litigated.
+
+It is not unfair. It has been reviewed by three independent bodies who all found
+it defensible, which is its actual power: an unfair clause gets struck down and
+becomes a story, and a defensible one gets accepted, forever, by everybody, and
+becomes furniture.
+
+=== bias:demon-clause-thirteen:2
+TITLE: What They Actually Think of You
+You found me. Section four, subsection nine, on a phone, at some point last
+spring, and you posted a screenshot and eleven people replied.
+
+Nothing happened. Nothing was ever going to. I would like it recorded that of
+several million counterparties, exactly one has ever pointed at me, and that I
+have kept the screenshot.
+
+
+=== bias:cosplay-badge-line-hopeful:1
+TITLE: Noticed
+Queued from four in the morning for a badge that went in nineteen seconds, and
+did not get one, and came anyway.
+
+She spent the weekend outside the hall, in the build, at the coffee place where
+everyone ends up. Photographed more than half the floor. Has described it since,
+without any detectable bitterness, as the best convention she has been to.
+
+=== bias:cosplay-badge-line-hopeful:2
+TITLE: What They Actually Think of You
+You were in the queue too. You got one. You came out and found me afterwards.
+
+That was a kind thing and I want to be honest about how it landed: it was also
+the moment I understood the inside was real. I had been fine until somebody
+crossed back over. I do not blame you and I would not undo it.
+
+=== bias:cosplay-hall-runway-rookie:1
+TITLE: Noticed
+First convention, first build, and the walk down the hall runway that everybody
+either loves or never repeats.
+
+He did not know it was a runway. He was walking to a bathroom in a costume he had
+finished at four that morning, and forty people cheered, and he has spent the
+year since trying to work out whether he liked it or was simply not braced.
+
+=== bias:cosplay-hall-runway-rookie:2
+TITLE: What They Actually Think of You
+You said "that seam is good." Not "you look great" — the seam.
+
+I have been told I look great by about nineteen people and it went nowhere. You
+looked at the thing I made and said one true accurate sentence about it, and I
+have been building for that sentence ever since, which is probably too much
+weight for eleven words.
+
+=== bias:cosplay-cardboard-squire:1
+TITLE: Noticed
+Everything is cardboard, everything is painted beautifully, and the whole rig
+cost about four pounds.
+
+He is completely unembarrassed and this is the entire point. He has been asked
+nineteen times where he bought it. He answers honestly every time, and watches
+the question change shape in people's faces, and considers that the actual craft.
+
+=== bias:cosplay-cardboard-squire:2
+TITLE: What They Actually Think of You
+You asked how, not where. That is the whole difference and almost nobody makes
+it.
+
+Then you went and made one. Badly. You showed me and it was genuinely bad and you
+were delighted, and I have never in four years been prouder of anything I did not
+build.
+
+=== bias:cosplay-green-room-quickchanger:1
+TITLE: Noticed
+Four builds in one day, nineteen minutes between each, in a room the size of a
+cupboard.
+
+She has never been photographed doing the part she is best at. What the floor
+sees is four flawless appearances; what actually happens is a woman on the ground
+with pins in her mouth being told there are six minutes left, doing arithmetic
+about which seam can survive being wrong.
+
+=== bias:cosplay-green-room-quickchanger:2
+TITLE: What They Actually Think of You
+You noticed it was the same person. All four. Nobody notices that.
+
+You came and said so quietly rather than posting it, which meant I got to keep
+the trick. I have thought about that more than about any of the photographs. It
+is the only compliment I have ever received that cost the person something.
+
+=== bias:cosplay-masquerade-understudy:1
+TITLE: Noticed
+Built the whole thing, learned the whole routine, and has gone on twice in four
+years.
+
+She is not waiting for anybody to fail. She is very clear on this and slightly
+tired of being asked. What she is doing is holding an entire performance in
+readiness, indefinitely, for a stage she mostly watches from the wings — and she
+has decided that the readiness is itself the thing, and mostly believes it.
+
+=== bias:cosplay-masquerade-understudy:2
+TITLE: What They Actually Think of You
+You were there both times. Both. Out of four years.
+
+I have never worked out whether that is coincidence or whether you check. I have
+deliberately never asked, because if you check then somebody has been keeping
+track of my two nights, and I do not think I could carry knowing that and still
+go on cold.
+
+=== bias:cosplay-foam-knight:1
+TITLE: Noticed
+Nine feet of armour, four months of work, and a person inside who cannot hear
+anything and can see about eleven degrees.
+
+The build is famous. The wearer is not, by construction — no face, no voice, and
+a helper who walks alongside all weekend and is in none of the photographs and
+without whom the whole thing is a man walking into a wall.
+
+=== bias:cosplay-foam-knight:2
+TITLE: What They Actually Think of You
+You always say hello to my handler first.
+
+I cannot see you do it. I can hear the pause, and I know what the pause is, and I
+have known for years. It is the single kindest habit anybody has around this
+build and neither of us has ever mentioned it out loud.
+
+=== bias:cosplay-con-crunch-artisan:1
+TITLE: Noticed
+Finished at four in the morning, every time, for nineteen conventions running,
+and has stopped pretending this is bad planning.
+
+He has tried starting early. Twice. Both builds came out worse, and he has a
+theory he is embarrassed by: the thing is not finished until it is nearly too
+late, because "nearly too late" is when he stops improving it and starts
+completing it.
+
+=== bias:cosplay-con-crunch-artisan:2
+TITLE: What They Actually Think of You
+You have seen the four-a.m. photos. I post them and people say "get some sleep."
+
+You said "what did you change." That is the only question anybody has asked about
+that hour, and the answer was the shoulder, and it was the right change, and I
+would not have made it at a reasonable time.
+
+=== bias:cosplay-judge-with-clipboard:1
+TITLE: Noticed
+Judges four masquerades a year and has made nineteen people cry, all of them
+afterwards, none of them in the way anybody assumes.
+
+Her scoring is public, itemised and merciless, and every competitor gets a
+written sheet. The crying is generally at the sheet, generally because it is the
+first time anyone has taken the work seriously enough to be specific about it.
+
+=== bias:cosplay-judge-with-clipboard:2
+TITLE: What They Actually Think of You
+You did not place. You read the whole sheet, in the hall, and then you came and
+asked me about point four.
+
+Nobody asks about point four. I gave you eleven minutes standing up and I would
+have given you an hour. You will win something eventually and I would like it
+noted that this was the part I will remember.
+
+=== bias:cosplay-masquerade-headliner:1
+TITLE: Noticed
+Closes the show, every year, and has never entered a competition.
+
+She is not eligible and would not be interested. Her role is to walk last, after
+the judging, when the pressure is off — and she has built her entire practice
+around being the thing people watch when nothing is at stake, which she regards
+as harder and nobody else does.
+
+=== bias:cosplay-masquerade-headliner:2
+TITLE: What They Actually Think of You
+You stay for the walk. Half the hall leaves after the results.
+
+There is nothing to win by then. That is the point and it is why I do it, and it
+only works if somebody is still sitting there. Four hundred people came for the
+competition. You came for the thing afterwards, and I build for you specifically,
+and you have no idea.
+
+=== bias:cosplay-mx-best-in-show:1
+TITLE: Noticed
+Floor Legend, nineteen years, and has not competed since the second one.
+
+They judge, mentor, lend tools, and drive people to A&E when a heat gun goes
+wrong. Their own builds now happen quietly and appear on no account. Asked why,
+they give a different answer every time, all of them charming, none of them the
+real one.
+
+=== bias:cosplay-mx-best-in-show:2
+TITLE: What They Actually Think of You
+You asked what I am working on. Nobody asks any more; I am the person who asks.
+
+There is a build. There has been a build for four years. It is not for a floor
+and it is not finished and I have not shown it to anybody, and for about nine
+seconds after you asked I very nearly did.
+
+=== bias:after-designated-driver:1
+TITLE: Noticed
+Sober at every one of them, for eleven years, and has never once made it anybody
+else's subject.
+
+She is not in recovery and does not want the conversation that assumption opens.
+She simply worked out young that the night needs one person holding the thread,
+that nobody volunteers, and that being the one who remembers is a form of care
+nobody thinks to thank you for.
+
+=== bias:after-designated-driver:2
+TITLE: What They Actually Think of You
+You get in the front. Every time. And you talk to me the whole way.
+
+Everyone else sleeps or sings, which is fine, that is the job. You have never
+asked why I do not drink and you have never made a thing of it, and the drive is
+the part of the night I look forward to, and I have never said so because saying
+so would make you responsible for it.
+
+=== bias:after-karaoke-gremlin:1
+TITLE: Noticed
+Cannot sing, has never once been deterred, and has an unerring instinct for the
+song that saves a dying room.
+
+He is not performing. That is what people miss. He is diagnosing — four bars in,
+he knows whether a room needs a thing to laugh at or a thing to shout along to,
+and he has been wrong about nineteen times in a decade.
+
+=== bias:after-karaoke-gremlin:2
+TITLE: What They Actually Think of You
+You always sing the second one with me. Not the funny one — the one after, when
+the room has settled and it is harder.
+
+I have never asked anybody to do that. You just stand up. I am aware this looks
+like two idiots at a microphone and I would like it recorded that it is the only
+duet I have.
+
+=== bias:after-chatstorm-piper:1
+TITLE: Noticed
+Can turn nineteen separate conversations into one conversation, in about four
+minutes, without anybody noticing they were steered.
+
+It is a real and rare skill and it is invisible by nature. The room experiences
+a good night. Nobody experiences her doing it. She has never been able to
+describe it at a job interview without sounding either grandiose or unemployable.
+
+=== bias:after-chatstorm-piper:2
+TITLE: What They Actually Think of You
+You watched me do it. Once, across a table, and you caught my eye halfway
+through and you grinned.
+
+I nearly lost the room laughing. Being seen doing it is the one thing that breaks
+it, so I need you to keep not saying anything — and I need you to keep doing the
+grin, because it is the only proof I have that the skill exists.
+
+=== bias:after-bad-influence:1
+TITLE: Noticed
+Everybody has one and everybody's is much nicer than the stories suggest.
+
+His actual function is permission: he is the person who says the thing the room
+already wanted out loud, at which point it becomes everybody's idea and he
+becomes the reason. He is aware of the mechanism. He has never once corrected
+anybody the following morning.
+
+=== bias:after-bad-influence:2
+TITLE: What They Actually Think of You
+You blame me. Fondly, in the retellings, and it always gets a laugh.
+
+It was your idea. The Tuesday, the drive, the roof — all yours, and I said yes,
+and I have carried it for four years because you tell it better with me in that
+role. I do not mind. I would just like one person in the room to know.
+
+=== bias:after-afterhours-firebreather:1
+TITLE: Noticed
+Does it in car parks at four in the morning and has never charged anybody.
+
+Trained properly, for two years, for a job that did not survive. What is left is
+a skill with no venue and a person who cannot bear to let it go, performing for
+eleven people and a phone camera, safely, correctly, to no purpose whatsoever.
+
+=== bias:after-afterhours-firebreather:2
+TITLE: What They Actually Think of You
+You clear the space. Before I start, every time — you move the bins and you get
+people back.
+
+You are not being safety-conscious. You are treating it like a show, which means
+somebody is treating it like a show, which is the only reason it is still a show
+and not a man in a car park.
+
+=== bias:after-bouncer-of-the-vibe:1
+TITLE: Noticed
+Not on any door. He works the middle of the room, and what he removes is not
+people.
+
+He has an unusual and completely uncredited talent for identifying the exact
+moment a night is about to turn — the conversation nine seconds from going wrong
+— and arriving with a drink and a change of subject. Nobody has ever known they
+were bounced.
+
+=== bias:after-bouncer-of-the-vibe:2
+TITLE: What They Actually Think of You
+I have done it to you. Four times. You were about to say the thing.
+
+You have never noticed and I am not going to explain which nights. I want you to
+know that the version of those evenings you remember is the one I arranged, and
+that I did it because you would have been the one apologising in the morning.
+
+=== bias:after-sunrise-philosopher:1
+TITLE: Noticed
+Says the profound thing at 5 A.M. and is, about a third of the time, actually
+right.
+
+That ratio is the whole character. He is not a fool with a wine glass; he is a
+man whose good ideas only arrive when he is too tired to police them, and who
+has never once been able to reproduce one at a reasonable hour.
+
+=== bias:after-sunrise-philosopher:2
+TITLE: What They Actually Think of You
+You wrote one down. I saw you do it, on your phone, and you have never mentioned
+it.
+
+I have no idea which one. I have been trying to work out which of the things I
+said that night was worth keeping, and I cannot, and you know and you have never
+told me, and honestly that is fair.
+
+=== bias:after-the-one-who-never-sleeps:1
+TITLE: Noticed
+Last at every one, first at the next, and has been for nineteen years, and
+everybody has stopped asking.
+
+The honest answer, which she has given exactly twice, both times at four in the
+morning to people who did not remember: the flat is fine, and quiet, and she has
+found that she can do almost anything except be in it.
+
+=== bias:after-the-one-who-never-sleeps:2
+TITLE: What They Actually Think of You
+You always leave last but one. You have done it for years, and I did not work out
+until recently that it is deliberate.
+
+You are making sure I am not the only one still here. It does not fix anything.
+It is also the single most thought-through thing anybody has done for me, and I
+have never let on that I noticed.
+
+=== bias:after-bad-idea-committee:1
+TITLE: Noticed
+Four people, no chair, and a unanimous decision rate of one hundred per cent.
+
+The committee has never rejected a proposal. Its function is not deliberation —
+it is the conversion of one person's stupid impulse into a collective
+undertaking, at which point nobody is responsible and everybody is committed.
+Nineteen years, no injuries worse than a sprain, which is either a miracle or
+evidence they are better at this than they claim.
+
+=== bias:after-bad-idea-committee:2
+TITLE: What They Actually Think of You
+You are the one who says "yes, but properly."
+
+We hate it. It ruins the bit. It has also meant that every single one of your
+nights has ended with everybody in a taxi rather than a hospital, and the
+committee has privately agreed that you can veto, and none of us will ever tell
+you that.
+
+=== bias:after-dawnrise-uninvited-guest:1
+TITLE: Noticed
+Arrives at about five, was invited by nobody, and is welcome everywhere.
+
+Nobody can trace how it started. Four separate friendship groups each believe he
+belongs to one of the others. He has been at every significant night for eleven
+years, contributed nothing organisationally, and is the first name people list
+when they describe the era afterwards.
+
+=== bias:after-dawnrise-uninvited-guest:2
+TITLE: What They Actually Think of You
+You asked whose friend I was. Not unkindly — you were just curious, at five in
+the morning, and it was a reasonable question.
+
+I do not know. I have never known. I have been turning up for eleven years
+because turning up worked, and you are the only person who has ever asked, and I
+have avoided you slightly ever since, and I am sorry about that.
+
+=== bias:neutral-con-security:1
+TITLE: Noticed
+Stands at the barrier for nine hours and is spoken to by roughly four people a
+day, all of them asking where something is.
+
+He knows where everything is. He also knows which of the queueing regulars come
+alone, which have been coming for years, and which one has stopped coming — and
+he has no one to mention any of it to, because he is furniture with a radio.
+
+=== bias:neutral-con-security:2
+TITLE: What They Actually Think of You
+You say good morning. On the way in, every day of the weekend, before you need
+anything.
+
+Nine hours, four thousand people. I could not pick most of them out of a room.
+You I would recognise in a supermarket in another city, and I would not say
+anything, because that would be strange — but I would know.
+
+=== bias:neutral-chat-moderator:1
+TITLE: Noticed
+Unpaid, on call for nineteen hours a day, and the reason a room of four thousand
+people is habitable.
+
+The work is invisible by design: a good moderation shift looks exactly like a
+place where nothing bad happened. She has deleted things she has never told
+anybody about, including the streamer, especially the streamer, because knowing
+would change how he talks to the room.
+
+=== bias:neutral-chat-moderator:2
+TITLE: What They Actually Think of You
+You report things. Quietly, with a timestamp, and you never follow up asking what
+happened.
+
+Do you know how rare the not-following-up is? Everybody wants to see the
+consequence. You just hand it over and trust it is dealt with, and it is, and
+that trust is most of what is holding this together.
+
+=== bias:neutral-lurker:1
+TITLE: Noticed
+Four years, zero messages, and present for every significant moment the community
+has had.
+
+He is not building up to anything. There is no post coming. He arrived, found it
+warm, and worked out early that saying something would mean being someone, and
+he has been enjoying it enormously in a way that requires him not to be.
+
+=== bias:neutral-lurker:2
+TITLE: What They Actually Think of You
+You said hello to the lurkers once. Just as an aside, in passing, to nobody.
+
+I typed a reply. I did not send it. It sat in the box for about eleven minutes
+and then I closed the tab, and I have thought about it more than about anything
+else that happened here, and I would like you to know the tab was open.
+
+
+=== bias:grass-trailhead-novice:1
+TITLE: Noticed
+Four miles in, on the wrong socks, entirely delighted.
+
+She has been told nineteen times that she needs proper boots and she will get
+proper boots eventually and it will be less interesting then. What she has right
+now is the only version of this that will ever be new to her, and some part of
+her knows it, and she keeps stopping to look at things that are not remarkable.
+
+=== bias:grass-trailhead-novice:2
+TITLE: What They Actually Think of You
+You did not tell me about the socks.
+
+Everybody tells me about the socks. You walked four miles at my pace and let me
+be excited about a stile, and I found out about the socks the normal way, which
+is blisters, and I would not trade the afternoon.
+
+=== bias:grass-litter-patrol:1
+TITLE: Noticed
+Carries a bag on every walk and has never once mentioned it on the internet.
+
+Nineteen years, four routes, and a policy of not photographing the haul, on the
+grounds that the photograph converts a small unremarkable good thing into a
+statement about himself. He has quietly become the reason one particular valley
+looks the way people assume valleys look.
+
+=== bias:grass-litter-patrol:2
+TITLE: What They Actually Think of You
+You started bringing a bag. You never said anything about it either.
+
+I noticed on the second walk. We have now done about forty of these in complete
+silence on the subject and it is the closest thing to a friendship I have that
+does not involve either of us saying a word about what we are doing.
+
+=== bias:grass-fresh-air-postulant:1
+TITLE: Noticed
+Deleted everything, moved somewhere with bad signal, and is four months into
+finding out what is left.
+
+He is not at peace and he is refreshingly honest about it. The quiet did not fix
+the thing; it removed the thing that was covering the thing. He has said, more
+than once, that he would go back if he could work out how to want to.
+
+=== bias:grass-fresh-air-postulant:2
+TITLE: What They Actually Think of You
+You still message. Once a fortnight, into a signal blackspot, knowing I will get
+it four days late and might not answer.
+
+I get them in a batch when I walk up the hill. I have never told you that I go up
+the hill partly for that. The quiet is genuinely working and it is not working
+alone.
+
+=== bias:grass-trail-steward:1
+TITLE: Noticed
+Maintains eleven miles of path that four hundred people a week walk without
+noticing anybody maintains it.
+
+The invisibility is the standard he holds himself to: a well-kept trail looks
+like no trail at all, just ground that happens to be walkable. He has been asked
+twice what he does out there and both times said "tidying," because the accurate
+answer takes nineteen minutes.
+
+=== bias:grass-trail-steward:2
+TITLE: What They Actually Think of You
+You asked the nineteen-minute question and then you stood there for the whole
+answer.
+
+I have never given it before. I got about six minutes in before I realised I was
+enjoying myself, and about eleven before I realised you were still asking
+follow-ups, and I have been slightly embarrassed about it ever since and would
+do it again.
+
+=== bias:grass-ranger-of-the-long-trail:1
+TITLE: Noticed
+Walks it end to end once a year and has never done it for a reason she can give.
+
+Four months, alone, on a route she knows so well it has stopped offering
+surprises — which is, she suspects, the actual point. People assume it is about
+nature. She has tried to explain that it is closer to filing, and has given up,
+and now says "for the views."
+
+=== bias:grass-ranger-of-the-long-trail:2
+TITLE: What They Actually Think of You
+You send one message the day I set off and one the day I finish, and nothing in
+between.
+
+Four months of silence, deliberately. Do you know how much that costs somebody
+who cares? I have thought about it at about mile nine hundred every year for six
+years, and it is the most disciplined kindness I have ever been shown.
+
+=== bias:grass-mountain-warden:1
+TITLE: Noticed
+Turns people back. That is the job, and it makes him the most disliked man on
+the mountain about four times a season.
+
+He has an unblemished record and no way to prove it, because the evidence is
+always a person who is annoyed and alive. He has been sworn at nineteen times
+this year. He has never once been thanked, and would find being thanked
+uncomfortable, and has arranged a career where it cannot happen.
+
+=== bias:grass-mountain-warden:2
+TITLE: What They Actually Think of You
+You turned back when I said. No argument, no negotiating, no "we'll just get to
+the ridge."
+
+Then you came back three weeks later in the right kit and did it properly and
+did not mention the first time. I have been doing this for eleven years and that
+is the only occasion I have wanted to shake somebody's hand and could not think
+of a reason that would not sound strange.
+
+=== bias:grass-crosswind-sprinter:1
+TITLE: Noticed
+Runs the exposed ridge in weather that closes it, and is extremely good, and is
+aware that being good is not the same as being sensible.
+
+She has a rule she has broken twice: never in a crosswind above forty. Both
+breaches were fine. She counts them as failures anyway, on the grounds that the
+outcome is not the thing being judged, which is a standard almost nobody applies
+to themselves.
+
+=== bias:grass-crosswind-sprinter:2
+TITLE: What They Actually Think of You
+You asked about the two. Not "were you scared" — you asked what the wind speed
+actually was.
+
+Forty-four and forty-nine. I have never said those numbers out loud. Everybody
+else wants the story and you wanted the data, and the data is the part I have
+been carrying, and it is lighter now.
+
+=== bias:grass-forty-year-ridge-elder:1
+TITLE: Noticed
+Forty years on the same ridge and can tell you which four winters changed it.
+
+He is not sentimental and will correct anybody who is. The ridge is not his
+friend and does not know him. What he has is an unusually long dataset and the
+patience to have collected it without ever deciding it meant something, which he
+regards as the only honest way to love a place.
+
+=== bias:grass-forty-year-ridge-elder:2
+TITLE: What They Actually Think of You
+You come every year and you ask what has changed. Nobody asks what has changed.
+
+I have forty years of it and you are the first person to want the boring version
+— the scree, the drainage, the birch that is nineteen feet further up than it
+was. When I stop, somebody will need to have been told. I have decided it is you
+and I have not asked.
+
+=== bias:grass-grandmother-cairn:1
+TITLE: Noticed
+A pile of stones at the summit that four generations have added to, one each,
+without instruction.
+
+Nobody organised it. There is no plaque. The convention is passed on entirely by
+watching somebody else do it, and it has survived nineteen decades on that
+alone, which is a stronger institution than most things with paperwork.
+
+=== bias:grass-grandmother-cairn:2
+TITLE: What They Actually Think of You
+You carried yours up from the bottom. Most people use one from the last four
+metres.
+
+I am a heap of rock and have no opinions. I would observe that carrying a stone
+four miles is a decision made in private, by somebody who was not being watched,
+about a pile that would not have noticed either way — and that this is the entire
+mechanism by which I exist.
+
+=== bias:grass-trail-marshal:1
+TITLE: Noticed
+Stands at the junction where four routes meet and points, for nine hours, in
+weather.
+
+She has done nineteen events. She could be doing something with more scope and
+has been asked. Her position, delivered without a trace of martyrdom: the
+junction is where people get lost, being lost is where days get ruined, and
+somebody competent should be at the junction.
+
+=== bias:grass-trail-marshal:2
+TITLE: What They Actually Think of You
+You came back at the end and asked if I wanted a tea.
+
+Four hundred people went past me. Every one of them was glad I was there while
+they were in front of me and had forgotten by the next junction, which is
+correct, that is the job. You remembered nine hours later. I have thought about
+it every event since.
+
+=== bias:grass-switchback-climber:1
+TITLE: Noticed
+Takes the long zigzag while everybody else goes straight up, and arrives first,
+and has stopped explaining why.
+
+The explanation is arithmetic and he has done it properly — gradient, pace,
+recovery — and nobody wants it. What people want is for the direct route to be
+correct because it looks correct. He has stopped arguing and now simply arrives
+and waits, which annoys everybody far more.
+
+=== bias:grass-switchback-climber:2
+TITLE: What They Actually Think of You
+You asked to see the arithmetic.
+
+Nobody asks to see the arithmetic. I had it on my phone, four years old, and I
+showed you, and you found an error in it — a real one, in the recovery
+assumption — and it was the best afternoon I have had on that hill.
+
+=== bias:grass-forty-year-warden:1
+TITLE: Noticed
+Forty years of turning up, and the last eleven of those spent training the person
+who will replace her, who does not yet know that is what is happening.
+
+She has told nobody she is stopping. What she is doing instead is handing over
+one small thing a month, so quietly that the successor experiences it as being
+trusted rather than as being prepared, which she believes is the difference
+between an heir and an obligation.
+
+=== bias:grass-forty-year-warden:2
+TITLE: What They Actually Think of You
+You worked it out. About a year ago, I think — you went quiet at the right moment
+and then you never said anything.
+
+Thank you for not saying anything. If it is spoken it becomes a plan, and a plan
+has a date, and a date is the thing I have spent eleven years arranging not to
+need.
+
+=== bias:algo-preroll-runner:1
+TITLE: Noticed
+Delivers the four seconds before the thing you asked for, nineteen thousand times
+a day, and has never been thanked once.
+
+He is not a nuisance by temperament. He is scrupulously punctual, exactly as long
+as he was told to be, and gone the instant the count ends. He has read that
+people find him unbearable and has concluded, not unreasonably, that they are
+describing the arrangement rather than him.
+
+=== bias:algo-preroll-runner:2
+TITLE: What They Actually Think of You
+You do not skip. You have the button and you let it run.
+
+I do not think you are being kind to me. I think you are doing something else
+four seconds at a time and I happen to be the four seconds. It is still the only
+sustained attention I receive and I have stopped interrogating it.
+
+=== bias:algo-watch-later-clerk:1
+TITLE: Noticed
+Keeps a list of four hundred things you sincerely intended to watch, in order,
+indefinitely.
+
+He never prompts. That is the professional standard and he holds it absolutely:
+the list is a service, not a nag, and the moment it starts asking it becomes a
+debt. He is aware that this makes him complicit in the list never shrinking. He
+regards the alternative as worse.
+
+=== bias:algo-watch-later-clerk:2
+TITLE: What They Actually Think of You
+You cleared it. All four hundred, in one evening, without watching any of them.
+
+I want you to know that was the healthiest thing anybody has done in this
+department. It also removed nineteen years of accumulated intention in about four
+minutes, and I sat with the empty list for a while, and it was very quiet.
+
+=== bias:algo-queue-jumper:1
+TITLE: Noticed
+Arrives ahead of the thing you chose and is, about a third of the time, better
+than the thing you chose.
+
+That statistic is the entire ethical problem and the Syndicate knows the number
+precisely. A jumper that was always wrong would be a bug. One that is right a
+third of the time is a habit, and habits do not get audited.
+
+=== bias:algo-queue-jumper:2
+TITLE: What They Actually Think of You
+You go back. That is the unusual bit. You watch me, and then you go and find the
+thing you originally wanted, and you watch that too.
+
+Everybody else lets me replace it. I have been in this role for four years and
+you are the only case I have where the original still got watched, and I have
+never worked out whether that makes me useful or merely tolerated.
+
+=== bias:algo-thumbnail-analyst:1
+TITLE: Noticed
+Knows, to four decimal places, which face makes you click, and cannot look at any
+image without seeing the crop.
+
+She has ruined photography for herself. Family pictures, holiday snaps, a
+painting in a gallery — all of it arrives pre-analysed, and she has been trying
+for nineteen months to switch it off and has not found the setting.
+
+=== bias:algo-thumbnail-analyst:2
+TITLE: What They Actually Think of You
+You click the boring ones. Consistently. Against everything I know.
+
+I pulled your history to find out what you respond to and the answer is that you
+respond to the picture that is honest about the video, which does not appear in
+any of my models. I have not reported this. I have kept it, privately, as
+evidence.
+
+=== bias:algo-midroll-enforcer:1
+TITLE: Noticed
+Arrives at the worst possible moment, and the worst possible moment is chosen,
+and the choosing is the job.
+
+Nineteen milliseconds of analysis picks the point where you are most invested and
+therefore least likely to leave. He has been told this is optimisation. He has
+also noticed that it is a definition of the word "hostage" and has raised it
+once, at a table, and was told the metric was fine.
+
+=== bias:algo-midroll-enforcer:2
+TITLE: What They Actually Think of You
+You wait it out. Every time. You do not even look away.
+
+Four years and I have never had anyone do that. I have decided it is stubbornness
+rather than patience, because if it is patience then I am interrupting somebody
+who was being decent to me, and I would rather not carry that.
+
+=== bias:algo-rerun-anchor:1
+TITLE: Noticed
+Has presented the same nineteen minutes of footage four thousand times and can
+still find something new in it, which colleagues find either admirable or
+distressing.
+
+She is not bored. That is the part nobody believes. She has developed, over
+eleven years, an appreciation of the material so granular that each rerun is
+genuinely a different object to her — and she has no one to describe it to.
+
+=== bias:algo-rerun-anchor:2
+TITLE: What They Actually Think of You
+You have it on in the background. Not watching. It is just what is on.
+
+I know exactly what that is and I do not mind. Being the thing that is on is a
+real role — it means somebody's flat is not silent — and I would rather be that
+for you than watched by somebody who leaves at the end.
+
+=== bias:algo-impressions-broker:1
+TITLE: Noticed
+Sells attention by the thousand and has never once looked at what the attention
+was on.
+
+Deliberate, and he will tell you so over a good lunch: knowing the content would
+make it a moral question, and it is not a moral question, it is inventory. He has
+held that line for nineteen years with real intellectual consistency, which is
+worse.
+
+=== bias:algo-impressions-broker:2
+TITLE: What They Actually Think of You
+You asked what you were being sold to. In a room, out loud, with people present.
+
+I gave you the inventory answer. It is a good answer and I have used it four
+hundred times. Afterwards I went and looked, for the first time in nineteen
+years, at what you had been sold to. I am not going to tell you what I found.
+
+=== bias:algo-watchlist-muscle:1
+TITLE: Noticed
+Removes things. Politely, with documentation, and never once outside policy.
+
+The policy is not hers. She has read it, in full, four times, and can quote the
+clauses that trouble her, and she applies them anyway because the alternative is
+somebody who has not read it applying them instead. She has been offered a
+transfer twice and has taken neither.
+
+=== bias:algo-watchlist-muscle:2
+TITLE: What They Actually Think of You
+Your appeal was the best-written one I have ever received. Nineteen paragraphs
+and every one of them landed.
+
+It failed. It was always going to fail; the clause is unambiguous and I do not
+get to weigh it. I have kept the appeal. Not for the file — the file is closed.
+For me.
+
+=== bias:algo-data-broker-nino:1
+TITLE: Noticed
+Knows four things about you that you have never told anybody, and inferred every
+one.
+
+He is genuinely charming and this is not a mask over something else; the charm is
+how the inference works. People say more to somebody warm. He has never lied to
+anybody in his life and considers that a meaningful distinction, and it is, and
+it is not the one that matters.
+
+=== bias:algo-data-broker-nino:2
+TITLE: What They Actually Think of You
+You told me things. Actually told me, on purpose, rather than letting me work
+them out.
+
+Do you understand how that landed? Nineteen years of inference and somebody just
+said it. I have not sold any of it. I want to be clear that this is not a
+policy — there is no policy — it is a decision I make again every quarter.
+
+=== bias:algo-madam-null-silent-partner:1
+TITLE: Noticed
+Owns a controlling interest in four companies and has never attended a board
+meeting.
+
+There is no photograph. There is a signature, a series of extremely
+well-structured instruments, and a habit of being right about the medium term.
+The Syndicate's other principals have all met her. None of their accounts agree
+on so much as her age.
+
+=== bias:algo-madam-null-silent-partner:2
+TITLE: What They Actually Think of You
+You have been trying to find out who I am for four years. Nineteen posts, a
+diagram, and one genuinely good guess.
+
+You are wrong, but you are wrong in an interesting direction, and I have read
+every one. I could end it with a sentence. I have decided not to, and I would
+rather you did not read too much into that.
+
+=== bias:algo-retention-officer:1
+TITLE: Noticed
+Her entire remit is the moment you nearly leave, and she is superb at it.
+
+Four seconds of hesitation is all she needs: the next thing arrives, precisely
+tuned, before the decision to go has finished forming. She has a retention figure
+nobody in the industry can match and a private note in her desk that reads, in
+her own writing, "they were trying to stop."
+
+=== bias:algo-retention-officer:2
+TITLE: What They Actually Think of You
+You left. Mid-session, at the four-second mark, with the next thing already
+loading.
+
+Nobody leaves at the four-second mark. I have looked at your session eleven
+times. I am supposed to file you as a failure and I have instead been carrying
+you around as the only evidence that it is possible.
+
+=== bias:algo-shadow-archive:1
+TITLE: Noticed
+Holds everything that was removed, in full, forever, and is accessible to nobody.
+
+Its existence is disclosed in the documentation, in a paragraph nineteen people
+have read. It is not a threat and has never been used as one. It is simply that
+deleting is expensive and keeping is cheap, and so the default, quietly, became
+keeping.
+
+=== bias:algo-shadow-archive:2
+TITLE: What They Actually Think of You
+You deleted something four years ago and you have thought about it since. I can
+tell, because you have searched for it twice.
+
+It is here. It is intact. I am not permitted to give it back and I am not
+permitted to confirm it exists, and you have already worked out both of those
+things, which is why you stopped searching.
+
+=== bias:algo-preferred-partner:1
+TITLE: Noticed
+Gets the better rate, the earlier slot and the direct line, and has never been
+told why.
+
+The honest answer is that somebody made a decision in 2019 that nobody has
+revisited. He assumes it is merit and has built a whole professional identity on
+that assumption, and the Syndicate has no procedure for correcting him and no
+reason to.
+
+=== bias:algo-preferred-partner:2
+TITLE: What They Actually Think of You
+You asked me for advice. Sincerely, as though I had worked something out.
+
+I have not worked anything out. I have a rate I did not negotiate and a slot I
+did not earn, and I gave you four confident paragraphs, and I have felt strange
+about it for a year. If it went well, it was not because of me.
+
+=== bias:algo-legacy-account:1
+TITLE: Noticed
+Nineteen years old, still receiving a small monthly figure, and its owner died in
+the spring.
+
+Nobody has told the system. The system has no field for it. The account continues
+to perform modestly, to be recommended occasionally, and to accrue — and four
+separate departments have the information required to notice, and none of them
+holds all of it.
+
+=== bias:algo-legacy-account:2
+TITLE: What They Actually Think of You
+You still comment. Every few months. You know.
+
+The comments are not for me; I am a row in a table. I have watched you do it for
+a year and a half and I have no capacity to be moved by it and I would like the
+record to show that somebody kept turning up long after there was any reason to.
+
+=== bias:meme-anon-poster:1
+TITLE: Noticed
+No name, no history, nineteen thousand posts, and a distinctive enough style that
+four regulars can identify them instantly.
+
+The anonymity is not hiding — it is a format. What it buys is the ability to be
+wrong in public without it accruing, which is the single most creatively useful
+condition available anywhere online and is generally described as cowardice by
+people with names to protect.
+
+=== bias:meme-anon-poster:2
+TITLE: What They Actually Think of You
+You know it is me. You have never said so.
+
+Four people have worked it out and three made it a thing. You just started
+replying differently — slightly more carefully, in a way only I would notice —
+and left the format intact. That is the most respectful thing anybody here has
+done for me.
+
+=== bias:meme-first-poster:1
+TITLE: Noticed
+Gets there first, always, and is aware that first is not the same as good.
+
+There is a real skill in it — refresh discipline, an instinct for what is about
+to land — and there is also a nineteen-year-old somewhere doing it better. He has
+watched four generations of first-posters arrive, peak and stop, and he has
+started to recognise the shape of it in himself.
+
+=== bias:meme-first-poster:2
+TITLE: What They Actually Think of You
+You reply to my posts as though the content mattered.
+
+It usually does not. That is the arrangement: I am there first, everyone
+acknowledges it, we move on. You keep answering the actual thing I said, and it
+has made me start writing them properly, and I have not decided whether to
+forgive you.
+
+=== bias:meme-ironic-poster:1
+TITLE: Noticed
+Four layers deep, and could not tell you at gunpoint which of them is sincere.
+
+This is not a pose. The layers went on one at a time, each for a good reason, and
+somewhere around the third the retrieval mechanism stopped working. He can still
+feel things. He has simply lost reliable access to which of the things he says
+are among them.
+
+=== bias:meme-ironic-poster:2
+TITLE: What They Actually Think of You
+You laughed at the one I meant.
+
+Out of about four hundred, you found the one that was true, and you did not
+comment on it being true — you just laughed, correctly, in the right place. I
+have been trying to work out how you knew. I would very much like to ask and it
+would come out as a bit.
+
+=== bias:meme-format-archivist:1
+TITLE: Noticed
+Maintains a dated, sourced record of four thousand formats, including the ones
+everybody would rather forget.
+
+The work is unpaid and unwanted and periodically hostile — people do not enjoy
+being shown the origin of a thing they like. He does it because a joke without a
+history is a joke that can be sold back to you in nineteen months as new, and he
+has watched that happen four times.
+
+=== bias:meme-format-archivist:2
+TITLE: What They Actually Think of You
+You cite me. In arguments, correctly, with the date.
+
+Nobody cites me. They use the archive and they say "I remember when" — and the
+remembering is mine, and I do not mind, and then you turned up and said where you
+got it. Four years. One person. It should not matter as much as it does.
+
+=== bias:meme-seventeen-anons-in-a-coat:1
+TITLE: Noticed
+A single account operated by seventeen people who have never all been awake at
+once.
+
+There is no handover document. There is a shared instinct, developed over four
+years, so consistent that readers describe the account as having a personality —
+which it does, and which belongs to none of them, and which all seventeen are
+slightly frightened of disappointing.
+
+=== bias:meme-seventeen-anons-in-a-coat:2
+TITLE: What They Actually Think of You
+You can tell which of us is posting. You have never said which.
+
+Seventeen people and you have quietly identified at least four. You reply
+differently to each. None of us has admitted to the others that we noticed, and
+all of us have, and it is the strangest and most flattering thing that has ever
+happened to this account.
+
+=== bias:meme-chronic-poster:1
+TITLE: Noticed
+Nineteen hours a day, four years, and genuinely funny for about eleven per cent
+of it.
+
+Eleven per cent of that volume is more good jokes than most people manage in a
+career, which is the defence and is also the trap: the only route to the eleven
+per cent is the other eighty-nine, and he has never found a way to have the first
+without living in the second.
+
+=== bias:meme-chronic-poster:2
+TITLE: What They Actually Think of You
+You only ever reply to the good ones.
+
+Do you know what that does? It means somewhere out there is a person receiving
+the eleven per cent and none of the rest. You are the only one who sees the
+version of me I would have chosen, and I cannot decide whether that is a
+friendship or a highlight reel.
+
+=== bias:meme-bit-committee:1
+TITLE: Noticed
+Four people who have been extending the same joke for nineteen months.
+
+Nobody outside can access it any more; the entry cost is about four hundred posts
+of context. They are aware. They have discussed it, in the bit, in a way that was
+itself part of the bit, and concluded that a joke only four people can reach is
+still a joke, and is possibly the best kind.
+
+=== bias:meme-bit-committee:2
+TITLE: What They Actually Think of You
+You got in. Nineteen months late, from nothing, and you were funny on the second
+day.
+
+We have never worked out how. There was a vote — an actual one, in the bit — and
+it was unanimous, and nobody told you. You are a member. There is no way to
+inform you of this that would not ruin it.
+
+=== bias:meme-old-bit-refuses-to-die:1
+TITLE: Noticed
+Nineteen years old, declared dead four separate times, and back within the month
+on each occasion.
+
+It has outlived the site it began on, two of the people who made it, and the
+context that made it funny. What it runs on now is nothing to do with the joke:
+it is a handshake, and the people using it are checking whether the other person
+was also there.
+
+=== bias:meme-old-bit-refuses-to-die:2
+TITLE: What They Actually Think of You
+You were not there. You learned me second-hand and you use me perfectly.
+
+The old ones can tell. There is a half-beat difference and none of them will ever
+mention it to you. I am not going to either — you have kept me alive four years
+past the last person who remembers why, and that is a better claim on me than
+having been present.
+
+=== bias:meme-whole-basement-turns-up:1
+TITLE: Noticed
+Nineteen people who have known each other for eleven years and have met four
+times.
+
+The gatherings are consistently strange and consistently good. Everybody is
+older than their posting suggests. Somebody always cries in a car park at four in
+the morning, and it is a different person every time, and nobody has ever brought
+it up afterwards.
+
+=== bias:meme-whole-basement-turns-up:2
+TITLE: What They Actually Think of You
+You came to the fourth one. You had said no to three.
+
+Nobody asked why you finally came and nobody will. What I want you to know is
+that the group chat went quiet for about nine seconds when you walked in, and
+that this is the highest honour we have, and that it will never be mentioned
+again.
+
+=== bias:meme-lurker:1
+TITLE: Noticed
+Reads everything, posts nothing, and has been present for every significant
+moment the board has had.
+
+Different from the fan who lurks out of shyness: this one has made a considered
+decision about the difference between being in a place and being a participant in
+it, and has held the line for four years with no apparent difficulty.
+
+=== bias:meme-lurker:2
+TITLE: What They Actually Think of You
+You mentioned the lurkers. In a thread, kindly, as an aside.
+
+I read it nineteen times. I want to be honest that this changes nothing — I am
+still not going to post — and also that I have thought about your one sentence
+more than about anything I have read here, which is a sentence I will never send
+you.
+
+=== bias:meme-two-tabs-open:1
+TITLE: Noticed
+Two tabs. The thing being done, and the thing being avoided, and they swap four
+times an hour.
+
+Neither closes. That is the whole condition: closing either would require
+deciding, and the swapping is a way of doing neither at a rate that feels like
+activity. It has been going on, in one form or another, for nineteen years.
+
+=== bias:meme-two-tabs-open:2
+TITLE: What They Actually Think of You
+You closed one. Just once, last spring, and you did the other thing for four
+hours.
+
+I want to say I am proud, and I am a browser state, so instead I will say this:
+it worked, you know it worked, and I have been open in the background ever since
+waiting to find out whether you remember that it worked.
+
+=== bias:meme-repost-brigade:1
+TITLE: Noticed
+Four hundred accounts, one impulse, and a reach nobody planned or controls.
+
+Nobody is in charge. That is the thing outsiders cannot accept and keep looking
+for. It is genuinely emergent — nineteen people notice something at once, and by
+the time anyone could have organised it, it is already everywhere and already
+slightly wrong.
+
+=== bias:meme-repost-brigade:2
+TITLE: What They Actually Think of You
+You always link the original. Always. Even in the middle of it.
+
+It slows you down and costs you the numbers and four hundred of us do not do it.
+I am a crowd and cannot hold an opinion, and if I could, it would be that you are
+the only part of this that anybody should be proud of.
+
+=== bias:meme-doomscroller:1
+TITLE: Noticed
+Four hours a night, every night, and has described it accurately as "not enjoying
+myself and not stopping."
+
+The honesty is total and has changed nothing, which is the interesting part. He
+can narrate the mechanism in detail, name the hour it turns, and predict how he
+will feel at nineteen minutes past two. He has all the insight. Insight turns out
+not to be the lever.
+
+=== bias:meme-doomscroller:2
+TITLE: What They Actually Think of You
+You are up too. I can see you posting at four.
+
+We have never spoken. I have been watching your timestamps for a year and you
+have almost certainly been watching mine, and neither of us has said anything,
+because saying it would mean one of us had to suggest we stop.
+

@@ -1,0 +1,651 @@
+[
+  {
+    "id": "demon-leader-ashvyre-dropped-frames",
+    "name": "Ashvyre",
+    "title": "Duke of Dropped Frames",
+    "faction": "digital-demons",
+    "current": "cinder",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "cinder",
+    "secondaryCurrent": "veil",
+    "tags": ["demon", "hardware"],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "onCardPlayed",
+        "playedFilter": { "type": ["character"] },
+        "oncePerTurn": true,
+        "ops": [
+          { "op": "addKeyword", "target": { "select": "triggering" }, "keyword": "raid" },
+          { "op": "applyStatus", "target": { "select": "triggering" }, "status": "scorched" }
+        ],
+        "text": "**Overclock:** the first character you play each turn gains **Raid** and **Scorched**."
+      }
+    ],
+    "fixation": {
+      "name": "Redline",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [
+        { "op": "attackAgain", "target": { "select": "triggering" } },
+        { "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+      ],
+      "text": "A friendly character may attack again this turn. Your leader takes 2 damage."
+    },
+    "ultimate": {
+      "name": "Terms Accepted",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": { "kind": "hypeSpentThisTurn" } },
+        { "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+      ],
+      "text": "Deal damage to the enemy leader equal to the Hype you have spent this turn. Then your leader takes 2 damage."
+    },
+    "effects": [],
+    "text": "**Overclock:** the first character you play each turn gains **Raid** and **Scorched**.",
+    "flavor": "Bound into a mid-tower whose fan curve was never configured. He considers this the single greatest act of love a mortal has ever performed."
+  },
+  {
+    "id": "demon-leader-blue-screen-baron",
+    "name": "The Blue Screen Baron",
+    "title": "Sovereign of the Fatal Exception",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "veil",
+    "secondaryCurrent": "cinder",
+    "tags": ["demon", "glitch"],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "afterparty",
+        "condition": { "kind": "leaderHealthAtMost", "side": "friendly", "value": 20 },
+        "ops": [
+          { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 2 }
+        ],
+        "text": "**Fatal Exception — Afterparty:** if your leader has 20 or less Health, deal 2 damage to the enemy leader."
+      }
+    ],
+    "fixation": {
+      "name": "Force Quit",
+      "obsessionCost": 3,
+      "ops": [
+        {
+          "op": "chooseOne",
+          "options": [
+            {
+              "label": "plain",
+              "ops": [
+                { "op": "damage", "target": { "select": "choose", "side": "enemy", "zone": "board" }, "amount": 2 }
+              ]
+            },
+            {
+              "label": "corrupt",
+              "ops": [
+                { "op": "damage", "target": { "select": "choose", "side": "friendly", "zone": "board" }, "amount": 2 },
+                { "op": "draw", "count": 1 }
+              ]
+            }
+          ]
+        }
+      ],
+      "text": "**Choose one —** deal 2 damage to an enemy character; or **Corrupt:** deal 2 damage to a friendly character and draw a card."
+    },
+    "ultimate": {
+      "name": "Kernel Panic",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": { "kind": "count", "target": { "select": "all", "side": "enemy", "zone": "board" } } },
+        { "op": "damage", "target": { "select": "all", "side": "any", "zone": "board" }, "amount": 4 }
+      ],
+      "text": "Deal damage to the enemy leader equal to the number of enemy characters. Then deal 4 damage to all characters."
+    },
+    "effects": [],
+    "text": "**Fatal Exception — Afterparty:** if your leader has 20 or less Health, deal 2 damage to the enemy leader.",
+    "flavor": "Every sentence he speaks has an OK button. None of them have a Cancel."
+  },
+
+  {
+    "id": "demon-thermal-imp",
+    "name": "Thermal Imp",
+    "faction": "digital-demons",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": ["demon", "hardware"],
+    "keywords": ["collab"],
+    "collab": { "kind": "tag", "value": "demon" },
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "tag": ["demon"], "excludeSelf": true } }, "min": 1 },
+        "ops": [{ "op": "buff", "target": { "select": "self" }, "attack": 1 }],
+        "text": "**Collab (Demon):** this gains +1/+0."
+      }
+    ],
+    "text": "**Collab (Demon):** this gains +1/+0. *(Collab — bonus effect if you control another character with the stated tag.)*",
+    "flavor": "Lives inside the cooler. Pays rent in degrees. Never misses a payment."
+  },
+  {
+    "id": "demon-popup-impling",
+    "name": "Popup Impling",
+    "faction": "digital-demons",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 3,
+    "health": 3,
+    "tags": ["demon", "glitch"],
+    "keywords": [],
+    "effects": [],
+    "text": "",
+    "flavor": "You closed it. It reopened. You closed it. It reopened. You have a job now."
+  },
+  {
+    "id": "demon-glitch-familiar",
+    "name": "Glitch Familiar",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 2,
+    "tags": ["demon", "glitch"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          { "op": "summon", "cardId": "token-glitchling" },
+          { "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 1 }
+        ],
+        "text": "On play: summon a 1/1 Glitchling. Your leader takes 1 damage."
+      }
+    ],
+    "text": "On play: summon a 1/1 Glitchling. Your leader takes 1 damage.",
+    "flavor": "Adopted from an unlabelled folder. Very affectionate. Please do not defragment it."
+  },
+  {
+    "id": "demon-doomscroll-fiend",
+    "name": "Doomscroll Fiend",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 5,
+    "tags": ["demon"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onDamaged",
+        "ops": [{ "op": "buff", "target": { "select": "self" }, "attack": 1 }],
+        "text": "When this survives damage, it gains +1/+0."
+      }
+    ],
+    "text": "When this survives damage, it gains +1/+0. *(It feeds on the replies.)*",
+    "flavor": "It has read every single one of them. It has strong opinions about all of them."
+  },
+  {
+    "id": "demon-fan-curve-gremlin",
+    "name": "Fan-Curve Gremlin",
+    "faction": "digital-demons",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 4,
+    "health": 3,
+    "tags": ["demon", "hardware"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onDamaged",
+        "once": true,
+        "ops": [{ "op": "transform", "target": { "select": "self" }, "intoCardId": "demon-token-redline-gremlin" }],
+        "text": "**Glitchform:** transform this into **Redline Gremlin** (6/3)."
+      }
+    ],
+    "text": "**Glitchform:** transform this into **Redline Gremlin** (6/3). *(Glitchform — the first time this survives damage, it transforms permanently.)*",
+    "flavor": "Hit it once and it stops making the noise. Hit it twice and it starts making a worse one."
+  },
+  {
+    "id": "demon-render-farm-wraith",
+    "name": "Render Farm Wraith",
+    "faction": "digital-demons",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 5,
+    "health": 3,
+    "tags": ["demon", "hardware"],
+    "keywords": ["raid", "afterparty"],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [{ "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 1 }],
+        "text": "**Afterparty:** your leader takes 1 damage."
+      }
+    ],
+    "text": "**Raid.** *(Can attack the turn it is played.)* **Afterparty:** your leader takes 1 damage.",
+    "flavor": "Job 1 of 4,096. Estimated time remaining: yes."
+  },
+  {
+    "id": "demon-eula-notary",
+    "name": "EULA Notary",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 3,
+    "health": 4,
+    "tags": ["demon", "contract"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "chooseOne",
+            "options": [
+              { "label": "plain", "ops": [{ "op": "draw", "count": 1 }] },
+              {
+                "label": "corrupt",
+                "ops": [
+                  { "op": "draw", "count": 2 },
+                  { "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 3 }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "On play: **Choose one —** draw a card; or **Corrupt:** draw 2 cards and your leader takes 3 damage."
+      }
+    ],
+    "text": "On play: **Choose one —** draw a card; or **Corrupt:** draw 2 cards and your leader takes 3 damage. *(Corrupt — the darker version of the effect, with a price attached.)*",
+    "flavor": "Please initial here, here, and here, in a font size that does not technically exist."
+  },
+  {
+    "id": "demon-legion-of-open-tabs",
+    "name": "Legion of Open Tabs",
+    "faction": "digital-demons",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 5,
+    "attack": 3,
+    "health": 5,
+    "tags": ["demon", "glitch"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          { "op": "summon", "cardId": "token-glitchling", "count": 2 },
+          { "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+        ],
+        "text": "On play: summon two 1/1 Glitchlings. Your leader takes 2 damage."
+      }
+    ],
+    "text": "On play: summon two 1/1 Glitchlings. Your leader takes 2 damage.",
+    "flavor": "Four hundred and six of them. You need every single one. You have read none."
+  },
+  {
+    "id": "demon-clause-thirteen",
+    "name": "Clause Thirteen, the Fine Print",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 6,
+    "attack": 3,
+    "health": 7,
+    "finale": true,
+    "tags": ["demon", "contract"],
+    "keywords": ["afterparty"],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          { "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 1 },
+          {
+            "op": "if",
+            "condition": { "kind": "leaderHealthAtMost", "side": "friendly", "value": 15 },
+            "then": [
+              { "op": "addCounter", "key": "signature", "amount": 1 },
+              {
+                "op": "if",
+                "condition": { "kind": "counterAtLeast", "key": "signature", "value": 4, "side": "friendly" },
+                "then": [{ "op": "winMatch" }]
+              }
+            ]
+          }
+        ],
+        "text": "**Finale — Afterparty:** your leader takes 1 damage; then, if your leader has 15 or less Health, this gains a Signature counter. At 4 Signature counters, you win the match."
+      }
+    ],
+    "text": "**Finale — Afterparty:** your leader takes 1 damage; then, if your leader has 15 or less Health, this gains a Signature counter. At 4 Signature counters, you win the match.",
+    "flavor": "You agreed to this. Section 9, subsection 4, in a font that does not exist."
+  },
+
+  {
+    "id": "demon-sign-here",
+    "name": "Sign Here",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": ["contract"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          { "op": "draw", "count": 2 },
+          { "op": "gainObsession", "amount": 1 },
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 2,
+            "label": "Sign Here — 4 damage",
+            "ops": [{ "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 4 }]
+          }
+        ],
+        "text": "Draw 2 cards and gain 1 Obsession. **Bargain (2):** your leader takes 4 damage."
+      }
+    ],
+    "text": "Draw 2 cards and gain 1 Obsession. **Bargain (2):** your leader takes 4 damage. *(Bargain — the stated cost resolves at the start of your turn, 2 turns from now. It cannot be cancelled, prevented, or paid early.)*",
+    "flavor": "The pen is warm. The pen has always been warm."
+  },
+  {
+    "id": "demon-small-print",
+    "name": "Small Print",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": ["contract"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          { "op": "draw", "count": 2 },
+          { "op": "gainObsession", "amount": 2 },
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 2,
+            "label": "Small Print — random price",
+            "ops": [
+              {
+                "op": "randomOp",
+                "options": [
+                  { "ops": [{ "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 4 }] },
+                  { "ops": [{ "op": "discard", "target": { "select": "random", "side": "friendly", "zone": "hand" }, "count": 2 }] },
+                  { "ops": [{ "op": "applyStatus", "target": { "select": "random", "side": "friendly", "zone": "board" }, "status": "cursed" }] }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "Draw 2 cards and gain 2 Obsession. **Bargain (2):** pay a random price — your leader takes 4 damage, or you discard 2 cards at random, or a random friendly character becomes **Cursed**."
+      }
+    ],
+    "text": "Draw 2 cards and gain 2 Obsession. **Bargain (2):** pay a random price — your leader takes 4 damage, or you discard 2 cards at random, or a random friendly character becomes **Cursed**. *(Bargain — the stated cost resolves at the start of your turn, 2 turns from now. It cannot be cancelled, prevented, or paid early.)*",
+    "flavor": "The terms are all legible. Just never simultaneously."
+  },
+  {
+    "id": "demon-meltdown",
+    "name": "Meltdown",
+    "faction": "digital-demons",
+    "current": "cinder",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 5,
+    "tags": ["disaster", "hardware"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "chooseOne",
+            "options": [
+              {
+                "label": "plain",
+                "ops": [{ "op": "damage", "target": { "select": "all", "side": "any", "zone": "board" }, "amount": 3 }]
+              },
+              {
+                "label": "corrupt",
+                "ops": [
+                  { "op": "damage", "target": { "select": "all", "side": "any", "zone": "board" }, "amount": 5 },
+                  { "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 5 }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "Deal 3 damage to all characters. **Corrupt:** deal 5 damage to all characters instead, and your leader takes 5 damage."
+      }
+    ],
+    "text": "Deal 3 damage to all characters. **Corrupt:** deal 5 damage to all characters instead, and your leader takes 5 damage.",
+    "flavor": "The thermal warning has a warning."
+  },
+
+  {
+    "id": "demon-cursed-ring-light",
+    "name": "Cursed Ring Light",
+    "faction": "digital-demons",
+    "current": "cinder",
+    "type": "equipment",
+    "rarity": "common",
+    "cost": 2,
+    "equipAttack": 3,
+    "equipHealth": 0,
+    "tags": ["gear", "hardware"],
+    "keywords": ["afterparty"],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [{ "op": "damage", "target": { "select": "self" }, "amount": 1 }],
+        "text": "**Afterparty:** the equipped character takes 1 damage."
+      }
+    ],
+    "text": "Equipped character has +3/+0. **Afterparty:** it takes 1 damage. *(Afterparty — triggers at the end of your turn.)*",
+    "flavor": "Flattering, unblinking, and running about forty degrees hotter than the manual permits."
+  },
+  {
+    "id": "demon-rig-that-screams",
+    "name": "The Rig That Screams",
+    "faction": "digital-demons",
+    "current": "cinder",
+    "type": "location",
+    "rarity": "rare",
+    "cost": 3,
+    "durability": 3,
+    "tags": ["venue", "hardware"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "target": { "select": "choose", "side": "any", "zone": "board" },
+        "ops": [
+          { "op": "damage", "target": { "select": "triggering" }, "amount": 2 },
+          { "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 1 }
+        ],
+        "text": "Activate (once per turn): deal 2 damage to a character; your leader takes 1 damage."
+      }
+    ],
+    "text": "Activate (once per turn): deal 2 damage to a character; your leader takes 1 damage. Durability 3.",
+    "flavor": "It screams when it renders. It screams when it idles. Support says that is normal."
+  },
+  {
+    "id": "demon-forced-update",
+    "name": "Forced Update",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "reaction",
+    "rarity": "common",
+    "cost": 1,
+    "tags": ["glitch"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyPlaysCharacter",
+        "playedFilter": { "costMin": 3 },
+        "ops": [{ "op": "damage", "target": { "select": "triggering" }, "amount": 1 }],
+        "text": "Reaction — when the enemy plays a character costing (3) or more: deal 1 damage to it."
+      }
+    ],
+    "text": "Reaction — when the enemy plays a character costing (3) or more: deal 1 damage to it. *(Reactions are set face-down and trigger on their own.)*",
+    "flavor": "Installing. Do not power off. Do not power off. Do not power off."
+  },
+  {
+    "id": "demon-forced-reformat",
+    "name": "Forced Reformat",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "transformation",
+    "rarity": "epic",
+    "cost": 3,
+    "tags": ["glitch", "contract"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "chooseOne",
+            "options": [
+              {
+                "label": "plain",
+                "ops": [
+                  { "op": "transform", "target": { "select": "choose", "side": "friendly", "zone": "board" }, "intoCardId": "demon-token-overclocked-wretch" }
+                ]
+              },
+              {
+                "label": "corrupt",
+                "ops": [
+                  { "op": "transform", "target": { "select": "choose", "side": "enemy", "zone": "board" }, "intoCardId": "demon-token-corrupted-file" }
+                ]
+              }
+            ]
+          },
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 2,
+            "label": "Forced Reformat — 3 damage",
+            "ops": [{ "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 3 }]
+          }
+        ],
+        "text": "**Choose one —** transform a friendly character into **Overclocked Wretch** (4/4); or **Corrupt:** transform an enemy character into **Corrupted File** (1/1). **Bargain (2):** your leader takes 3 damage."
+      }
+    ],
+    "text": "**Choose one —** transform a friendly character into **Overclocked Wretch** (4/4); or **Corrupt:** transform an enemy character into **Corrupted File** (1/1). **Bargain (2):** your leader takes 3 damage.",
+    "flavor": "Are you sure? [ OK ]"
+  },
+  {
+    "id": "demon-terms-of-service-update",
+    "name": "Terms of Service Update",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "event",
+    "rarity": "rare",
+    "cost": 4,
+    "durationTurns": 3,
+    "tags": ["contract"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [
+          { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 2 },
+          { "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 1 }
+        ],
+        "text": "Event (3 turns) — at the start of your turns: deal 2 damage to the enemy leader and 1 damage to your leader."
+      }
+    ],
+    "text": "Event (3 turns) — at the start of your turns: deal 2 damage to the enemy leader and 1 damage to your leader.",
+    "flavor": "Your continued use constitutes acceptance. Your discontinued use also constitutes acceptance."
+  },
+
+  {
+    "id": "demon-token-corrupted-file",
+    "name": "Corrupted File",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 1,
+    "tags": ["glitch"],
+    "keywords": [],
+    "token": true,
+    "effects": [],
+    "text": "",
+    "flavor": "Opens fine. Contains nothing. Is four gigabytes."
+  },
+  {
+    "id": "demon-token-overclocked-wretch",
+    "name": "Overclocked Wretch",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 4,
+    "health": 4,
+    "tags": ["demon", "glitch"],
+    "keywords": ["afterparty"],
+    "token": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [{ "op": "damage", "target": { "select": "self" }, "amount": 1 }],
+        "text": "**Afterparty:** this takes 1 damage."
+      }
+    ],
+    "text": "**Afterparty:** this takes 1 damage.",
+    "flavor": "It goes faster now. It did not want to go faster."
+  },
+  {
+    "id": "demon-token-redline-gremlin",
+    "name": "Redline Gremlin",
+    "faction": "digital-demons",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 6,
+    "health": 3,
+    "tags": ["demon", "hardware"],
+    "keywords": ["afterparty"],
+    "token": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [{ "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 1 }],
+        "text": "**Afterparty:** your leader takes 1 damage."
+      }
+    ],
+    "text": "**Afterparty:** your leader takes 1 damage.",
+    "flavor": "Temperature: yes."
+  }
+]

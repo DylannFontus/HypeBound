@@ -1,0 +1,322 @@
+{
+  "_readme": [
+    "ACHIEVEMENTS. 08-progression.md §9 - one-time objectives with points, Clout,",
+    "Fragments and, for the memorable ones, titles and profile frames.",
+    "",
+    "WHY THIS IS AN ACCUMULATOR AND MISSIONS ARE NOT. Mission progress is recomputed",
+    "from a bounded log of finished matches, so any claim can be re-derived and",
+    "audited. That log holds 200 matches and is pruned to the oldest held mission's",
+    "window. 'Complete 500 matches' cannot be answered from it, and neither can",
+    "'activate all 9 Confluences (lifetime)'. So achievements keep a running tally,",
+    "credited once per match, exactly like Faction Mastery - and, exactly like",
+    "Faction Mastery, that means the credit has to be right the first time because",
+    "there is nothing to recompute from.",
+    "",
+    "FOUR REQUIREMENT KINDS, AND NOTHING ELSE. 'total' sums a per-match statistic",
+    "over every match ever played. 'best' takes the largest single-match value.",
+    "'distinct' counts different values seen (factions won with, Confluences fired,",
+    "modes played). 'account' reads a fact about the account itself rather than",
+    "about matches - cards owned, cosmetics owned, best mastery rank. Anything that",
+    "cannot be phrased in those four is an achievement that cannot be verified, and",
+    "this project has shipped enough rewards that quietly failed to track.",
+    "",
+    "POINTS AND MILESTONES. §9 puts profile frames at 250 / 500 / 1,000 achievement",
+    "points. The 26 achievements below are worth 635 points, of which 625 are",
+    "reachable offline (Front Row Seat needs a server). So 250 and 500 ship and are",
+    "listed here; 1,000 is deliberately NOT listed, because a milestone nobody can",
+    "reach is an invisible reward, which is the one thing this codebase refuses to",
+    "grant. checkAchievementsData() asserts every listed milestone is reachable, so",
+    "the day the set grows past 1,000 the omission reports itself.",
+    "",
+    "REWARDS FOLLOW THE MASTERY RULE. A cosmetic reward is granted only if it names",
+    "a 'ref' that resolves to something the game can actually display. One that does",
+    "not is listed in DEFERRED_ACHIEVEMENTS with a written reason, and the screen",
+    "says what it is waiting for rather than offering a Claim that pays nothing."
+  ],
+
+  "categories": [
+    { "id": "combat", "name": "Highlight Reel", "blurb": "In-match feats." },
+    { "id": "collection", "name": "The Hoard", "blurb": "Owning, crafting, collecting." },
+    { "id": "mastery", "name": "The Grindset", "blurb": "Lifetime totals, levels, mastery." },
+    { "id": "currents", "name": "Weather", "blurb": "The elemental system, engaged with." },
+    { "id": "modes", "name": "Tourist", "blurb": "The Doomscroll, bosses, the whole map." },
+    { "id": "social", "name": "Community", "blurb": "Friends, spectating, guilds." },
+    { "id": "hidden", "name": "Deep Cuts", "blurb": "Absurd discoveries. Shown once found." }
+  ],
+
+  "milestones": [
+    {
+      "_note": [
+        "§9: 'Achievement point milestones grant profile frames at 250 / 500 / 1,000",
+        "points.' The third is absent on purpose - see the readme above."
+      ],
+      "points": 250,
+      "name": "Shelf of Trophies",
+      "reward": { "kind": "cosmetic", "name": "Trophy Shelf frame", "ref": "frame:award:trophy-shelf" }
+    },
+    {
+      "points": 500,
+      "name": "Whole Wall of Them",
+      "reward": { "kind": "cosmetic", "name": "Full Wall frame", "ref": "frame:award:full-wall" }
+    }
+  ],
+
+  "achievements": [
+    {
+      "_note": "§9.1 #1. The first thing an account can ever unlock, so it is cheap and instant.",
+      "id": "we-did-it-chat",
+      "name": "We Did It, Chat!",
+      "category": "combat",
+      "text": "Win your first match.",
+      "points": 10,
+      "requirement": { "need": "total", "stat": "wins", "target": 1 },
+      "rewards": [{ "kind": "clout", "amount": 100 }]
+    },
+    {
+      "id": "chronically-online",
+      "name": "Chronically Online",
+      "category": "mastery",
+      "text": "Complete 500 matches.",
+      "points": 25,
+      "requirement": { "need": "total", "stat": "matches", "target": 500 },
+      "rewards": [
+        { "kind": "cosmetic", "name": "Title — Chronically Online", "ref": "title:award:chronically-online" }
+      ]
+    },
+    {
+      "_note": "§9.1 #3. Full Fixation is the Obsession-10 state; the engine emits its own event for it.",
+      "id": "down-catastrophically",
+      "name": "Down Catastrophically",
+      "category": "combat",
+      "text": "Reach Full Fixation — Obsession 10 — in a match.",
+      "points": 25,
+      "requirement": { "need": "total", "stat": "fullFixations", "target": 1 },
+      "rewards": [{ "kind": "clout", "amount": 150 }]
+    },
+    {
+      "id": "log-off-speedrun",
+      "name": "Log Off Speedrun",
+      "category": "combat",
+      "text": "Banish 25 enemy characters.",
+      "points": 25,
+      "requirement": { "need": "total", "stat": "charactersBanished", "target": 25 },
+      "rewards": [
+        { "kind": "cosmetic", "name": "Title — Certified Grass Toucher", "ref": "title:award:certified-grass-toucher" }
+      ]
+    },
+    {
+      "id": "untouched-unbothered",
+      "name": "Untouched, Unbothered",
+      "category": "combat",
+      "text": "Win a match without your leader taking a single point of damage.",
+      "points": 25,
+      "requirement": { "need": "total", "stat": "flawlessWin", "target": 1 },
+      "rewards": [{ "kind": "clout", "amount": 200 }]
+    },
+    {
+      "id": "running-on-vibes",
+      "name": "Running on Vibes",
+      "category": "combat",
+      "text": "Win a match after your deck has run out.",
+      "points": 25,
+      "requirement": { "need": "total", "stat": "burnoutWin", "target": 1 },
+      "rewards": [{ "kind": "clout", "amount": 150 }]
+    },
+    {
+      "_note": "The board holds 6, so this is a full board held to the final bell.",
+      "id": "sold-out-show",
+      "name": "Sold-Out Show",
+      "category": "combat",
+      "text": "Win a match having had 6 friendly characters on the board at once.",
+      "points": 10,
+      "requirement": { "need": "best", "stat": "widestWinningBoard", "target": 6 },
+      "rewards": [{ "kind": "clout", "amount": 100 }]
+    },
+    {
+      "id": "ratiod-into-orbit",
+      "name": "Ratio'd Into Orbit",
+      "category": "combat",
+      "text": "Deal 12 or more damage to the enemy leader in a single turn.",
+      "points": 25,
+      "requirement": { "need": "best", "stat": "mostLeaderDamageInATurn", "target": 12 },
+      "rewards": [{ "kind": "clout", "amount": 150 }]
+    },
+    {
+      "id": "well-actually",
+      "name": "Well, Actually—",
+      "category": "combat",
+      "text": "Trigger 50 of your set Reactions.",
+      "points": 25,
+      "requirement": { "need": "total", "stat": "reactionsTriggered", "target": 50 },
+      "rewards": [{ "kind": "clout", "amount": 150 }]
+    },
+    {
+      "_note": "There are nine Confluences. A count would not do: nine of the same one is not this.",
+      "id": "weather-machine",
+      "name": "Weather Machine",
+      "category": "currents",
+      "text": "Activate all 9 Confluences.",
+      "points": 25,
+      "requirement": { "need": "distinct", "of": "confluences", "target": 9 },
+      "rewards": [{ "kind": "cosmetic", "name": "Title — Stormfront", "ref": "title:award:stormfront" }]
+    },
+    {
+      "id": "pitch-perfect-signal",
+      "name": "Pitch Perfect Signal",
+      "category": "currents",
+      "text": "Trigger Perfect Resonance 10 times.",
+      "points": 25,
+      "requirement": { "need": "total", "stat": "perfectResonances", "target": 10 },
+      "rewards": [{ "kind": "clout", "amount": 200 }]
+    },
+    {
+      "id": "type-chart-understander",
+      "name": "Type Chart Understander",
+      "category": "currents",
+      "text": "Deal 250 total damage from elemental advantage.",
+      "points": 25,
+      "requirement": { "need": "total", "stat": "elementalBonusDamage", "target": 250 },
+      "rewards": [{ "kind": "clout", "amount": 150 }]
+    },
+    {
+      "id": "multifandom-menace",
+      "name": "Multifandom Menace",
+      "category": "mastery",
+      "text": "Win a match with all 10 factions.",
+      "points": 50,
+      "requirement": { "need": "distinct", "of": "factionsWon", "target": 10 },
+      "rewards": [
+        { "kind": "cosmetic", "name": "Title — Multifandom Menace", "ref": "title:award:multifandom-menace" }
+      ]
+    },
+    {
+      "id": "whale-free",
+      "name": "Whale-Free Since Day One",
+      "category": "collection",
+      "text": "Craft your first Legendary.",
+      "points": 10,
+      "requirement": { "need": "account", "of": "legendariesCrafted", "target": 1 },
+      "rewards": [{ "kind": "fragments", "amount": 100 }]
+    },
+    {
+      "id": "curator",
+      "name": "Curator",
+      "category": "collection",
+      "text": "Own 100 distinct cards.",
+      "points": 10,
+      "requirement": { "need": "account", "of": "distinctCards", "target": 100 },
+      "rewards": [{ "kind": "fragments", "amount": 50 }]
+    },
+    {
+      "id": "digital-dragon",
+      "name": "Digital Dragon",
+      "category": "collection",
+      "text": "Own 300 distinct cards.",
+      "points": 50,
+      "requirement": { "need": "account", "of": "distinctCards", "target": 300 },
+      "rewards": [{ "kind": "cosmetic", "name": "The Hoard frame", "ref": "frame:award:hoard" }]
+    },
+    {
+      "_note": "§9.1 #16 pays 'Profile badge'. Cosmetics owned, not cards - the badge is for wearing the collection.",
+      "id": "closet-cosplayer",
+      "name": "Closet Cosplayer",
+      "category": "collection",
+      "text": "Own 20 cosmetics.",
+      "points": 25,
+      "requirement": { "need": "account", "of": "cosmeticsOwned", "target": 20 },
+      "rewards": [{ "kind": "cosmetic", "name": "Closet Cosplayer badge", "ref": "badge:award:closet-cosplayer" }]
+    },
+    {
+      "id": "speedran-the-grindset",
+      "name": "Speedran the Grindset",
+      "category": "modes",
+      "text": "Clear a full Doomscroll run.",
+      "points": 25,
+      "requirement": { "need": "account", "of": "roguelikeRunsCleared", "target": 1 },
+      "rewards": [{ "kind": "clout", "amount": 200 }]
+    },
+    {
+      "id": "content-slayer",
+      "name": "Content Slayer",
+      "category": "modes",
+      "text": "Defeat a Boss AI encounter.",
+      "points": 25,
+      "requirement": { "need": "total", "stat": "bossWins", "target": 1 },
+      "rewards": [{ "kind": "clout", "amount": 150 }]
+    },
+    {
+      "id": "tourist",
+      "name": "Tourist",
+      "category": "modes",
+      "text": "Play a match in 5 different modes.",
+      "points": 25,
+      "requirement": { "need": "distinct", "of": "modes", "target": 5 },
+      "rewards": [{ "kind": "clout", "amount": 150 }]
+    },
+    {
+      "_note": [
+        "§9.1 #19. The only achievement on this list that cannot be earned offline,",
+        "kept rather than deleted so the Community tab is not an empty promise, and",
+        "listed in DEFERRED_ACHIEVEMENTS with the reason. Its 10 points are excluded",
+        "from the reachable total the milestone check uses."
+      ],
+      "id": "front-row-seat",
+      "name": "Front Row Seat",
+      "category": "social",
+      "text": "Spectate a friend's match from start to finish.",
+      "points": 10,
+      "requirement": { "need": "account", "of": "matchesSpectated", "target": 1 },
+      "rewards": [{ "kind": "clout", "amount": 50 }]
+    },
+    {
+      "_note": "§9.1 #20, and the Hidden category's only entry: shown as ??? until it is unlocked.",
+      "id": "board-not-found",
+      "name": "404: Board Not Found",
+      "category": "hidden",
+      "text": "Win a match without defeating a single enemy character.",
+      "hint": "Somebody won without laying a finger on anyone.",
+      "points": 25,
+      "requirement": { "need": "total", "stat": "shutoutWin", "target": 1 },
+      "rewards": [{ "kind": "clout", "amount": 200 }]
+    },
+    {
+      "id": "hype-machine",
+      "name": "Hype Machine",
+      "category": "mastery",
+      "text": "Reach Faction Mastery rank 10 with any faction.",
+      "points": 25,
+      "requirement": { "need": "account", "of": "bestFactionMastery", "target": 10 },
+      "rewards": [{ "kind": "clout", "amount": 200 }]
+    },
+    {
+      "id": "understudy-no-more",
+      "name": "Understudy No More",
+      "category": "mastery",
+      "text": "Reach Leader Mastery level 10 with any leader.",
+      "points": 25,
+      "requirement": { "need": "account", "of": "bestLeaderMastery", "target": 10 },
+      "rewards": [{ "kind": "clout", "amount": 150 }]
+    },
+    {
+      "_note": "§13 names this title and hangs it on account level 60. This is the thing that grants it.",
+      "id": "terminally-levelled",
+      "name": "Terminally Levelled",
+      "category": "mastery",
+      "text": "Reach account level 60.",
+      "points": 50,
+      "requirement": { "need": "account", "of": "accountLevel", "target": 60 },
+      "rewards": [
+        { "kind": "cosmetic", "name": "Title — Terminally Levelled", "ref": "title:award:terminally-levelled" }
+      ]
+    },
+    {
+      "id": "bias-confirmed",
+      "name": "Bias Confirmed",
+      "category": "mastery",
+      "text": "Reach Affinity tier 3 with any character.",
+      "points": 10,
+      "requirement": { "need": "account", "of": "bestAffinityTier", "target": 3 },
+      "rewards": [{ "kind": "clout", "amount": 100 }]
+    }
+  ]
+}

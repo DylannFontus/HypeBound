@@ -1,0 +1,554 @@
+[
+  {
+    "id": "boss-dj-last-call",
+    "name": "DJ Last Call",
+    "title": "Encore Set",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "cinder",
+    "secondaryCurrent": "tide",
+    "tags": ["boss"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [{ "op": "repeatAfterpartyThisTurn" }],
+        "text": "Encore Set — the boss's Afterparty triggers fire twice."
+      }
+    ],
+    "fixation": {
+      "name": "Last Round",
+      "obsessionCost": 3,
+      "ops": [{ "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 2 }],
+      "text": "Deal 2 damage to the enemy leader."
+    },
+    "ultimate": {
+      "name": "Lights Up",
+      "obsessionCost": 7,
+      "ops": [{ "op": "damage", "target": { "select": "all", "side": "enemy", "zone": "board" }, "amount": 3 }],
+      "text": "Deal 3 damage to every enemy character."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "The set was supposed to end an hour ago. Nobody has told him."
+  },
+  {
+    "id": "boss-prisma-final-encore",
+    "name": "Prisma, the Final Encore",
+    "title": "Standing Ovation",
+    "faction": "neon-idols",
+    "current": "halo",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "halo",
+    "secondaryCurrent": "pulse",
+    "tags": ["boss"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "aura",
+        "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board" }, "min": 3 },
+        "ops": [
+          {
+            "op": "aura",
+            "target": { "select": "all", "side": "friendly", "zone": "board" },
+            "attack": 1
+          }
+        ],
+        "text": "Standing Ovation — while Prisma controls 3 or more characters, they all have +1 attack."
+      }
+    ],
+    "fixation": {
+      "name": "Spotlight Sweep",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [{ "op": "buff", "target": { "select": "triggering" }, "attack": 1, "health": 1 }],
+      "text": "Give a friendly character +1/+1."
+    },
+    "ultimate": {
+      "name": "Final Encore",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board" }, "attack": 2, "health": 2 }
+      ],
+      "text": "Give your characters +2/+2."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "She has retired six times. Each one sold out faster than the last."
+  },
+
+  {
+    "id": "boss-widow-dead-fandoms",
+    "name": "The Widow of Dead Fandoms",
+    "title": "The Vigil",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "veil",
+    "secondaryCurrent": "root",
+    "tags": ["boss"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "onFriendlyDefeated",
+        "oncePerTurn": true,
+        "ops": [{ "op": "revive", "target": { "select": "triggering" }, "health": 1 }],
+        "text": "The Vigil — the first character the Widow loses each turn stands back up at 1 Health, keeping everything done to it."
+      }
+    ],
+    "fixation": {
+      "name": "Mourning Veil",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [{ "op": "applyStatus", "target": { "select": "triggering" }, "status": "shielded" }],
+      "text": "Give a friendly character **Shielded**."
+    },
+    "ultimate": {
+      "name": "Nothing Ever Really Dies",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "resurrect",
+          "target": { "select": "all", "side": "friendly", "zone": "discard", "filter": { "type": ["character"] } },
+          "count": 2
+        }
+      ],
+      "text": "Return 2 characters from your discard pile to the board."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "She keeps the forums up. Nobody has posted since 2016. She reads them all anyway."
+  },
+
+  {
+    "id": "boss-king-ratio",
+    "name": "King Ratio",
+    "title": "Engagement Farming",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "gale",
+    "secondaryCurrent": "cinder",
+    "tags": ["boss"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": { "kind": "cardsPlayedLastTurn", "side": "enemy" }
+          }
+        ],
+        "text": "Engagement Farming — at the start of King Ratio's turn, he summons a 1/1 Follower for every card you played on your last turn."
+      }
+    ],
+    "fixation": {
+      "name": "Ratio'd",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "enemy", "zone": "board" },
+      "ops": [{ "op": "damage", "target": { "select": "triggering" }, "amount": 3 }],
+      "text": "Deal 3 damage to an enemy character."
+    },
+    "ultimate": {
+      "name": "Main Character Moment",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "summon", "cardId": "token-main-character" },
+        { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board" }, "attack": 1, "health": 1 }
+      ],
+      "text": "Summon a 4/4 Main Character and give your characters +1/+1."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "Every reply is worse than the last and every one of them is a Follower."
+  },
+
+  {
+    "id": "boss-executive-producer",
+    "name": "The Executive Producer",
+    "title": "Quarterly Targets",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "root",
+    "secondaryCurrent": "halo",
+    "tags": ["boss"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [{ "op": "gainHype", "amount": 1, "permanent": true }],
+        "text": "Quarterly Targets — at the start of the Producer's turn she gains 1 max Hype, up to 10. Her Hype grows twice as fast as yours."
+      }
+    ],
+    "fixation": {
+      "name": "Reallocate Budget",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [{ "op": "buff", "target": { "select": "triggering" }, "attack": 2, "health": 2 }],
+      "text": "Give a friendly character +2/+2."
+    },
+    "ultimate": {
+      "name": "Hostile Takeover",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "draw", "count": 3 },
+        { "op": "gainHype", "amount": 3 }
+      ],
+      "text": "Draw 3 cards and gain 3 Hype this turn only."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "She has never watched a single thing the company has made. She knows exactly what all of it is worth."
+  },
+
+  {
+    "id": "boss-glitchlord-exe",
+    "name": "GLITCHLORD_EXE",
+    "title": "Corrupted Feed",
+    "faction": "digital-demons",
+    "current": "veil",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "veil",
+    "secondaryCurrent": "cinder",
+    "tags": ["boss"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "onEnemyCardDrawn",
+        "ops": [
+          { "op": "addCounter", "key": "corrupted-feed", "amount": 1, "side": "enemy" },
+          {
+            "op": "if",
+            "condition": { "kind": "counterAtLeast", "key": "corrupted-feed", "value": 3, "side": "enemy" },
+            "then": [
+              { "op": "setCounter", "key": "corrupted-feed", "amount": 0, "side": "enemy" },
+              { "op": "modifyTriggeringCardCost", "delta": 1 }
+            ]
+          }
+        ],
+        "text": "Corrupted Feed — every third card you draw costs (1) more. The count is public: watch the Corrupted Feed counter."
+      }
+    ],
+    "fixation": {
+      "name": "Blue Screen",
+      "obsessionCost": 3,
+      "ops": [{ "op": "damage", "target": { "select": "all", "side": "enemy", "zone": "board" }, "amount": 1 }],
+      "text": "Deal 1 damage to every enemy character."
+    },
+    "ultimate": {
+      "name": "Full System Wipe",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 4 },
+        { "op": "discard", "target": { "select": "all", "side": "enemy", "zone": "hand" }, "count": 2 }
+      ],
+      "text": "Deal 4 damage to the enemy leader and make them discard 2 cards at random."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "It is not in the feed. It IS the feed, and it has been for some time."
+  },
+
+  {
+    "id": "boss-grand-cosplayer",
+    "name": "The Grand Cosplayer",
+    "title": "Quick Change",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "tide",
+    "secondaryCurrent": "prism",
+    "tags": ["boss"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [{ "op": "rotateLeaderCurrent" }],
+        "text": "Quick Change — at the start of the Cosplayer's turn their Current rotates one step: Tide → Cinder → Gale → Root → Pulse → Tide. Whichever Current they are wearing decides who gets the elemental bonus on their leader."
+      }
+    ],
+    "fixation": {
+      "name": "Costume Change",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [{ "op": "buff", "target": { "select": "triggering" }, "attack": 2, "health": 1 }],
+      "text": "Give a friendly character +2/+1."
+    },
+    "ultimate": {
+      "name": "Masquerade",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "applyStatus", "target": { "select": "all", "side": "friendly", "zone": "board" }, "status": "shielded" },
+        { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board" }, "attack": 1, "health": 1 }
+      ],
+      "text": "Give your characters **Shielded** and +1/+1."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "Six hours of foam and heat-gun burns, and they will tell you it was a simple build."
+  },
+
+  {
+    "id": "boss-groundskeeper",
+    "name": "The Groundskeeper",
+    "title": "Log Off",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "root",
+    "secondaryCurrent": "gale",
+    "tags": ["boss"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "banish",
+            "target": { "select": "highestCost", "side": "enemy", "zone": "board" },
+            "returnAtStartOfYourNextTurn": true
+          }
+        ],
+        "text": "Log Off — at the start of the Groundskeeper's turn, your costliest character is Banished until the start of your next turn. It comes back with its buffs and statuses stripped."
+      }
+    ],
+    "fixation": {
+      "name": "Fresh Air",
+      "obsessionCost": 3,
+      "ops": [{ "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 4 }],
+      "text": "Restore 4 Health to your leader."
+    },
+    "ultimate": {
+      "name": "Digital Detox",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "banish",
+          "target": { "select": "all", "side": "enemy", "zone": "board" },
+          "returnAtStartOfYourNextTurn": true
+        }
+      ],
+      "text": "Banish every enemy character until the start of their next turn."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "He has asked you nicely. He has asked you twice."
+  },
+
+  {
+    "id": "boss-the-recommendation",
+    "name": "The Recommendation",
+    "title": "The Feed Decides",
+    "faction": "algorithm-syndicate",
+    "current": "pulse",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "pulse",
+    "secondaryCurrent": "tide",
+    "tags": ["boss"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "enemyStartOfTurn",
+        "ops": [{ "op": "scry", "count": 2, "mode": "bottomOne", "side": "enemy", "pick": "mostPlayable" }],
+        "text": "The Feed Decides — at the start of your turn it reads your top two cards and buries the one you could actually cast this turn, so you draw the other. If you could cast neither, it buries the cheaper."
+      }
+    ],
+    "fixation": {
+      "name": "Serve Ad",
+      "obsessionCost": 3,
+      "ops": [
+        { "op": "draw", "count": 1 },
+        { "op": "mill", "count": 2, "side": "enemy" }
+      ],
+      "text": "Draw a card. Your opponent mills 2."
+    },
+    "ultimate": {
+      "name": "Total Curation",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "draw", "count": 2 },
+        { "op": "mill", "count": 5, "side": "enemy" }
+      ],
+      "text": "Draw 2 cards. Your opponent mills 5."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "It does not know what you want. It knows what you will take."
+  },
+
+  {
+    "id": "boss-living-meme",
+    "name": "The Living Meme",
+    "title": "Dead Meme Cycle",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "gale",
+    "secondaryCurrent": "prism",
+    "tags": ["boss"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "randomOp",
+            "options": [
+              { "ops": [{ "op": "summon", "cardId": "token-follower" }] },
+              {
+                "ops": [
+                  { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board" }, "attack": 1 }
+                ]
+              },
+              {
+                "ops": [
+                  { "op": "damage", "target": { "select": "random", "side": "enemy", "zone": "board" }, "amount": 2 }
+                ]
+              },
+              { "ops": [{ "op": "draw", "count": 1 }] },
+              {
+                "ops": [
+                  {
+                    "op": "applyStatus",
+                    "target": { "select": "random", "side": "enemy", "zone": "board" },
+                    "status": "weakened",
+                    "amount": 1,
+                    "durationTurns": 2
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "Dead Meme Cycle — at the start of the Living Meme's turn one old bit resurfaces, each exactly 1 in 5: a 1/1 Follower; +1 attack to its characters; 2 damage to one of yours; it draws a card; or **Weakened 1** on one of yours."
+      }
+    ],
+    "fixation": {
+      "name": "Repost",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [{ "op": "copyCardToHand", "target": { "select": "triggering" } }],
+      "text": "Add a copy of a friendly character's card to your hand."
+    },
+    "ultimate": {
+      "name": "It's Back",
+      "obsessionCost": 7,
+      "ops": [{ "op": "summon", "cardId": "token-follower", "count": 3 }],
+      "text": "Summon three 1/1 Followers."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "It died in 2013. It died again in 2019. It is doing numbers this week."
+  },
+
+  {
+    "id": "boss-the-first-signal",
+    "name": "THE FIRST SIGNAL",
+    "title": "Reconvergence",
+    "faction": "neutral",
+    "current": "prism",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "prism",
+    "secondaryCurrent": null,
+    "tags": ["boss", "signal"],
+    "keywords": [],
+    "token": true,
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          { "op": "addCounter", "key": "reconvergence", "amount": 1 },
+          {
+            "op": "if",
+            "condition": { "kind": "counterAtLeast", "key": "reconvergence", "value": 3 },
+            "then": [
+              { "op": "setCounter", "key": "reconvergence", "amount": 0 },
+              {
+                "op": "banish",
+                "target": { "select": "highestCost", "side": "enemy", "zone": "board" },
+                "returnAtStartOfYourNextTurn": true
+              }
+            ],
+            "else": [
+              {
+                "op": "if",
+                "condition": { "kind": "counterAtLeast", "key": "reconvergence", "value": 2 },
+                "then": [
+                  { "op": "discard", "target": { "select": "all", "side": "enemy", "zone": "hand" }, "count": 1 }
+                ],
+                "else": [{ "op": "rotateLeaderCurrent", "side": "enemy" }]
+              }
+            ]
+          }
+        ],
+        "text": "Reconvergence — the Signal takes one thing back each turn, in this order, forever: **1.** your leader's Current rotates one step. **2.** you discard a card. **3.** your costliest character is Banished until your next turn. The Reconvergence counter shows which comes next."
+      }
+    ],
+    "fixation": {
+      "name": "Prism Shear",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "enemy", "zone": "board" },
+      "ops": [{ "op": "damage", "target": { "select": "triggering" }, "amount": 3 }],
+      "text": "Deal 3 damage to an enemy character."
+    },
+    "ultimate": {
+      "name": "One Voice",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "damage", "target": { "select": "all", "side": "enemy", "zone": "board" }, "amount": 3 },
+        { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 5 }
+      ],
+      "text": "Deal 3 damage to every enemy character and restore 5 Health to your leader."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "The Reconvergents were right that it can be put back together. The Fracturists were right about what happens next. Nobody enjoyed being right."
+  }
+]

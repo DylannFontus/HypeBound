@@ -1,0 +1,546 @@
+/* =========================================================================
+   HYPEBOUND — design system
+   Digital nightlife: glossy black, chrome, glass, neon. Readability first:
+   nothing important is signalled by colour alone.
+   ========================================================================= */
+
+:root {
+  /* ---- surfaces (glossy black + glass) ---- */
+  --bg-void: #05030b;
+  --bg-deep: #0b0614;
+  --bg-panel: #120c20;
+  --bg-raised: #1a1230;
+  --glass: rgba(28, 20, 48, 0.62);
+  --glass-strong: rgba(18, 12, 32, 0.86);
+  --glass-border: rgba(180, 160, 255, 0.16);
+  --glass-border-bright: rgba(200, 185, 255, 0.34);
+  --chrome-hi: #e8e4ff;
+  --chrome-mid: #9a92c4;
+  --chrome-lo: #4a4270;
+
+  /* ---- text ---- */
+  --text: #f2eeff;
+  --text-dim: #b3aad4;
+  --text-faint: #7e759e;
+  --text-invert: #0a0614;
+
+  /* ---- brand accents ---- */
+  --accent: #b56cff;
+  --accent-bright: #d9a5ff;
+  --accent-hot: #ff5fa2;
+  --accent-cool: #52c8ff;
+  --accent-gold: #ffcc66;
+  --danger: #ff4d6a;
+  --success: #4ade80;
+  --warning: #ffb020;
+
+  /* ---- the Eight Currents ---- */
+  --current-cinder: #ff6b2c;
+  --current-cinder-lo: #7a2408;
+  --current-tide: #2f93ff;
+  --current-tide-lo: #0b2f63;
+  --current-root: #56c264;
+  --current-root-lo: #16401f;
+  --current-gale: #4fe3d0;
+  --current-gale-lo: #10514a;
+  --current-pulse: #a855f7;
+  --current-pulse-lo: #3a1263;
+  --current-halo: #ffd86b;
+  --current-halo-lo: #6b5011;
+  --current-veil: #8b5cf6;
+  --current-veil-lo: #21103f;
+  --current-prism: #ff8fd8;
+  --current-prism-lo: #4a1f52;
+
+  /* ---- factions ---- */
+  --faction-neon-idols: #ff5fa2;
+  --faction-gothic-royalty: #8b3a62;
+  --faction-viral-influencers: #ff8a3d;
+  --faction-corporate-creators: #4d8fd6;
+  --faction-digital-demons: #d92b4b;
+  --faction-cosplay-champions: #c77dff;
+  --faction-afterparty-crew: #ffb347;
+  --faction-touch-grass-order: #6cbf5a;
+  --faction-algorithm-syndicate: #35d0d8;
+  --faction-meme-collective: #f2d541;
+  --faction-neutral: #8f8aa8;
+
+  /* ---- rarity ---- */
+  --rarity-common: #b8b2cc;
+  --rarity-rare: #4d9fff;
+  --rarity-epic: #c168ff;
+  --rarity-legendary: #ffb43d;
+
+  /* ---- type scale (rem-based so the accessibility text scale works) ---- */
+  --font-display: "Segoe UI Semibold", "Trebuchet MS", system-ui, sans-serif;
+  --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --fs-xs: 0.72rem;
+  --fs-sm: 0.84rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.6rem;
+  --fs-2xl: 2.2rem;
+  --fs-3xl: 3rem;
+
+  /* ---- spacing / geometry ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* ---- elevation ---- */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.65);
+  --glow-accent: 0 0 24px rgba(181, 108, 255, 0.45);
+  --glow-hot: 0 0 22px rgba(255, 95, 162, 0.5);
+
+  /* ---- motion (all durations flow through these so reduced-motion works) ---- */
+  --dur-instant: 80ms;
+  --dur-fast: 160ms;
+  --dur-med: 280ms;
+  --dur-slow: 480ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-snap: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --motion-scale: 1; /* animation-speed setting multiplies this */
+}
+
+/* Accessibility: reduced motion collapses every transition to a fade */
+:root[data-reduced-motion="true"] {
+  --dur-instant: 0ms;
+  --dur-fast: 60ms;
+  --dur-med: 90ms;
+  --dur-slow: 120ms;
+  --ease-snap: linear;
+}
+
+/* Accessibility: high contrast strengthens borders and flattens glass */
+:root[data-contrast="high"] {
+  --glass: rgba(10, 6, 20, 0.95);
+  --glass-strong: rgba(6, 3, 14, 0.98);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-border-bright: rgba(255, 255, 255, 0.8);
+  --text-dim: #ded7f5;
+  --text-faint: #b9b0d8;
+}
+
+/**
+ * 13-accessibility.md §3.1: `--ui-scale` is the ONLY place the text scale is
+ * applied. Seven steps from 80% to 160%, written to the root by applySettings,
+ * so every rem-based dimension in the app follows it at once.
+ */
+:root {
+  --ui-scale: 1;
+  font-size: calc(16px * var(--ui-scale));
+}
+
+/**
+ * §12.2's focus rules. `:focus-visible` rather than `:focus`, so a pointer click
+ * does not leave an outline behind — and the ring is drawn OUTSIDE the control
+ * with an offset, because a ring drawn inside a small button covers the label it
+ * is meant to be pointing at.
+ */
+:root { --focus-width: 3px; }
+:root[data-focus-ring="thin"] { --focus-width: 2px; }
+:root[data-focus-ring="medium"] { --focus-width: 3px; }
+:root[data-focus-ring="thick"] { --focus-width: 5px; }
+
+:root[data-keyboard-nav="true"] :focus-visible {
+  outline: var(--focus-width) solid #ffffff;
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+/* a second ring in the accent colour, so the outline is visible on white too */
+:root[data-keyboard-nav="true"] :focus-visible {
+  box-shadow: 0 0 0 calc(var(--focus-width) + 2px) rgba(10, 6, 20, 0.9);
+}
+:root[data-keyboard-nav="false"] :focus-visible { outline: none; }
+
+/**
+ * §2's dyslexia-friendly text: a stack already on the device plus wider letter
+ * and word spacing. Nothing is downloaded — this build fetches nothing, which is
+ * a promise the privacy screen makes and this would quietly break.
+ */
+:root[data-font="dyslexia"] body,
+:root[data-font="dyslexia"] .screen {
+  font-family: "Atkinson Hyperlegible", "Comic Sans MS", Verdana, Tahoma, system-ui, sans-serif;
+  letter-spacing: 0.035em;
+  word-spacing: 0.12em;
+  line-height: 1.62;
+}
+
+/**
+ * §8's redundancy, in the one direction CSS can enforce: when written labels are
+ * on, anything marked icon-only reveals its text. When they are off, the text is
+ * still in the DOM for a screen reader — hidden, never removed.
+ */
+:root[data-labels="verbose"] .icon-label { position: static; width: auto; height: auto; clip: auto; overflow: visible; }
+.icon-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ========================================================================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-void);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* Screen-reader-only helper for icon buttons */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- ambient background: the digital-nightlife wash ---------------------- */
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  animation: screen-in var(--dur-med) var(--ease-out) both;
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ambient-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 80% at 15% 0%, rgba(181, 108, 255, 0.18), transparent 60%),
+    radial-gradient(100% 70% at 85% 10%, rgba(255, 95, 162, 0.14), transparent 62%),
+    radial-gradient(90% 90% at 50% 110%, rgba(82, 200, 255, 0.12), transparent 60%),
+    linear-gradient(180deg, var(--bg-deep), var(--bg-void));
+}
+
+/* subtle animated scanline + grid, the "we are inside a screen" motif */
+.ambient-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(120% 90% at 50% 40%, #000 30%, transparent 78%);
+  animation: grid-drift 40s linear infinite;
+}
+
+@keyframes grid-drift {
+  to {
+    background-position: 64px 64px, 64px 64px;
+  }
+}
+
+:root[data-reduced-motion="true"] .ambient-bg::after {
+  animation: none;
+}
+
+/* ---- glass panel ------------------------------------------------------- */
+
+.panel {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.panel-tight {
+  border-radius: var(--radius);
+}
+
+/* chrome edge highlight used on hero panels */
+.panel-chrome {
+  position: relative;
+}
+.panel-chrome::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.5), transparent 30%, transparent 70%, rgba(181, 108, 255, 0.45));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ---- buttons ----------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 44px; /* touch target floor */
+  padding: 0 var(--sp-5);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--glass-border-bright);
+  color: var(--text);
+  transition: transform var(--dur-fast) var(--ease-snap), box-shadow var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--accent-bright);
+  box-shadow: var(--shadow), var(--glow-accent), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
+.btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hot) 100%);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.btn-primary:hover:not(:disabled) {
+  box-shadow: var(--shadow), var(--glow-hot), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.btn-play {
+  min-height: 76px;
+  padding: 0 var(--sp-7);
+  font-size: var(--fs-xl);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+}
+
+/* the sweep of light across the Play button — the "premium" tell */
+.btn-play::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 40%;
+  height: 200%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.34), transparent);
+  transform: skewX(-20deg);
+  animation: sheen 3.6s var(--ease-in-out) infinite;
+}
+
+@keyframes sheen {
+  0%, 62% { left: -60%; }
+  100% { left: 130%; }
+}
+
+:root[data-reduced-motion="true"] .btn-play::after {
+  animation: none;
+  opacity: 0;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--glass-border);
+}
+
+.btn-icon {
+  min-width: 44px;
+  padding: 0 var(--sp-3);
+}
+
+/**
+ * §13's 44px touch floor, applied where it actually means something.
+ *
+ * `.btn` has carried `min-height: 44px` since the beginning, and that was taken
+ * as "44px touch targets are implemented". They were not: every chip-shaped
+ * control opted out of `.btn` and landed at 29–33px — the collection's ten
+ * Current filters, its four ownership filters, the interface-size steps on the
+ * accessibility screen, the mastery tabs. `verify:mobile` counted 93 of them.
+ *
+ * The floor is scoped to a coarse pointer rather than applied everywhere,
+ * because that is the rule: a 44px chip exists so a fingertip can hit it, and
+ * forcing the same height on a mouse would only make every filter row a third
+ * taller for no one's benefit. `min-height` alone would leave the label
+ * off-centre in the taller box, so the flex centring comes with it.
+ */
+@media (pointer: coarse) {
+  button,
+  a[href],
+  input,
+  select,
+  [role="switch"],
+  [role="radio"],
+  [role="tab"] {
+    min-height: 44px;
+  }
+  /**
+   * Width matters as much as height. A one-character cost filter is 28px wide,
+   * which is a target you miss more often than you hit — and the ten Current
+   * chips sit in a row, so a near-miss lands on the neighbouring filter rather
+   * than on nothing.
+   */
+  .filter-chip,
+  .setting-choice,
+  .mastery-tab,
+  .gallery-filters .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+  }
+}
+
+/* ---- scrollbars -------------------------------------------------------- */
+
+.scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--chrome-lo) transparent;
+}
+.scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.scroll::-webkit-scrollbar-track { background: transparent; }
+.scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--chrome-lo), rgba(74, 66, 112, 0.5));
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.scroll::-webkit-scrollbar-thumb:hover { background: var(--chrome-mid); background-clip: padding-box; }
+
+/* ---- landscape enforcement (mobile) ------------------------------------ */
+
+#rotate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-void);
+  color: var(--text);
+  text-align: center;
+  padding: var(--sp-6);
+}
+
+#rotate-overlay:not([hidden]) {
+  display: flex;
+}
+
+.rotate-icon {
+  font-size: var(--fs-3xl);
+  margin-bottom: var(--sp-4);
+  animation: rotate-hint 2.4s var(--ease-in-out) infinite;
+}
+
+@keyframes rotate-hint {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(90deg); }
+}
+
+/* ---- utility ----------------------------------------------------------- */
+
+.row { display: flex; align-items: center; gap: var(--sp-3); }
+.col { display: flex; flex-direction: column; gap: var(--sp-3); }
+.grow { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.center { align-items: center; justify-content: center; }
+.wrap { flex-wrap: wrap; }
+
+.eyebrow {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.muted { color: var(--text-dim); }
+.faint { color: var(--text-faint); }

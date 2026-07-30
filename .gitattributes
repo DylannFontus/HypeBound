@@ -1,0 +1,21 @@
+# Normalise every text file to LF in the repository.
+#
+# This is not housekeeping. Editing this tree from Windows has repeatedly
+# produced files with mixed endings, which breaks any tool that anchors on a
+# multi-line string — several scripted edits during development failed for
+# exactly that reason and had to be redone by hand. Pinning LF in the object
+# store means the CI build on Linux and the working copy on Windows are reading
+# the same bytes.
+* text=auto eol=lf
+
+# Binary: never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.mp3 binary
+*.ogg binary
+*.wav binary
+*.woff binary
+*.woff2 binary

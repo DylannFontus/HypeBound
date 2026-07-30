@@ -1,0 +1,379 @@
+# Chapter 6 of the HYPEBOUND story campaign.
+#
+# The design doc (§3.7) gives this chapter a Side Cut, "The Stairwell Workshop",
+# unlocked by Branch A. It was written as a branch-varied scene inside Episode 4
+# because the format had no optional episode; the format has one now, and the
+# Stairwell Workshop has been lifted back out into the episode it was always
+# meant to be. Episode 4 keeps its own visit to that landing, seventeen hours
+# later and an hour before the walk — Vera is on it all weekend, which is the
+# point of her.
+#
+# Reads two decisions from earlier chapters (Ratio, Render Unto). Both are
+# bonuses — every one has an OTHERWISE, and the chapter reads complete for a
+# player who has never touched another one.
+
+TITLE: Best in Show
+FACTION: Cosplay Champions
+ABOUT: Three days, one hall, one judging table. Vera Foamhammer has won everything worth winning and now spends her cons fixing other people's costumes on a stairwell landing. Sunny Patchwell has built something extraordinary and has no idea.
+
+
+=== EPISODE: Hall Costume
+
+NARRATION: HALL C — Thursday, 14:20. Twenty-two hours to prejudging. The carpet is a crime and everybody has agreed not to discuss it.
+
+NARRATION: Vera Foamhammer carries two crates and a folding table past the freight door, down one flight, and sets up on the landing between C and D, which is where she has worked every con for four years.
+
+Vera Foamhammer: Table. Lamp. Hallway repair kit — needle, magnets, spare thermoplastic. The sacred adhesive.
+Vera Foamhammer: Right. Open for business, and it is Thursday, and it will be somebody within the hour.
+
+NARRATION: There is a pitch by the freight door with four hundred enamel pins on it and a laminated sign, and neither the pins nor the sign are the man's own work.
+
+Denny Reprint (cheerful): Morning. Four quid each, three for a tenner.
+Vera Foamhammer: Whose are they?
+Denny Reprint: Not mine.
+Vera Foamhammer: I know they're not yours, Denny, I'm asking whose.
+Denny Reprint: Also not mine, that's the honest answer. Four hundred pins, four quid each, and not one of them is mine. I've never once said otherwise, and you're the first person all weekend who's asked.
+
+NARRATION: Somewhere in the badge line a first-time entrant is holding a left wing across both arms, because the shoulder mount has been worrying her since Tuesday and she does not yet know anybody to ask.
+
+Sunny Patchwell: Sorry — sorry, is the — do you know if there's somewhere I can put this down?
+Vera Foamhammer: Down one flight. There's a table.
+Sunny Patchwell: Oh, brilliant, thank you — I don't want to take up your —
+Vera Foamhammer: It's a table for putting things down on. That is its entire function. Go.
+
+NARRATION: The wing goes on the table. Vera looks at it for slightly too long, the way she looks at things she has not worked out yet.
+
+Vera Foamhammer: Who made this?
+Sunny Patchwell (apologetic): Me. Sorry. Is it —
+Vera Foamhammer: I did not say anything was wrong with it.
+
+BATTLE: Denny Reprint
+  PLAYS: Skree Nine-Tabs
+  YOU PLAY: Vera Foamhammer
+  DIFFICULTY: beginner
+  RULE: clip farm
+  IF YOU LOSE:
+    Denny Reprint: Volume, that's all it is. I move three hundred a con and I don't need any of them to be good.
+    Vera Foamhammer: Again.
+
+Denny Reprint (packing): Fine. I'll move the table four feet and we'll say the freight door was always yours.
+Vera Foamhammer: The freight door was always mine.
+Denny Reprint: It was, yeah. You've had it since before I started and I've never pretended otherwise.
+
+NARRATION: The pins stay. Vera has never once asked anybody to leave a con, and Denny has never once lied about what he sells, and those two facts have coexisted at this event for four years.
+
+Vera Foamhammer (to Sunny): Shoulder strut's going to go.
+Sunny Patchwell: It's fine, it's held since Tuesday —
+Vera Foamhammer: I'm not telling you it's bad work. I am telling you it is going to go, because the crush by the escalator does not care how good the work is. Bring it here when it does.
+
+
+=== EPISODE: Repair Sortie
+
+NARRATION: Friday, 11:41. Prejudging opens at 12:21.
+
+NARRATION: The left wing shears at the shoulder strut in the crush by the escalator, exactly where it was going to, and Sunny Patchwell sits down on the floor of the fire lane holding two pieces of something she spent seven months on.
+
+Sunny Patchwell: It's fine. It's fine, I'll — I can withdraw, it's fine, I'll just —
+Vera Foamhammer: Table. Now. Bring both halves and do not apologise on the way.
+
+NARRATION: Somebody has a heat gun. Somebody else has magnets. A man nobody introduces produces a stapler and a bag of spare thermoplastic and kneels down without being asked.
+
+NARRATION: Within four minutes there are sixteen people in the fire lane, and none of them is in Sunny's category, and two of them are competing against her.
+
+THE SCHEDULE (flat): PREJUDGING OPENS AT 12:21. THE FIRE LANE IS FOUR FEET WIDE. BOTH OF THESE ARE IN WRITING.
+Vera Foamhammer: I'm aware.
+THE SCHEDULE (flat): THE LANE IS FOUR FEET WIDE BECAUSE OF A HALL IN ANOTHER CITY THAT ALSO HAD FORTY MINUTES AND SIXTEEN PEOPLE KNEELING IN IT.
+Vera Foamhammer: I am aware of that too, and it is the only thing you have ever said that I agree with.
+
+NARRATION: The argument happens at the front. The work happens behind it. Vera does both, which is the only reason the landing has stayed open for four years.
+
+REMEMBER: sunny knows + 1
+
+Sunny Patchwell (quietly): Why is everyone —
+Vera Foamhammer (not looking up): Nobody brings a heat gun for a costume that isn't worth one.
+
+BATTLE: THE SCHEDULE
+  PLAYS: Cassia Cache
+  DIFFICULTY: casual
+  RULE: hall repair
+  IF YOU LOSE:
+    THE SCHEDULE (flat): 12:21. 12:21. 12:21.
+    Vera Foamhammer: Again.
+
+THE SCHEDULE (flat): LANE CLEARED AT 12:19. TWO MINUTES INSIDE TOLERANCE. NOTED WITHOUT COMMENT.
+Vera Foamhammer: Noted without comment is the nicest thing you have ever done for anybody.
+
+NARRATION: The strut is rebuilt in thermoplastic, magnets and about nine feet of the sacred adhesive. It is stronger than it was on Tuesday. It is also, now, unmistakably not the same shoulder it was made with.
+
+
+=== EPISODE: Prejudging
+
+NARRATION: Friday, 12:21. Table four. One lamp, four minutes, and the inside of the costume turned out for a stranger.
+
+NARRATION: The form has one box on it. The box says DIVISION and there are two words under it.
+
+The Judge: Novice is a first-timer who has not placed in a juried competition. Masters is somebody who has. That is the whole rubric and it does not have a line for anything else.
+Sunny Patchwell: I've never entered anything.
+The Judge: Then on the form you are Novice, and that is not a judgement, it is a definition. I have four minutes and I would rather spend them on your seams.
+
+NARRATION: Two tables down, a woman with fourteen years of entries and nine placements and no wins looks at the rebuilt strut for longer than is polite.
+
+Nadia Selvedge: Who did the shoulder?
+Sunny Patchwell: The — a lot of people? There were about sixteen people.
+Nadia Selvedge: Right. And the original?
+Sunny Patchwell: Me. Seven months.
+Nadia Selvedge: Yes. I can see that from here, which is the problem.
+
+IF published my own:
+  Vera Foamhammer: I hung nine pieces on four walls last spring. Nine, instead of four hundred that were better.
+  Nadia Selvedge: How did that go?
+  Vera Foamhammer: One review called it slight. It did not sell out. I have thought about it every week since and I would do it again, and I still could not tell you whether that makes me right.
+OTHERWISE:
+  Vera Foamhammer: I have watched people put the worse thing on the wall because it was theirs.
+  Nadia Selvedge: And?
+  Vera Foamhammer: And I could not tell you whether they were right. I have been doing this eleven years and that is still the one I have not settled.
+
+BATTLE: Nadia Selvedge
+  PLAYS: Alaric Thornheart
+  DIFFICULTY: intermediate
+  IF YOU LOSE:
+    Nadia Selvedge: Fourteen years. You do learn something.
+    Vera Foamhammer: Again.
+
+Nadia Selvedge: Fourteen years in Masters. Nine placements, no win.
+Nadia Selvedge: I'd still tick the box for her. And I'd want somebody to tell her what the box costs before she ticks it, because nobody told me and I found out in the corridor afterwards.
+
+NARRATION: The form is still on the table. It has one box, and four minutes left, and the lamp is quite hot.
+
+CHOICE: One form. One box. Novice, or Masters.
+  * Masters. She built a Masters costume.
+      REMEMBER: entered masters
+      REMEMBER: sunny knows + 1
+      Vera Foamhammer: Masters.
+      Sunny Patchwell: I haven't — I've never placed in anything, I'm not —
+      Vera Foamhammer: You are asking me whether you are allowed. I am telling you what you built. Those are different questions and only one of them is mine to answer.
+      NARRATION: The Judge ticks it without looking up, because the Judge has four minutes and has heard this conversation at eleven consecutive events.
+  * Novice. Let her win something first.
+      REMEMBER: kept novice
+      Vera Foamhammer: Novice.
+      Nadia Selvedge: She'll walk it.
+      Vera Foamhammer: She will. And she'll have something on a shelf on Monday instead of a placing she can't explain to her mum, and in two years she'll enter Masters knowing what it costs.
+      Nadia Selvedge: That's the sensible answer.
+      Vera Foamhammer: It is. I've noticed I only give sensible answers about other people's costumes.
+
+
+=== SIDE CUT: The Stairwell Workshop
+UNLOCKED BY: entered masters
+
+NARRATION: Saturday, 02:16. The landing between C and D — eighteen hours before the walk, and the only place in the building with a plug socket, no carpet and nobody official.
+
+NARRATION: A card table, a lamp clamped to the handrail, and a bin bag taped over the smoke detector. The left pauldron is held on by a shoelace and a decision made at eleven o'clock that everybody agreed with at the time.
+
+Sunny Patchwell (apologetic): I can go as-is.
+Vera Foamhammer: You can. In Novice.
+Sunny Patchwell: ...Right.
+Vera Foamhammer: In Masters they will find it. Not to be cruel — finding it is the entire job and they are extremely good at it. Left shoulder. Sit down.
+
+NARRATION: Four people come up that stairwell in the next hour and not one of them was asked to. Two of them are entered in the same category she is.
+
+Nadia Selvedge: I've got the heat gun.
+Sunny Patchwell: You're in Masters.
+Nadia Selvedge: I'm in Masters and I've got the heat gun. Those two aren't connected and I'd rather you didn't connect them.
+
+NARRATION: Nobody mentions it, then or afterwards. In two years Sunny will be on a landing at two in the morning with a heat gun, and it will not once occur to her that it is a tradition.
+
+BATTLE: The Landing Between C and D
+  PLAYS: Kiko Thousand-Faces
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    Vera Foamhammer (kindly): A shoelace and eighteen hours. I have fixed worse with less, and so have you, on a worse night.
+    Sunny Patchwell: Again.
+
+Vera Foamhammer: Right. That'll hold.
+Sunny Patchwell: For the walk?
+Vera Foamhammer: For the walk, the photo line and a Sunday. After that it is your problem, and you will be able to do it yourself, which is the bit I am actually here for.
+
+
+=== EPISODE: Masquerade
+
+NARRATION: Saturday, 20:16. Green room. Nineteen entries, ninety seconds each, and eleven extension leads running into one strip that is not rated for eleven.
+
+NARRATION: Down on the landing between C and D, an hour before the walk, the table is out and the lamp is on and there is a queue of one.
+
+IF entered masters:
+  Sunny Patchwell: I'm in Masters.
+  Vera Foamhammer: You are.
+  Sunny Patchwell: Everyone in the green room has done this for nine years.
+  Vera Foamhammer: Eleven, some of them. Sit down, the strut wants checking and you want something to do with your hands.
+OTHERWISE:
+  Sunny Patchwell: I'm in Novice.
+  Vera Foamhammer: You are.
+  Sunny Patchwell: Someone in the queue said it was a shame.
+  Vera Foamhammer: Someone in the queue has never had anything on a shelf. Sit down, the strut wants checking.
+
+NARRATION: She checks a strut that does not need checking for four minutes, because that is what the table is actually for and both of them know it.
+
+NARRATION: In the wings there is no music. There is a stage manager counting down from thirty, a strip of tape on the floor, and the sound of foam catching a doorframe.
+
+Kiko Thousand-Faces (serene): Ninety seconds.
+Vera Foamhammer: Kiko.
+Kiko Thousand-Faces (brightly, four feet later): Oh — hi! Sorry, is the queue moving? I've got the wrong shoes for standing.
+
+NARRATION: She is nineteen. She has entered every year since she was ten, as somebody different every time, and nobody has ever got a straight answer about it.
+
+Kiko Thousand-Faces: I've been doing this since I was ten, so that's nine years and nine faces. Everyone asks which one is really me.
+Kiko Thousand-Faces: It's such a nice question and I've never had an answer for it.
+
+IF built something small:
+  Kiko Thousand-Faces: There was a man last year who showed me a thing he made for about four people. It was nineteen minutes long and it was about a bus.
+  Vera Foamhammer: Was it any good?
+  Kiko Thousand-Faces (delighted): It was terrible! It was so bad. He was so pleased with it. I think about it constantly.
+OTHERWISE:
+  Kiko Thousand-Faces: Do you ever do one just for you? Not for the walk. Just for the — for having made it.
+  Vera Foamhammer: Not since I stopped entering.
+  Kiko Thousand-Faces: That's ages ago though, isn't it?
+  Vera Foamhammer: Six years.
+
+BATTLE: Kiko Thousand-Faces
+  PLAYS: Kiko Thousand-Faces
+  YOU PLAY: Vera Foamhammer
+  DIFFICULTY: intermediate
+  RULE: blown fuse
+  IF YOU LOSE:
+    NARRATION: The strip trips. Eleven leads on a strip rated for six, in a room where everybody knew and nobody moved one.
+    Vera Foamhammer: Again.
+
+Kiko Thousand-Faces (cheerfully): That was so good. Sorry. Was that rude? Everyone says I do that.
+
+NARRATION: The walk takes ninety seconds. The strut holds. Somewhere past the lights there are two thousand people who have been queuing since seven, and for ninety seconds the thing on the stage is not a repair or a category or seven months — it is just being looked at, which is what it was built for.
+
+
+=== EPISODE: The Photo Line
+
+NARRATION: Sunday, 11:05. The arch by Hall D. Nine hundred and forty frames before it is over, and the light moves every eleven minutes, which is why he keeps asking.
+
+Nico Halflight: One more — sorry — one more, the light's come round.
+Sunny Patchwell (arms up): Yep!
+Nico Halflight: One more.
+
+NARRATION: She is holding a pose she cannot hold. She has been holding it since eleven. She is having the best day of her life and her shoulders have stopped being able to tell her that.
+
+NARRATION: Off-camera, out of all but one of the nine hundred and forty frames, Vera Foamhammer has one hand under the wing brace, because the repair is forty-seven hours old and nobody photographs the hand.
+
+Nico Halflight: One more. Genuinely, last one, the light's about to go behind the —
+Vera Foamhammer: Take the one you want, Nico. She'll hold it.
+Nico Halflight: I know she will. That's what worries me about all of you.
+
+NARRATION: Four hours. It is not cruelty and it is not vanity. It is the only three days of the year the work has witnesses, and everybody in the arch is spending it as fast as they can.
+
+Vera Foamhammer: Forty-one repairs since Thursday.
+Nico Halflight: That's a lot.
+Vera Foamhammer: My left hand doesn't close until about eleven in the morning.
+
+NARRATION: She says it in the same voice she says everything in. Nico takes another frame. Nobody in the arch reacts, because she has not asked anybody to.
+
+BATTLE: Nico Halflight
+  PLAYS: Cyra Swipe
+  DIFFICULTY: intermediate
+  RULE: the crowd carries you
+  IF YOU LOSE:
+    Nico Halflight: One more.
+    Vera Foamhammer: Again.
+
+Nico Halflight (checking the back of the camera): Got it. Frame six-oh-two. That's the one, that's the whole weekend.
+Vera Foamhammer: Send it to her.
+Nico Halflight: I'll send it to her.
+
+NARRATION: There is a chair four minutes away, and a place doing hot food that stops serving at half three, and one hour and ten minutes of queue still in the arch.
+
+CHOICE: Sunday afternoon. The queue, or the chair.
+  * Stay. The line is why any of it was made.
+      REMEMBER: stayed for every photo
+      REMEMBER: sunny knows + 1
+      Vera Foamhammer: We stay till the queue's done.
+      Sunny Patchwell: You don't have to —
+      Vera Foamhammer: The brace has forty-seven hours on it and about four more in it, and every person in that queue got here at nine. Arms up.
+      NARRATION: The last frame goes at 16:11. Sunny Patchwell speaks to one hundred and forty people about a shoulder strut and does not once say the word sorry.
+  * Go. There is hot food until half three.
+      REMEMBER: ate a real meal
+      Vera Foamhammer: Nico. Cut it at twenty past.
+      Nico Halflight: There's forty people left.
+      Vera Foamhammer: There are forty people left and she has been holding her arms above her head for four hours, and I have watched somebody do this until their elbow went and they did not build anything for two years.
+      NARRATION: They eat sitting on the floor by the loading bay because every chair in the building is taken. It is the first hot food any of them has had since Thursday.
+
+
+=== EPISODE: The Grand Cosplayer
+
+NARRATION: Sunday, 17:41. Hall C has been re-racked into rows and the carpet is still a crime. At the front there is a table with one trophy on it.
+
+NARRATION: It is not a new trophy. It is the same trophy, with a plate on the base, and the plate has been unscrewed and re-engraved nine times.
+
+THE GRAND COSPLAYER (flat): NINE YEARS. NINE WINNERS. ONE TROPHY, RE-ENGRAVED EACH TIME. THE PLATE IS ON ITS THIRD BLANK.
+
+NARRATION: Whatever is standing at the front of Hall C is not a competitor. It is wearing a face and it will be wearing a different one in a minute, and it has never once entered anything.
+
+Vera Foamhammer: I've worn you. Twice.
+THE GRAND COSPLAYER (flat): YOU HAVE. YOU WERE NOT AN EXCEPTION EITHER. YOUR NAME IS ON THE SECOND BLANK, UNDERNEATH, WHERE NOBODY LOOKS.
+Vera Foamhammer: I know where it is. I unscrewed it myself in 2019 and handed it to the next one.
+
+NARRATION: Its Current turns over one step while it speaks — Tide to Cinder — and it is not doing what Kiko does. Kiko changes so she can be somebody new. This changes so that it can keep being the same thing.
+
+THE GRAND COSPLAYER (flat): I AM NOT A PERSON AND I AM NOT AN OPINION. I AM A CATEGORY WITH A PLATE ON IT. SOMEBODY HAS TO BE ON THE PLATE, AND ON MONDAY NOBODY WILL BE ABLE TO NAME WHO WAS ON IT IN THE FOURTH YEAR.
+Vera Foamhammer: No. Probably not.
+THE GRAND COSPLAYER (flat): THEN WHAT WAS THE SEVEN MONTHS FOR.
+
+BATTLE: The Grand Cosplayer
+  PLAYS: The Grand Cosplayer
+  DIFFICULTY: boss
+  IF YOU LOSE:
+    THE GRAND COSPLAYER (flat): ANOTHER CATEGORY. THERE IS ALWAYS ANOTHER CATEGORY.
+    Vera Foamhammer: Again.
+
+NARRATION: It does not lose so much as run out of categories. The trophy goes where the trophy goes. The plate is unscrewed at the table by somebody from operations with a screwdriver from a drawer.
+
+IF stayed for every photo:
+  THE GRAND COSPLAYER (flat): ONE HUNDRED AND FORTY PEOPLE IN THE ARCH. NONE OF THEM ARE ON THE PLATE.
+  Vera Foamhammer: No.
+  THE GRAND COSPLAYER (flat): THEY WILL NOT REMEMBER THE PLATE EITHER.
+  Vera Foamhammer: They won't, no. That's the first useful thing you've said all weekend.
+OTHERWISE:
+  THE GRAND COSPLAYER (flat): YOU LEFT AT TWENTY PAST. FORTY PEOPLE IN THE QUEUE. UNPHOTOGRAPHED.
+  Vera Foamhammer: Forty people in the queue and an elbow that still works in March.
+  THE GRAND COSPLAYER (flat): THAT IS NOT A CATEGORY I HAVE.
+  Vera Foamhammer: I know. That's why I did it.
+
+NARRATION: In the paperwork, in a box on a sheet that is filed and not read out, a judge has written four lines about a shoulder strut.
+
+The Judge: I've been doing this seventeen years. I write something on every sheet and nobody has ever asked me for one.
+Vera Foamhammer: What did you write?
+The Judge: That the repair was better than the original, that I could see exactly where it happened, and that I'd have liked to have met whoever did it.
+The Judge: There's no box for that either. I write it in the margin.
+
+NARRATION: Afterwards Sunny Patchwell puts the left wing on the folding table one more time, because the strut has to come out before any of it goes in a car, and Vera takes it out with a heat gun in about ninety seconds.
+
+Sunny Patchwell: You made that look like nothing.
+Vera Foamhammer: It is nothing. It's the putting in that's seven months.
+
+IF entered masters:
+  NARRATION: Sunny Patchwell does not place. Nineteen entries in Masters, and the placings go to nine years, eleven years and fourteen years respectively.
+  Nadia Selvedge: Ninth.
+  Sunny Patchwell: Ninth of nineteen.
+  Nadia Selvedge: First year in Masters, ninth of nineteen, with a shoulder that came apart on Friday. I got twelfth in my first and I have been coming back for fourteen years about it.
+OTHERWISE:
+  NARRATION: Sunny Patchwell wins Novice by a distance so obvious that the applause starts before the category is finished being read out.
+  Nadia Selvedge: She walked it.
+  Vera Foamhammer: She did.
+  Nadia Selvedge: You know she'll be in Masters next year and she'll get ninth and it will feel worse than this.
+  Vera Foamhammer: She'll have the shelf, though. On Monday, when the hall's a car park again, she'll have the shelf.
+
+IF sunny knows is at least 2:
+  NARRATION: On the way out, at the bottom of the stairs between C and D, the folding table is being packed up for the fourth year running and somebody is standing at the end of it.
+  Sunny Patchwell: I'm doing next year.
+  Vera Foamhammer: I know.
+  Sunny Patchwell: I want a table. Not — not instead. As well.
+  Vera Foamhammer: Then bring a heat gun and a bag of thermoplastic and get here on the Thursday, because Thursday is when the first one goes.
+
+POST: hall c, sunday — frame 602. A first-time entrant with her arms up, a wing that came apart on Friday, and at the very edge of the frame somebody's hand. 1,100 saves. Recovered from GLIMMR — platform offline.
+
+Sunny Patchwell: There's a hand in it.
+Vera Foamhammer: There's always a hand in it. Nobody photographs the hand.

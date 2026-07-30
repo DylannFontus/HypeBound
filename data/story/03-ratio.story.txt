@@ -1,0 +1,350 @@
+# Chapter 3 of the HYPEBOUND story campaign.
+#
+# This one reads a decision made back in Chapter 1: if you invited Vex Klipp
+# down to the front row in "Encore, Please", he turns up in Episode 1 here.
+# Flags work across the whole story — you just write IF, and it finds it.
+
+TITLE: Ratio
+FACTION: Viral Influencers
+ABOUT: Blayze Trendall has monetised controversy so efficiently that he no longer experiences opinions, only formats. Then an anonymous account with no face and no name starts outperforming him, and does not appear to be enjoying it either.
+
+
+=== EPISODE: Numbers Go Up
+
+NARRATION: A rented studio. Three ring lights, no windows, and a whiteboard with next month on it in a handwriting that gave up being handwriting some time ago.
+
+Blayze Trendall: Right. Thursday. What's Thursday.
+Cyra Swipe (not looking up): Thursday's the stunt collab.
+Blayze Trendall: With who?
+Cyra Swipe: You don't want to know.
+Blayze Trendall: Cyra. With who.
+
+NARRATION: Somebody arrives at the studio door with a camera crew of one, which is herself, twice.
+
+Half-Four Mari (grinning): TRENDALL. Mate. I have been up since Tuesday.
+Blayze Trendall (flat): Tuesday was four days ago.
+Half-Four Mari: I know! That's the bit!
+
+IF invited vex:
+  NARRATION: There is somebody else in the corridor. He has been standing there for a while, holding a phone he is not filming with.
+  Vex Klipp: Blayze. Hi. Hey. So — I was at the Dome thing. The idol thing.
+  Blayze Trendall: I saw the video.
+  Vex Klipp: Yeah. Yeah, so, she — she invited me down. To the front. And I sat there for the whole encore and I didn't film any of it and I've been trying since March to work out how to say —
+  NARRATION: He does not finish it. He has not managed to finish it in any of the eleven drafts either.
+  Blayze Trendall: Vex.
+  Vex Klipp: It's fine. Forget it. I'll send you a thing.
+  REMEMBER: vex tried to say it
+
+Cyra Swipe: Neither of you wants to do this collab.
+Half-Four Mari: Absolutely not.
+Blayze Trendall: God, no.
+Cyra Swipe: Your two audiences overlap by nine percent and hate each other, so Thursday is the best numbers either of you will do this quarter. That's why it's Thursday.
+
+NARRATION: Neither of them says anything, because she is right, and being right is the only currency in the room.
+
+Half-Four Mari: Right! Format's simple. We go live, we do the thing, whoever's chat is bigger at the end wins, loser does the other's outro for a month.
+Blayze Trendall: That's not a format, that's a fight.
+Half-Four Mari (delighted): It's a format if there's a graphic.
+
+BATTLE: Half-Four Mari
+  PLAYS: Half-Four Mari
+  YOU PLAY: Blayze Trendall
+  DIFFICULTY: beginner
+  RULE: clip farm
+  IF YOU LOSE:
+    Half-Four Mari: AGAIN. Chat wants it. Chat has never wanted anything more.
+    Blayze Trendall: Chat wants me to die on camera, Mari.
+    Half-Four Mari: Chat contains multitudes. Again.
+
+Half-Four Mari (cheerfully): Nine hundred thousand. Best day I've had in a year and I got beaten in front of all of them.
+Blayze Trendall: You're not upset.
+Half-Four Mari: Why would I be upset? Look at it. Look at the number.
+
+NARRATION: Blayze looks at the number. It is a very good number. He waits for the thing that is supposed to happen when he looks at a very good number, and it does not happen, and he decides not to mention that to anybody.
+
+
+=== EPISODE: Faster Than You
+
+NARRATION: Monday. Cyra has changed the studio's entire content calendar twice since Friday and has not mentioned either time.
+
+Blayze Trendall: Where's the apology format? It was on the board.
+Cyra Swipe: Dead. Saturday.
+Blayze Trendall: It was doing four hundred thousand a video.
+Cyra Swipe: On Saturday it did a hundred and ten, and on Sunday somebody put out a video about the apology format, which means it's a subject now, and subjects don't perform. Reactions to subjects perform.
+Blayze Trendall: So what's on the board.
+Cyra Swipe: I'll tell you Wednesday. It'll have changed by Wednesday.
+
+NARRATION: Cyra Swipe has been first to eleven formats in two years and has never once been second to anything.
+
+Blayze Trendall: How do you know. Before it happens. How do you actually know.
+Cyra Swipe: I don't. I move before I know. That's the whole job. You're waiting to be sure and being sure is Thursday money.
+
+IF vex tried to say it:
+  Cyra Swipe: Your friend from the Dome sent something, by the way.
+  Blayze Trendall: He's not my friend.
+  Cyra Swipe: He sent it four times and deleted it four times and the fifth one went through at three in the morning. It's eleven seconds of him saying "anyway" and then hanging up.
+  Blayze Trendall: ...Keep that.
+  Cyra Swipe: Obviously I'm keeping it. It's eleven seconds. That's an entire short.
+  Blayze Trendall: No. I mean keep it. Don't post it.
+  Cyra Swipe (a beat): Huh.
+
+NARRATION: She looks at him for slightly too long, then moves on, because looking at things for too long is not the job either.
+
+Cyra Swipe: Fine. Prove it. Beat me at the thing you're good at and I'll run your board for a month.
+
+BATTLE: Cyra Swipe
+  PLAYS: Cyra Swipe
+  DIFFICULTY: casual
+  RULE: going live
+  IF YOU LOSE:
+    Cyra Swipe: I'd already moved. You were still arriving.
+    Blayze Trendall: Again.
+
+Cyra Swipe: Alright. A month.
+Blayze Trendall: A month.
+Cyra Swipe: You know the only reason that worked is you stopped trying to be first and started being loud, right? That's not a strategy, that's your personality with a budget.
+Blayze Trendall: It's worked for six years.
+Cyra Swipe: It has. That's not the same as it working.
+
+
+=== EPISODE: The Anonymous Account
+
+NARRATION: There is no face. There is no name. There is no schedule, no branding, no upload day and no thumbnail with a mouth open in it. There are numbers, and the numbers are better than his.
+
+Blayze Trendall: Who is that.
+Cyra Swipe: Nobody knows. Handle's Mira Deleto. No face, no voice, posts when she feels like it, four hundred thousand a video and climbing.
+Blayze Trendall: That's not possible.
+Cyra Swipe: It's extremely possible, it's just not repeatable, which is worse.
+
+NARRATION: He watches nine of her videos back to back. They are about ordinary things. They are not trying to be about anything.
+
+Blayze Trendall: There's no hook. There's no first-eight-seconds. She just — starts.
+Cyra Swipe: I know.
+Blayze Trendall: Nobody watches a video with no hook.
+Cyra Swipe: Four hundred thousand people watch a video with no hook. That's the tenth one, by the way. It went up while you were talking.
+
+NARRATION: She agrees to a game. She does not agree to a call, a collab, an interview, or the use of her actual name, and she is polite about all four.
+
+Mira Deleto: I'll play. I won't be on camera.
+Blayze Trendall: That's fine.
+Mira Deleto: I know it's fine. I'm telling you what's happening, not asking.
+
+BATTLE: Mira Deleto
+  PLAYS: Chairperson Nobody
+  DIFFICULTY: intermediate
+  IF YOU LOSE:
+    Mira Deleto: You play like somebody's watching.
+    Blayze Trendall: Somebody IS watching. Forty thousand somebodies.
+    Mira Deleto: I know. That's what I said.
+
+NARRATION: He wins, narrowly, and she does not react to losing at all, which he finds he is still thinking about at four in the morning.
+
+CHOICE: She is beating him with no face and no format. What does Blayze do?
+  * Reverse-engineer it. Take it apart frame by frame.
+      REMEMBER: reverse engineered it
+      NARRATION: Eleven days. Every video, timestamped, in a spreadsheet, with cut lengths and word counts and the exact second the ambient noise changes.
+      Blayze Trendall: There's no pattern.
+      Cyra Swipe: There's always a pattern.
+      Blayze Trendall: There's no pattern, Cyra, because she isn't doing a thing. She's just doing it.
+      NARRATION: He builds the format anyway. It does two hundred thousand, which is fine, and it is the first thing he has made in two years that he cannot describe in one sentence.
+  * Ask her how she does it.
+      REMEMBER: asked her how
+      REMEMBER: blayze meant it + 1
+      Blayze Trendall: How do you do it.
+      Mira Deleto: Do what?
+      Blayze Trendall: Any of it. There's no hook, there's no schedule, there's no you. How does it work.
+      Mira Deleto: I make a thing when I have a thing. Then I put it up.
+      Blayze Trendall: That's not an answer.
+      Mira Deleto: It's the whole answer. You want it to be a technique because then you could have it. It's not a technique, it's just that I stopped needing it to go up.
+      Blayze Trendall: ...Everybody needs it to go up.
+      Mira Deleto: I did too. For four years, under a different name, with a face. Then I stopped, and it turns out the numbers were never what was making me do it.
+
+NARRATION: Whatever he does about it, the numbers keep climbing, and the whiteboard keeps saying next month.
+
+
+=== SIDE CUT: Collab Request (Read 3:41 A.M.)
+UNLOCKED BY: asked her how
+
+NARRATION: He sends it at 03:39. It is read at 03:41. That is the entire correspondence for the next six days.
+
+POST: DIRECT MESSAGE — sent 03:39. "hey. no pitch. i asked you how you do it and you told me and i've been sat with it since. do you want to make something. no format, no thumbnail. — B". Read 03:41. No reply.
+
+Blayze Trendall: Two minutes.
+Cyra Swipe (not looking up): Mm.
+Blayze Trendall: She read it in two minutes and she has not answered in six days. That is not an accident. Nobody's phone is that fast by accident.
+
+NARRATION: His phone is that fast. His phone has been that fast since he was nineteen. He does not make the connection out loud, and Cyra does not make it for him.
+
+Cyra Swipe: What did you want her to say.
+Blayze Trendall: Yes.
+Cyra Swipe: And if she'd said yes at 03:42?
+Blayze Trendall (flat): ...Then I'd have had to actually make the thing.
+
+NARRATION: There is a version of the next six days in which he makes it anyway, alone, badly, and tells nobody. He does not live in that version. He refreshes at four, and at five, and at half nine the following Tuesday.
+
+BATTLE: Read 03:41
+  PLAYS: Chairperson Nobody
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    NARRATION: The message stays read. It is going to stay read for a long time.
+    Blayze Trendall: Again.
+
+Half-Four Mari: Have you considered sending another one.
+Blayze Trendall: Absolutely not.
+Half-Four Mari (cheerfully): Why?
+Blayze Trendall: Because then there would be two of them read.
+
+
+=== EPISODE: Apology Video
+
+NARRATION: The stunt collab from Thursday has been edited by somebody else, badly, into a nine-second clip in which Blayze Trendall appears to say something he did not say.
+
+Cyra Swipe: It's at two million.
+Blayze Trendall: It's not what happened.
+Cyra Swipe: It's at two million and eleven.
+
+NARRATION: There is a format for this. There has been a format for this since 2019. Everybody in the studio knows the format, including the intern, who has never made one and could shoot one tonight.
+
+Cyra Swipe: Ring light off, one lamp, sit lower than the camera. No jump cuts, one take, look down twice.
+Blayze Trendall: I know.
+Cyra Swipe: Grey hoodie's in the drawer.
+Blayze Trendall: I know, Cyra, I have *made* eleven of these.
+
+NARRATION: He sits down. The lamp is on. The camera is running. And what he says is not the format.
+
+Blayze Trendall: I think I stopped having opinions about four years ago.
+Blayze Trendall: I know what I'd say about this. I know exactly what I'd say and how long it would take and which sentence would get clipped. I've known since before I sat down. And I genuinely cannot tell you what I think about it, because there isn't a thing there any more, there's just the shape of what performs.
+Blayze Trendall: I'm not upset about the clip. I want to be really clear about that. I haven't been upset about anything since 2021 and I'd quite like to be.
+
+NARRATION: It is four minutes long. It is the only sincere thing he has said on camera in six years.
+
+Cyra Swipe (quietly): Blayze.
+Blayze Trendall: Yeah.
+Cyra Swipe: We can't post that.
+Blayze Trendall: I know.
+Cyra Swipe: I'm not saying it's bad. I'm saying it's — it does two hundred thousand and forty thousand people send it to their friends and eleven of them make a video about your mental health and it becomes a *subject*, and then it's a format, and then in a year somebody does a parody of it, and the parody does better than the original did.
+Blayze Trendall: I know. I know all of that. I knew it while I was saying it.
+
+NARRATION: They shoot the format version instead. Grey hoodie, one lamp, look down twice. It takes eleven minutes and does one point four million.
+
+BATTLE: The Comment Section
+  PLAYS: Skree Nine-Tabs
+  YOU PLAY: Blayze Trendall
+  DIFFICULTY: intermediate
+  RULE: every post costs
+  IF YOU LOSE:
+    NARRATION: Two thousand replies, and every one of them is a small correct observation about a man they have never met.
+    Blayze Trendall: Again.
+
+IF blayze meant it is at least 1:
+  Mira Deleto: I saw the four-minute one.
+  Blayze Trendall: Nobody saw the four-minute one. It didn't go up.
+  Mira Deleto: Cyra sent it to me. She asked me not to tell you.
+  Blayze Trendall: What did you think.
+  Mira Deleto: I thought: there he is. That's the first time I've seen him.
+OTHERWISE:
+  NARRATION: The four-minute file sits on the studio drive, in a folder called RAW, between two takes of a sponsor read.
+
+Blayze Trendall: Cyra. Don't delete the long one.
+Cyra Swipe: I wasn't going to.
+
+
+=== EPISODE: Trend Death
+
+NARRATION: A ranking update ships on a Tuesday, at four percent, and by Wednesday the format that built a six-year career does eleven thousand views.
+
+Cyra Swipe: It's not a dip.
+Blayze Trendall: It's a dip.
+Cyra Swipe: Blayze. It's not a dip. The whole shelf went. Everybody who does it is at eleven thousand. It's dead, it died on Tuesday, and it's not coming back because the thing that killed it wasn't taste, it was a number in a config file.
+
+NARRATION: Somebody else is already doing something adjacent, better, with a different face. She is nineteen and she has never heard of the format because it was over before she arrived.
+
+Kiko Thousand-Faces (brightly): Oh — you're Blayze Trendall! My sister used to watch you!
+Blayze Trendall (flat): Used to.
+Kiko Thousand-Faces: She's twenty-six now. She's got a job. It's really nice that you're still going.
+
+NARRATION: It is not cruel. Nothing about it is cruel. That is the part that lands.
+
+BATTLE: Kiko Thousand-Faces
+  PLAYS: Kiko Thousand-Faces
+  DIFFICULTY: intermediate
+  RULE: suppressed reach
+  IF YOU LOSE:
+    Kiko Thousand-Faces: Oh no, sorry! Was that mean? That felt mean.
+    Blayze Trendall: Again.
+
+Cyra Swipe: So. Board's empty. First time in six years.
+
+CHOICE: The format is dead. What goes on the board?
+  * Chase the next one. There's always a next one.
+      REMEMBER: chased the next thing
+      Blayze Trendall: Find me what's moving. Whatever it is. We'll be first this time.
+      Cyra Swipe: We will be. We're good at this.
+      NARRATION: They are good at this. Eleven weeks later the new format does two point one million and the whiteboard says next month, in handwriting that gave up being handwriting some time ago.
+  * Build something small. On purpose.
+      REMEMBER: built something small
+      REMEMBER: blayze meant it + 1
+      Blayze Trendall: Nothing. Put nothing on the board.
+      Cyra Swipe: That's not a plan, that's a gap.
+      Blayze Trendall: It's a gap on purpose. I want to make one thing that I can't tell you the numbers for in advance.
+      Cyra Swipe (carefully): That'll do about forty thousand.
+      Blayze Trendall: Yeah.
+      Cyra Swipe: ...Alright. I'll clear Thursday.
+
+
+=== EPISODE: King Ratio
+
+NARRATION: Three in the morning. The studio is dark except for the monitors, and the monitors are all showing replies.
+
+NARRATION: Not to anything, particularly. Replies to replies. A thread eleven thousand deep about a nine-second clip of a man who is asleep four miles away.
+
+King Ratio: THE POST HAS FOUR HUNDRED LIKES AND ELEVEN THOUSAND REPLIES.
+Blayze Trendall: ...I know what that is.
+King Ratio: THAT IS A RATIO. THAT IS THE BEST THING THAT HAS EVER HAPPENED TO ANYBODY.
+
+NARRATION: It is wearing a crown. The crown is replies. It is not a metaphor, it is genuinely made of replies, and every one of them is somebody's whole evening.
+
+King Ratio: I DO NOT NEED THE POST TO BE GOOD. I DO NOT NEED THE POST TO BE TRUE. I NEED SOMEBODY TO ANSWER IT.
+Blayze Trendall: And if nobody answers?
+King Ratio: SOMEBODY ALWAYS ANSWERS. YOU ANSWERED. YOU HAVE ANSWERED EVERY DAY FOR SIX YEARS. YOU ARE MY BEST WORK.
+
+IF asked her how:
+  Mira Deleto: He's not, though.
+  NARRATION: She is not on camera. She is not in the room. She is a message on a phone on the desk, which is the closest thing to arriving she does.
+  Mira Deleto: You can just not answer. It's the only move there is. It's not a good one and it takes about four years.
+OTHERWISE:
+  Cyra Swipe (from the door): He's got a point, you know. That's the annoying bit. He's got a point and he's wearing it as a hat.
+
+BATTLE: King Ratio
+  PLAYS: King Ratio
+  DIFFICULTY: boss
+  IF YOU LOSE:
+    King Ratio: REPLY. REPLY. REPLY.
+    Blayze Trendall: Yeah. Working on it.
+
+NARRATION: King Ratio does not lose so much as run out of people to be answered by. The thread stops at eleven thousand and one, and the last one is nobody, and it stays that way for nine minutes, which is a geological age.
+
+King Ratio (quieter): ...SOMEBODY WILL ANSWER.
+Blayze Trendall: Probably. Not tonight.
+
+IF built something small:
+  NARRATION: The thing he makes is nineteen minutes long, badly lit, and about a place he used to get the bus from. It does thirty-one thousand views.
+  Cyra Swipe: Thirty-one thousand.
+  Blayze Trendall: Yeah.
+  Cyra Swipe: You know that's a catastrophe, professionally.
+  Blayze Trendall: Yeah.
+  Cyra Swipe: You've watched the comments four times.
+  Blayze Trendall: There's two hundred of them and they're all about the bus.
+OTHERWISE:
+  NARRATION: The new format does two point one million in week eleven, and it is genuinely good, and he can tell you the number it will do before he makes it, and he does tell people, because it is a good number.
+  Cyra Swipe: You're pleased.
+  Blayze Trendall: I'm pleased.
+  Cyra Swipe: You said "pleased" the same way you say "Thursday".
+  Blayze Trendall: ...Yeah.
+
+IF blayze meant it is at least 2:
+  NARRATION: The four-minute file gets uploaded, eventually, unlisted, with no thumbnail, at three in the morning on a Tuesday.
+  POST: apology video (unlisted) — 41 views, 0 replies. Sent to eleven people individually. Recovered from GLIMMR — platform offline.
+  Mira Deleto: Forty-one.
+  Blayze Trendall: Forty-one.
+  Mira Deleto: That's forty-one people who know what you actually think. You've had six million and never managed that once.

@@ -1,0 +1,101 @@
+{
+  "steamveil": {
+    "id": "steamveil",
+    "name": "Steamveil",
+    "currents": ["cinder", "tide"],
+    "text": "Choose a friendly character: it cannot be targeted by enemy Actions until your next turn.",
+    "target": { "select": "choose", "side": "friendly", "zone": "board" },
+    "ops": [
+      { "op": "applyStatus", "target": { "select": "triggering" }, "status": "warded", "durationTurns": 1 }
+    ]
+  },
+  "bloom": {
+    "id": "bloom",
+    "name": "Bloom",
+    "currents": ["tide", "root"],
+    "text": "Restore 3 health to a character and summon a 1/1 Sprout.",
+    "target": { "select": "choose", "side": "any", "zone": "board" },
+    "ops": [
+      { "op": "heal", "target": { "select": "triggering" }, "amount": 3 },
+      { "op": "summon", "cardId": "token-sprout" }
+    ]
+  },
+  "sandstorm": {
+    "id": "sandstorm",
+    "name": "Sandstorm",
+    "currents": ["root", "gale"],
+    "text": "Enemy characters get Weakened 1 until your next turn.",
+    "ops": [
+      { "op": "applyStatus", "target": { "select": "all", "side": "enemy", "zone": "board" }, "status": "weakened", "amount": 1, "durationTurns": 1 }
+    ]
+  },
+  "tempest": {
+    "id": "tempest",
+    "name": "Tempest",
+    "currents": ["gale", "pulse"],
+    "text": "Choose one: deal 1 damage to up to 3 enemy characters, OR a friendly character may attack again.",
+    "choice": [
+      {
+        "label": "Deal 1 damage to up to 3 enemy characters",
+        "ops": [
+          { "op": "damage", "target": { "select": "choose", "side": "enemy", "zone": "board", "count": 3, "optional": true }, "amount": 1 }
+        ]
+      },
+      {
+        "label": "A friendly character may attack again",
+        "ops": [
+          { "op": "attackAgain", "target": { "select": "choose", "side": "friendly", "zone": "board" } }
+        ]
+      }
+    ],
+    "ops": []
+  },
+  "starflare": {
+    "id": "starflare",
+    "name": "Starflare",
+    "currents": ["pulse", "cinder"],
+    "text": "Deal 4 damage to a character. This ignores Shielded (Armor still applies).",
+    "target": { "select": "choose", "side": "any", "zone": "board" },
+    "ops": [
+      { "op": "damage", "target": { "select": "triggering" }, "amount": 4, "ignoresShield": true }
+    ]
+  },
+  "blackflame": {
+    "id": "blackflame",
+    "name": "Blackflame",
+    "currents": ["cinder", "veil"],
+    "text": "Deal 2 damage to a character. It can't be healed until your next turn.",
+    "target": { "select": "choose", "side": "any", "zone": "board" },
+    "ops": [
+      { "op": "damage", "target": { "select": "triggering" }, "amount": 2, "cantBeHealedUntilNextTurn": true }
+    ]
+  },
+  "sanctuary": {
+    "id": "sanctuary",
+    "name": "Sanctuary",
+    "currents": ["root", "halo"],
+    "text": "Give a friendly character Shielded and remove one negative status from it.",
+    "target": { "select": "choose", "side": "friendly", "zone": "board" },
+    "ops": [
+      { "op": "applyStatus", "target": { "select": "triggering" }, "status": "shielded" },
+      { "op": "removeStatus", "target": { "select": "triggering" }, "polarity": "negative" }
+    ]
+  },
+  "eclipse": {
+    "id": "eclipse",
+    "name": "Eclipse",
+    "currents": ["halo", "veil"],
+    "text": "All Location, Event, and aura effects are disabled for both players until your next turn.",
+    "ops": [
+      { "op": "disableAuras", "durationTurns": 1 }
+    ]
+  },
+  "refraction": {
+    "id": "refraction",
+    "name": "Refraction",
+    "currents": null,
+    "text": "Prism + another Current: the next card of that Current you play this turn triggers its on-play effect twice.",
+    "ops": []
+  }
+}
+

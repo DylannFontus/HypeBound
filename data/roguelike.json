@@ -1,0 +1,580 @@
+{
+  "version": 1,
+
+  "_comment": [
+    "Doomscroll — the roguelike campaign. Everything the mode knows lives here;",
+    "src/game/doomscroll/ contains the rules that read it, never the content.",
+    "",
+    "Two acts ship. The design lists four, but acts 3 and 4 end in faction bosses",
+    "whose rule twists need effect ops the DSL does not have yet (see",
+    "data/cards/bosses.json). A finale with a twist that silently does nothing is",
+    "worse than a shorter run that ends in a real one, so acts 3-4 arrive with the",
+    "ops they need. The act list is data — adding them is an edit to this file.",
+    "",
+    "Two leaders are unlocked, exactly as the design specifies; the rest arrive",
+    "with meta-progression."
+  ],
+
+  "run": {
+    "startingHealth": 30,
+    "cloutConversion": 10,
+    "cardRewardChoices": 3,
+    "recruitChoices": 3,
+    "artifactRewardChoices": 3
+  },
+
+  "shop": {
+    "cardPrice": { "common": 40, "rare": 55, "epic": 70, "legendary": 80 },
+    "cardsOffered": 4,
+    "removalPrice": 50,
+    "removalIncrement": 25,
+    "artifactPrice": 150,
+    "upgradePrice": 75
+  },
+
+  "rest": { "heal": 10 },
+  "treasure": { "clout": 100 },
+
+  "rewards": {
+    "battle": { "clout": 20 },
+    "elite": { "clout": 40 },
+    "boss": { "clout": 100 }
+  },
+
+  "leaders": [
+    {
+      "leaderCardId": "idols-lumi-starcall",
+      "name": "Lumi, Starcall",
+      "blurb": "Halo and Pulse. Wide boards, loud buffs, and a fanbase that will not be reasoned with.",
+      "deckName": "Opening Act",
+      "deck": [
+        "idols-stan-account",
+        "idols-stan-account",
+        "idols-backup-dancer",
+        "idols-backup-dancer",
+        "idols-fan-chant",
+        "idols-stage-tech",
+        "idols-stage-tech",
+        "idols-hype-choreographer",
+        "idols-hype-choreographer",
+        "idols-light-stick-wave",
+        "idols-voltage-idol",
+        "idols-voltage-idol",
+        "idols-synchronized-debut",
+        "idols-encore-diva",
+        "idols-center-position"
+      ]
+    },
+    {
+      "leaderCardId": "demon-leader-blue-screen-baron",
+      "name": "The Blue Screen Baron",
+      "blurb": "Veil and Cinder. Trades you did not agree to, in a font you cannot read.",
+      "deckName": "Kernel Panic",
+      "deck": [
+        "demon-thermal-imp",
+        "demon-thermal-imp",
+        "demon-sign-here",
+        "demon-forced-update",
+        "demon-glitch-familiar",
+        "demon-glitch-familiar",
+        "demon-popup-impling",
+        "demon-popup-impling",
+        "demon-small-print",
+        "demon-doomscroll-fiend",
+        "demon-doomscroll-fiend",
+        "demon-fan-curve-gremlin",
+        "demon-fan-curve-gremlin",
+        "demon-render-farm-wraith",
+        "demon-eula-notary"
+      ]
+    }
+  ],
+
+  "acts": [
+    {
+      "id": "act-1",
+      "name": "The Shallow End",
+      "blurb": "Everyone is nice here. That is the first warning sign.",
+      "_floorPlan": [
+        "One node per floor, chosen from what your last node connects to.",
+        "Floor 0 is always a fight so the act opens on the game itself, and the",
+        "floor before the boss is always a Touch Grass Break so nobody arrives at",
+        "the Main Event with no way to have healed. Genre convention, and it",
+        "removes the worst run-ending feel-bad."
+      ],
+      "floorPlan": ["battle", null, null, null, null, "rest", "boss"],
+      "treasureFloors": [2, 3],
+      "widths": [3, 3, 4, 4, 3, 2, 1],
+      "weights": { "battle": 45, "elite": 10, "event": 20, "shop": 10, "rest": 10, "recruit": 5 },
+      "enemyLeaders": [
+        "viral-leader-cyra-swipe",
+        "meme-leader-skree-nine-tabs",
+        "idols-dj-kilowatt",
+        "grass-leader-rhett-halloran"
+      ],
+      "difficulty": { "battle": "casual", "elite": "advanced", "boss": "expert" },
+      "eliteBonusHealth": 5,
+      "bossBonusHealth": 10,
+      "boss": {
+        "leaderCardId": "boss-prisma-final-encore",
+        "deckLeaderCardId": "idols-lumi-starcall",
+        "name": "Prisma, the Final Encore",
+        "twistName": "Standing Ovation",
+        "twistText": "While Prisma holds three or more characters, every one of them has +1 attack."
+      }
+    },
+    {
+      "id": "act-2",
+      "name": "The Trending Depths",
+      "blurb": "The recommendations stop being recommendations and start being instructions.",
+      "floorPlan": ["battle", null, null, null, null, "rest", "boss"],
+      "treasureFloors": [2, 3],
+      "widths": [3, 4, 4, 4, 3, 2, 1],
+      "weights": { "battle": 40, "elite": 15, "event": 20, "shop": 10, "rest": 10, "recruit": 5 },
+      "enemyLeaders": [
+        "cosplay-kiko-thousand-faces",
+        "algo-leader-don-sortino",
+        "corp-leader-sterling-bright",
+        "after-leader-half-four-mari",
+        "goth-leader-morvina-vane",
+        "demon-leader-ashvyre-dropped-frames"
+      ],
+      "difficulty": { "battle": "intermediate", "elite": "expert", "boss": "boss" },
+      "eliteBonusHealth": 5,
+      "bossBonusHealth": 10,
+      "boss": {
+        "leaderCardId": "boss-dj-last-call",
+        "deckLeaderCardId": "after-leader-half-four-mari",
+        "name": "DJ Last Call",
+        "twistName": "Encore Set",
+        "twistText": "Every Afterparty trigger the boss has fires twice."
+      }
+    },
+    {
+      "id": "act-3",
+      "name": "The Dead Internet",
+      "blurb": "Nothing down here was posted by a person. It is all still arguing.",
+      "floorPlan": ["battle", null, null, null, null, "rest", "boss"],
+      "treasureFloors": [2, 3],
+      "widths": [3, 4, 4, 4, 3, 2, 1],
+      "weights": { "battle": 40, "elite": 18, "event": 15, "shop": 10, "rest": 12, "recruit": 5 },
+      "enemyLeaders": [
+        "goth-leader-alaric-thornheart",
+        "goth-leader-morvina-vane",
+        "demon-leader-blue-screen-baron",
+        "demon-leader-ashvyre-dropped-frames",
+        "grass-leader-juniper-vale",
+        "grass-leader-rhett-halloran",
+        "algo-leader-cassia-cache"
+      ],
+      "difficulty": { "battle": "advanced", "elite": "expert", "boss": "boss" },
+      "eliteBonusHealth": 6,
+      "bossBonusHealth": 12,
+      "boss": {
+        "leaderCardId": "boss-glitchlord-exe",
+        "deckLeaderCardId": "demon-leader-ashvyre-dropped-frames",
+        "name": "GLITCHLORD_EXE",
+        "twistName": "Corrupted Feed",
+        "twistText": "Every third card you draw costs (1) more. The count is public — watch the Corrupted Feed counter."
+      }
+    },
+    {
+      "_note": [
+        "Act 4 is the optional true finale, and it is one fight — no map to walk,",
+        "no shop, no rest. You arrive holding three Signal Fragments or you do not",
+        "arrive at all, and the run's last decision was made two acts ago when you",
+        "chose to walk into an Elite instead of around it."
+      ],
+      "id": "act-4",
+      "name": "The First Signal",
+      "blurb": "The seven strands are already leaning towards each other. You are the last thing between them.",
+      "requiresFragments": 3,
+      "floorPlan": ["boss"],
+      "treasureFloors": [],
+      "widths": [1],
+      "weights": { "battle": 0, "elite": 0, "event": 0, "shop": 0, "rest": 0, "recruit": 0 },
+      "enemyLeaders": [],
+      "difficulty": { "battle": "boss", "elite": "boss", "boss": "boss" },
+      "eliteBonusHealth": 0,
+      "bossBonusHealth": 20,
+      "boss": {
+        "_deckNote": "The Meme Collective, because the Second Fracture camp's whole fear is that a reassembled Signal dissolves every subculture into an undifferentiated hum — and the Collective is the faction that already sounds like that. Chairperson Nobody is anonymous, plural and everywhere, which is the closest a real deck gets to 'all seven strands at once'.",
+        "leaderCardId": "boss-the-first-signal",
+        "deckLeaderCardId": "meme-leader-chairperson-nobody",
+        "name": "THE FIRST SIGNAL",
+        "twistName": "Reconvergence",
+        "twistText": "It takes one thing back each turn, in a fixed order you can see coming: your leader's Current rotates, then you discard a card, then your costliest character is Banished until your next turn."
+      }
+    }
+  ],
+
+  "_artifactComment": [
+    "Two kinds of artifact.",
+    "",
+    "RUN-level ones change health, prices, rewards or the map economy, and the run",
+    "applies them itself.",
+    "",
+    "BATTLE-level ones ('battlePatch') are a CardPatch applied to the run leader's",
+    "card for every fight, carried in MatchConfig.cardOverrides. That is what makes",
+    "them the player's alone: the leader card belongs to one seat, whereas a",
+    "balance override is one rulebook for both — 'your Fixation costs 2' written",
+    "as a balance override would discount the opponent's too.",
+    "",
+    "Still absent, deliberately: 'Ancient Meme Grimoire' (Viral copies cost 2 less)",
+    "and 'Foam Finger' (Parasocial grants +2/+2) need a modifier layer the DSL does",
+    "not have, and 'The Algorithm's Favor' (look at the top 3 and reorder) would",
+    "need a scry the player actually controls — the scry op shuffles. An artifact",
+    "whose tooltip lies is worse than a smaller artifact pool."
+  ],
+
+  "artifacts": [
+    {
+      "id": "ring-light-of-focus",
+      "name": "Ring Light of Focus",
+      "text": "Your Fixation costs 2 Obsession instead of 3.",
+      "effect": { "kind": "battlePatch", "patch": { "fixationCost": -1 } }
+    },
+    {
+      "id": "off-brand-energy-drink",
+      "name": "Off-Brand Energy Drink",
+      "text": "Your Ultimate Fixation costs 6 Obsession instead of 7.",
+      "effect": { "kind": "battlePatch", "patch": { "ultimateCost": -1 } }
+    },
+    {
+      "id": "pocket-hotspot",
+      "name": "Pocket Hotspot",
+      "text": "You have +1 Hype on your first turn of each battle.",
+      "effect": {
+        "kind": "battlePatch",
+        "patch": {
+          "passive": [
+            {
+              "trigger": "startOfTurn",
+              "once": true,
+              "ops": [{ "op": "gainHype", "amount": 1 }],
+              "text": "Pocket Hotspot — +1 Hype on your first turn."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "prewritten-thread",
+      "name": "Prewritten Thread",
+      "text": "Draw an extra card on your first turn of each battle.",
+      "effect": {
+        "kind": "battlePatch",
+        "patch": {
+          "passive": [
+            {
+              "trigger": "startOfTurn",
+              "once": true,
+              "ops": [{ "op": "draw", "count": 1 }],
+              "text": "Prewritten Thread — draw an extra card on your first turn."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "stolen-verified-checkmark",
+      "name": "Stolen Verified Checkmark",
+      "text": "The first character you play each battle gains Spotlight.",
+      "effect": {
+        "kind": "battlePatch",
+        "patch": {
+          "passive": [
+            {
+              "trigger": "onCardPlayed",
+              "playedFilter": { "type": ["character"] },
+              "once": true,
+              "ops": [{ "op": "addKeyword", "target": { "select": "triggering" }, "keyword": "spotlight" }],
+              "text": "Stolen Verified Checkmark — the first character you play gains Spotlight."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "merch-cannon",
+      "name": "Merch Cannon",
+      "text": "At the end of your turn, deal 1 damage to a random enemy character.",
+      "effect": {
+        "kind": "battlePatch",
+        "patch": {
+          "passive": [
+            {
+              "trigger": "afterparty",
+              "ops": [
+                { "op": "damage", "target": { "select": "random", "side": "enemy", "zone": "board" }, "amount": 1 }
+              ],
+              "text": "Merch Cannon — 1 damage to a random enemy character at the end of your turn."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ergonomic-throne",
+      "name": "Ergonomic Throne",
+      "text": "+5 maximum leader health for the rest of the run, and heal that much now.",
+      "effect": { "kind": "maxHealth", "amount": 5 }
+    },
+    {
+      "id": "hydration-bot",
+      "name": "Sponsored Hydration Bot",
+      "text": "Heal 4 after each battle you win.",
+      "effect": { "kind": "healAfterVictory", "amount": 4 }
+    },
+    {
+      "id": "golden-play-button",
+      "name": "Golden Play Button",
+      "text": "Merch Table prices are 25% lower.",
+      "effect": { "kind": "shopDiscountPercent", "amount": 25 }
+    },
+    {
+      "id": "lowest-moment-clip",
+      "name": "Clip of Your Lowest Moment",
+      "text": "The first time your leader would be defeated this run, survive at 1 health instead. Then this breaks.",
+      "effect": { "kind": "cheatDeathOnce" }
+    },
+    {
+      "id": "brand-deal-binder",
+      "name": "Brand Deal Binder",
+      "text": "Battles pay 15 more run-Clout.",
+      "effect": { "kind": "bonusBattleClout", "amount": 15 }
+    },
+    {
+      "id": "weighted-blanket",
+      "name": "Weighted Blanket",
+      "text": "Touch Grass Breaks heal 6 more.",
+      "effect": { "kind": "bonusRestHeal", "amount": 6 }
+    },
+    {
+      "id": "extended-warranty",
+      "name": "Extended Warranty",
+      "text": "Merch Table removals never get more expensive.",
+      "effect": { "kind": "fixedRemovalPrice" }
+    },
+    {
+      "id": "signal-booster",
+      "name": "Signal Booster",
+      "text": "Card rewards offer one more card to choose from.",
+      "effect": { "kind": "extraCardChoice", "amount": 1 }
+    }
+  ],
+
+  "_upgradesComment": [
+    "\"Remastered\" upgrades, per card.",
+    "",
+    "Anything NOT listed here takes the default in data.ts: characters get +1/+1,",
+    "everything else costs (1) less. That default is deliberate — 195 authored",
+    "upgrades is how this feature would ship half-empty, with the unauthored cards",
+    "quietly upgrading into themselves. The loader proves every collectible card's",
+    "upgrade actually changes the card, so a hole in this table is a load error",
+    "rather than a Rest node that does nothing.",
+    "",
+    "List a card here when +1/+1 or cost-1 is the boring answer — usually to grant",
+    "the card's own Current's signature keyword, which the design names as one of",
+    "the four legal upgrade shapes."
+  ],
+  "upgrades": {
+    "idols-voltage-idol": {
+      "attack": 1,
+      "health": 1,
+      "keywords": ["spotlight"],
+      "textSuffix": "*(Remastered: gains Spotlight.)*"
+    },
+    "idols-backup-dancer": {
+      "health": 2,
+      "keywords": ["inspire"],
+      "textSuffix": "*(Remastered: gains Inspire.)*"
+    },
+    "demon-glitch-familiar": {
+      "attack": 1,
+      "health": 1,
+      "keywords": ["corrupt"],
+      "textSuffix": "*(Remastered: gains Corrupt.)*"
+    },
+    "demon-render-farm-wraith": {
+      "attack": 2,
+      "health": 1,
+      "textSuffix": "*(Remastered.)*"
+    },
+    "idols-fan-chant": { "cost": -1, "textSuffix": "*(Remastered.)*" },
+    "demon-sign-here": { "cost": -1, "textSuffix": "*(Remastered.)*" }
+  },
+
+  "recruits": [
+    "after-dawnrise-uninvited-guest",
+    "algo-madam-null-silent-partner",
+    "corp-ambrose-kell-majority-shareholder",
+    "cosplay-mx-best-in-show",
+    "demon-clause-thirteen",
+    "goth-vespertine-final-requiem",
+    "meme-old-bit-refuses-to-die",
+    "idols-prime-diva-aurora",
+    "grass-grandmother-cairn",
+    "viral-verity-viralstar",
+    "viral-kade-everloud"
+  ],
+
+  "events": [
+    {
+      "id": "sponsored-post",
+      "title": "Sponsored Post Offer",
+      "text": "A brand you have never heard of would like you to hold their product at a 40 degree angle for four seconds.",
+      "choices": [
+        {
+          "label": "Take the deal",
+          "detail": "+120 run-Clout, and 4 damage you will describe as \"burnout\".",
+          "outcomes": [{ "kind": "clout", "amount": 120 }, { "kind": "damage", "amount": 4 }]
+        },
+        {
+          "label": "Stay independent",
+          "detail": "Add a card to your deck.",
+          "outcomes": [{ "kind": "gainCard" }]
+        }
+      ]
+    },
+    {
+      "id": "abandoned-group-chat",
+      "title": "Abandoned Group Chat",
+      "text": "Four hundred unread messages. The last one is from someone asking if you are alright. It is two years old.",
+      "choices": [
+        {
+          "label": "Read all of it",
+          "detail": "6 damage, and an artifact falls out of the archive.",
+          "outcomes": [{ "kind": "damage", "amount": 6 }, { "kind": "gainArtifact" }]
+        },
+        {
+          "label": "Mute forever",
+          "detail": "Heal 4.",
+          "outcomes": [{ "kind": "heal", "amount": 4 }]
+        }
+      ]
+    },
+    {
+      "id": "algorithm-blesses-you",
+      "title": "The Algorithm Blesses You",
+      "text": "One post, for no reason anybody can explain, reaches nine hundred thousand people. None of them follow you afterwards.",
+      "choices": [
+        {
+          "label": "Ride the wave",
+          "detail": "Add a card to your deck.",
+          "outcomes": [{ "kind": "gainCard" }]
+        },
+        {
+          "label": "Cash out immediately",
+          "detail": "+80 run-Clout.",
+          "outcomes": [{ "kind": "clout", "amount": 80 }]
+        }
+      ]
+    },
+    {
+      "id": "ratiod",
+      "title": "Ratio'd",
+      "text": "A stranger's four-word reply is outperforming your post forty to one. They have a cartoon frog avatar and no other posts.",
+      "choices": [
+        {
+          "label": "Log off",
+          "detail": "Heal 6.",
+          "outcomes": [{ "kind": "heal", "amount": 6 }]
+        },
+        {
+          "label": "Reply guy mode",
+          "detail": "5 damage, +100 run-Clout. Engagement is engagement.",
+          "outcomes": [{ "kind": "damage", "amount": 5 }, { "kind": "clout", "amount": 100 }]
+        }
+      ]
+    },
+    {
+      "id": "cursed-recommendation",
+      "title": "Cursed Recommendation",
+      "text": "The feed serves you something with no caption, no sound and 2.3 million views.",
+      "choices": [
+        {
+          "label": "Watch the whole thing",
+          "detail": "3 damage, and you come out holding an artifact.",
+          "outcomes": [{ "kind": "damage", "amount": 3 }, { "kind": "gainArtifact" }]
+        },
+        {
+          "label": "Close the tab",
+          "detail": "+40 run-Clout for the restraint.",
+          "outcomes": [{ "kind": "clout", "amount": 40 }]
+        }
+      ]
+    },
+    {
+      "id": "deck-cleanse",
+      "title": "Unsolicited Feedback",
+      "text": "Someone with 12 followers explains, at length and with diagrams, which of your cards is holding you back.",
+      "choices": [
+        {
+          "label": "They are right",
+          "detail": "Remove a card from your deck.",
+          "outcomes": [{ "kind": "removeCard" }]
+        },
+        {
+          "label": "Defend it publicly",
+          "detail": "+60 run-Clout from the ensuing thread.",
+          "outcomes": [{ "kind": "clout", "amount": 60 }]
+        }
+      ]
+    },
+    {
+      "id": "director-cut",
+      "title": "The Director's Cut",
+      "text": "An archivist has been quietly re-rendering your old posts at a resolution nobody had in the first place. She will do one more, or she will hand you the raw files and let you sell them.",
+      "choices": [
+        {
+          "label": "Let her finish one",
+          "detail": "Remaster a card in your run deck.",
+          "outcomes": [{ "kind": "upgradeCard" }]
+        },
+        {
+          "label": "Take the raw files",
+          "detail": "+90 Clout, and 3 damage carrying the drive home.",
+          "outcomes": [
+            { "kind": "clout", "amount": 90 },
+            { "kind": "damage", "amount": 3 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "old-account",
+      "title": "Old Account Recovered",
+      "text": "You remember the password. Everything you posted at nineteen is still there, publicly, with timestamps.",
+      "choices": [
+        {
+          "label": "Repost the classics",
+          "detail": "Add a card to your deck.",
+          "outcomes": [{ "kind": "gainCard" }]
+        },
+        {
+          "label": "Delete it all",
+          "detail": "Heal 8. Nobody will ever know.",
+          "outcomes": [{ "kind": "heal", "amount": 8 }]
+        }
+      ]
+    },
+    {
+      "id": "server-migration",
+      "title": "Scheduled Maintenance",
+      "text": "The whole platform is down. The status page is also down. The status page for the status page says \"operational\".",
+      "choices": [
+        {
+          "label": "Wait it out",
+          "detail": "Heal 10.",
+          "outcomes": [{ "kind": "heal", "amount": 10 }]
+        },
+        {
+          "label": "Post through it",
+          "detail": "3 damage, +90 run-Clout, and a permanent reputation as the one who kept going.",
+          "outcomes": [{ "kind": "damage", "amount": 3 }, { "kind": "clout", "amount": 90 }]
+        }
+      ]
+    }
+  ]
+}

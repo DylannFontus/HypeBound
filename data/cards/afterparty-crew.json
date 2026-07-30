@@ -1,0 +1,659 @@
+[
+  {
+    "id": "after-leader-dj-last-call",
+    "name": "DJ Last Call",
+    "title": "The One Who Decides When It's Over",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "cinder",
+    "secondaryCurrent": "tide",
+    "tags": ["crew", "nightlife"],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "onConfluenceActivated",
+        "ops": [
+          { "op": "applyStatus", "target": { "select": "leader", "side": "friendly" }, "status": "armor", "amount": 1 }
+        ],
+        "text": "When you activate a Confluence, your leader gains Armor 1."
+      }
+    ],
+    "fixation": {
+      "name": "One Last Request",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "any", "zone": "board" },
+      "ops": [
+        { "op": "damage", "target": { "select": "triggering" }, "amount": 1 }
+      ],
+      "text": "Deal 1 damage to a character."
+    },
+    "ultimate": {
+      "name": "Encore Set",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "repeatAfterpartyThisTurn" }
+      ],
+      "text": "This turn, your **Afterparty** triggers resolve twice."
+    },
+    "effects": [],
+    "text": "When you activate a Confluence, your leader gains **Armor 1**.",
+    "flavor": "He has closed four consecutive years of this party with the same song. Nobody has ever asked him to."
+  },
+  {
+    "id": "after-leader-half-four-mari",
+    "name": "Half-Four Mari",
+    "title": "The Last One Awake",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "tide",
+    "secondaryCurrent": "cinder",
+    "tags": ["crew", "nightlife"],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "flow",
+        "oncePerTurn": true,
+        "ops": [
+          { "op": "applyStatus", "target": { "select": "triggering", "zone": "board" }, "status": "warded", "durationTurns": 1 }
+        ],
+        "text": "The first time each turn a friendly character is healed, it gains Warded until your next turn."
+      }
+    ],
+    "fixation": {
+      "name": "Keep The Tab Open",
+      "obsessionCost": 3,
+      "ops": [
+        {
+          "op": "scheduleDelayed",
+          "delayTurns": 1,
+          "label": "Keep The Tab Open: 2 damage to the enemy leader",
+          "ops": [
+            { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 2 }
+          ]
+        }
+      ],
+      "text": "**Last Call (1):** Deal 2 damage to the enemy leader."
+    },
+    "ultimate": {
+      "name": "The Sun Is Coming Up",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "scheduleDelayed",
+          "delayTurns": 1,
+          "label": "The Sun Is Coming Up (1 of 3)",
+          "ops": [
+            {
+              "op": "if",
+              "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "hasKeyword": "afterparty" } }, "min": 1 },
+              "then": [
+                { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 3 },
+                { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "scheduleDelayed",
+          "delayTurns": 2,
+          "label": "The Sun Is Coming Up (2 of 3)",
+          "ops": [
+            {
+              "op": "if",
+              "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "hasKeyword": "afterparty" } }, "min": 1 },
+              "then": [
+                { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 3 },
+                { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "scheduleDelayed",
+          "delayTurns": 3,
+          "label": "The Sun Is Coming Up (3 of 3)",
+          "ops": [
+            {
+              "op": "if",
+              "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "hasKeyword": "afterparty" } }, "min": 1 },
+              "then": [
+                { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 3 },
+                { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+              ]
+            }
+          ]
+        }
+      ],
+      "text": "At the start of each of your next 3 turns, if you control a character with **Afterparty**, deal 3 damage to the enemy leader and restore 2 Health to your leader."
+    },
+    "effects": [],
+    "text": "The first time each turn a friendly character is healed, it gains **Warded** until your next turn.",
+    "flavor": "Holds everyone's badges, phones and secrets. Has never once lost any of the three."
+  },
+
+  {
+    "id": "after-designated-driver",
+    "name": "Designated Driver",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": ["crew"],
+    "keywords": ["afterparty"],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 1 }
+        ],
+        "text": "**Afterparty:** Restore 1 Health to your leader."
+      }
+    ],
+    "text": "**Afterparty:** Restore 1 Health to your leader. *(Afterparty — triggers at the end of your turn while this is in play.)*",
+    "flavor": "Sparkling water since nine. Heard everything said after eleven."
+  },
+  {
+    "id": "after-karaoke-gremlin",
+    "name": "Karaoke Gremlin",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": ["crew", "nightlife"],
+    "keywords": ["afterparty"],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          { "op": "damage", "target": { "select": "random", "side": "enemy", "zone": "board" }, "amount": 1 }
+        ],
+        "text": "**Afterparty:** Deal 1 damage to a random enemy character."
+      }
+    ],
+    "text": "**Afterparty:** Deal 1 damage to a random enemy character. *(Afterparty — triggers at the end of your turn while this is in play.)*",
+    "flavor": "Four songs queued. None of them in a key that exists."
+  },
+  {
+    "id": "after-chatstorm-piper",
+    "name": "Chatstorm Piper",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 2,
+    "attack": 2,
+    "health": 4,
+    "tags": ["crew"],
+    "keywords": ["parasocial"],
+    "effects": [],
+    "text": "**Parasocial.** *(When you target this friendly character with a card or ability, it gains +1/+1 and you gain 1 Obsession.)*",
+    "flavor": "Types the group chat's feelings for it, at speed, with correct punctuation."
+  },
+  {
+    "id": "after-bad-influence",
+    "name": "Bad Influence",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 2,
+    "attack": 2,
+    "health": 3,
+    "tags": ["crew", "nightlife"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "hasKeyword": "afterparty", "excludeSelf": true } }, "min": 1 },
+        "ops": [
+          { "op": "damage", "target": { "select": "random", "side": "enemy", "zone": "board" }, "amount": 2 }
+        ],
+        "text": "On play: **Chain (1)** — deal 2 damage to a random enemy character."
+      }
+    ],
+    "text": "On play: **Chain (1)** — deal 2 damage to a random enemy character. *(Chain (1) — bonus if you control 1 or more other characters with **Afterparty**.)*",
+    "flavor": "Every group has one. Every group needs one. Every group files a report the next morning."
+  },
+  {
+    "id": "after-neon-nightcap",
+    "name": "Neon Nightcap",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": ["nightlife"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [
+          { "op": "heal", "target": { "select": "triggering" }, "amount": 3 }
+        ],
+        "text": "Restore 3 Health to a friendly character."
+      }
+    ],
+    "text": "Restore 3 Health to a friendly character.",
+    "flavor": "One more drink, one more hour, one more lap of the exact same conversation."
+  },
+  {
+    "id": "after-who-invited-you",
+    "name": "Who Invited You?",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": ["crew", "nightlife"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyPlaysCharacter",
+        "playedFilter": { "costMin": 4 },
+        "ops": [
+          { "op": "damage", "target": { "select": "triggering" }, "amount": 3 },
+          { "op": "applyStatus", "target": { "select": "triggering" }, "status": "scorched" }
+        ],
+        "text": "Reaction — when the enemy plays a character costing (4) or more: deal 3 damage to it and apply Scorched."
+      }
+    ],
+    "text": "Reaction — when the enemy plays a character costing (4) or more: deal 3 damage to it and apply **Scorched**. *(Scorched — takes 1 damage at the end of its controller's turn.)*",
+    "flavor": "Nobody knows him. Everybody has a photo with him."
+  },
+  {
+    "id": "after-borrowed-hoodie",
+    "name": "Borrowed Hoodie",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "equipment",
+    "rarity": "rare",
+    "cost": 2,
+    "equipAttack": 1,
+    "equipHealth": 2,
+    "grantKeywords": ["spotlight"],
+    "tags": ["gear", "crew"],
+    "keywords": [],
+    "effects": [],
+    "text": "Equipped character has +1/+2 and **Spotlight**. *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "It is not yours. It has never been yours. As of 2 A.M. it is permanently yours."
+  },
+  {
+    "id": "after-one-more-song",
+    "name": "One More Song",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": ["last-call", "nightlife"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 1,
+            "label": "One More Song: 2 damage to the enemy leader",
+            "ops": [
+              { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 2 }
+            ]
+          }
+        ],
+        "text": "**Last Call (1):** Deal 2 damage to the enemy leader."
+      }
+    ],
+    "text": "**Last Call (1):** Deal 2 damage to the enemy leader. *(Last Call (1) — this resolves at the start of your next turn. Both players can see it.)*",
+    "flavor": "It is 4:12 A.M. and somebody has queued a nine-minute ballad."
+  },
+  {
+    "id": "after-afterhours-firebreather",
+    "name": "Afterhours Firebreather",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "common",
+    "cost": 3,
+    "attack": 3,
+    "health": 3,
+    "tags": ["crew", "nightlife"],
+    "keywords": ["afterparty"],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 1 }
+        ],
+        "text": "**Afterparty:** Deal 1 damage to the enemy leader."
+      }
+    ],
+    "text": "**Afterparty:** Deal 1 damage to the enemy leader. *(Afterparty — triggers at the end of your turn while this is in play.)*",
+    "flavor": "The hotel's position on open flame remains a matter of ongoing negotiation."
+  },
+  {
+    "id": "after-bouncer-of-the-vibe",
+    "name": "Bouncer of the Vibe",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "character",
+    "rarity": "common",
+    "cost": 3,
+    "attack": 2,
+    "health": 5,
+    "tags": ["crew"],
+    "keywords": ["grow"],
+    "grow": {
+      "turns": 3,
+      "ops": [
+        { "op": "buff", "target": { "select": "self" }, "attack": 2, "health": 2 }
+      ]
+    },
+    "effects": [],
+    "text": "**Grow 3:** this gains +2/+2. *(After surviving 3 of your turn-ends in play, it gains the upgrade permanently.)*",
+    "flavor": "Decides who is contributing to the vibe. The ruling is final and never explained."
+  },
+  {
+    "id": "after-split-the-bill",
+    "name": "Split the Bill",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": ["last-call", "crew"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          { "op": "heal", "target": { "select": "all", "side": "friendly", "zone": "board" }, "amount": 2 },
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 1,
+            "label": "Split the Bill: draw a card",
+            "ops": [
+              { "op": "draw", "count": 1 }
+            ]
+          }
+        ],
+        "text": "Restore 2 Health to all friendly characters. **Last Call (1):** Draw a card."
+      }
+    ],
+    "text": "Restore 2 Health to all friendly characters. **Last Call (1):** Draw a card. *(Last Call (1) — this resolves at the start of your next turn. Both players can see it.)*",
+    "flavor": "Six people, one receipt, and a standard of arithmetic nobody present is equipped for."
+  },
+  {
+    "id": "after-round-for-the-table",
+    "name": "Round For The Table",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": ["last-call", "nightlife"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          { "op": "damage", "target": { "select": "all", "side": "enemy", "zone": "board" }, "amount": 1 },
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 1,
+            "label": "Round For The Table: 3 damage to the enemy leader",
+            "ops": [
+              { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 3 }
+            ]
+          }
+        ],
+        "text": "Deal 1 damage to all enemy characters. **Last Call (1):** Deal 3 damage to the enemy leader."
+      }
+    ],
+    "text": "Deal 1 damage to all enemy characters. **Last Call (1):** Deal 3 damage to the enemy leader. *(Last Call (1) — this resolves at the start of your next turn. Both players can see it.)*",
+    "flavor": "He is buying. He cannot afford to be buying. He is buying."
+  },
+  {
+    "id": "after-sunrise-philosopher",
+    "name": "Sunrise Philosopher",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 3,
+    "health": 5,
+    "tags": ["crew"],
+    "keywords": ["afterparty"],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 },
+          {
+            "op": "if",
+            "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "hasKeyword": "afterparty", "excludeSelf": true } }, "min": 2 },
+            "then": [
+              { "op": "draw", "count": 1 }
+            ]
+          }
+        ],
+        "text": "**Afterparty:** Restore 2 Health to your leader. **Chain (2):** also draw a card."
+      }
+    ],
+    "text": "**Afterparty:** Restore 2 Health to your leader. **Chain (2):** also draw a card. *(Chain (2) — bonus if you control 2 or more other characters with **Afterparty**.)*",
+    "flavor": "Twenty unbroken minutes on whether any of us are actually friends. Verdict: yes, devastatingly."
+  },
+  {
+    "id": "after-the-one-who-never-sleeps",
+    "name": "The One Who Never Sleeps",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 4,
+    "attack": 2,
+    "health": 5,
+    "tags": ["crew", "nightlife"],
+    "keywords": ["afterparty", "comeback"],
+    "comeback": { "mode": "hand", "delayTurns": 1 },
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 2 }
+        ],
+        "text": "**Afterparty:** Deal 2 damage to the enemy leader."
+      }
+    ],
+    "text": "**Comeback.** **Afterparty:** Deal 2 damage to the enemy leader.",
+    "flavor": "Awake since Wednesday. Refers to Wednesday as \"earlier\"."
+  },
+  {
+    "id": "after-three-am-diner",
+    "name": "The 3 A.M. Diner",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "location",
+    "rarity": "epic",
+    "cost": 4,
+    "durability": 3,
+    "tags": ["venue", "nightlife", "last-call"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          { "op": "heal", "target": { "select": "all", "side": "friendly", "zone": "board" }, "amount": 1 }
+        ],
+        "text": "**Afterparty:** Restore 1 Health to all friendly characters."
+      },
+      {
+        "trigger": "activate",
+        "ops": [
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 1,
+            "label": "The 3 A.M. Diner: draw a card",
+            "ops": [
+              { "op": "draw", "count": 1 }
+            ]
+          }
+        ],
+        "text": "Activate (once per turn): **Last Call (1):** Draw a card."
+      }
+    ],
+    "text": "**Afterparty:** Restore 1 Health to all friendly characters. Activate (once per turn): **Last Call (1):** Draw a card. Durability 3.",
+    "flavor": "Six people. One booth. Eleven refills. Zero decisions."
+  },
+  {
+    "id": "after-bad-idea-committee",
+    "name": "Bad Idea Committee",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 5,
+    "attack": 4,
+    "health": 4,
+    "tags": ["crew", "nightlife"],
+    "keywords": ["afterparty"],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          { "op": "damage", "target": { "select": "random", "side": "enemy", "zone": "board" }, "amount": 2 },
+          {
+            "op": "if",
+            "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "hasKeyword": "afterparty", "excludeSelf": true } }, "min": 2 },
+            "then": [
+              { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 2 }
+            ]
+          }
+        ],
+        "text": "**Afterparty:** Deal 2 damage to a random enemy character. **Chain (2):** also deal 2 damage to the enemy leader."
+      }
+    ],
+    "text": "**Afterparty:** Deal 2 damage to a random enemy character. **Chain (2):** also deal 2 damage to the enemy leader.",
+    "flavor": "Motion carried, unanimously, by people who will deny it tomorrow."
+  },
+  {
+    "id": "after-nobody-go-home",
+    "name": "Nobody Go Home",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "event",
+    "rarity": "rare",
+    "cost": 5,
+    "durationTurns": 3,
+    "tags": ["crew", "nightlife"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [
+          { "op": "summon", "cardId": "after-token-hanger-on" }
+        ],
+        "text": "Event (3 turns) — at the start of your turns: summon a 1/1 Hanger-On."
+      }
+    ],
+    "text": "Event (3 turns) — at the start of your turns: summon a 1/1 Hanger-On with **Afterparty:** Restore 1 Health to your leader. *(Afterparty — triggers at the end of your turn while it is in play.)*",
+    "flavor": "Said at 1 A.M. as a joke. Said at 4 A.M. as policy."
+  },
+  {
+    "id": "after-dawnrise-uninvited-guest",
+    "name": "Dawnrise, the Uninvited Guest",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 6,
+    "attack": 2,
+    "health": 7,
+    "tags": ["crew", "nightlife", "last-call"],
+    "keywords": ["afterparty"],
+    "finale": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "hasKeyword": "afterparty", "excludeSelf": true } }, "min": 3 },
+        "ops": [
+          { "op": "addCounter", "key": "sunrise", "amount": 1 },
+          {
+            "op": "if",
+            "condition": { "kind": "counterAtLeast", "key": "sunrise", "value": 4 },
+            "then": [
+              { "op": "winMatch" }
+            ]
+          }
+        ],
+        "text": "**Afterparty:** if you control 3 or more other characters with **Afterparty**, gain a Sunrise counter. At 4 Sunrise counters, you win the match."
+      }
+    ],
+    "text": "**Finale.** **Afterparty:** if you control 3 or more other characters with **Afterparty**, gain a Sunrise counter. At 4 Sunrise counters, you win the match.",
+    "flavor": "Nobody asked her to come up. She comes up anyway."
+  },
+  {
+    "id": "after-one-more-round",
+    "name": "One More Round",
+    "faction": "afterparty-crew",
+    "current": "cinder",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 6,
+    "tags": ["nightlife", "last-call"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          { "op": "repeatAfterpartyThisTurn" }
+        ],
+        "text": "This turn, your **Afterparty** triggers resolve twice."
+      }
+    ],
+    "text": "This turn, your **Afterparty** triggers resolve twice.",
+    "flavor": "Nobody wants it. Nobody is leaving. It has already been ordered."
+  },
+
+  {
+    "id": "after-token-hanger-on",
+    "name": "Hanger-On",
+    "faction": "afterparty-crew",
+    "current": "tide",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 1,
+    "tags": ["crew", "nightlife"],
+    "keywords": ["afterparty"],
+    "token": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 1 }
+        ],
+        "text": "**Afterparty:** Restore 1 Health to your leader."
+      }
+    ],
+    "text": "**Afterparty:** Restore 1 Health to your leader.",
+    "flavor": "Was invited by someone. That someone left at midnight."
+  }
+]

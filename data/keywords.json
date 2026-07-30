@@ -1,0 +1,18 @@
+{
+  "viral": { "id": "viral", "name": "Viral", "reminderText": "When you play this, add a copy to your hand that costs (1) less (minimum 1) and loses Viral." },
+  "spotlight": { "id": "spotlight", "name": "Spotlight", "reminderText": "Enemies must attack characters with Spotlight before other targets." },
+  "parasocial": { "id": "parasocial", "name": "Parasocial", "reminderText": "When you target this friendly character with a card or ability, it gains +1/+1 and you gain 1 Obsession." },
+  "trending": { "id": "trending", "name": "Trending", "reminderText": "While in your hand, costs (1) less for each other card you've played this turn (minimum 1)." },
+  "collab": { "id": "collab", "name": "Collab", "reminderText": "Bonus effect if you control another character sharing the stated Current, faction, or tag." },
+  "comeback": { "id": "comeback", "name": "Comeback", "reminderText": "When this is defeated, return it to your hand at the start of your next turn." },
+  "raid": { "id": "raid", "name": "Raid", "reminderText": "Can attack the turn it is played." },
+  "touch-grass": { "id": "touch-grass", "name": "Touch Grass", "reminderText": "Banish a character until the start of your next turn; it returns with base stats and no statuses or attachments." },
+  "afterparty": { "id": "afterparty", "name": "Afterparty", "reminderText": "Triggers at the end of your turn." },
+  "rushwind": { "id": "rushwind", "name": "Rushwind", "reminderText": "Bonus if this is not the first card you played this turn." },
+  "flow": { "id": "flow", "name": "Flow", "reminderText": "Triggers when a friendly card is returned to your hand, replayed, healed, or exchanged." },
+  "grow": { "id": "grow", "name": "Grow", "reminderText": "Upgrades permanently after surviving the stated number of your turns." },
+  "overload": { "id": "overload", "name": "Overload", "reminderText": "You have that much less Hype next turn." },
+  "inspire": { "id": "inspire", "name": "Inspire", "reminderText": "Triggers when this or another friendly character is healed, shielded, or buffed." },
+  "corrupt": { "id": "corrupt", "name": "Corrupt", "reminderText": "Replaces a card's or effect's normal benefit with the stated darker version." },
+  "refract": { "id": "refract", "name": "Refract", "reminderText": "When played, choose a Current available to your deck; this card becomes that Current while in play." }
+}

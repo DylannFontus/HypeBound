@@ -1,0 +1,1454 @@
+[
+  {
+    "id": "viral-leader-blayze-trendall",
+    "name": "Blayze Trendall",
+    "title": "Arsonist of the Algorithm",
+    "faction": "viral-influencers",
+    "current": "cinder",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "cinder",
+    "secondaryCurrent": "gale",
+    "tags": [
+      "influencer",
+      "drama"
+    ],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "afterparty",
+        "condition": {
+          "kind": "controlsAtLeast",
+          "target": {
+            "select": "all",
+            "side": "enemy",
+            "zone": "board",
+            "filter": {
+              "hasStatus": "scorched"
+            }
+          },
+          "min": 1
+        },
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "enemy"
+            },
+            "amount": 1
+          }
+        ],
+        "text": "**Afterparty:** if an enemy character is **Scorched**, deal 1 damage to the enemy leader."
+      }
+    ],
+    "fixation": {
+      "name": "Spicy Take",
+      "obsessionCost": 3,
+      "target": {
+        "select": "choose",
+        "side": "any",
+        "zone": "board"
+      },
+      "ops": [
+        {
+          "op": "damage",
+          "target": {
+            "select": "triggering"
+          },
+          "amount": 1
+        },
+        {
+          "op": "applyStatus",
+          "target": {
+            "select": "triggering"
+          },
+          "status": "scorched"
+        }
+      ],
+      "text": "Deal 1 damage to a character and apply **Scorched** to it."
+    },
+    "ultimate": {
+      "name": "Career-Ending Livestream",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "damage",
+          "target": {
+            "select": "all",
+            "side": "enemy",
+            "zone": "board"
+          },
+          "amount": 2
+        },
+        {
+          "op": "applyStatus",
+          "target": {
+            "select": "all",
+            "side": "enemy",
+            "zone": "board"
+          },
+          "status": "scorched"
+        }
+      ],
+      "text": "Deal 2 damage to all enemy characters and apply **Scorched** to them."
+    },
+    "effects": [],
+    "text": "**Afterparty:** if an enemy character is **Scorched**, deal 1 damage to the enemy leader.",
+    "flavor": "He learned that controversy burns brighter than content and has been legally on fire ever since."
+  },
+  {
+    "id": "viral-leader-cyra-swipe",
+    "name": "Cyra Swipe",
+    "title": "First to Every Trend",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "gale",
+    "secondaryCurrent": null,
+    "tags": [
+      "influencer",
+      "trend"
+    ],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "aura",
+        "ops": [
+          {
+            "op": "aura",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board",
+              "filter": {
+                "tag": [
+                  "follower"
+                ]
+              }
+            },
+            "attack": 1
+          }
+        ],
+        "text": "Your Followers have +1/+0."
+      }
+    ],
+    "fixation": {
+      "name": "Go Live",
+      "obsessionCost": 3,
+      "ops": [
+        {
+          "op": "summon",
+          "cardId": "token-follower"
+        },
+        {
+          "op": "addKeyword",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board",
+            "filter": {
+              "tag": [
+                "follower"
+              ]
+            }
+          },
+          "keyword": "raid"
+        }
+      ],
+      "text": "Summon a 1/1 Follower, then give your Followers **Raid**."
+    },
+    "ultimate": {
+      "name": "The Feed Awakens",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "summon",
+          "cardId": "token-follower",
+          "count": 3
+        },
+        {
+          "op": "addKeyword",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board",
+            "filter": {
+              "tag": [
+                "follower"
+              ]
+            }
+          },
+          "keyword": "raid"
+        },
+        {
+          "op": "buff",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board",
+            "filter": {
+              "tag": [
+                "follower"
+              ]
+            }
+          },
+          "attack": 1
+        }
+      ],
+      "text": "Summon three 1/1 Followers, then give your Followers **Raid** and +1/+0."
+    },
+    "effects": [],
+    "text": "Your Followers have +1/+0.",
+    "flavor": "She has never finished a video, a sentence, or a meal. The next trend arrived first."
+  },
+  {
+    "id": "viral-first-follower",
+    "name": "First Follower",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 1,
+    "tags": [
+      "influencer",
+      "follower"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower"
+          }
+        ],
+        "text": "On play: summon a 1/1 Follower."
+      }
+    ],
+    "text": "On play: summon a 1/1 Follower.",
+    "flavor": "Account age: eleven minutes. Devotion: frankly unsettling."
+  },
+  {
+    "id": "viral-reply-guy",
+    "name": "Reply Guy",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": [
+      "influencer"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "buff",
+            "target": {
+              "select": "self"
+            },
+            "attack": 1,
+            "health": 1
+          }
+        ],
+        "text": "**Rushwind:** this gains +1/+1."
+      }
+    ],
+    "text": "**Rushwind:** this gains +1/+1. *(Rushwind: bonus if this is not the first card you played this turn.)*",
+    "flavor": "He had an opinion about this before you finished typing it."
+  },
+  {
+    "id": "viral-hype-intern",
+    "name": "Hype Intern",
+    "faction": "viral-influencers",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": [
+      "influencer",
+      "staff"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "gainObsession",
+            "amount": 1
+          }
+        ],
+        "text": "On play: gain 1 Obsession."
+      }
+    ],
+    "text": "On play: gain 1 Obsession.",
+    "flavor": "Unpaid, unbothered, unblinking. Says \"we\" about a company that owes them nothing."
+  },
+  {
+    "id": "viral-hot-take",
+    "name": "Hot Take",
+    "faction": "viral-influencers",
+    "current": "cinder",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": [
+      "drama"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "any",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "triggering"
+            },
+            "amount": 1
+          },
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "triggering"
+            },
+            "status": "scorched"
+          }
+        ],
+        "text": "Deal 1 damage to a character and apply **Scorched** to it."
+      }
+    ],
+    "text": "Deal 1 damage to a character and apply **Scorched** to it. *(Scorched: takes 1 damage at the end of its controller's turn.)*",
+    "flavor": "The room temperature was fine. He raised it for the numbers."
+  },
+  {
+    "id": "viral-clout-chaser",
+    "name": "Clout Chaser",
+    "faction": "viral-influencers",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 1,
+    "tags": [
+      "influencer",
+      "drama"
+    ],
+    "keywords": [
+      "raid"
+    ],
+    "effects": [
+      {
+        "trigger": "onAttack",
+        "ops": [
+          {
+            "op": "buff",
+            "target": {
+              "select": "self"
+            },
+            "attack": 1
+          }
+        ],
+        "text": "On attack: this gains +1/+0."
+      }
+    ],
+    "text": "**Raid.** On attack: this gains +1/+0. *(Raid: can attack the turn it is played.)*",
+    "flavor": "Ran into a burning building because the lighting in there was incredible."
+  },
+  {
+    "id": "viral-ratio-bomb",
+    "name": "Ratio Bomb",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": [
+      "drama"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "any",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "triggering"
+            },
+            "amount": 2
+          }
+        ],
+        "text": "Deal 2 damage to a character."
+      },
+      {
+        "trigger": "rushwind",
+        "target": {
+          "select": "choose",
+          "side": "any",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "triggering"
+            },
+            "amount": 1
+          }
+        ],
+        "text": "**Rushwind:** deal 1 more damage to it."
+      }
+    ],
+    "text": "Deal 2 damage to a character. **Rushwind:** deal 1 more damage to it. *(Rushwind: bonus if this is not the first card you played this turn.)*",
+    "flavor": "Nine hundred replies. Eleven likes. One quietly deleted account."
+  },
+  {
+    "id": "viral-duet-partner",
+    "name": "Duet Partner",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 2,
+    "tags": [
+      "influencer",
+      "trend"
+    ],
+    "keywords": [
+      "collab"
+    ],
+    "collab": {
+      "kind": "tag",
+      "value": "follower"
+    },
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "condition": {
+          "kind": "controlsAtLeast",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board",
+            "filter": {
+              "tag": [
+                "follower"
+              ]
+            }
+          },
+          "min": 1
+        },
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower"
+          }
+        ],
+        "text": "**Collab (Follower):** summon a 1/1 Follower."
+      }
+    ],
+    "text": "**Collab (Follower):** summon a 1/1 Follower. *(Collab: bonus effect if you control another character with the stated tag.)*",
+    "flavor": "Two creators, one trend, zero prior conversation."
+  },
+  {
+    "id": "viral-brand-deal",
+    "name": "Brand Deal",
+    "faction": "viral-influencers",
+    "current": "cinder",
+    "type": "equipment",
+    "rarity": "rare",
+    "cost": 2,
+    "equipAttack": 1,
+    "equipHealth": 1,
+    "tags": [
+      "gear",
+      "sponsorship"
+    ],
+    "keywords": [
+      "afterparty"
+    ],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "enemy"
+            },
+            "amount": 1
+          }
+        ],
+        "text": "**Afterparty:** deal 1 damage to the enemy leader."
+      }
+    ],
+    "text": "Equipped character has +1/+1. **Afterparty:** deal 1 damage to the enemy leader. *(Afterparty: triggers at the end of your turn.)*",
+    "flavor": "Sponsored by a beverage nobody drinks and everybody is contractually required to mention."
+  },
+  {
+    "id": "viral-comment-section",
+    "name": "Comment Section",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": [
+      "chat",
+      "follower"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "friendlyCharacterDefeated",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": 2
+          }
+        ],
+        "text": "Reaction — when a friendly character is defeated: summon two 1/1 Followers."
+      }
+    ],
+    "text": "Reaction — when a friendly character is defeated: summon two 1/1 Followers.",
+    "flavor": "You can delete the post. You cannot delete them."
+  },
+  {
+    "id": "viral-trend-hijacker",
+    "name": "Trend Hijacker",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 3,
+    "tags": [
+      "influencer",
+      "trend"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "enemy",
+          "zone": "board",
+          "optional": true
+        },
+        "ops": [
+          {
+            "op": "copyCardToHand",
+            "target": {
+              "select": "triggering"
+            },
+            "costDelta": 1
+          }
+        ],
+        "text": "On play: add a copy of an enemy character to your hand. It costs (1) more."
+      }
+    ],
+    "text": "On play: add a copy of an enemy character to your hand. It costs (1) more.",
+    "flavor": "\"Huge shoutout to whoever made this originally, I genuinely forget.\""
+  },
+  {
+    "id": "viral-livestream-meltdown",
+    "name": "Livestream Meltdown",
+    "faction": "viral-influencers",
+    "current": "cinder",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": [
+      "drama"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "amount": 1
+          },
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "status": "scorched"
+          }
+        ],
+        "text": "Deal 1 damage to all enemy characters and apply **Scorched** to them."
+      }
+    ],
+    "text": "Deal 1 damage to all enemy characters and apply **Scorched** to them. *(Scorched: takes 1 damage at the end of its controller's turn.)*",
+    "flavor": "Forty minutes of screaming. Best performing upload of the quarter."
+  },
+  {
+    "id": "viral-drama-channel",
+    "name": "Drama Channel",
+    "faction": "viral-influencers",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "common",
+    "cost": 3,
+    "attack": 3,
+    "health": 2,
+    "tags": [
+      "influencer",
+      "drama"
+    ],
+    "keywords": [
+      "afterparty"
+    ],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "enemy"
+            },
+            "amount": 1
+          }
+        ],
+        "text": "**Afterparty:** deal 1 damage to the enemy leader."
+      }
+    ],
+    "text": "**Afterparty:** deal 1 damage to the enemy leader. *(Afterparty: triggers at the end of your turn.)*",
+    "flavor": "Tonight: an exhaustive recap of a feud between two people who have never met."
+  },
+  {
+    "id": "viral-trend-surfer",
+    "name": "Trend Surfer",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 3,
+    "attack": 2,
+    "health": 3,
+    "tags": [
+      "influencer",
+      "trend"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower"
+          }
+        ],
+        "text": "**Rushwind:** summon a 1/1 Follower."
+      }
+    ],
+    "text": "**Rushwind:** summon a 1/1 Follower. *(Rushwind: bonus if this is not the first card you played this turn.)*",
+    "flavor": "Caught the wave roughly nine seconds before it existed."
+  },
+  {
+    "id": "viral-echo-chamber",
+    "name": "Echo Chamber",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "location",
+    "rarity": "epic",
+    "cost": 4,
+    "durability": 3,
+    "tags": [
+      "venue",
+      "trend"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "aura",
+        "ops": [
+          {
+            "op": "aura",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board",
+              "filter": {
+                "tag": [
+                  "follower"
+                ]
+              }
+            },
+            "attack": 1
+          }
+        ],
+        "text": "Your Followers have +1/+0."
+      },
+      {
+        "trigger": "activate",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower"
+          }
+        ],
+        "text": "Activate (once per turn): summon a 1/1 Follower."
+      }
+    ],
+    "text": "Your Followers have +1/+0. Activate (once per turn): summon a 1/1 Follower. Durability 3.",
+    "flavor": "Everyone in here agrees with you. That is how you know it is working."
+  },
+  {
+    "id": "viral-sponsored-wildfire",
+    "name": "Sponsored Wildfire",
+    "faction": "viral-influencers",
+    "current": "cinder",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 4,
+    "tags": [
+      "drama",
+      "sponsorship"
+    ],
+    "keywords": [
+      "viral"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "any",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "triggering"
+            },
+            "amount": 3
+          }
+        ],
+        "text": "Deal 3 damage to a character."
+      }
+    ],
+    "text": "Deal 3 damage to a character. **Viral.**",
+    "flavor": "Disclosure: this fire is a paid partnership."
+  },
+  {
+    "id": "viral-engagement-farmer",
+    "name": "Engagement Farmer",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 2,
+    "health": 4,
+    "tags": [
+      "influencer",
+      "follower"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": {
+              "kind": "count",
+              "target": {
+                "select": "all",
+                "side": "friendly",
+                "zone": "board",
+                "filter": {
+                  "excludeSelf": true
+                }
+              }
+            }
+          }
+        ],
+        "text": "On play: summon a 1/1 Follower for each other character you control."
+      }
+    ],
+    "text": "On play: summon a 1/1 Follower for each other character you control.",
+    "flavor": "Tills the comments twice daily. The harvest is rage, and rage is renewable."
+  },
+  {
+    "id": "viral-follower-frenzy",
+    "name": "Follower Frenzy",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 5,
+    "tags": [
+      "trend",
+      "follower"
+    ],
+    "keywords": [
+      "trending",
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": 3
+          }
+        ],
+        "text": "Summon three 1/1 Followers."
+      },
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "addKeyword",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board",
+              "filter": {
+                "tag": [
+                  "follower"
+                ]
+              }
+            },
+            "keyword": "raid"
+          }
+        ],
+        "text": "**Rushwind:** your Followers gain **Raid**."
+      }
+    ],
+    "text": "**Trending.** Summon three 1/1 Followers. **Rushwind:** your Followers gain **Raid**. *(Trending: while in your hand, this costs (1) less for each other card you played this turn, minimum 1.)*",
+    "flavor": "The counter moves so fast it stops being a number and becomes weather."
+  },
+  {
+    "id": "viral-verity-viralstar",
+    "name": "Verity Viralstar, Face of the Feed",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 5,
+    "attack": 2,
+    "health": 6,
+    "tags": [
+      "influencer",
+      "trend"
+    ],
+    "keywords": [],
+    "finale": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          {
+            "op": "if",
+            "condition": {
+              "kind": "controlsAtLeast",
+              "target": {
+                "select": "all",
+                "side": "friendly",
+                "zone": "board",
+                "filter": {
+                  "tag": [
+                    "follower"
+                  ]
+                }
+              },
+              "min": 3
+            },
+            "then": [
+              {
+                "op": "addCounter",
+                "key": "subscribers",
+                "amount": 3
+              }
+            ],
+            "else": [
+              {
+                "op": "addCounter",
+                "key": "subscribers",
+                "amount": {
+                  "kind": "count",
+                  "target": {
+                    "select": "all",
+                    "side": "friendly",
+                    "zone": "board",
+                    "filter": {
+                      "tag": [
+                        "follower"
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "counterAtLeast",
+              "key": "subscribers",
+              "value": 9
+            },
+            "then": [
+              {
+                "op": "winMatch"
+              }
+            ]
+          }
+        ],
+        "text": "**Afterparty:** gain a Subscriber counter for each friendly Follower, up to 3 per turn. At 9 Subscriber counters, you win the match."
+      }
+    ],
+    "text": "**Finale** — **Afterparty:** gain a Subscriber counter for each friendly Follower, up to 3 per turn. At 9 Subscriber counters, you win the match.",
+    "flavor": "She hit every milestone. Then she hit yours."
+  },
+  {
+    "id": "viral-content-house-fire",
+    "name": "Content House Fire",
+    "faction": "viral-influencers",
+    "current": "cinder",
+    "type": "event",
+    "rarity": "epic",
+    "cost": 6,
+    "durationTurns": 3,
+    "tags": [
+      "drama",
+      "venue"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "amount": 1
+          },
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "status": "scorched"
+          },
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "any"
+            },
+            "amount": 1
+          }
+        ],
+        "text": "Event (3 turns) — at the start of your turns: deal 1 damage to all enemy characters and apply **Scorched** to them, then deal 1 damage to each leader."
+      }
+    ],
+    "text": "Event (3 turns) — at the start of your turns: deal 1 damage to all enemy characters and apply **Scorched** to them, then deal 1 damage to each leader.",
+    "flavor": "Six creators, one rented mansion, zero smoke detectors, infinite content."
+  },
+  {
+    "id": "viral-kade-everloud",
+    "name": "Kade Everloud, Always Live",
+    "faction": "viral-influencers",
+    "current": "cinder",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 7,
+    "attack": 5,
+    "health": 6,
+    "tags": [
+      "influencer",
+      "drama"
+    ],
+    "keywords": [
+      "raid"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "enemy"
+            },
+            "amount": {
+              "kind": "count",
+              "target": {
+                "select": "all",
+                "side": "friendly",
+                "zone": "board",
+                "filter": {
+                  "tag": [
+                    "follower"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "text": "On play: deal damage to the enemy leader equal to the number of friendly Followers."
+      }
+    ],
+    "text": "**Raid.** On play: deal damage to the enemy leader equal to the number of friendly Followers.",
+    "flavor": "Has not been off camera since a Tuesday four years ago. Nobody remembers which Tuesday."
+  },
+  {
+    "id": "viral-notification-ping",
+    "name": "Notification Ping",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": [
+      "chat",
+      "follower"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": 1
+          }
+        ],
+        "text": "Summon a 1/1 Follower."
+      }
+    ],
+    "text": "Summon a 1/1 Follower.",
+    "flavor": "One person you have never met has decided to be informed about you forever."
+  },
+  {
+    "id": "viral-lurking-fan",
+    "name": "Lurking Fan",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 2,
+    "health": 1,
+    "tags": [
+      "follower",
+      "chat"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "buff",
+            "target": {
+              "select": "self"
+            },
+            "health": 1
+          }
+        ],
+        "text": "**Rushwind:** this gains +0/+1."
+      }
+    ],
+    "text": "**Rushwind:** this gains +0/+1. *(Rushwind — bonus effect if this is not the first card you played this turn.)*",
+    "flavor": "Watches every single upload. Has never once liked one. Would fight a stranger about you."
+  },
+  {
+    "id": "viral-mutuals",
+    "name": "Mutuals",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": [
+      "follower",
+      "chat"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "buff",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board",
+              "filter": {
+                "tag": [
+                  "follower"
+                ]
+              }
+            },
+            "attack": 1,
+            "health": 1
+          }
+        ],
+        "text": "Give your Followers +1/+1."
+      }
+    ],
+    "text": "Give your Followers +1/+1.",
+    "flavor": "You follow them, they follow you, and neither of you has ever read a word the other wrote."
+  },
+  {
+    "id": "viral-algorithm-boost",
+    "name": "Algorithm Boost",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 1,
+    "health": 4,
+    "tags": [
+      "staff",
+      "trend"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "condition": {
+          "kind": "cardsPlayedThisTurnAtLeast",
+          "value": 2
+        },
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": 1
+          }
+        ],
+        "text": "**Afterparty:** if you played 2 or more cards this turn, summon a 1/1 Follower."
+      }
+    ],
+    "text": "**Afterparty:** if you played 2 or more cards this turn, summon a 1/1 Follower.",
+    "flavor": "Nobody at the company can explain the boost. The boost is why she has a job. She is not asking."
+  },
+  {
+    "id": "viral-collab-post",
+    "name": "Collab Post",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": [
+      "trend",
+      "sponsorship"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": 2
+          }
+        ],
+        "text": "Summon two 1/1 Followers."
+      },
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "addKeyword",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board",
+              "filter": {
+                "tag": [
+                  "follower"
+                ]
+              }
+            },
+            "keyword": "raid"
+          }
+        ],
+        "text": "**Rushwind:** your Followers gain **Raid**."
+      }
+    ],
+    "text": "Summon two 1/1 Followers. **Rushwind:** your Followers gain **Raid**. *(Rushwind — bonus effect if this is not the first card you played this turn. Raid — can attack the turn it arrives.)*",
+    "flavor": "Two audiences, one video, and a comment section that has decided to go to war over which of you carried it."
+  },
+  {
+    "id": "viral-going-viral",
+    "name": "Going Viral",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 4,
+    "tags": [
+      "trend",
+      "follower"
+    ],
+    "keywords": [
+      "inspire"
+    ],
+    "effects": [
+      {
+        "trigger": "inspire",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": 1
+          }
+        ],
+        "text": "**Inspire:** summon a 1/1 Follower. Once per turn."
+      }
+    ],
+    "text": "**Inspire:** summon a 1/1 Follower. Once per turn. *(Inspire — triggers when this or another friendly character is healed, shielded, or buffed.)*",
+    "flavor": "It is happening. It is happening right now. Nobody involved will be able to say afterwards what it was."
+  },
+  {
+    "id": "viral-front-page",
+    "name": "Front Page",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "location",
+    "rarity": "rare",
+    "cost": 4,
+    "durability": 3,
+    "tags": [
+      "venue",
+      "trend"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": 1
+          }
+        ],
+        "text": "**Activate:** summon a 1/1 Follower."
+      }
+    ],
+    "text": "**Activate:** summon a 1/1 Follower.",
+    "flavor": "Nine hours at the top. Everyone you have ever met sends you the same link, individually."
+  },
+  {
+    "id": "viral-swarm-the-replies",
+    "name": "Swarm the Replies",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 5,
+    "tags": [
+      "chat",
+      "drama"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "enemy"
+            },
+            "amount": {
+              "kind": "count",
+              "target": {
+                "select": "all",
+                "side": "friendly",
+                "zone": "board",
+                "filter": {
+                  "tag": [
+                    "follower"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "Deal damage to the enemy leader equal to the number of Followers you control, then draw a card."
+      }
+    ],
+    "text": "Deal damage to the enemy leader equal to the number of Followers you control, then draw a card.",
+    "flavor": "Four thousand people who agree with you, arriving all at once, being the worst thing that has ever happened to somebody."
+  },
+  {
+    "id": "viral-brand-account",
+    "name": "Brand Account",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 6,
+    "attack": 4,
+    "health": 6,
+    "tags": [
+      "sponsorship",
+      "staff"
+    ],
+    "keywords": [
+      "spotlight"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": 2
+          }
+        ],
+        "text": "On play: summon two 1/1 Followers."
+      }
+    ],
+    "text": "**Spotlight.** On play: summon two 1/1 Followers. *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "Posts like a person, sued like a company, and replies to funerals with a product tie-in."
+  },
+  {
+    "id": "viral-the-whole-feed",
+    "name": "The Whole Feed",
+    "faction": "viral-influencers",
+    "current": "gale",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 6,
+    "tags": [
+      "trend",
+      "follower"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-follower",
+            "count": 3
+          },
+          {
+            "op": "addKeyword",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board",
+              "filter": {
+                "tag": [
+                  "follower"
+                ]
+              }
+            },
+            "keyword": "raid"
+          },
+          {
+            "op": "buff",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board",
+              "filter": {
+                "tag": [
+                  "follower"
+                ]
+              }
+            },
+            "attack": 1
+          }
+        ],
+        "text": "Summon three 1/1 Followers, then give your Followers +1/+0 and **Raid**."
+      }
+    ],
+    "text": "Summon three 1/1 Followers, then give your Followers +1/+0 and **Raid**. *(Raid — can attack the turn it arrives.)*",
+    "flavor": "Every single person. At the same time. About this. There is no version of the day where you win."
+  }
+]

@@ -1,0 +1,147 @@
+{
+  "cinder": {
+    "id": "cinder",
+    "name": "Cinder",
+    "element": "fire",
+    "beats": ["gale"],
+    "signatureKeyword": null,
+    "resonance": {
+      "name": "Standing Ovation",
+      "text": "Deal 2 damage to all enemy characters and Scorch them.",
+      "ops": [
+        { "op": "damage", "target": { "select": "all", "side": "enemy", "zone": "board" }, "amount": 2 },
+        { "op": "applyStatus", "target": { "select": "all", "side": "enemy", "zone": "board" }, "status": "scorched" }
+      ]
+    },
+    "icon": "current-cinder",
+    "colorToken": "--current-cinder",
+    "frameShape": "flame-notch"
+  },
+  "tide": {
+    "id": "tide",
+    "name": "Tide",
+    "element": "water",
+    "beats": ["cinder"],
+    "signatureKeyword": "flow",
+    "resonance": {
+      "name": "Total Recall",
+      "text": "Restore 6 health to your leader and draw 2 cards.",
+      "ops": [
+        { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 6 },
+        { "op": "draw", "count": 2 }
+      ]
+    },
+    "icon": "current-tide",
+    "colorToken": "--current-tide",
+    "frameShape": "wave-round"
+  },
+  "root": {
+    "id": "root",
+    "name": "Root",
+    "element": "earth",
+    "beats": ["pulse"],
+    "signatureKeyword": "grow",
+    "resonance": {
+      "name": "Deep Roots",
+      "text": "Give your characters +0/+3 and your leader Armor 3.",
+      "ops": [
+        { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board" }, "health": 3 },
+        { "op": "applyStatus", "target": { "select": "leader", "side": "friendly" }, "status": "armor", "amount": 3 }
+      ]
+    },
+    "icon": "current-root",
+    "colorToken": "--current-root",
+    "frameShape": "hex-stone"
+  },
+  "gale": {
+    "id": "gale",
+    "name": "Gale",
+    "element": "wind",
+    "beats": ["root"],
+    "signatureKeyword": "rushwind",
+    "resonance": {
+      "name": "Second Wind",
+      "text": "Your characters may attack again. Draw 1 card.",
+      "ops": [
+        { "op": "attackAgain", "target": { "select": "all", "side": "friendly", "zone": "board" } },
+        { "op": "draw", "count": 1 }
+      ]
+    },
+    "icon": "current-gale",
+    "colorToken": "--current-gale",
+    "frameShape": "ribbon-sweep"
+  },
+  "pulse": {
+    "id": "pulse",
+    "name": "Pulse",
+    "element": "lightning",
+    "beats": ["tide"],
+    "signatureKeyword": "overload",
+    "resonance": {
+      "name": "Grid Surge",
+      "text": "Gain 2 Hype this turn and draw 2 cards.",
+      "ops": [
+        { "op": "gainHype", "amount": 2 },
+        { "op": "draw", "count": 2 }
+      ]
+    },
+    "icon": "current-pulse",
+    "colorToken": "--current-pulse",
+    "frameShape": "circuit-angle"
+  },
+  "halo": {
+    "id": "halo",
+    "name": "Halo",
+    "element": "light",
+    "beats": ["veil"],
+    "signatureKeyword": "inspire",
+    "resonance": {
+      "name": "First Light",
+      "text": "Restore 4 health to your leader and all friendly characters. Remove all negative statuses from your characters.",
+      "ops": [
+        { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 4 },
+        { "op": "heal", "target": { "select": "all", "side": "friendly", "zone": "board" }, "amount": 4 },
+        { "op": "removeStatus", "target": { "select": "all", "side": "friendly", "zone": "board" }, "polarity": "negative" }
+      ]
+    },
+    "icon": "current-halo",
+    "colorToken": "--current-halo",
+    "frameShape": "radiant-circle"
+  },
+  "veil": {
+    "id": "veil",
+    "name": "Veil",
+    "element": "darkness",
+    "beats": ["halo"],
+    "signatureKeyword": "corrupt",
+    "resonance": {
+      "name": "Total Blackout",
+      "text": "Destroy a random enemy character. The enemy leader takes 2 damage.",
+      "ops": [
+        { "op": "destroy", "target": { "select": "random", "side": "enemy", "zone": "board" } },
+        { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 2 }
+      ]
+    },
+    "icon": "current-veil",
+    "colorToken": "--current-veil",
+    "frameShape": "shard-mirror"
+  },
+  "prism": {
+    "id": "prism",
+    "name": "Prism",
+    "element": "spectrum",
+    "beats": [],
+    "signatureKeyword": "refract",
+    "resonance": {
+      "name": "Full Spectrum",
+      "text": "Draw 2 cards and gain 2 Hype this turn.",
+      "ops": [
+        { "op": "draw", "count": 2 },
+        { "op": "gainHype", "amount": 2 }
+      ]
+    },
+    "icon": "current-prism",
+    "colorToken": "--current-prism",
+    "frameShape": "crystal-facet"
+  }
+}

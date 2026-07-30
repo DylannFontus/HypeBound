@@ -1,0 +1,13 @@
+{
+  "neon-idols": { "id": "neon-idols", "name": "Neon Idols", "currents": ["halo", "pulse"], "colorToken": "--faction-neon-idols", "crest": "crest-neon-idols", "tagline": "The show ends when we say it ends." },
+  "gothic-royalty": { "id": "gothic-royalty", "name": "Gothic Royalty", "currents": ["veil", "root"], "colorToken": "--faction-gothic-royalty", "crest": "crest-gothic-royalty", "tagline": "Our fandom never dies. Neither do we." },
+  "viral-influencers": { "id": "viral-influencers", "name": "Viral Influencers", "currents": ["gale", "cinder"], "colorToken": "--faction-viral-influencers", "crest": "crest-viral-influencers", "tagline": "Like, share, and surrender." },
+  "corporate-creators": { "id": "corporate-creators", "name": "Corporate Creators", "currents": ["root", "halo"], "colorToken": "--faction-corporate-creators", "crest": "crest-corporate-creators", "tagline": "This victory is brought to you by us." },
+  "digital-demons": { "id": "digital-demons", "name": "Digital Demons", "currents": ["cinder", "veil"], "colorToken": "--faction-digital-demons", "crest": "crest-digital-demons", "tagline": "Terms and conditions apply. Forever." },
+  "cosplay-champions": { "id": "cosplay-champions", "name": "Cosplay Champions", "currents": ["prism", "tide"], "colorToken": "--faction-cosplay-champions", "crest": "crest-cosplay-champions", "tagline": "The costume makes the legend." },
+  "afterparty-crew": { "id": "afterparty-crew", "name": "Afterparty Crew", "currents": ["cinder", "tide"], "colorToken": "--faction-afterparty-crew", "crest": "crest-afterparty-crew", "tagline": "Nothing good happens after 3 A.M. Except us." },
+  "touch-grass-order": { "id": "touch-grass-order", "name": "Touch-Grass Order", "currents": ["root", "gale"], "colorToken": "--faction-touch-grass-order", "crest": "crest-touch-grass-order", "tagline": "Log off. We insist." },
+  "algorithm-syndicate": { "id": "algorithm-syndicate", "name": "Algorithm Syndicate", "currents": ["pulse", "tide"], "colorToken": "--faction-algorithm-syndicate", "crest": "crest-algorithm-syndicate", "tagline": "You were always going to pick this card." },
+  "meme-collective": { "id": "meme-collective", "name": "Meme Collective", "currents": ["prism", "gale"], "colorToken": "--faction-meme-collective", "crest": "crest-meme-collective", "tagline": "It's funnier the seventh time." },
+  "neutral": { "id": "neutral", "name": "Neutral", "currents": ["cinder", "tide", "root", "gale", "pulse", "halo", "veil", "prism"], "colorToken": "--faction-neutral", "crest": "crest-neutral", "tagline": "Just here for the drama." }
+}

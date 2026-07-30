@@ -1,0 +1,540 @@
+[
+  {
+    "id": "cosplay-vera-foamhammer",
+    "name": "Vera Foamhammer",
+    "title": "The Con-Queror",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "prism",
+    "secondaryCurrent": "tide",
+    "tags": ["crafter", "champion"],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          { "op": "heal", "target": { "select": "all", "side": "friendly", "zone": "board" }, "amount": 1 }
+        ],
+        "text": "At the start of your turn, restore 1 health to each of your characters."
+      }
+    ],
+    "fixation": {
+      "name": "Hot-Glue Triage",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [
+        { "op": "heal", "target": { "select": "triggering" }, "amount": 3 },
+        { "op": "buff", "target": { "select": "triggering" }, "attack": 1, "health": 1 }
+      ],
+      "text": "Restore 3 health to a friendly character and give it +1/+1."
+    },
+    "ultimate": {
+      "name": "Masterwork Reveal",
+      "obsessionCost": 7,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [
+        { "op": "buff", "target": { "select": "triggering" }, "attack": 3, "health": 3 },
+        { "op": "applyStatus", "target": { "select": "triggering" }, "status": "armor", "amount": 3 },
+        { "op": "addKeyword", "target": { "select": "triggering" }, "keyword": "spotlight" }
+      ],
+      "text": "Give a friendly character +3/+3, Armor 3 and **Spotlight**."
+    },
+    "effects": [],
+    "text": "At the start of your turn, restore 1 health to each of your characters.",
+    "flavor": "She calls hot glue \"the sacred adhesive.\" Four people have tried to correct her. None of them work here anymore."
+  },
+  {
+    "id": "cosplay-kiko-thousand-faces",
+    "name": "Kiko Thousand-Faces",
+    "title": "Sovereign of the Masquerade",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "prism",
+    "secondaryCurrent": "tide",
+    "tags": ["cosplayer", "masquerade"],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "afterparty",
+        "condition": { "kind": "currentPlayedThisTurn", "current": "prism" },
+        "target": { "select": "random", "side": "friendly", "zone": "board" },
+        "ops": [
+          { "op": "buff", "target": { "select": "triggering" }, "attack": 1, "health": 1 }
+        ],
+        "text": "Afterparty: if you played a Prism card this turn, give a random friendly character +1/+1."
+      }
+    ],
+    "fixation": {
+      "name": "Quick Change",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [
+        { "op": "swapAttackHealth", "target": { "select": "triggering" } }
+      ],
+      "text": "Swap a friendly character's Attack and Health."
+    },
+    "ultimate": {
+      "name": "Grand Masquerade",
+      "obsessionCost": 7,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [
+        { "op": "transform", "target": { "select": "triggering" }, "intoCardId": "cosplay-token-legend-of-the-floor" }
+      ],
+      "text": "Transform a friendly character into Legend of the Floor, a 7/7 with **Spotlight** and **Raid**."
+    },
+    "effects": [],
+    "text": "Afterparty: if you played a Prism card this turn, give a random friendly character +1/+1.",
+    "flavor": "Nine years of competition, nine different faces. Their toolbox contains only mirrors and one very tired glue stick."
+  },
+
+  {
+    "id": "cosplay-badge-line-hopeful",
+    "name": "Badge Line Hopeful",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": ["cosplayer", "convention"],
+    "keywords": ["collab"],
+    "collab": { "kind": "tag", "value": "cosplayer" },
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "tag": ["cosplayer"], "excludeSelf": true } }, "min": 1 },
+        "ops": [{ "op": "buff", "target": { "select": "self" }, "attack": 1, "health": 1 }],
+        "text": "**Collab (Cosplayer):** this gains +1/+1."
+      }
+    ],
+    "text": "**Collab (Cosplayer):** this gains +1/+1. *(Collab — bonus effect if you control another character with the stated tag.)*",
+    "flavor": "Four hours in the badge line. Has already re-hemmed two capes and adopted a stranger."
+  },
+  {
+    "id": "cosplay-glue-gun-sidearm",
+    "name": "Glue-Gun Sidearm",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "equipment",
+    "rarity": "common",
+    "cost": 1,
+    "equipAttack": 1,
+    "equipHealth": 1,
+    "tags": ["gear", "crafter"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [{ "op": "heal", "target": { "select": "self" }, "amount": 2 }],
+        "text": "On play: restore 2 health to the equipped character."
+      }
+    ],
+    "text": "Equipped character has +1/+1. On play: restore 2 health to it.",
+    "flavor": "Rated for craft foam. Used, historically, for load-bearing armour, dental emergencies, and one wedding."
+  },
+  {
+    "id": "cosplay-hall-repair-sortie",
+    "name": "Hall Repair Sortie",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 1,
+    "tags": ["crafter", "convention"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [
+          { "op": "returnToHand", "target": { "select": "triggering" } },
+          { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+        ],
+        "text": "Return a friendly character to your hand and restore 2 health to your leader."
+      }
+    ],
+    "text": "Return a friendly character to your hand and restore 2 health to your leader. *(Returning a friendly card to your hand triggers **Flow**.)*",
+    "flavor": "A wing snapped by the food court. The sortie deployed in ninety seconds with a stapler and no fear."
+  },
+  {
+    "id": "cosplay-hall-runway-rookie",
+    "name": "Hall Runway Rookie",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 2,
+    "tags": ["cosplayer", "convention"],
+    "keywords": ["parasocial"],
+    "effects": [],
+    "text": "**Parasocial.** *(When you target this friendly character with a card or ability, it gains +1/+1 and you gain 1 Obsession.)*",
+    "flavor": "First con. Handmade everything. Will visibly ascend if you compliment the boots."
+  },
+  {
+    "id": "cosplay-cardboard-squire",
+    "name": "Cardboard Squire",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 1,
+    "health": 3,
+    "tags": ["cosplayer", "crafter"],
+    "keywords": ["refract"],
+    "effects": [],
+    "text": "**Refract.** *(When played, choose a Current available to your deck; this card becomes that Current while in play.)*",
+    "flavor": "The armour is a cereal box. The stance is genuinely intimidating. Do not test the stance."
+  },
+  {
+    "id": "cosplay-foam-greatsword",
+    "name": "Foam Greatsword",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "equipment",
+    "rarity": "common",
+    "cost": 2,
+    "equipAttack": 2,
+    "equipHealth": 1,
+    "tags": ["gear", "prop"],
+    "keywords": [],
+    "effects": [],
+    "text": "Equipped character has +2/+1.",
+    "flavor": "Weighs four hundred grams. Reads as three hundred kilos from behind the barricade."
+  },
+  {
+    "id": "cosplay-sacred-adhesive",
+    "name": "The Sacred Adhesive",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": ["crafter"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [
+          { "op": "buff", "target": { "select": "triggering" }, "attack": 1, "health": 2 },
+          { "op": "applyStatus", "target": { "select": "triggering" }, "status": "shielded" }
+        ],
+        "text": "Give a friendly character +1/+2 and **Shielded**."
+      }
+    ],
+    "text": "Give a friendly character +1/+2 and **Shielded**. *(Shielded — negates the next instance of damage.)*",
+    "flavor": "Do not touch the nozzle. Do not touch the nozzle. Do not — thank you. We have all been there."
+  },
+  {
+    "id": "cosplay-hallway-repair-kit",
+    "name": "Hallway Repair Kit",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": ["crafter", "gear"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyAttacksCharacter",
+        "ops": [
+          { "op": "heal", "target": { "select": "all", "side": "friendly", "zone": "board" }, "amount": 3 },
+          { "op": "damage", "target": { "select": "triggering" }, "amount": 2 }
+        ],
+        "text": "Reaction — when the enemy attacks one of your characters: restore 3 health to each of your characters and deal 2 damage to the attacker."
+      }
+    ],
+    "text": "Reaction — when the enemy attacks one of your characters: restore 3 health to each of your characters and deal 2 damage to the attacker.",
+    "flavor": "Needle, thread, spare magnets, and the specific fury of someone who was almost finished."
+  },
+  {
+    "id": "cosplay-green-room-quickchanger",
+    "name": "Green-Room Quickchanger",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 3,
+    "tags": ["cosplayer", "performer"],
+    "keywords": ["flow"],
+    "effects": [
+      {
+        "trigger": "flow",
+        "ops": [
+          { "op": "buff", "target": { "select": "self" }, "attack": 1, "health": 1 },
+          { "op": "gainObsession", "amount": 1 }
+        ],
+        "text": "**Flow:** this gains +1/+1 and you gain 1 Obsession."
+      }
+    ],
+    "text": "**Flow:** this gains +1/+1 and you gain 1 Obsession. *(Flow — triggers when a friendly card is returned to your hand, replayed, healed, or exchanged.)*",
+    "flavor": "Eleven seconds behind the curtain. Came out as a completely different franchise."
+  },
+  {
+    "id": "cosplay-masquerade-understudy",
+    "name": "Masquerade Understudy",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 3,
+    "tags": ["cosplayer", "masquerade"],
+    "keywords": ["refract", "parasocial"],
+    "effects": [],
+    "text": "**Refract.** **Parasocial.** *(Refract — when played, choose a Current available to your deck; this card becomes that Current while in play. Parasocial — when you target this friendly character with a card or ability, it gains +1/+1 and you gain 1 Obsession.)*",
+    "flavor": "Understudy to whom? They decline to say. They have never been needed and never been late."
+  },
+  {
+    "id": "cosplay-foam-knight",
+    "name": "The Foam Knight",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 4,
+    "tags": ["cosplayer", "champion"],
+    "keywords": ["spotlight"],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [{ "op": "applyStatus", "target": { "select": "self" }, "status": "shielded" }],
+        "text": "On play: this gains **Shielded**."
+      }
+    ],
+    "text": "**Spotlight.** On play: this gains **Shielded**. *(Spotlight — enemies must attack Spotlight characters first. Shielded — negates the next instance of damage.)*",
+    "flavor": "Two hundred hours of foam. Cannot sit, cannot turn corners, cannot be reasoned with."
+  },
+  {
+    "id": "cosplay-workshop-bench",
+    "name": "The Workshop Bench",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "location",
+    "rarity": "rare",
+    "cost": 3,
+    "durability": 3,
+    "tags": ["venue", "crafter"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [
+          { "op": "heal", "target": { "select": "triggering" }, "amount": 3 },
+          { "op": "buff", "target": { "select": "triggering" }, "attack": 1 }
+        ],
+        "text": "Activate (once per turn): restore 3 health to a friendly character and give it +1/+0."
+      }
+    ],
+    "text": "Activate (once per turn): restore 3 health to a friendly character and give it +1/+0. Durability 3.",
+    "flavor": "The bench has seen things. The bench has been part of things. The bench is structurally load-bearing now."
+  },
+  {
+    "id": "cosplay-con-crunch-artisan",
+    "name": "Con-Crunch Artisan",
+    "faction": "cosplay-champions",
+    "current": "tide",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 3,
+    "health": 4,
+    "tags": ["crafter", "convention"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onCardPlayed",
+        "playedFilter": { "type": ["equipment"] },
+        "ops": [{ "op": "draw", "count": 1 }],
+        "text": "After you play an Equipment, draw a card."
+      }
+    ],
+    "text": "After you play an Equipment, draw a card.",
+    "flavor": "Has not slept since Tuesday. Has, however, finished. Both facts are structural."
+  },
+  {
+    "id": "cosplay-judge-with-clipboard",
+    "name": "The Judge With The Clipboard",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 2,
+    "health": 4,
+    "tags": ["staff", "convention"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "enemy", "zone": "board" },
+        "ops": [{ "op": "applyStatus", "target": { "select": "triggering" }, "status": "cancelled", "durationTurns": 1 }],
+        "text": "On play: **Cancel** an enemy character until your next turn."
+      }
+    ],
+    "text": "On play: **Cancel** an enemy character until your next turn. *(Cancelled — its text is blank and it cannot attack or use abilities.)*",
+    "flavor": "\"Interesting seam choice.\" It is not interesting. It is a felony and you both know it."
+  },
+  {
+    "id": "cosplay-grand-costume-swap",
+    "name": "Grand Costume Swap",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "transformation",
+    "rarity": "epic",
+    "cost": 4,
+    "tags": ["masquerade", "crafter"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [{ "op": "transform", "target": { "select": "triggering" }, "intoCardId": "cosplay-token-hall-champion" }],
+        "text": "Transform a friendly character into Hall Champion, a 4/4 with **Spotlight**."
+      }
+    ],
+    "text": "Transform a friendly character into Hall Champion, a 4/4 with **Spotlight**.",
+    "flavor": "Ninety seconds in the green room. Somebody entirely different walks back out, and nobody asks."
+  },
+  {
+    "id": "cosplay-masquerade-headliner",
+    "name": "Masquerade Headliner",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 5,
+    "attack": 3,
+    "health": 5,
+    "tags": ["cosplayer", "masquerade", "performer"],
+    "keywords": ["refract"],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board", "filter": { "excludeSelf": true }, "optional": true },
+        "ops": [
+          { "op": "buff", "target": { "select": "triggering" }, "attack": 2, "health": 2 },
+          { "op": "applyStatus", "target": { "select": "triggering" }, "status": "shielded" }
+        ],
+        "text": "On play: give another friendly character +2/+2 and **Shielded**."
+      }
+    ],
+    "text": "**Refract.** On play: give another friendly character +2/+2 and **Shielded**.",
+    "flavor": "The lights hit. Eleven months of work resolve into four seconds of an entire hall screaming."
+  },
+  {
+    "id": "cosplay-prism-regalia",
+    "name": "Prism Regalia of a Thousand Threads",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "equipment",
+    "rarity": "epic",
+    "cost": 5,
+    "equipAttack": 2,
+    "equipHealth": 2,
+    "grantKeywords": ["spotlight", "parasocial"],
+    "tags": ["gear", "masquerade"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "oncePerTurn": true,
+        "ops": [{ "op": "heal", "target": { "select": "self" }, "amount": 2 }],
+        "text": "At the start of your turn, restore 2 health to the equipped character."
+      }
+    ],
+    "text": "Equipped character has +2/+2, **Spotlight** and **Parasocial**. At the start of your turn, restore 2 health to it.",
+    "flavor": "A thousand threads, no two the same colour. The dye lots alone took a year and a small inheritance."
+  },
+  {
+    "id": "cosplay-mx-best-in-show",
+    "name": "Mx. Best-in-Show, Floor Legend",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 6,
+    "attack": 3,
+    "health": 6,
+    "tags": ["cosplayer", "champion", "masquerade"],
+    "keywords": ["spotlight"],
+    "finale": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "oncePerTurn": true,
+        "ops": [
+          { "op": "addCounter", "key": "judges-votes", "amount": 1 },
+          {
+            "op": "if",
+            "condition": { "kind": "counterAtLeast", "key": "judges-votes", "value": 4 },
+            "then": [{ "op": "winMatch" }]
+          }
+        ],
+        "text": "Afterparty: gain a Judge's Vote. If you have 4 Judge's Votes, you win the match."
+      },
+      {
+        "trigger": "onDefeat",
+        "ops": [{ "op": "setCounter", "key": "judges-votes", "amount": 0 }],
+        "text": "When this is defeated, you lose all Judge's Votes."
+      }
+    ],
+    "text": "**Spotlight.** Afterparty: gain a Judge's Vote. If you have 4 Judge's Votes, you win the match. When this is defeated, you lose all Judge's Votes.",
+    "flavor": "Nine categories, one trophy, thirty years of hallway rumours about the seam work. Nobody has ever seen the back of the cape."
+  },
+
+  {
+    "id": "cosplay-token-hall-champion",
+    "name": "Hall Champion",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 4,
+    "health": 4,
+    "tags": ["cosplayer", "champion"],
+    "keywords": ["spotlight"],
+    "token": true,
+    "effects": [],
+    "text": "**Spotlight.**",
+    "flavor": "Photographed nine hundred times before lunch. Has not yet found the bathroom."
+  },
+  {
+    "id": "cosplay-token-legend-of-the-floor",
+    "name": "Legend of the Floor",
+    "faction": "cosplay-champions",
+    "current": "prism",
+    "type": "character",
+    "rarity": "common",
+    "cost": 7,
+    "attack": 7,
+    "health": 7,
+    "tags": ["cosplayer", "champion", "masquerade"],
+    "keywords": ["spotlight", "raid"],
+    "token": true,
+    "effects": [],
+    "text": "**Spotlight.** **Raid.**",
+    "flavor": "The hall parts. Someone starts crying. It is the person who made the costume."
+  }
+]

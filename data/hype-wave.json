@@ -1,0 +1,144 @@
+{
+  "_readme": [
+    "THE HYPE WAVE - the seasonal battle pass, 08-progression.md §10.",
+    "",
+    "FIFTY TIERS, ONE XP STREAM. The pass is fed by the same account XP a match and a",
+    "mission already pay (§10.1: 'No separate pass currency'). That is the whole reason",
+    "it is cheap to build and the whole reason its pacing has to be calibrated rather",
+    "than guessed - change what a match pays and you change how long a season takes.",
+    "",
+    "WHY xpPerTier IS 750 AND NOT THE DESIGN'S 1,000. §10.4 derives its pacing from",
+    "§2.2's assumption that a match averages 75 XP. The shipped match pays 25, plus 15",
+    "for a win - the same re-scale the Mastery curve already carries, for the same",
+    "reason. What must stay true is not the XP but §10.4's RIGHTMOST COLUMN: the",
+    "Regular finishes in week 7, the Casual in week 8, the Lurker in week 10. Re-derived",
+    "against shipped numbers, 750 XP per tier lands all three exactly. tests/hypewave",
+    "recomputes this from the shipped constants, so changing match or mission XP without",
+    "re-scaling the tier cost fails immediately - which §10.6.8 requires ('this",
+    "calibration is a release-blocking test on data/progression.json values').",
+    "",
+    "ONE DIFFERENCE FROM §10.4'S TABLE, STATED. Its models credit 200 XP for the first",
+    "win of the day; the shipped first-win bonus pays 30 Clout and no XP. The baselines",
+    "in the test are computed WITHOUT it, so the calibration measures the game that",
+    "exists rather than the one the table assumed.",
+    "",
+    "SEASONS ARE DATA. Two are authored with explicit, contiguous dates. Adding a third",
+    "is a JSON entry plus a cosmetics block - no code. Between the last season's end and",
+    "whatever comes next, the pass says so honestly and the Archive Pass keeps paying.",
+    "",
+    "NOTHING HERE EXPIRES. §10.6 is binding: no login streaks, no forfeiting, and an",
+    "unfinished pass becomes an Archive Pass that keeps progressing at half rate forever.",
+    "The screen shows 'ahead / on pace / Rebound active' and never a countdown."
+  ],
+
+  "tiers": 50,
+  "xpPerTier": 750,
+  "_encoreNote": "§10.1: past tier 50, every further tier's worth of XP pays this, endlessly.",
+  "encoreClout": 50,
+
+  "backstagePrice": 1000,
+  "tierSkipPrice": 100,
+
+  "_reboundNote": [
+    "§10.5.1 Wave Rebound. The pace line is 5 tiers per completed season week; while",
+    "your tier is under it, pass XP is earned at +50%. It is automatic, it is never",
+    "announced as urgency, and it is the reason a player who misses two weeks is behind",
+    "rather than out."
+  ],
+  "rebound": { "tiersPerWeek": 5, "bonus": 0.5 },
+
+  "_archiveNote": [
+    "§10.5.3 Archive Pass. A season ending does not take an unfinished pass away: it",
+    "keeps earning 50% of everything until tier 50, forever, and the Backstage Pass can",
+    "still be bought and retro-claimed on it."
+  ],
+  "archiveRate": 0.5,
+
+  "_welcomeBackNote": [
+    "§10.5.4. The reduced form: the Clout and the forced Rebound week ship. The",
+    "pre-banked dailies and the extra weekly slot need the mission rotation to accept",
+    "granted missions, which it has no vocabulary for - see DEFERRED_PASS."
+  ],
+  "welcomeBack": { "afterDays": 14, "clout": 300, "reboundWeeks": 1 },
+
+  "_fillerNote": [
+    "§10.2: 'Every tier pays something (no dead tiers)'. A tier with no entry in the",
+    "tables below pays this on the free track. The Backstage track's filler is a minor",
+    "seasonal cosmetic, which has no system yet and is therefore listed as deferred",
+    "rather than granted - except the four card-back tints, which are real."
+  ],
+  "freeFiller": { "kind": "clout", "amount": 75 },
+  "backstageFiller": { "kind": "cosmetic", "name": "Minor seasonal cosmetic" },
+
+  "seasons": [
+    {
+      "id": "s1-first-upload",
+      "number": 1,
+      "name": "First Upload",
+      "startAt": "2026-07-06T00:00:00.000Z",
+      "weeks": 10
+    },
+    {
+      "id": "s2-second-account",
+      "number": 2,
+      "name": "Second Account",
+      "startAt": "2026-09-14T00:00:00.000Z",
+      "weeks": 10
+    }
+  ],
+
+  "_freeNote": [
+    "§10.2, verbatim. Because gameplay content must be free, every card, pack, wildcard",
+    "and Glimmer in the pass sits on THIS track. Two rows cannot be paid yet and say so:",
+    "tier 35's Event Variant and tier 50's animated card back both need a variant-art",
+    "system that does not exist."
+  ],
+  "free": {
+    "1": [{ "kind": "cosmetic", "name": "Seasonal card back", "ref": "cardBack:season:{season}" }],
+    "5": [{ "kind": "pack" }],
+    "10": [{ "kind": "pack" }, { "kind": "fragments", "amount": 100 }],
+    "15": [{ "kind": "cosmetic", "name": "Seasonal emote", "ref": "emote:season:{season}" }],
+    "20": [{ "kind": "pack" }, { "kind": "glimmer", "amount": 100 }],
+    "25": [{ "kind": "pick", "rarity": "rare", "choices": 3, "copies": 2 }],
+    "30": [{ "kind": "pack" }, { "kind": "glimmer", "amount": 100 }],
+    "35": [{ "kind": "cosmetic", "name": "Seasonal Event Variant of a featured card" }],
+    "40": [{ "kind": "pack" }, { "kind": "glimmer", "amount": 100 }],
+    "45": [{ "kind": "pick", "rarity": "epic", "choices": 3, "copies": 1 }],
+    "50": [
+      { "kind": "cosmetic", "name": "Seasonal title", "ref": "title:season:{season}" },
+      { "kind": "cosmetic", "name": "Animated upgrade of the tier-1 card back" },
+      { "kind": "glimmer", "amount": 100 }
+    ]
+  },
+
+  "_backstageNote": [
+    "§10.3, and the honest half of it. The Backstage Pass is cosmetic-only by design,",
+    "and most of what §10.3 lists - leader skins, battlefields, animated portraits,",
+    "music packs, alternate-art Legendaries - needs a system this build does not have.",
+    "Those rows are kept so the track shows what it will be, and refused at grant time.",
+    "What ships: the Glimmer (which partially self-funds the next pass, as §10.3",
+    "intends), the seasonal emote set, the seasonal profile frame, and four card-back",
+    "tints - §10.3 names tints among the minor cosmetics, and a tint is a colour, which",
+    "the card-back renderer already takes."
+  ],
+  "backstage": {
+    "1": [{ "kind": "cosmetic", "name": "Seasonal leader skin" }],
+    "5": [{ "kind": "glimmer", "amount": 100 }],
+    "8": [{ "kind": "cosmetic", "name": "Card-back tint I", "ref": "cardBack:season:{season}:2" }],
+    "10": [{ "kind": "cosmetic", "name": "Seasonal battlefield" }],
+    "15": [{ "kind": "glimmer", "amount": 100 }],
+    "18": [{ "kind": "cosmetic", "name": "Card-back tint II", "ref": "cardBack:season:{season}:3" }],
+    "20": [{ "kind": "cosmetic", "name": "Seasonal emote set", "ref": "emote:season:{season}:set" }],
+    "25": [{ "kind": "cosmetic", "name": "Animated profile portrait" }],
+    "28": [{ "kind": "cosmetic", "name": "Card-back tint III", "ref": "cardBack:season:{season}:4" }],
+    "30": [{ "kind": "cosmetic", "name": "Seasonal music pack" }],
+    "35": [{ "kind": "cosmetic", "name": "Seasonal profile frame", "ref": "frame:season:{season}" }],
+    "38": [{ "kind": "cosmetic", "name": "Card-back tint IV", "ref": "cardBack:season:{season}:5" }],
+    "40": [{ "kind": "cosmetic", "name": "Alternate-art variant of a featured Legendary" }],
+    "45": [{ "kind": "glimmer", "amount": 100 }],
+    "50": [
+      { "kind": "cosmetic", "name": "Evolved leader skin" },
+      { "kind": "glimmer", "amount": 200 }
+    ]
+  }
+}

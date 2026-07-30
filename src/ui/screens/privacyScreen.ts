@@ -1,0 +1,183 @@
+/**
+ * Privacy info — `03-screens-and-navigation.md` §4.6.4.
+ *
+ * The controls §4.6.4 asks for are **real, or absent with a reason**:
+ *
+ * - *Export my data* writes out every `hypebound:` key in local storage, which
+ *   is genuinely everything the game knows about you. It is the strongest form
+ *   the claim "we hold nothing else" can take: here is all of it.
+ * - *Delete local data* is a typed confirmation, because it cannot be undone —
+ *   there is no cloud copy to restore from, and the page says so before asking.
+ * - *Analytics opt-out* is **not here.** There is no analytics SDK in the build,
+ *   and a switch that turns off something that does not exist implies the
+ *   something exists. The data table says so in the row where it would sit.
+ */
+
+import type { Screen } from "../shell";
+import { policiesData } from "../../game/policies";
+import { audio } from "../../audio/audio";
+
+export interface PrivacyCallbacks {
+  onBack: () => void;
+  onSupport: () => void;
+  onLegal: () => void;
+}
+
+const esc = (value: string): string =>
+  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+const DATE = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+/** Everything this game has stored about you, as a single JSON document. */
+export function exportSave(): string {
+  const out: Record<string, unknown> = {};
+  if (typeof localStorage !== "undefined") {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith("hypebound:")) continue;
+      try {
+        out[key] = JSON.parse(localStorage.getItem(key) ?? "null");
+      } catch {
+        out[key] = localStorage.getItem(key);
+      }
+    }
+  }
+  return JSON.stringify(out, null, 2);
+}
+
+/** How many bytes of you there are. */
+export function saveSize(): number {
+  return exportSave().length;
+}
+
+export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
+  const root = document.createElement("div");
+  root.className = "screen policy-screen privacy-screen";
+  const { privacy } = policiesData();
+
+  const render = (): void => {
+    const bytes = saveSize();
+    root.innerHTML = `
+      <div class="ambient-bg"></div>
+      <header class="screen-header">
+        <button class="btn btn-ghost" id="privacy-back">← Back</button>
+        <h1 class="title">Privacy</h1>
+        <div class="mastery-wallet">
+          <div class="currency" title="Policy version">
+            <span class="currency-icon">◆</span><span class="currency-value">${esc(privacy.version)}</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="policy-body">
+        <section class="panel panel-chrome policy-summary">
+          <div class="eyebrow">In plain language · effective ${DATE.format(new Date(privacy.effectiveDate))}</div>
+          ${privacy.summary.map((line) => `<p>${esc(line)}</p>`).join("")}
+        </section>
+
+        <section class="panel panel-chrome policy-table-panel">
+          <h2 class="profile-section-title">What is and is not collected</h2>
+          <table class="patch-table policy-table">
+            <thead><tr><th>Category</th><th>Collected</th><th>Detail</th><th>Where</th></tr></thead>
+            <tbody>
+              ${privacy.categories
+                .map(
+                  (category) => `
+                    <tr data-collected="${category.collected}">
+                      <td><strong>${esc(category.name)}</strong></td>
+                      <td class="${category.collected ? "patch-after" : "muted"}">${category.collected ? "Yes" : "No"}</td>
+                      <td>${esc(category.detail)}</td>
+                      <td class="muted">${esc(category.where ?? "—")}</td>
+                    </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="panel panel-chrome policy-controls">
+          <h2 class="profile-section-title">Your controls</h2>
+          <p class="muted">
+            Your save is <strong id="privacy-size">${bytes.toLocaleString()}</strong> bytes in this browser.
+            The export is the whole of it — not a summary, not a subset.
+          </p>
+          <div class="mail-actions">
+            <button class="btn btn-primary" id="privacy-export">Export my data</button>
+            <button class="btn btn-ghost" id="privacy-show">Show it here</button>
+            <button class="btn btn-ghost" id="privacy-delete">Delete everything on this device</button>
+          </div>
+          <pre class="policy-dump" id="privacy-dump" hidden></pre>
+        </section>
+
+        <section class="panel panel-chrome policy-note">
+          <h2 class="profile-section-title">Children</h2>
+          ${privacy.children.map((line) => `<p class="muted">${esc(line)}</p>`).join("")}
+          <h2 class="profile-section-title">Data requests</h2>
+          ${privacy.requests.map((line) => `<p class="muted">${esc(line)}</p>`).join("")}
+          <div class="mail-actions">
+            <button class="btn btn-ghost" id="privacy-support">Customer support →</button>
+            <button class="btn btn-ghost" id="privacy-legal">Legal information →</button>
+          </div>
+        </section>
+      </main>`;
+
+    root.querySelector("#privacy-back")?.addEventListener("click", () => {
+      audio.play("sfx.ui.click");
+      callbacks.onBack();
+    });
+    root.querySelector("#privacy-support")?.addEventListener("click", () => callbacks.onSupport());
+    root.querySelector("#privacy-legal")?.addEventListener("click", () => callbacks.onLegal());
+
+    root.querySelector("#privacy-show")?.addEventListener("click", () => {
+      const dump = root.querySelector<HTMLElement>("#privacy-dump");
+      if (!dump) return;
+      dump.textContent = exportSave();
+      dump.hidden = !dump.hidden;
+    });
+
+    root.querySelector("#privacy-export")?.addEventListener("click", () => {
+      const blob = new Blob([exportSave()], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "hypebound-save.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+
+    /**
+     * A typed confirmation rather than an OK button. There is no cloud copy and
+     * no undo, so the friction is the feature — and the word to type is the one
+     * the button does, not a generic "yes".
+     */
+    root.querySelector("#privacy-delete")?.addEventListener("click", () => {
+      const typed = window.prompt(
+        "This erases your collection, decks, progress and settings on this device. There is no cloud copy and no way to undo it.\n\nType DELETE to confirm."
+      );
+      if (typed !== "DELETE") return;
+      for (const key of Object.keys(localStorage).filter((entry) => entry.startsWith("hypebound:"))) {
+        localStorage.removeItem(key);
+      }
+      window.location.hash = "#lobby";
+      window.location.reload();
+    });
+  };
+
+  render();
+
+  /** Automation hook, the same shape the other screens expose. */
+  (window as unknown as { hypeboundPrivacy?: unknown }).hypeboundPrivacy = {
+    categories: () => policiesData().privacy.categories,
+    exportText: () => exportSave(),
+    size: () => saveSize(),
+    version: () => policiesData().privacy.version,
+    refresh: render,
+  };
+
+  return {
+    root,
+    dispose: () => {
+      delete (window as unknown as { hypeboundPrivacy?: unknown }).hypeboundPrivacy;
+    },
+  };
+}

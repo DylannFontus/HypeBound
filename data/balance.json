@@ -1,0 +1,128 @@
+{
+  "deck": {
+    "size": 30,
+    "maxCopies": 2,
+    "maxCopiesLegendary": 1,
+    "prismSplashLimit": 3,
+    "slots": 12
+  },
+  "hand": {
+    "first": 4,
+    "second": 5,
+    "limit": 10
+  },
+  "leader": {
+    "startingHealth": 30
+  },
+  "board": {
+    "characterSlots": 6,
+    "locationSlots": 1,
+    "equipmentPerCharacter": 1,
+    "maxSetReactions": 2
+  },
+  "hype": {
+    "cap": 10
+  },
+  "draw": {
+    "perTurn": 1
+  },
+  "fatigue": {
+    "start": 1,
+    "increment": 1
+  },
+  "timer": {
+    "turnSeconds": 75,
+    "ropeSeconds": 15
+  },
+  "obsession": {
+    "max": 10,
+    "fixationCost": 3,
+    "ultimateCost": 7,
+    "obsessedThreshold": 8,
+    "fullFixationResetTo": 5,
+    "supportPerTurn": 1,
+    "obsessedExtraDamageTaken": 1
+  },
+  "resonance": {
+    "threshold": 7
+  },
+  "rules": {
+    "triggerCap": 20,
+    "elementalBonusDamage": 1
+  },
+  "economy": {
+    "craftCost": {
+      "common": 40,
+      "rare": 100,
+      "epic": 400,
+      "legendary": 1600
+    },
+    "dustValue": {
+      "common": 10,
+      "rare": 25,
+      "epic": 100,
+      "legendary": 400
+    },
+    "packSize": 5,
+    "pack": {
+      "price": 100,
+      "rates": {
+        "common": 0.7,
+        "rare": 0.235,
+        "epic": 0.05,
+        "legendary": 0.015
+      },
+      "minRarePerPack": 1,
+      "legendaryPity": 40
+    },
+    "dupeConversionBonus": 1.5,
+    "grandTour": {
+      "clout": 1000,
+      "drops": 10,
+      "legendaryChoices": 1
+    },
+    "banner": {
+      "pullPrice": 150,
+      "tenPullMultiple": 10,
+      "rates": {
+        "common": 0.6,
+        "rare": 0.3,
+        "epic": 0.08,
+        "legendary": 0.02
+      },
+      "featuredShare": {
+        "legendary": 0.5,
+        "epic": 0.5
+      },
+      "epicPityWindow": 10,
+      "hardPity": 50,
+      "wishlistLimit": 10,
+      "tokensPerPull": 1,
+      "tokenPrices": {
+        "common": 2,
+        "rare": 5,
+        "epic": 15,
+        "legendary": 50
+      }
+    },
+    "missions": {
+      "dailyClout": 50,
+      "dailyXp": 300,
+      "weeklyClout": 200,
+      "weeklyXp": 1000,
+      "firstWinOfDayClout": 30,
+      "weeklyWrapDrops": 1,
+      "weeklyRestockDrops": 3,
+      "rookieRoadDays": 28,
+      "rookieRoadMultiplier": 2,
+      "match": {
+        "winClout": 60,
+        "lossClout": 35
+      },
+      "dailyPuzzleClout": 30,
+      "dailyBonusDrops": 1,
+      "dailyBonusEvery": 7,
+      "aiDailyCapWins": 8
+    }
+  }
+}

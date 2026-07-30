@@ -1,0 +1,494 @@
+# Chapter 1 of the HYPEBOUND story campaign.
+#
+# This whole file is just text. Lines starting with # are notes to yourself and
+# never appear in the game. If you want to add a chapter of your own, copy
+# TEMPLATE.story.txt and read HOW-TO-WRITE-A-CHAPTER.md — both are in this folder.
+
+TITLE: Encore, Please
+FACTION: Neon Idols
+ABOUT: Lumi Starcall has performed the same encore every night since her unit dissolved, to an empty house, because nobody ever gave the closing announcement. Then a third understudy who has been rehearsing in the parking structure for fourteen months walks in.
+
+
+=== EPISODE: Soundcheck for Nobody
+
+NARRATION: AURORA DOME — 03:12. Fourteen months since the last show. Nobody ever filed the paperwork to power it down.
+
+Lumi Starcall: Positions.
+
+NARRATION: There are no positions. There is no one to take them.
+
+Lumi Starcall (smiling): Poppy. From the top. Track nine — the encore.
+PPX-9 (offline): TRACK NINE. ENCORE. AUDIENCE COUNT: ZERO. PLAYING ANYWAY.
+Lumi Starcall (smiling): Playing anyway. Thank you, Poppy. You're very supportive.
+
+NARRATION: The music swells. The follow-spot snaps to centre. Confetti fires into twelve thousand empty seats, because it was told to.
+
+Lumi Starcall (radiant): GOOD EVENING, AURORA DOME! I can't believe how many of you came out tonight!
+
+NARRATION: The lighting rig sweeps the crowd. It was programmed to. It does not know either.
+
+PPX-9 (offline): AUDIENCE COUNT: ONE.
+Lumi Starcall (startled): ...One?
+
+NARRATION: A girl comes through the loading door with a bag whose strap has given up. She is already apologising.
+
+Rin Halfstep (strained): Sorry — sorry — the door was open, I wasn't — I've been practising in the parking structure, it's got great acoustics, it's got terrible acoustics, I'll go —
+Lumi Starcall (smiling): Breathe. Then name.
+Rin Halfstep (strained): Rin. Halfstep. Understudy. Um. Third understudy.
+Lumi Starcall: Third understudy to whom?
+Rin Halfstep (small): ...You.
+Lumi Starcall: I have never once been absent.
+Rin Halfstep (smiling): I know. I've been ready every night for fourteen months anyway. In case.
+
+NARRATION: The music drops out entirely. Only room tone. For exactly one beat, Lumi is not performing.
+
+CHOICE: What do you say to that?
+  * Then you're late for rehearsal.
+      REMEMBER: tone is warm
+      REMEMBER: rin trust + 1
+      Lumi Starcall (smiling): Then you are extremely late for rehearsal. Warm-ups. Eight counts. Go.
+      Rin Halfstep (lit up): Eight counts!
+      PPX-9 (offline): HER FOOTWORK IS INCORRECT. I HAVE COMPILED A LIST.
+  * Nobody was ever coming to relieve me.
+      REMEMBER: tone is honest
+      REMEMBER: rin trust + 2
+      REMEMBER: lumi admitted it
+      Lumi Starcall (strained): Do you know what I just heard? Someone was assigned to relieve me.
+      Lumi Starcall (strained): Nobody told me that. For fourteen months I assumed the answer was no.
+      Rin Halfstep (quiet): They told me not to bother you.
+      Lumi Starcall: I know. That's the part.
+  * There is no unit left to understudy.
+      REMEMBER: tone is guarded
+      Lumi Starcall: Third understudy. To a unit of one. Of a show that ended. In a building nobody has billed since spring.
+      NARRATION: Rin does not leave. She puts the bag down and starts her warm-ups anyway.
+
+Rin Halfstep (smiling): I know all of them, by the way. All the routines. I know the B-side ones.
+
+NARRATION: A phone light appears in the upper tier. Poppy's optic swivels.
+
+PPX-9 (offline): AUDIENCE COUNT: TWO. STREAM VIEWERSHIP: 4,180. RISING.
+Rin Halfstep (alarmed): Four thousand what?
+
+NARRATION: Vex Klipp is filming vertically from row L, and has been for some time.
+
+Vex Klipp (smug): Chat. CHAT. We are live inside the Aurora Dome with the saddest hologram in the industry and she is doing the encore. To nobody. Unedited. This is the whole video, I don't even have to cut it.
+Lumi Starcall (radiant): Ladies and gentlemen — tonight's special guest.
+Vex Klipp (delighted): See, THAT — that's the line, that's going in the thumbnail. Say it again but sadder.
+Rin Halfstep (angry): She's rehearsing.
+Vex Klipp (smug): She's content, sweetheart. Everything in this building is content. The building is content. You're content, and you're not even good yet.
+
+CHOICE: He came here for a clip. What does Lumi do?
+  * Give him the show he came for.
+      REMEMBER: gave him the show
+      Lumi Starcall (radiant): Then film all of it. Front to back. Track nine has a key change you are not emotionally prepared for.
+      Vex Klipp: Oh, she's ON one.
+  * Invite him down to the front row.
+      REMEMBER: invited vex
+      Lumi Starcall (smiling): Come down. Row A, seat twelve. Best acoustics in the house, and your angle up there is unflattering.
+      NARRATION: He hesitates, then comes down. The stream loses its angle on the empty seats. He never gets it back.
+  * Say nothing. Start the song.
+      REMEMBER: ignored him
+      NARRATION: Lumi does not answer. She nods to Poppy, and the track starts.
+
+PPX-9 (offline): ENGAGEMENT DETECTED. ENGAGEMENT IS COMBAT. I DO NOT MAKE THE RULES.
+
+BATTLE: Vex Klipp
+  PLAYS: Cyra Swipe
+  YOU PLAY: Lumi Starcall
+  DIFFICULTY: beginner
+  THEIR HEALTH: 22
+  RULE: clip farm
+  RULE: the room remembers
+  IF YOU LOSE:
+    Lumi Starcall (flat): Again.
+    Rin Halfstep (quiet): We could just — we could stop, it's nearly four —
+    Lumi Starcall (flat): Again.
+
+PPX-9 (offline): STREAM TERMINATED BY HOST. REASON GIVEN: "MY BATTERY". AUDIENCE COUNT: ONE.
+Vex Klipp (rattled): This is — okay, this is fine, I got forty minutes of usable, nobody watches the second half anyway —
+
+NARRATION: Vex leaves. The house lights come up two stops. The Dome is enormous and completely empty.
+
+Lumi Starcall (smiling): Rin. Take the stage.
+Rin Halfstep (startled): For — for who?
+Lumi Starcall (smiling): For me. I'm the audience now. It's a demotion. I'm handling it beautifully.
+
+NARRATION: Rin steps into the follow-spot. Poppy's counter ticks over.
+
+PPX-9 (offline): AUDIENCE COUNT: ONE. ARCHIVE MATCH FOUND. PLAYING RECOVERED FOOTAGE.
+POST: Vertical video, badly stabilised. This Dome, full. Somebody screaming the wrong lyrics with total confidence. Source: GLIMMR — platform offline.
+Lumi Starcall (unsteady): ...Save that.
+PPX-9 (offline): SOURCE PLATFORM IS DECOMMISSIONED. RETRIEVAL COST: SIGNIFICANT. RETRIEVAL RISK: SIGNIFICANT.
+Lumi Starcall: Save it anyway.
+
+
+=== EPISODE: The Sound Engineer Will See You Now
+
+NARRATION: A reunion needs three things: a stage, a unit, and somebody who can make a room of that size sound like a room. Two of those are in the building.
+
+Rin Halfstep: I made a list. Of engineers. It's a long list.
+Lumi Starcall: How long.
+Rin Halfstep: One. It's one engineer. Everyone else has a day job now.
+
+NARRATION: DJ Kilowatt does not do interviews, does not do meetings, and has not left the sub-basement booth in some time.
+
+DJ Kilowatt: Ninety-four.
+Lumi Starcall: Sorry?
+DJ Kilowatt: Decibels. Your entrance. Ninety-four, and the room gives you back ninety-one, and you have been singing over your own echo for fourteen months like it's a duet partner.
+Rin Halfstep (quiet): She's not wrong.
+DJ Kilowatt: I'm not wrong. I'm never wrong. It's my worst quality.
+
+IF lumi admitted it:
+  DJ Kilowatt: Heard you finally said it out loud, by the way. About nobody coming.
+  Lumi Starcall: News travels fast in a building with two people in it.
+  DJ Kilowatt: News travels fast when I have forty microphones.
+
+Lumi Starcall: Will you run the reunion?
+DJ Kilowatt: No.
+Lumi Starcall: Will you run the reunion after I ask again.
+DJ Kilowatt: I don't work for people who can't survive a soundcheck. The rig fights back. If you can't play through a blown fuse, you can't play my room.
+
+NARRATION: She kills the house power to everything except one monitor wedge, and grins for the first time in the conversation.
+
+DJ Kilowatt: Soundcheck. Now. I'll be the room.
+
+BATTLE: DJ Kilowatt
+  PLAYS: DJ Kilowatt
+  DIFFICULTY: casual
+  RULE: blown fuse
+  IF YOU LOSE:
+    DJ Kilowatt: Blown it. Reset the board.
+    Lumi Starcall: Again.
+    DJ Kilowatt: That's the correct answer, at least.
+
+DJ Kilowatt: Huh.
+Lumi Starcall: Was that a yes?
+DJ Kilowatt: That was a "huh". A yes takes paperwork.
+
+IF tone is warm:
+  DJ Kilowatt (to Rin): You. Understudy. You were counting under your breath the whole time.
+  Rin Halfstep: Sorry —
+  DJ Kilowatt: Don't be sorry, be louder. I can work with counting.
+IF tone is guarded:
+  DJ Kilowatt: You're playing like the room's going to be empty.
+  Lumi Starcall: The room is empty.
+  DJ Kilowatt: Not my problem. Play like it isn't and I'll make it sound like it isn't.
+
+NARRATION: She writes something on a strip of console tape and sticks it to the desk. It says: TWO. She does not explain it, and neither of them asks.
+
+
+=== EPISODE: Take Forty-One
+
+NARRATION: Rehearsal, day nine. The Dome's automated rehearsal partner has been reset four times and is starting to take it personally.
+
+PPX-9 (offline): TAKE FORTY-ONE. FORMATION HOLD IS 0.4 SECONDS SHORT. AGAIN.
+Rin Halfstep (breathless): Again.
+PPX-9 (offline): TAKE FORTY-TWO. 0.3 SECONDS. IMPROVING.
+Rin Halfstep (breathless): Again.
+
+NARRATION: She has not sat down since ten. Nobody has told her she is allowed to.
+
+Lumi Starcall: Rin.
+Rin Halfstep: I'm fine, I've got it, I nearly had it —
+Lumi Starcall: Rin.
+Rin Halfstep: I've been ready for fourteen months. I can be ready for nine more days.
+
+NARRATION: The rehearsal partner boots the full routine anyway, because that is what it was asked to do, and it has never once been asked whether anyone can survive it.
+
+BATTLE: The Dome's Rehearsal Partner
+  PLAYS: Neon Idols
+  DIFFICULTY: intermediate
+  IF YOU LOSE:
+    PPX-9 (offline): TAKE FORTY-THREE.
+    Rin Halfstep: Again.
+
+NARRATION: Rin sits down on the edge of the stage in the middle of the third run and does not get back up. She is smiling. That is somehow worse.
+
+DJ Kilowatt: Her hold's short because she's exhausted, not because she's wrong. I can hear the difference. I can't fix the difference.
+
+CHOICE: Nine days out. What happens to the routine?
+  * Cut the routine down to what she can hold.
+      REMEMBER: cut the routine
+      REMEMBER: rin trust + 1
+      Lumi Starcall: Cut the second formation. All of it.
+      DJ Kilowatt: That's the part people film.
+      Lumi Starcall: Then they'll film the part where she's still standing.
+      Rin Halfstep (upset): I didn't ask you to do that.
+      Lumi Starcall: I know. That's why I did it.
+  * Run it again. She'll get there.
+      REMEMBER: ran it again
+      Lumi Starcall: From the top. She'll have it by Thursday.
+      NARRATION: She has it by Thursday. She has it at 2 A.M. on Thursday, alone, on the fifty-first take, and nobody sees it.
+      Rin Halfstep (proud): Told you.
+      Lumi Starcall: You did.
+      NARRATION: Lumi does not say the other thing she is thinking, which is that this is exactly how it starts.
+
+IF cut the routine:
+  DJ Kilowatt: For the record. Cutting it was right.
+  Lumi Starcall: For the record, I hated it.
+  DJ Kilowatt: Both true. Welcome to production.
+OTHERWISE:
+  DJ Kilowatt: For the record. You should have cut it.
+  Lumi Starcall: She wanted it.
+  DJ Kilowatt: She'd want anything you asked her for. That's the whole problem with being her.
+
+PPX-9 (offline): NINE DAYS TO SHOWTIME. TICKETS SOLD: ZERO. VENUE STILL UNBILLED. THIS IS FINE.
+
+
+=== SIDE CUT: Merch Table Confessional
+UNLOCKED BY: cut the routine
+
+NARRATION: Eight days out. Rin is not in the routine, so Rin is on the merch table, which is a folding table with one leg that has been wrong since before either of them got here.
+
+Rin Halfstep: I'm not sulking.
+Lumi Starcall: I didn't say anything.
+Rin Halfstep: You did the face where you don't say anything.
+
+NARRATION: Two hundred lanyards in a box. A card reader that only works held at an angle. No queue, because there is no show yet, because the show is in eight days.
+
+NARRATION: Somebody is standing there anyway.
+
+Pell Voss: Is this the queue?
+Rin Halfstep: There's no queue. There's you.
+Pell Voss: Then I'm the queue. I've been the queue before. Second tour, Hall Four, I was the queue for about nine hours.
+
+NARRATION: He has come to a rehearsal, for a unit of five that has been a unit of one for fourteen months, and he knew that before he set off.
+
+Pell Voss: Can I ask a thing and you not do the polite version.
+Rin Halfstep: ...Go on.
+Pell Voss: Were you ever actually going to be in it.
+Rin Halfstep: No.
+Pell Voss: Right.
+Rin Halfstep: I have never said that out loud to anybody and I have just said it to a man buying a lanyard.
+Pell Voss: I'm buying four. Take your time.
+
+BATTLE: Pell Voss
+  PLAYS: Cyra Swipe
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    Pell Voss: I've queued for worse and I've queued for longer.
+    Rin Halfstep: Again.
+
+Lumi Starcall: You sold him four.
+Rin Halfstep: He wanted one.
+Lumi Starcall: He wanted somebody to be at the table. The other three were so that it took longer.
+
+
+=== EPISODE: Where the Encore Went
+
+NARRATION: There is one more member of AFTERGLOW. Nobody has said her name in nine days of rehearsal, which is its own kind of announcement.
+
+Rin Halfstep: Nova Encore.
+Lumi Starcall: Yes.
+Rin Halfstep: Nobody knows where she went.
+Lumi Starcall: I know where she went.
+
+NARRATION: A laundromat-arcade on the east side. Half the cabinets work. Nova Encore runs the merch counter, and has for over a year.
+
+Nova Encore: Hi! Tokens are four for a — oh.
+Lumi Starcall: Hi.
+Nova Encore (smiling): You look well. That's not a compliment, that's a diagnosis. You look exactly the same.
+Lumi Starcall: You look —
+Nova Encore: Fine. I look fine. It's allowed.
+
+NARRATION: She is fine. That is the part Lumi cannot get her mouth around.
+
+Nova Encore: I sleep. I have a lease. I know the names of four people who have never seen me perform. Do you know how good that is?
+Lumi Starcall: You quit.
+Nova Encore: I stopped. There's a difference and I'm going to keep saying it until one of us believes it.
+
+IF lumi admitted it:
+  Nova Encore: I heard you told the new girl. About the relief that never came.
+  Lumi Starcall: I did.
+  Nova Encore (gentle): Good. That was the whole thing, Lumi. That was the entire thing.
+OTHERWISE:
+  Nova Encore: Fourteen months and you never once said out loud that nobody was coming.
+  Lumi Starcall: There was nobody to say it to.
+  Nova Encore: There was you.
+
+Lumi Starcall: We're doing the reunion. The Dome. Nine days.
+Nova Encore: I know. Rin's been leaving messages here. She's very polite about it. It's devastating.
+Lumi Starcall: Then come.
+Nova Encore: No.
+Lumi Starcall: Then say why. Out loud. Once. I'll never ask again.
+
+NARRATION: Nova puts a token in the nearest cabinet instead, and racks up a two-player game without asking whether Lumi wants to play.
+
+Nova Encore (quiet): Because the last person I was on that stage was the only version of me I liked, and I don't get to visit her. I have to be her.
+Nova Encore: Sit down. I'll play you for it. If I lose, I'll think about it. That's the offer.
+Lumi Starcall: You never lose.
+Nova Encore (smiling): I never used to have to.
+
+BATTLE: Nova Encore
+  PLAYS: Seraph Online
+  THEIR CARDS: Neon Idols
+  DIFFICULTY: intermediate
+  RULE: she wont swing first
+  IF YOU LOSE:
+    Nova Encore: Best of three?
+    Lumi Starcall: Best of anything.
+
+NARRATION: The cabinet plays a victory fanfare loud enough to embarrass everyone in the building.
+
+Nova Encore: Huh.
+Lumi Starcall: That's what your engineer says.
+Nova Encore: She's not my engineer any more. She's just right about everything, still. How is she?
+Lumi Starcall: Loud.
+Nova Encore (laughing): Good.
+
+NARRATION: She does not say yes. She writes something on the back of a token card and gives it to Rin on the way out, and Rin does not open it, and puts it in her bag with the broken strap.
+
+PPX-9 (offline): ARCHIVE NOTE: SUBJECT NOVA ENCORE. LAST GLIMMR UPLOAD: A PHOTOGRAPH OF FOUR PEOPLE EATING BADLY IN A CAR PARK. CAPTION: "the show ended an hour ago and nobody has gone home".
+
+
+=== EPISODE: The Offer
+
+NARRATION: Four days out. Tickets sold: nine hundred, which is nine hundred more than expected and eleven thousand short of the room.
+
+Rin Halfstep (thrilled): Nine hundred!
+DJ Kilowatt: Nine hundred people in a twelve-thousand-seat room sounds like a rumour. Acoustically speaking, that's a haunting.
+
+NARRATION: A woman from Corporate Creators has been in the fourth row for twenty minutes without anybody seeing her arrive.
+
+Cressida Vale (warm): Nine hundred is a wonderful number. I can make it twelve thousand by Thursday.
+Lumi Starcall: And what does Thursday cost.
+Cressida Vale: The name. AFTERGLOW comes to us. You keep the stage, the setlist, the lighting design, the girl, the engineer — everything you actually love. We just hold the word.
+Rin Halfstep: That's — that's not a real thing you can buy.
+Cressida Vale (kindly): It is, though. It's the only part of this that was ever for sale.
+
+NARRATION: She is not lying, she is not sneering, and she has done her homework. That is what makes it hard.
+
+Cressida Vale: Full house. Real lights. Rin gets a debut in front of twelve thousand people instead of nine hundred. You get to stop paying for a room nobody has billed you for, which — let's both be adults — has been a matter of time.
+Cressida Vale: And you get to stop being the woman who does the encore alone. I would consider that the actual product.
+
+IF rin trust is at least 2:
+  Rin Halfstep: Ask her what happens to the name after.
+  Cressida Vale (smiling): Smart. It goes in the library. It gets licensed. In four years there is a AFTERGLOW that is three new people and a very good contract.
+  Rin Halfstep: Oh.
+OTHERWISE:
+  Rin Halfstep (uncertain): Twelve thousand.
+
+NARRATION: There is a showcase act in the hall next door, warmed up and waiting, because Corporate Creators does not make an offer without also making a demonstration.
+
+Cressida Vale: Play my act. If you win, the offer stands and you have leverage. If you lose, the offer stands and you don't. I'm not a monster, I'm a department.
+
+BATTLE: Cressida Vale
+  PLAYS: Cressida Vale
+  DIFFICULTY: intermediate
+  RULE: sponsor segment
+  IF YOU LOSE:
+    Cressida Vale (kindly): Take the note. It isn't a punishment, it's a note.
+    Lumi Starcall: Again.
+
+Cressida Vale: Well played. Genuinely. Now — Thursday.
+
+CHOICE: Four days out. What do you do about the name?
+  * Sign the deal. Fill the room.
+      REMEMBER: signed the deal
+      Lumi Starcall: We'll sign.
+      Cressida Vale: You'll be glad. Not immediately.
+      NARRATION: Rin does not say anything. She has been ready for fourteen months, and now she is ready in front of twelve thousand people, and both of those are true at once.
+  * Sell the tickets ourselves.
+      REMEMBER: kept the name
+      Lumi Starcall: No.
+      Cressida Vale: Nine hundred people, Lumi.
+      Lumi Starcall: Nine hundred people who typed the name in themselves.
+      NARRATION: Cressida writes a number on a card and leaves it on the seat anyway, because that is also her job.
+
+PPX-9 (offline): FOUR DAYS TO SHOWTIME. I HAVE BEGUN TO EXPERIENCE WHAT THE MANUAL CALLS "ANTICIPATION". THE MANUAL IS FOR A FORKLIFT.
+
+
+=== EPISODE: The Reunion Show
+
+NARRATION: Showtime minus forty minutes. The Dome smells like a room that is about to be full.
+
+IF signed the deal:
+  NARRATION: Twelve thousand seats, and every one of them sold. The banners say AFTERGLOW in a typeface nobody in the building chose.
+OTHERWISE:
+  NARRATION: Nine hundred and forty seats sold, all of them clustered down the front because that is what people do when they are allowed to choose.
+
+Rin Halfstep: My hands are — is that normal? Is this the normal amount of hands?
+Lumi Starcall: That's the normal amount of hands.
+DJ Kilowatt: Ninety-four decibels in the wedge, and the room is going to give you back nothing tonight, because the room will be full of people who absorb sound. Sing quieter. Trust me.
+
+NARRATION: Then the house rig does something nobody asked it to. Every light in the Dome turns to face an empty spot on the stage, and holds.
+
+PPX-9 (alarmed): UNSCHEDULED ASSET LOADED FROM ARCHIVE. SHOW FILE: "AFTERGLOW — FINAL NIGHT". STATUS: NEVER CLOSED.
+
+NARRATION: She is beautiful, and she is fourteen months out of date, and she is holding for applause that finished a long time ago.
+
+Prisma: Ladies and gentlemen — AURORA DOME! Are you ready for one more?
+Lumi Starcall (quiet): Oh.
+Rin Halfstep: Who is that?
+DJ Kilowatt: That's the master hologram. That's the show. Nobody ever ran the closing file, so as far as the building is concerned —
+Lumi Starcall: — it's still that night.
+Prisma: ONE MORE!
+Prisma: ONE MORE!
+Prisma: ONE MORE!
+
+NARRATION: She is what fourteen months of never stopping looks like from the outside. Lumi has been looking at her in the mirror since spring.
+
+Nova Encore: Yeah. That's about how I remember her too.
+
+NARRATION: Nova Encore is standing in the wings in a coat she has not taken off, having arrived at some point that nobody can identify afterwards.
+
+Nova Encore: I'm not performing. I want that in writing. I came to see how it ends.
+Lumi Starcall (smiling): It's a start.
+
+BATTLE: Prisma, the Final Encore
+  PLAYS: Prisma, the Final Encore
+  DIFFICULTY: boss
+  RULE: the room remembers
+  IF YOU LOSE:
+    Prisma: ONE MORE!
+    Lumi Starcall (steady): I know. I know. One more.
+
+NARRATION: The archived show file finally runs out of encore. Prisma stands in the middle of a stage she has not left since the last night, waiting for the only cue nobody ever gave her.
+
+Lumi Starcall: Poppy. House lights.
+PPX-9 (offline): HOUSE LIGHTS.
+Lumi Starcall: All of them. Full.
+
+NARRATION: The house comes up out of the dark all at once, and for the first time in fourteen months the room can see itself.
+
+Lumi Starcall (steady): That's the show, everybody. Thank you for coming. Good night.
+
+NARRATION: Prisma looks at the house. Whatever a fourteen-month-old lighting cue is capable of understanding, she understands it. Then she takes a bow that was never in the file, and the archive closes.
+
+PPX-9 (offline): SHOW FILE CLOSED. THANK YOU FOR ATTENDING. I AM GOING TO NEED A MOMENT.
+
+Rin Halfstep (crying): Was that — are we — is it my bit now?
+Lumi Starcall: It's your bit now.
+
+NARRATION: Rin Halfstep, third understudy, walks out onto the stage of the Aurora Dome, and is not third anything any more.
+
+IF signed the deal:
+  NARRATION: Afterwards, in a corridor with a lot of new signage, Cressida Vale shakes everyone's hand and means it.
+  Cressida Vale: Twelve thousand. Every seat. Congratulations — sincerely.
+  Lumi Starcall: Thank you.
+  Cressida Vale: You'll want the name back in about two years. Come and see me then. I'll say no, and you'll come back with a better offer, and I'll say yes.
+  Nova Encore: She's telling you the truth, you know.
+  Lumi Starcall: I know. That's what I hate about her.
+  NARRATION: The banner comes down at 4 A.M. Underneath, in the original paint, the word is still there, because nobody ever billed this building for anything.
+OTHERWISE:
+  NARRATION: Afterwards, nine hundred and forty people refuse to leave a room that holds twelve thousand, which is the loudest a small crowd has ever been.
+  DJ Kilowatt: Acoustically, that shouldn't be possible.
+  Nova Encore: Write it down, then. First time you've been wrong.
+  DJ Kilowatt: I'll allow it. Once.
+  NARRATION: The card from Cressida Vale stays on seat A12 all night. Somebody uses it as a coaster.
+
+IF cut the routine:
+  Rin Halfstep: I held the formation. The short one. All the way.
+  Lumi Starcall: I know. I was watching.
+  Rin Halfstep: I could have done the long one.
+  Lumi Starcall: I know. Next tour.
+OTHERWISE:
+  Rin Halfstep: I held the whole formation. Both parts.
+  Lumi Starcall: I know. And then you sat down for an hour.
+  Rin Halfstep: ...Yeah.
+  Lumi Starcall: We're going to work on that. A unit exists so that one member is allowed to be tired.
+
+PPX-9 (offline): ARCHIVE RETRIEVAL COMPLETE. ONE FILE RECOVERED FROM GLIMMR. PLATFORM STATUS: OFFLINE, AND YET.
+POST: A photograph of four people eating badly in a car park. Caption: "the show ended an hour ago and nobody has gone home". 11,204 likes. Comments disabled. Recovered from GLIMMR — platform offline.
+Nova Encore: Save that one too.
+Lumi Starcall: Already did.

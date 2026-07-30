@@ -1,0 +1,69 @@
+[
+  {
+    "id": "tut-practice-bot",
+    "name": "Practice Bot v0.9",
+    "title": "Definitely Not Sentient",
+    "faction": "neutral",
+    "current": "prism",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "prism",
+    "secondaryCurrent": null,
+    "tags": ["construct"],
+    "keywords": [],
+    "token": true,
+    "passive": [],
+    "fixation": {
+      "name": "Recalibrate",
+      "obsessionCost": 3,
+      "ops": [{ "op": "draw", "count": 1 }],
+      "text": "Draw a card."
+    },
+    "ultimate": {
+      "name": "Reboot",
+      "obsessionCost": 7,
+      "ops": [{ "op": "draw", "count": 2 }],
+      "text": "Draw 2 cards."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "Runs the tutorial. Has never won a game. Insists it is going easy on you."
+  },
+  {
+    "id": "tut-seraph-online",
+    "name": "Seraph Online",
+    "title": "Mentor Mode",
+    "faction": "neutral",
+    "current": "halo",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "halo",
+    "secondaryCurrent": null,
+    "tags": ["idol"],
+    "keywords": [],
+    "token": true,
+    "passive": [],
+    "fixation": {
+      "name": "Patch Notes",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [{ "op": "heal", "target": { "select": "triggering" }, "amount": 2 }],
+      "text": "Restore 2 Health to a friendly character."
+    },
+    "ultimate": {
+      "name": "Grand Finale",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "damage", "target": { "select": "leader", "side": "enemy" }, "amount": 5 }
+      ],
+      "text": "Deal 5 damage to the enemy leader."
+    },
+    "effects": [],
+    "text": "",
+    "flavor": "Retired from the charts. Not retired from telling you what you did wrong."
+  }
+]

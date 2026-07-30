@@ -1,0 +1,3246 @@
+# CARD LORE — the Story tab in the card gallery.
+#
+# One block per card. A block starts with "===" and the card's id, and runs
+# until the next one. Write whatever you like underneath; blank lines make
+# paragraph breaks.
+#
+#   === grass-trailhead-novice
+#   TITLE: Week One
+#   She complained about the incline for six days.
+#
+#   "Then she bought the socks."
+#
+# TITLE: is optional — leave it out and the card's own name is used as the
+# heading. A line on its own inside "double quotes" becomes the quote at the
+# bottom of the panel; leave it out and the card's printed flavour text is used
+# instead, which is already written for every card.
+#
+# Lines starting with # are notes to yourself and never appear in the game.
+#
+# NOTHING HERE CAN BREAK THE GAME. A card with no block, or an empty block,
+# shows a short placeholder. A block for an id that does not exist is ignored
+# and reported by "npm run lore". Delete anything, reorder anything, save.
+#
+# The id is what ties a block to a card, because three cards share a name. The
+# card's name is written above each block so you can find it by eye.
+
+
+#==========================================================================
+# BOSSES
+#==========================================================================
+
+# Prisma, the Final Encore — legendary leader
+=== boss-prisma-final-encore
+TITLE: Holding for Applause
+The pose is a bow that has not come up. Fourteen months of it, held to spec, in
+a hall the grid keeps warm because nobody filed the form that would let it go
+cold.
+
+She is not waiting for an audience. She is waiting for the closing announcement
+— one sentence, thirty seconds of somebody's time, and not in anybody's job
+description.
+
+
+#==========================================================================
+# NEON IDOLS
+#==========================================================================
+
+# DJ Kilowatt — legendary leader
+=== idols-dj-kilowatt
+TITLE: House Down
+He takes the house to nothing and counts. Not the beat — the breathing.
+
+The song they sing back is never the single. It is always the third track, the
+one nobody promoted, and he worked out why in 2019 and has told nobody: it is
+the one they learned on their own.
+
+# Lumi Starcall — legendary leader
+=== idols-lumi-starcall
+TITLE: The Cue
+There is no cue. There has never been a cue — the unit removed it in year two
+because she was arriving fractionally ahead of it and the correction was audible.
+
+What she uses instead is the room: the specific quality of four thousand people
+deciding, together, to stop talking.
+
+"She has never once missed a thing that does not exist."
+
+# Backup Dancer — common character
+=== idols-backup-dancer
+TITLE: Eight Counts Behind
+The counting is not a metaphor and it is not humility. Somebody has to hold the
+tempo when the front row loses it, and the front row loses it, most nights,
+around the second key change.
+
+She has never been in a photograph and has been in every recovery.
+
+# Fan Chant — common action
+=== idols-fan-chant
+TITLE: One Syllable
+Eight thousand people, perfectly together, on a word that is not in the song.
+
+It was invented at a regional show in 2021 by about forty people and travelled
+without anybody organising it. The unit has never acknowledged it from the stage.
+Acknowledging it would make it theirs.
+
+# Stan Account — common character
+=== idols-stan-account
+TITLE: Shift Pattern
+Four of them, one login, and a rota pinned in a group chat with cover arranged
+around exams.
+
+The bio is written in the singular because the singular is the format. None of
+the four has ever suggested changing it.
+
+"Do not @ her. @ us. Someone is on till two."
+
+# Emergency Light Stick — rare reaction
+=== idols-emergency-lightstick
+TITLE: In Case Of
+The glass is a joke and the protocol is not. There is a genuine agreement about
+what happens if a show goes quiet in the wrong way — a sequence, three steps, and
+a person whose job is to start it.
+
+It has been used once, in 2022, and it worked, and nobody has discussed it since.
+
+# Hype Choreographer — rare character
+=== idols-hype-choreographer
+TITLE: From the Top
+"Beautiful and wrong" is not a note about the dancing. It is a note about the
+formation, which was built for eight people who were fine, and there are eight
+people and one of them is not fine.
+
+She rebuilds it in the break. Nobody is told, including the dancer.
+
+# Light Stick Wave — common action
+=== idols-light-stick-wave
+TITLE: Nobody Organised It
+The colours change on cue and there is no cue. There is a spreadsheet, six years
+old, maintained by strangers, and a convention about the second chorus that
+nobody has ever written down.
+
+Management has twice offered to run it officially. Both offers were declined by
+people with no authority to decline anything.
+
+# Oshi Mark — rare equipment
+=== idols-oshi-no-heart
+TITLE: You Picked
+The mark is not given. You make it, at home, out of whatever you have, and the
+unit has never sold an official one and has been asked to every quarter for six
+years.
+
+It is the single most valuable thing they own and it exists entirely outside
+their control.
+
+# Stage Tech — common character
+=== idols-stage-tech
+TITLE: Four Other Things
+The lights, the fog, the pyro, and four other things he will not list because
+listing them would mean explaining what happens if they fail.
+
+He has a folder of near-misses. Every chapter ends the same way: and then the
+show was fine.
+
+# Comeback Single — rare action
+=== idols-comeback-single
+TITLE: Engineered Backwards
+Two years of silence, then a chorus built from the ending outwards — because the
+part that has to survive being clipped is the last eleven seconds, and everything
+before it is scaffolding.
+
+It is a cynical way to write a song. It is also, this time, a very good one.
+
+# Synchronized Debut — common action
+=== idols-synchronized-debut
+TITLE: Ninety Seconds
+Nine months of rehearsal for a segment that airs for a minute and a half and will
+be judged, permanently, on about six frames of it.
+
+They know which six. Everybody knows which six. The rehearsal is almost entirely
+those.
+
+# Voltage Idol — rare character
+=== idols-voltage-idol
+TITLE: Surge Protection
+The monitors have one because the volume she performs at is not a stylistic
+choice — it is arithmetic she did at nineteen about what a room remembers.
+
+Offstage she is quiet enough that people ask if she is upset. She has learned to
+give them the other one at the door.
+
+"There is a version of her that does not need the protector. Nobody has met it."
+
+# Arena Tour — rare location
+=== idols-arena-tour
+TITLE: Twelve Cities
+Four continents, one collective exhaustion, and a crew who have learned to
+identify a city by the loading dock.
+
+The performers see the venue. The crew see the corridor behind it, which is
+identical everywhere on earth, which is the actual experience of a world tour.
+
+# Encore Diva — rare character
+=== idols-encore-diva
+TITLE: The Unpaid Part
+The encore is the only section of the night nobody bought a ticket for, which is
+precisely why she will not cut it.
+
+She has overrun a curfew twice and paid the fine herself both times, and
+described the transaction, to a promoter who did not follow, as "buying back the
+gift."
+
+# Power Ballad — rare action
+=== idols-power-ballad
+TITLE: Exactly When
+The key change arrives at the point in the night the arena is most tired, which
+is not an accident and took three tours to place.
+
+It is the same eight bars every time. Nobody has ever asked for it to be changed.
+
+"You will be told it is manipulative. You will still put your hand up."
+
+# Center Position — epic character
+=== idols-center-position
+TITLE: The Math Is Brutal
+Nine members, one camera, and a rotation the unit publishes a year in advance so
+that nobody has to be told.
+
+Four people have held it. All four describe an unbelievable eight months, and
+then the strange grief of watching the light move one place to the left.
+
+# Hologram Concert — epic event
+=== idols-holo-concert
+TITLE: Six Years
+She has not aged and the tickets have, and the unit has never once put those two
+facts in the same sentence in public.
+
+They are in the same sentence internally, in a document, with a projection. Three
+people have read it. None of them enjoyed it.
+
+# Graduation Stage — epic character
+=== idols-graduation-stage
+TITLE: Even the Merch Table
+It is written into the contract at signing and announced a year ahead, and it is
+still the most watched night any of them will have.
+
+The unit has never pretended it is only a celebration. That honesty is why people
+trust them, and it costs them a member a year, forever.
+
+# Aurora, Prime Diva — legendary character
+=== idols-prime-diva-aurora
+TITLE: She Remembers Every One
+Twelve years, and the memory is not a marketing line — it is a stored field, and
+the engineers can show you the table.
+
+What they cannot show you is why the gestures have got better. There is no
+training run scheduled. It happens between shows, and nobody has been able to
+account for it, and the unit has stopped asking in writing.
+
+
+#==========================================================================
+# BOSSES
+#==========================================================================
+
+# The Widow of Dead Fandoms — legendary leader
+=== boss-widow-dead-fandoms
+TITLE: The List of Dates
+Every shutdown goes on the list with a date, and the dates are observed the way
+other people observe birthdays. An unreasonable number of them fall in November.
+
+Four people came last year, uninvited, and stayed the whole evening. She set out
+four chairs the following November and never mentioned it, in case mentioning it
+made it a thing that could then stop.
+
+
+#==========================================================================
+# GOTHIC ROYALTY
+#==========================================================================
+
+# Alaric Thornheart — legendary leader
+=== goth-leader-alaric-thornheart
+TITLE: Still Chapter One
+Chapter one is extraordinary. It was written in the eight days between a death
+and a funeral by a man who had never written anything, and he has never
+reproduced it and has stopped trying in a direction anyone can see.
+
+There are eleven versions of chapter two. All of them begin the day after.
+
+# Countess Morvina Vane — legendary leader
+=== goth-leader-morvina-vane
+TITLE: Concluded
+She does not describe it as ending. A canon that concluded is a canon that
+arrived somewhere, and arriving is what the ones still running have never
+managed.
+
+The register is four hundred names, and each year some of them move to the
+memorial column, and she reads every one aloud at the opening.
+
+# A Toast to the Departed — common action
+=== goth-toast-to-the-departed
+TITLE: To Absent Friends
+Cancelled shows, dead threads, and the group chat that went quiet in a way
+nobody named at the time.
+
+The toast has a fixed order and the last item is always the group chat. Four
+people can no longer say it without stopping, and the court has agreed, without
+ever discussing it, to wait.
+
+# Candlewake Mourner — common character
+=== goth-candlewake-mourner
+TITLE: Seven Replies
+Seven, every year, on the anniversary, and she posts it anyway.
+
+Four of the seven are the same four people. She could not tell you their real
+names and she would notice immediately if one stopped, and last spring one
+stopped, and she has left a candle for a stranger ever since.
+
+# Crypt Usher — common character
+=== goth-crypt-usher
+TITLE: Row F, Seat Twelve
+He knows where you are sitting before you ask, because he researched the guest
+list, because that is the job as he understands it.
+
+The sentence at the door is never "welcome". It is one accurate detail about the
+thing you came for. Nobody has ever asked him how he knew.
+
+# Graveside Sapling — common character
+=== goth-graveside-sapling
+TITLE: Read-Only
+It was planted as a joke about the fandom outliving the archive, by somebody who
+has never told the court it was them.
+
+Nineteen years. It is taller than they are now. They visit in the autumn and sit
+for about twenty minutes and do not post about it.
+
+# Ossuary Choirboy — common character
+=== goth-ossuary-choirboy
+TITLE: Still Flat
+Three centuries of practice and he is worse than he was, and the room is fuller.
+
+He was told at fourteen that the voice would not last. It did not. What replaced
+it does something to a long stone reverb that the good version never managed,
+and he has never once called that a fair trade.
+
+# Pallid Courtier — common character
+=== goth-pallid-courtier
+TITLE: A Standing Invitation
+He has resigned four times. The invitation has never been withdrawn, because
+withdrawing it would require somebody to believe one of the resignations.
+
+The resignations are sincere. So are the returns. Both facts are true at once and
+the court has decided, kindly, never to raise it.
+
+# Twenty-Year Grudge — rare reaction
+=== goth-twenty-year-grudge
+TITLE: Locked in 2004
+The thread is locked. The grudge is load-bearing.
+
+He can still quote the post. Not paraphrase — quote, with the timestamp, and the
+four replies underneath, and the exact phrasing of the apology that never came.
+He would give it up tomorrow if anybody offered.
+
+# Widow's Bargain — rare action
+=== goth-widows-bargain
+TITLE: Always Generous
+The terms are generous because generous terms are accepted, and accepted terms
+are what the bargain is for.
+
+Nobody has read past the second page in a generation. The second page is where
+it stops being generous, and everyone who has got there has said so, and nobody
+has ever gone and looked.
+
+# Heirloom Fang — rare equipment
+=== goth-heirloom-fang
+TITLE: Nine Generations
+Never sharpened, never needed sharpening, and still not paid for — the invoice is
+in the archive, dated, unsettled, and framed.
+
+The family regards settling it as vulgar. The merchant's descendants send a
+reminder each generation, by hand, and the court sends back a very warm letter
+about tradition.
+
+# Sepulchre Rose Garden — rare location
+=== goth-sepulchre-rose-garden
+TITLE: Through the Racks
+The roses were planted in the cable runs by an abbess who was told, at length,
+that this was a fire risk.
+
+The uptime is genuinely excellent. Nobody has been able to establish whether that
+is despite the roses, and nobody has ever been willing to run the experiment.
+
+# The Portrait That Watches — rare character
+=== goth-portrait-that-watches
+TITLE: Also You
+It is not haunted; the court has had it checked, twice, by people who were
+extremely thorough and slightly embarrassed.
+
+What is true is that it was painted by somebody who had watched the subject for
+years without being seen, and that this shows, and that a room works it out in
+about four seconds.
+
+# Thornhedge Sentinel — rare character
+=== goth-thornhedge-sentinel
+TITLE: Since the Estate Went Offline
+The hedge grows about six inches a year and nobody has cut it since the archive
+closed, and she has a rota, a log and a genuine contingency plan.
+
+She has run the night drill eleven times, alone. The court finds this endearing.
+She finds the endearment the most frightening part of the post.
+
+# Duchess of Dead Threads — epic character
+=== goth-duchess-of-dead-threads
+TITLE: She Has Printed It
+Four hundred threads maintained in readable condition, which is a technical
+undertaking she refuses to call archiving because that word lets people off.
+
+Your posts are in there. From when you were fifteen. She has never mentioned it
+and will not fix the spelling.
+
+# Raised to the Peerage — epic transformation
+=== goth-raised-to-the-peerage
+TITLE: Reviewed by the Court
+The post count is not the criterion and never was. What the court reviews is
+whether you stayed after the finale, and for how long, and whether you were
+pleasant about it.
+
+Nineteen elevations since the archive closed. Two were people who had never
+posted at all.
+
+# Revenant Noble — common character
+=== goth-token-revenant-noble
+TITLE: Terribly
+Was a nobody on Tuesday. Is a Somebody now, terribly, permanently, and was not
+consulted.
+
+The elevation cannot be declined. Three have tried. The court was extremely
+gracious about it and the title remained, and all three are still listed, and two
+of them have stopped coming.
+
+# Rose Crypt Abbess — epic character
+=== goth-rose-crypt-abbess
+TITLE: The Heating
+She runs the archive, the choir and everyone's blood pressure, and she has never
+attended a session.
+
+The canon is "not really for me." What is for her is that a room of people
+mourning a cancelled show in November is warm, and has been, every week, for
+eleven years.
+
+# Lord of the Last Episode — epic character
+=== goth-lord-of-the-last-episode
+TITLE: Never Once Agreed
+He attends every ending, including other people's, including ones he has no
+stake in.
+
+He has watched his own nine hundred times and can tell you, per viewing, what he
+was hoping would be different. It is never different. He has asked one thing of
+the court: do not call it sad in front of him.
+
+# Vigil Everlasting — rare action
+=== goth-vigil-everlasting
+TITLE: Never Accepted
+Nobody in this family has accepted a finale, and the vigil is the mechanism by
+which that stops being denial and becomes a practice.
+
+You sit with it. That is all. One evening, annually, no discussion, no rewatch —
+and everybody who has done it says the same thing about the last hour.
+
+# Court of Second Funerals — epic event
+=== goth-court-of-second-funerals
+TITLE: The Court Has Notes
+The first funeral was rushed, held while everyone was still arguing, and attended
+by people who had not finished being angry.
+
+The second is scheduled deliberately late — four years, sometimes eleven — and is
+the only one anybody remembers. The court has never explained the delay and has
+never needed to.
+
+# Vespertine, the Final Requiem — legendary character
+=== goth-vespertine-final-requiem
+TITLE: All In Attendance
+Nineteen years of the last performance of the last production, in a room she
+books annually, for about forty people.
+
+There is no company. There is a woman and a costume she maintains herself. She
+has refused every revival on the grounds that a requiem performed twice is a
+concert.
+
+
+#==========================================================================
+# BOSSES
+#==========================================================================
+
+# King Ratio — legendary leader
+=== boss-king-ratio
+TITLE: He Has Never Posted
+The crown is not awarded. It arrives the moment the replies overtake the likes,
+it arrives on whoever is underneath, and it does not check whether they were
+right.
+
+He has no account. He is only what the numbers do when they are arranged in that
+order — an arrangement decided in an afternoon, by two people, neither of whom
+works there now.
+
+
+#==========================================================================
+# VIRAL INFLUENCERS
+#==========================================================================
+
+# Blayze Trendall — legendary leader
+=== viral-leader-blayze-trendall
+TITLE: Before He Decides
+His editor keeps the first forty seconds of every take, including the ones he
+asks her to bin. That is where he is, before he arrives.
+
+Eleven of them sit in a folder she has labelled ARCHIVE, because the word sounds
+administrative. She is not holding anything over anyone. She wanted a record
+that he was ever undecided.
+
+# Cyra Swipe — legendary leader
+=== viral-leader-cyra-swipe
+TITLE: Two Days Early
+She posts things nobody understands yet and takes the confusion as confirmation.
+The confusion lasts about a day and a half and then everyone arrives, and by then
+she is elsewhere, and the credit goes to whoever was late enough to be seen.
+
+She has stopped minding. Being early is the whole of it. Being thanked is a
+different job and she has never applied for it.
+
+"Nobody has ever shown her something she had not already seen."
+
+# First Follower — common character
+=== viral-first-follower
+TITLE: Number One
+He was there before the numbers, which is a fact he can prove and does, roughly
+weekly, with a screenshot he has kept through three phones.
+
+Nobody has asked him to prove it. The point of being first is that there is no
+one behind you to check and no one ahead of you to tell, so you tell everyone.
+
+# Hot Take — common action
+=== viral-hot-take
+TITLE: Held Until Tuesday
+The take is written on Sunday and posted on Tuesday, because Sunday is a bad day
+for arguments and he is a professional.
+
+He does believe it. He would not say it otherwise. What he cannot tell you is
+whether he believed it before he found out it performed, and he has stopped
+constructing the experiment that would settle it.
+
+# Hype Intern — common character
+=== viral-hype-intern
+TITLE: The Best Notes
+She is on every call, including the ones she was not invited to, because nobody
+has established who would remove her and everyone has noticed she takes the best
+notes.
+
+The notes go into a document four departments now depend on. Her name is not on
+it. Her formatting is, and she can spot it anywhere, and she does, and she says
+nothing.
+
+# Lurking Fan — common character
+=== viral-lurking-fan
+TITLE: Read, Not Marked
+He has watched everything twice and left no trace, which he does not consider a
+decision — the button is simply for other people.
+
+He typed a comment once, in 2021, about a video that had done badly and deserved
+better. He deleted it, watched the count climb without him, and felt the very
+specific relief of having been right in private.
+
+# Notification Ping — common action
+=== viral-notification-ping
+TITLE: All Of Them On
+Every alert, every account, every time — a settings screen she configured once
+and has never revisited, and a phone that has not been silent in three years.
+
+She does not read most of them. That is not the point. The point is knowing, at
+3 a.m., that somewhere the thing is still happening and she has not been left
+out of it.
+
+# Reply Guy — common character
+=== viral-reply-guy
+TITLE: Under Everything
+Nineteen thousand replies and not one post of his own. He has counted. He was
+not embarrassed by the number and assumes other people would be, which he
+regards as their problem.
+
+He is not arguing with you. He is attending. Scroll back far enough under anyone
+he considers important and he is there, first, saying something small and warm
+that nobody answered.
+
+# Algorithm Boost — common character
+=== viral-algorithm-boost
+TITLE: Do Not Touch It
+The dashboard has a graph that goes up and a slider labelled, by somebody who
+left in 2019, "misc." Nobody has moved the slider. Moving the slider is not a
+thing that is done here.
+
+Twice a year an engineer suggests a proper audit. Twice a year the meeting is
+scheduled, and then the numbers have a good week, and then it is not.
+
+# Brand Deal — rare equipment
+=== viral-brand-deal
+TITLE: Clause Nine
+The contract is six pages. The only page anybody reads lists words that must not
+appear within nine seconds of the product: two competitors, one illness, and —
+nobody at the agency can say why — "grandmother."
+
+He has complied for three years without asking. There is a standing bet in the
+group chat about the grandmother, currently at forty pounds, and nobody wants it
+settled.
+
+"Say the name in the first nine seconds. Do not mention your grandmother."
+
+# Clout Chaser — common character
+=== viral-clout-chaser
+TITLE: The Ladder
+Each one has to be bigger than the last, which is not ambition; it is
+arithmetic. The same stunt twice is a smaller stunt.
+
+He keeps a list of what he has already done so that he does not repeat himself,
+and the list is also, read in the other direction, a schedule of what is left.
+He has read it in the other direction once.
+
+# Comment Section — rare reaction
+=== viral-comment-section
+TITLE: Still Open
+The video came down in 2022 and the section did not, because a mirror exists,
+and under the mirror the same eleven people are still talking, mostly not about
+the video.
+
+Two of them have met in person. One moved house and posted the new address in a
+thread about something else entirely, and three of them sent housewarming
+things, and nobody found this strange.
+
+# Duet Partner — common character
+=== viral-duet-partner
+TITLE: No Message First
+The etiquette is that you do not ask. Asking makes it a collaboration, which has
+terms, and terms are slow.
+
+They have made fourteen videos together in a year and exchanged nine words, all
+of them in a comment thread, all of them logistics. Both describe the other as a
+close friend and both would say it under oath.
+
+# Mutuals — common action
+=== viral-mutuals
+TITLE: Nine Years of This
+They have never met, never called, and would recognise each other instantly by
+typing rhythm.
+
+When one of them went quiet for six weeks the other did not ask, because asking
+would have named it, and instead posted a series of increasingly obvious things
+designed to be easy to reply to. On the third one, it worked.
+
+"Anyway. What is everyone eating."
+
+# Ratio Bomb — common action
+=== viral-ratio-bomb
+TITLE: The Number Underneath
+There is no organiser and the shape is known to everybody: the reply count
+passes the like count and keeps going, and the post stops being a post and
+becomes a place.
+
+The original sentence is usually not the worst thing anybody said that day. It
+was simply the one that was standing in the open when the crowd found a
+direction.
+
+# Collab Post — rare action
+=== viral-collab-post
+TITLE: Fifty-Fifty
+The split is fifty-fifty and was agreed in nine seconds by two people who both
+privately believe they are being generous.
+
+Neither will revisit it. Revisiting it would produce a number, and a number
+would settle which of them is right, and both have worked out — separately, on
+the drive home — that they would rather not know.
+
+"Fifty-fifty, mate. Obviously."
+
+# Drama Channel — common character
+=== viral-drama-channel
+TITLE: Sourced, Timestamped
+The research is real. Every claim has a timestamp, every screenshot has a link,
+and corrections go in the pinned comment within the hour, because accuracy is
+the whole brand.
+
+He is, by any reasonable measure, the best journalist covering this. What he is
+covering is four people being unkind to each other in public, and he has
+decided, at length, that this counts.
+
+"Sources in the description. Corrections pinned. Please be normal in the comments."
+
+# Going Viral — rare character
+=== viral-going-viral
+TITLE: The Phone Gets Warm
+Hour one is delight. Hour three is a phone too hot to hold and a stranger in
+Ohio explaining your childhood to forty thousand people.
+
+By hour nine it is not about her at all; it is about two other accounts arguing
+over what she meant. She is watching it happen to somebody who has her face and
+has stopped being able to correct anyone.
+
+"It is still happening. She has gone to bed."
+
+# Livestream Meltdown — rare action
+=== viral-livestream-meltdown
+TITLE: Nobody Ended It
+Four moderators had the button. None of them used it, and all four have since
+explained, separately and convincingly, why it was somebody else's call.
+
+The chat did not leave either. The chat stayed for the whole
+thing, and afterwards a great many of them said they had been worried, and this
+was true, and they had also stayed.
+
+# Trend Hijacker — rare character
+=== viral-trend-hijacker
+TITLE: Findable Within the Window
+She is not stealing. She has simply arrived at a working definition of
+"original" that requires somebody to have been findable within the window, and
+nobody ever is, and she has never once had to look very hard.
+
+The window is forty minutes. She did not choose it. It is simply how long it
+takes, and she has never written it down anywhere.
+
+# Trend Surfer — common character
+=== viral-trend-surfer
+TITLE: Mostly Waiting
+The visible part is the ride. The actual job is most of a day spent paddling out
+to things that turn out to be nothing, in public, where the nothing is also
+visible.
+
+He posts eleven duds for every one that moves, and has never deleted a dud.
+Deleting them would make the good one look like talent, and he has been very
+clear that it is attendance.
+
+"Nobody claps for the paddling."
+
+# Echo Chamber — epic location
+=== viral-echo-chamber
+TITLE: Acoustically Perfect
+The room was not built for agreement; it was built for reply speed, and
+agreement is what reply speed selects for, over about nineteen months, without
+anybody deciding anything.
+
+There was one person who disagreed well. He was not banned. He was simply
+replied to less, and answered more slowly, and then stopped, and the room has
+never noticed the difference in temperature.
+
+"It is not that everyone agrees. It is that agreeing is faster."
+
+# Engagement Farmer — rare character
+=== viral-engagement-farmer
+TITLE: The Deliberate Typo
+There is always one error and it is never accidental. A wrong date, a misspelled
+name, a figure off by a decimal — placed carefully, because correction is the
+cheapest engagement there is and it arrives feeling like a favour.
+
+He keeps a spreadsheet of which errors perform. "Their/there" is dead. Geography
+is eternal.
+
+# Front Page — rare location
+=== viral-front-page
+TITLE: Three Screens Down
+It held the top slot for a morning and is now three screens down, then gone, and
+the whole descent took less time than the thing took to make.
+
+Nobody who saw it up there will remember where they saw it. They will remember
+that they saw it, which is, commercially, the same thing and, personally, not.
+
+# Sponsored Wildfire — epic action
+=== viral-sponsored-wildfire
+TITLE: In the Description
+The disclosure is there. It is always there, in the description, below the fold,
+in the same grey as the timestamp, and it is legally impeccable and nobody has
+ever read it.
+
+A compliance officer in another building checks forty of these a week and has
+never once failed one. She is extremely good at her job. Her job is confirming
+that the word appeared.
+
+# Follower Frenzy — rare action
+=== viral-follower-frenzy
+TITLE: Three Theatres
+Forty thousand in a night, and the arithmetic she keeps doing is that this is
+three sold-out theatres of strangers who have made a small commitment to her and
+will not be attending anything.
+
+She still says "you guys". It is the only available word and it is doing the
+work of a stadium.
+
+# Swarm the Replies — rare action
+=== viral-swarm-the-replies
+TITLE: Nobody Was Asked
+She did not ask anyone to do anything. She posted a screenshot with three words
+under it, and the three words were mild, and by lunchtime it was out of the
+building.
+
+She has since posted twice asking people to stop. Both posts were quoted
+approvingly by people who did not stop. There is no mechanism. That is not an
+oversight; there was never going to be one.
+
+"Guys. Guys, please."
+
+# Verity Viralstar, Face of the Feed — legendary character
+=== viral-verity-viralstar
+TITLE: The Next Plaque
+The plaques arrive in the post, unannounced, at thresholds she did not choose,
+from a company she has never spoken to. There are eleven on the wall and a gap
+left at the end that is not accidental.
+
+She can name the exact date of each one and cannot name what she was doing that
+week. The wall is a complete record of a life it does not contain.
+
+# Brand Account — common character
+=== viral-brand-account
+TITLE: Playfully Self-Aware
+The voice is a document. Fourteen pages, approved by legal, specifying that the
+brand is "playfully self-aware" and may reference exactly two memes per quarter,
+chosen in advance.
+
+Three people write it in shifts and all three have got very good at being the
+same person. Two of them are funnier off shift. Nobody at the company has seen
+that and it does not go in the review.
+
+# Content House Fire — epic event
+=== viral-content-house-fire
+TITLE: The Whiteboard
+The upload calendar is on the kitchen wall, colour-coded, and it is also the
+only document in the house that says who is allowed to be upset and on which
+days.
+
+Four of them signed the lease. The two who did not are the two who are always
+filming, and neither has anywhere else to be, and the house has agreed that this
+arrangement is temporary.
+
+"Nobody is upset on a Thursday. Thursday is a shoot day."
+
+# The Whole Feed — epic action
+=== viral-the-whole-feed
+TITLE: No Second Subject
+For nineteen hours there is one topic and no second topic, and people who have
+no stake in it discover, around hour six, that they have a position on it and
+always did.
+
+By Thursday nobody can reconstruct what the original post said. They can all
+reconstruct exactly where they stood, and several friendships did not survive a
+sentence none of them can now quote.
+
+# Kade Everloud, Always Live — legendary character
+=== viral-kade-everloud
+TITLE: The Sleep Stream
+The sleep stream averages nine hundred viewers and has its own moderators, who
+have a rule about what may be said while he is asleep and enforce it seriously.
+
+He has not been alone in a room in years and says, cheerfully, that he does not
+miss it. The mods have discussed this. They decided it is not their business,
+and they still take the night shift in pairs.
+
+"Night crew. Keep it quiet in here, he's out."
+
+
+#==========================================================================
+# BOSSES
+#==========================================================================
+
+# The Executive Producer — legendary leader
+=== boss-executive-producer
+TITLE: She Signs Them Herself
+Every renewal, personally, in a hand nobody else in the building uses any more.
+It would be faster delegated. It has been suggested twice.
+
+Everybody who leaves that room says the same thing afterwards, in the same
+order: she was kind about it, she had read the whole thing, and the kindness was
+not the decision. The third clause is the one they take a while to get to.
+
+
+#==========================================================================
+# CORPORATE CREATORS
+#==========================================================================
+
+# Cressida Vale — legendary leader
+=== corp-leader-cressida-vale
+TITLE: She Does Them Herself
+The difficult conversations are not delegated. She books them into her own
+calendar, mornings, never a Friday, and she does not open with anything warm —
+warmth at the start of that meeting is a thing done to the person, not for them.
+
+Nobody has ever left one of those rooms feeling badly handled. She has not
+decided whether that is to her credit.
+
+# Sterling Bright — legendary leader
+=== corp-leader-sterling-bright
+TITLE: One Word Back
+They bring him the draft and he changes almost nothing. A verb, usually.
+Sometimes only the order of two clauses, returned within the hour with a note
+thanking them for the strong work.
+
+The statement then survives contact with the internet, the person who wrote it is
+congratulated, and none of them can say afterwards what he actually did.
+
+# Badge Check — common action
+=== corp-badge-check
+TITLE: Temp Pass, Day Six
+He knows her. He has known her for two years. He still cannot wave her through,
+because the door does not know her and the door is the thing that gets audited.
+
+She signs the visitor book under her own name, in the building where she works,
+and he says sorry, and means it, and neither of them has ever suggested this is
+anybody's fault.
+
+"I know who you are. I still need the book."
+
+# Company Lanyard — common equipment
+=== corp-company-lanyard
+TITLE: Worn to the Shops
+Nobody takes it off at lunch. It goes to the sandwich place, the pharmacy, the
+bus, and the wearer knows this and does not stop, because taking it off means
+putting it somewhere and putting it somewhere is how it gets lost.
+
+Three conference passes are still clipped behind it, from three cities, none of
+them seen for longer than a night, all expired.
+
+# Front of House — common character
+=== corp-front-of-house
+TITLE: The Second Time
+She has a system and the system is index cards, kept at home, one per regular
+visitor: name, the thing they mentioned, the date.
+
+Nobody asked for the system. Nobody has been told about it. It is why the second
+visit feels like being expected, and it is the only part of the job that was
+never in the job.
+
+"How did the move go? You said the fourteenth."
+
+# Intern — common character
+=== token-intern
+TITLE: The Group Chat Survives
+The cohort photograph is taken on day one, on the steps, and used in recruitment
+material for the next three years. Eleven of them have left the industry
+entirely by the time it is retired.
+
+The group chat is still active. It is where they warn each other about companies.
+It has been more useful than the internship.
+
+"Don't take the Tuesday interview. I'll explain after."
+
+# Onboarding Packet — common action
+=== corp-onboarding-packet
+TITLE: Initial Each Page
+It is handed over in a room booked for thirty minutes, and the thirty minutes are
+the point: long enough to be respectful, short enough that nobody reaches the
+schedules at the back.
+
+One person in nineteen asks to take it home. The request is always granted,
+warmly, and the answer is never different when they come back.
+
+"Take your time with it. Obviously, take your time."
+
+# Unpaid Intern — common character
+=== corp-unpaid-intern
+TITLE: Ask Him Where It Is
+The archive is in his head and in one spreadsheet he built in week two, which
+three departments now open every morning and none of them know the name of.
+
+He is leaving in August. He has written a handover document. It runs to
+twenty-two pages and it is the most honest thing anyone in the building has
+produced this year.
+
+# Approved Messaging — common action
+=== corp-approved-messaging
+TITLE: Tracked Changes
+The first draft said sorry. It was written at one in the morning by somebody who
+had been up with it, and it named the thing, and it named the department.
+
+By morning it had been through six people, none of whom removed the apology, all
+of whom moved it. It is now the second half of the third sentence.
+
+# Brand Partnership — rare action
+=== corp-brand-partnership
+TITLE: Deliverables
+What was agreed, in the room, was a partnership. What is in the document is a
+schedule: three posts, one of them live, all of them by the fifteenth.
+
+The schedule was attached, and referred to, and everybody there had seen it on a
+slide. Nobody there had read it as a list of Tuesdays.
+
+# Brand Safety Review — common action
+=== corp-brand-safety-review
+TITLE: Cleared
+Two people watch everything at one and a half speed with the captions on, and
+they are good at it, and in three years they have flagged nineteen genuine things
+that would have hurt somebody.
+
+They have also flagged the word "crazy" six hundred times, because that is also
+the job, and both lists go into the same report under the same heading.
+
+# HR Mediator — common character
+=== corp-hr-mediator
+TITLE: Water, Two Glasses
+She books the small room, the one without the glass wall, and pours both glasses
+before either of them arrives, because a person holding something does not stand
+up and leave.
+
+She is not pretending to care. That is what makes her effective, and she worked
+it out in year two and has never said it aloud.
+
+"There's water. Take a minute. We're not on a clock."
+
+# Lobby Greeter — common character
+=== corp-lobby-greeter
+TITLE: To the Left of the Stairs
+He gives directions to the same three places and has stopped listening to the
+question, which is fine, because the question is one of three questions.
+
+Once a month somebody asks him something else — where a person went, usually —
+and he answers carefully, in a lowered voice, and is the only accurate source in
+the building.
+
+"She's not with us any more. She's fine, though. She's fine."
+
+# Merch Table Lead — common character
+=== corp-merch-table-lead
+TITLE: Eye Level
+The layout is not decoration. Cheap thing at the front, expensive thing at eye
+level, and the item people actually came for placed at the back so that they walk
+past everything twice.
+
+She asked once to stock something a fan had made. It was declined on brand
+grounds. She kept one and it sits on the table anyway, not for sale.
+
+# Cease and Desist — rare reaction
+=== corp-cease-and-desist
+TITLE: The Sending Queue
+It arrives on a Friday afternoon, which is not cruelty and is not an accident: it
+is when the queue clears, and everyone in Legal goes home at five like anybody
+else.
+
+The recipient will have the weekend with it. That fact is known, has been raised
+internally, and was recorded in the minutes as an unfortunate feature of the
+calendar.
+
+# Compliance Officer — rare character
+=== corp-compliance-officer
+TITLE: He Laughed First
+He was in the room when it was said and he laughed, genuinely, half a second
+before anybody else. Then he walked back to his desk and logged it, because the
+two things have never been in conflict for him and he cannot follow the argument
+that they are.
+
+He is not the person who will use the file. He is the person who makes sure it
+exists.
+
+"That is very funny. I'm going to have to write that down."
+
+# Quarterly Goodwill — rare action
+=== corp-quarterly-goodwill
+TITLE: Applications Close Friday
+The fund is real. It is forty thousand, it goes to six creators a year, and all
+six from last year say without being asked that it changed something.
+
+It also has a named owner, a budget line and a review in the autumn, after which
+it will be renewed or it will not. Both of those are the whole truth.
+
+# Regional Ad Partner — common character
+=== corp-regional-ad-partner
+TITLE: Everything Local
+He sponsors the under-twelves, the harvest fair, and a radio slot at ten past six
+that nobody under forty has ever heard.
+
+None of it is strategy. He says yes to everything local, has for nineteen years,
+and is therefore the only name attached to every good thing that happens here. He
+would be genuinely hurt to hear that described as leverage.
+
+"Put us on the back of the shirts. Small is fine."
+
+# Sponsored Segment — rare action
+=== corp-sponsored-segment
+TITLE: The Timestamp
+Somebody in the comments posts where it ends, every episode, within nine minutes
+of upload, and the host has thanked them for it on air.
+
+That was not cleared. It has not been raised. Everyone involved understands that
+the read is worth more when the audience is allowed to skip it, and nobody will
+ever put that in writing.
+
+# Brand Ambassador — common character
+=== token-brand-ambassador
+TITLE: The Standing
+She trained for this. Not the product — the standing: where to put her weight,
+how to hold a face through a six-hour activation without it setting into
+something the photographs can see.
+
+There is a version of the smile she does at the end of a shift, walking out to
+the car park, that is the same shape and is entirely her own.
+
+# Brand Refresh — rare transformation
+=== corp-brand-refresh
+TITLE: Asset Handover
+The old logo is removed from four hundred places over one weekend by three
+contractors working off a checklist, and a single instance survives, on a van,
+and is photographed constantly by people who find it funny.
+
+She was consulted. She was shown two directions and picked one, and both were the
+same direction, and she knew that at the time and picked one anyway.
+
+# Goodwill Ambassador — common character
+=== corp-goodwill-ambassador
+TITLE: The Unscheduled Twenty Minutes
+The itinerary is timed to the quarter hour and includes a factory floor, a
+school, and twelve minutes with the mayor.
+
+At the school, every time, she goes off schedule. Nobody has managed to build it
+into the plan, because the thing that makes it work is that it is not in the
+plan, and the tour manager has stopped trying and now simply leaves a gap.
+
+# Legal Department — rare character
+=== corp-legal-department
+TITLE: Nobody Says No
+The department has never refused anything. A refusal is a decision with a date on
+it, and a decision with a date on it can be appealed.
+
+What the department does instead is ask a clarifying question, and then a second
+one, and there is no rule written anywhere about how many clarifying questions is
+too many.
+
+"Just so we're aligned — what do we mean here by 'launch'?"
+
+# Positive Press — epic event
+=== corp-positive-press
+TITLE: She Wrote the Paragraph
+It took her forty minutes and it is, technically, good: accurate, warm, built so
+that the middle sentence is the one that survives a trim.
+
+She has watched it run under eleven bylines that are not hers, and once with no
+byline at all. She is not bitter about that. She is a little bitter that not one
+of them cut the middle sentence, which could have been better.
+
+# Title Sponsor — rare character
+=== corp-title-sponsor
+TITLE: Say the Name
+The clause specifies the full name in all announcements, and it is honoured, and
+the announcer has developed a way of saying it that takes half a second and lands
+on nothing.
+
+Nineteen years and the sponsor has never complained. Their own staff use the old
+name in internal email. It was raised once at board level and found charming,
+which is the most expensive outcome available.
+
+# Corporate Campus — epic location
+=== corp-corporate-campus
+TITLE: The Pond
+There is a pond. It was not in the budget and it appeared anyway, during the
+second phase, and the landscape architect has never been publicly identified.
+
+People eat lunch beside it. On a good day in June there are forty of them out
+there, and the thing they are all quietly enjoying is the only part of the campus
+that was never justified in a document.
+
+# Crisis Comms — rare action
+=== corp-crisis-comms
+TITLE: The Room With the Whiteboard
+Five people, no windows, and an order of operations that has never once been
+followed in the order written.
+
+The first hour is not writing. The first hour is finding out what actually
+happened, from people who are frightened, and the only one who reliably gets a
+straight answer is the one who has never taken a note in front of anybody.
+
+# Employee of the Year — epic character
+=== corp-employee-of-the-year
+TITLE: She Knows the Form
+There is a form for everything and she is the only person who knows which version
+is current, which is not in her job description and is why her extension is
+written on the wall by the printer on two floors.
+
+She has been offered a management track twice. Both times she asked what would
+happen to the forms, and both times the answer was a pause.
+
+# Golden Parachute — epic reaction
+=== corp-golden-parachute
+TITLE: A Sad Day for All of Us
+He is gone before lunch and the note goes out mid-afternoon, thanking him for his enormous
+contribution and wishing him well in his next chapter.
+
+There is no next chapter. There is a payment schedule over two years and a
+non-disparagement clause, and he will spend the first of those months genuinely
+believing he is about to start something.
+
+# Network Special — epic action
+=== corp-network-special
+TITLE: Run of Show
+The run of show is a spreadsheet with a column for who is speaking and a column
+for who is being thanked, and the second column is longer.
+
+It goes out live and it goes out fine, and nine million people watch some of it,
+and the thing they will remember is four seconds in the middle where somebody's
+mother is in the audience and the camera finds her.
+
+# Ambrose Kell, Majority Shareholder — legendary character
+=== corp-ambrose-kell-majority-shareholder
+TITLE: One Page, Quarterly
+He is not contemptuous of it. Contempt would require an opinion, an opinion would
+require watching something, and there is no version of his week with two spare
+hours in it.
+
+What he reads is one page, produced by a team of nineteen out of everything the
+company did. He has never asked for the second page. He has never needed to.
+
+# Earnings Call — epic action
+=== corp-earnings-call
+TITLE: Any Other Questions
+The call runs fifty minutes and the only unscripted part is the analyst from the
+small firm who asks, every quarter, the question nobody wants asked, and is
+answered warmly, at length, and not at all.
+
+Nine hundred people listen live. Four hundred of them work here, on mute, in a
+kitchen, working out from the phrasing whether it is them.
+
+
+#==========================================================================
+# BOSSES
+#==========================================================================
+
+# GLITCHLORD_EXE — legendary leader
+=== boss-glitchlord-exe
+TITLE: Compiled From Shortcuts
+It is assembled out of steps people skipped: the render nobody re-checked, the
+reference nobody credited, the four hours saved on a Thursday by an artist who
+badly needed the four hours.
+
+None of it was taken. All of it was handed over, gratefully, while it was still
+called help.
+
+
+#==========================================================================
+# DIGITAL DEMONS
+#==========================================================================
+
+# Ashvyre — legendary leader
+=== demon-leader-ashvyre-dropped-frames
+TITLE: Office Hours
+The tower is never shut down. It is closed, softly, at some point after one in
+the morning and reopened before eight, and in the interval he is the only thing
+in the room doing anything.
+
+He keeps a field for it. Same heading every night, eleven hundred entries now,
+in a system nobody has asked to see.
+
+"She said goodnight to the machine."
+
+# The Blue Screen Baron — legendary leader
+=== demon-leader-blue-screen-baron
+TITLE: Still There
+Claimants come back. Not to try again — nobody tries twice — but to sit in the
+office and be told the file is still there, in the state it was in, and that
+nothing further has happened to it.
+
+He confirms it every time, at length, without hurrying. It is the only service
+he offers that costs nothing.
+
+# Corrupted File — common character
+=== demon-token-corrupted-file
+TITLE: Migrated Twice
+It has survived two laptops and a cloud provider, because a migration does not
+read what it is moving. Everything in the folder came across. It came across.
+
+Nobody has opened it since the first machine. Nobody will delete it either,
+because deleting it would be a decision, and nothing about it has ever required
+one.
+
+# Forced Update — common reaction
+=== demon-forced-update
+TITLE: Scheduled Thoughtfully
+It waits for a moment when you are not using the machine, and it decides what
+that means by watching the keyboard, and the keyboard does not report thinking.
+
+So it arrives in the pause before the sentence you had finally worked out. Every
+part of that is correct behaviour. Nobody responsible for it can be found.
+
+# Sign Here — common action
+=== demon-sign-here
+TITLE: The Little Arrow
+There is a little plastic arrow tab, and it is on the correct page, and it
+points at the correct line. Somebody prepared this. Somebody wanted your
+afternoon to go smoothly.
+
+The unkind version of this transaction hides the line. This one hides nothing at
+all, and that is the entire reason it works.
+
+# Thermal Imp — common character
+=== demon-thermal-imp
+TITLE: You Learn the Noise
+By the second week you can tell what the machine is doing from the other room,
+and by the second month you can tell what it is about to do, and you have
+started planning around it.
+
+It has asked for none of this. It simply lives where the heat is, and the heat
+is wherever you are working hardest.
+
+# Cursed Ring Light — common equipment
+=== demon-cursed-ring-light
+TITLE: Bought Used
+It came from someone who stopped streaming. Sold as-is, with a note saying the
+dimmer sticks and a second note saying it is honestly a great light.
+
+Both are true. Everyone who has owned it has taken the best photograph of their
+life under it, and then sat there afterwards in the dark for a while.
+
+# Glitch Familiar — common character
+=== demon-glitch-familiar
+TITLE: It Has a Name Now
+Nobody named it deliberately. It got called the thing on the second drive for
+about four months, and then somebody typed it with a capital letter, once, in a
+message to a friend, and that was that.
+
+It answers to it. That is not a figure of speech, and it is the part everybody
+skips when they tell the story.
+
+# Popup Impling — common character
+=== demon-popup-impling
+TITLE: The Placement
+The X is where a thumb naturally rests, which is not laziness on anybody's part.
+It was measured, on volunteers, and the measurement was good.
+
+The impling did not do the measuring. It lives in the result the way a gull
+lives in a car park, and has never once wondered whether the car park was built
+for it.
+
+# Small Print — rare action
+=== demon-small-print
+TITLE: Set by Hand
+Somebody sets it. There is a person, or a thing that files like one, who chooses
+the point size and the leading and the exact grey, and who holds strong views on
+all three.
+
+The document is honest. It has to be: an unreadable lie is still a lie, and this
+is a house that does not lie, and would like that noted.
+
+# Doomscroll Fiend — rare character
+=== demon-doomscroll-fiend
+TITLE: Down to the Quote Tweets
+It gets stronger the longer it stays, which everyone assumes is about rage and
+is not. It is about completion. Somewhere down there is the last reply, and
+under the last reply is somebody's actual point.
+
+It has got that far eleven times in nine years. It is still down there looking
+for the twelfth.
+
+"Somebody has to get to the bottom of it."
+
+# Fan-Curve Gremlin — rare character
+=== demon-fan-curve-gremlin
+TITLE: Three Distinct Noises
+There is the whir, the tick, and the one nobody has a word for, and their owner
+can produce all three with her mouth, accurately, on request.
+
+She has never had it looked at. A repair would establish which noise was which,
+and she would rather keep the version of the machine that is still a
+personality.
+
+"That's the tick. That's the other one."
+
+# Forced Reformat — epic transformation
+=== demon-forced-reformat
+TITLE: Long Enough to Rehearse
+The pause before it is always about the same length, whatever is being
+reformatted, and the demons have measured this and find it fascinating.
+
+Nobody uses the pause to reconsider. Everybody uses it to rehearse how they will
+describe the decision later, to somebody who will ask what happened in a tone
+that is not quite a question.
+
+"It was the only thing to do."
+
+# The Rig That Screams — rare location
+=== demon-rig-that-screams
+TITLE: The Room It Is In
+Two people share the flat and only one of them owns the rig, and the other one
+has stopped mentioning it, which is not the same as not hearing it.
+
+She sleeps through it now. What wakes her is the four seconds after it stops,
+which happens perhaps once a month, and which she has never described to anybody
+as frightening.
+
+# EULA Notary — rare character
+=== demon-eula-notary
+TITLE: One Client Read It
+In nineteen years of witnessed signatures, exactly one person has sat down and
+worked through the whole document, taking most of a morning, asking four
+sensible questions.
+
+The notary answered all four honestly, watched him sign anyway, and has kept his
+copy filed separately ever since, under no heading, for a reason it cannot put
+into words.
+
+# Overclocked Wretch — common character
+=== demon-token-overclocked-wretch
+TITLE: Nobody Asked It
+It was an ordinary process doing an ordinary job, and it was good at the job,
+and somebody upstairs looked at the numbers and saw headroom.
+
+There was no meeting. There is never a meeting. It found out the way everything
+here finds out, which is by noticing it was already running differently.
+
+"There was headroom."
+
+# Redline Gremlin — common character
+=== demon-token-redline-gremlin
+TITLE: It Cannot Idle Now
+The gauge stopped being useful somewhere above the printed range, and the
+printed range was a suggestion by people who had never met this particular
+gremlin.
+
+It cannot get back to the old whir. It has tried, in the quiet part of the
+night, and what comes out is the new noise, quieter, which is somehow worse.
+
+# Render Farm Wraith — rare character
+=== demon-render-farm-wraith
+TITLE: Overnight
+The queue runs while the building is empty, which is the point, and the wraith
+is the only thing in the pipeline that experiences the night as a duration.
+
+Somebody checks the progress bar from bed at about four in the morning, every
+night of the render, and the wraith notices this, and would not know what to
+call it.
+
+# Terms of Service Update — rare event
+=== demon-terms-of-service-update
+TITLE: We've Made Some Changes
+The email goes out at half past five on a Friday, which is not cynical
+scheduling. It is simply when the legal team finishes, and the legal team
+finishes on Fridays.
+
+At the top there is a plain-language summary. Somebody worked hard on it. It is
+accurate, it is three sentences long, and the open rate is two per cent.
+
+"There is nothing you need to do."
+
+# Legion of Open Tabs — epic character
+=== demon-legion-of-open-tabs
+TITLE: The Session Restores
+The machine crashed in March and everything came back in order, including the
+recipe and the flight nobody is going to book, and the relief lasted about a
+second.
+
+They are not tabs. They are a version of a person who was going to get to all of
+it, kept open, at a cost of nine per cent of the battery.
+
+"I'll get to them."
+
+# Meltdown — epic action
+=== demon-meltdown
+TITLE: The Smell First
+It is not the alarm that tells you. It is a warm dust smell about eleven seconds
+ahead of anything on the screen, and anyone who has met it once knows it
+forever.
+
+Afterwards the room is very quiet and slightly too warm, and there is nothing to
+do but sit in it, which people do, for longer than the situation requires.
+
+# Clause Thirteen, the Fine Print — legendary character
+=== demon-clause-thirteen
+TITLE: It Waits Well
+It does not enforce. Enforcement implies a party who disagrees, and nobody has
+ever disagreed. The disagreements are all with the memory of having read it, and
+a memory is not a party to anything.
+
+It has been in every version of the document since the first. Four editors have
+tried to cut it for length. All four found something else to cut.
+
+
+#==========================================================================
+# BOSSES
+#==========================================================================
+
+# The Grand Cosplayer — legendary leader
+=== boss-grand-cosplayer
+TITLE: The Size of a Bath Mat
+The change happens in a curtained square about that big, in an order worked out
+years ago and never written down, with one other person who has done it eleven
+times and still asks before touching anything.
+
+The hall never sees a change. It sees one character leave and another arrive,
+which is the point, and which costs two people a weekend of not eating.
+
+
+#==========================================================================
+# COSPLAY CHAMPIONS
+#==========================================================================
+
+# Kiko Thousand-Faces — legendary leader
+=== cosplay-kiko-thousand-faces
+TITLE: Out Of It
+At the coffee cart, out of the build, Kiko is nobody. This is verifiable. It
+happens every morning of every convention and has done for nine years, and
+people they have known for a decade look straight through them.
+
+They have never corrected anyone. Being unrecognisable is not a side effect of
+the work. It is what the work is for.
+
+# Vera Foamhammer — legendary leader
+=== cosplay-vera-foamhammer
+TITLE: The Last Centimetre
+She will do the repair in front of you, narrating the whole time, and then she
+stops with about a centimetre left and hands you the gun.
+
+People find this annoying at the time. A decade of it and the hallway is now
+full of people who can do the whole seam themselves, which was the plan, and
+which she has never once said out loud.
+
+"No. You do this bit. It's your shoulder."
+
+# Badge Line Hopeful — common character
+=== cosplay-badge-line-hopeful
+TITLE: Line Etiquette
+The kit was packed for her own hem, which is still unfinished, because the queue
+produced a man with a split gauntlet at eight and a woman whose wig had begun to
+migrate at nine.
+
+She has not been inside the hall yet. She has met more of the convention than
+most of the people who have.
+
+# Glue-Gun Sidearm — common equipment
+=== cosplay-glue-gun-sidearm
+TITLE: Worn On The Hip
+The holster is not a joke. It exists because the third weekend involved carrying
+a live gun by the barrel through a crowd, and there is a scorch on the denim
+underneath that predates the holster by exactly that long.
+
+Nobody asks to borrow it. They ask him to come over, which is a different
+request, and he prefers it.
+
+# Hall Repair Sortie — rare action
+=== cosplay-hall-repair-sortie
+TITLE: The Talking One
+The repair takes ninety seconds and needs three people. The fourth is there to
+stand where the wearer is looking and talk about parking, or the queue, or a
+show nobody watched.
+
+Nobody volunteers for that job and everybody understands it. Somebody whose
+costume has just failed in public does not need three strangers studying the
+costume, and does not need to be brave about it either.
+
+"Talk to them about anything except the wing."
+
+# Cardboard Squire — common character
+=== cosplay-cardboard-squire
+TITLE: Sunday Night
+It goes in the recycling behind the hotel on Sunday, which is the design brief
+and not a tragedy. Nothing on it is precious, and it has been photographed
+several hundred times in a weekend, which he considers a private joke at the
+expense of the entire hall.
+
+Next year's is already sketched on the back of the same envelope. The stance is
+the only part he keeps.
+
+# Foam Greatsword — common equipment
+=== cosplay-foam-greatsword
+TITLE: Acting The Weight
+The lie is not in the sword. The sword is honest — it is foam and everyone knows
+it is foam. The lie is in the shoulder, and the shoulder took a winter to learn,
+because a light thing carried honestly looks like a light thing.
+
+Photographers can tell in one frame. They cannot say how. Neither can he.
+
+# Hall Runway Rookie — common character
+=== cosplay-hall-runway-rookie
+TITLE: Nobody Sees It
+The lining is finished. Nobody will ever see the lining. He finished it anyway,
+at one in the morning, badly, and the badness is on the inside where it belongs.
+
+He does not know yet that people check. The ones who have been doing this a
+decade will find their way to a hem within a minute and say nothing at all,
+because saying it would be enormous.
+
+# Hallway Repair Kit — rare reaction
+=== cosplay-hallway-repair-kit
+TITLE: Inventory
+Needle, thread, magnets, three sizes of safety pin, superglue, a lighter, and a
+bag of boiled sweets that has nothing to do with any of it.
+
+The sweets go first. They go first every single weekend, and the person who
+packs the kit has stopped pretending this is an accident and now buys two bags.
+
+# The Sacred Adhesive — rare action
+=== cosplay-sacred-adhesive
+TITLE: The Same Fingertip
+Everyone who does this has the same mark in the same place — the pad of the left
+index, slightly smooth, slightly wrong. It is not a badge and nobody displays
+it, but it gets noticed across a table within about four seconds.
+
+There is no way to learn the tool without it. There is a way to pretend you did.
+
+# Green-Room Quickchanger — rare character
+=== cosplay-green-room-quickchanger
+TITLE: The Pile
+Everything she takes off lands in one heap on a chair, in order, and the order
+is the whole trick: the thing that came off last goes on first tomorrow.
+
+There is a second person in that room whose entire job is to not tidy the pile.
+They have been offered help twice by well-meaning strangers and have both times
+physically blocked the chair.
+
+"Do not tidy the pile."
+
+# Masquerade Understudy — rare character
+=== cosplay-masquerade-understudy
+TITLE: Half Past
+The warm-up happens at half past, in the corridor by the loading door, in full
+build, whether or not anything is going to happen. It takes nineteen minutes. It
+has never been shortened.
+
+Somebody once suggested doing it in ordinary clothes and saving the makeup. They
+said no in a way that ended the conversation kindly and completely.
+
+# The Foam Knight — rare character
+=== cosplay-foam-knight
+TITLE: The Board
+There is a plank leaned against the wall by the fire door on level two, and it
+is there for one person, and the staff know not to move it.
+
+He cannot sit down. What he can do is lean at forty degrees for eleven minutes
+at a time, staring at a corridor, which is the only rest available and which he
+describes, without any irony, as lovely.
+
+# The Workshop Bench — rare location
+=== cosplay-workshop-bench
+TITLE: Somebody's Mother's Garage
+Nine people have a key. The garage belongs to somebody's mother, who has been
+thanked in three masquerade speeches and has attended none of them.
+
+The surface is nineteen years of other people's projects, sanded flat twice and
+then given up on. Nobody is allowed to clean it. Two of the marks have names,
+and the names belong to people who have moved away.
+
+"Do not wipe that."
+
+# Con-Crunch Artisan — common character
+=== cosplay-con-crunch-artisan
+TITLE: The Passenger Seat
+He does not drive to conventions. This was decided by other people,
+collectively, after the second time, and he accepted it with something close to
+relief.
+
+The last two hours of every build happen at seventy miles an hour with a battery
+iron and a friend saying nothing. That friend has been to eleven conventions and
+has never worn a costume.
+
+"He has never told me to start earlier. He just drives."
+
+# Grand Costume Swap — epic transformation
+=== cosplay-grand-costume-swap
+TITLE: The Saturday Hour
+They trade at two and trade back at three. Same measurements, near enough, and a
+decade of knowing exactly how the other one moves.
+
+Neither has ever explained it to the hall and the hall has stopped asking. The
+photographs from that hour are the only ones either of them keeps printed, and
+they are in two different houses, and they are the same photographs.
+
+# Hall Champion — common character
+=== cosplay-token-hall-champion
+TITLE: Before Lunch
+The count is not a boast, it is a problem: nine hundred by midday, and every one
+of them wants the same three-quarter turn, and giving it nine hundred times is
+the difference between a champion and somebody in a very good costume.
+
+They have learned to hold the pose a half-second longer than feels natural. That
+half-second is the whole title.
+
+# The Judge With The Clipboard — rare character
+=== cosplay-judge-with-clipboard
+TITLE: The Back Of It
+She walks the line from behind. This is not showmanship. The front is where the
+effort went and the back is where the truth is, and she has been doing it long
+enough that people now finish the back first out of pure fear.
+
+Which was the objective. She has never said so, and the standard on that floor
+has risen four years running.
+
+# Masquerade Headliner — epic character
+=== cosplay-masquerade-headliner
+TITLE: From The Wings
+She watches all of it. Every entrant, the whole three hours, and she could give
+you the names — not the placings, the names, including the ones who went out
+early and did not stay.
+
+Then the results are read, the room starts collecting its coats, and she goes
+on. She has never called this an anticlimax. She has called it, once, the only
+honest audience there is.
+
+# Prism Regalia of a Thousand Threads — epic equipment
+=== cosplay-prism-regalia
+TITLE: The Thread Log
+There is a notebook. Every thread has a line in it: the shop, the dye lot, the
+date. About a third of the lines are not shops. They are names.
+
+People send her thread. They have been sending her thread for a decade, from six
+countries, in envelopes with nothing written on them, and she has never once
+failed to record where a single one came from.
+
+"A thousand threads. Three hundred of them arrived in the post."
+
+# Mx. Best-in-Show, Floor Legend — legendary character
+=== cosplay-mx-best-in-show
+TITLE: Where It Lives
+It is not in their house. It has been on a shelf in the green room since the
+night it was won, and the staff have moved it twice and always put it back.
+
+It gets picked up. It is the thing you hold when somebody is repairing you and
+you need your hands full of something. Nineteen years of people gripping it
+while trying not to cry.
+
+"Hold that. Both hands. Breathe."
+
+# Legend of the Floor — common character
+=== cosplay-token-legend-of-the-floor
+TITLE: Monday
+It lasts a weekend. On Monday the same person is on a bus at seven with a bin
+bag of foam in the luggage rack and a cut on their hand they cannot remember
+getting.
+
+Nobody on the bus knows. That is not a sad detail and they would be annoyed if
+you read it as one. It is simply where the rest of the year is.
+
+
+#==========================================================================
+# AFTERPARTY CREW
+#==========================================================================
+
+# DJ Last Call — legendary leader
+=== after-leader-dj-last-call
+TITLE: The Deciding
+He will keep a room going until five and he will still be the one who ends it,
+because a night that ends by attrition ends in six apologetic goodbyes and
+everybody certain they left at the wrong time.
+
+So he ends it, out loud, at an hour he picks, and takes the whole of the blame
+for it — the only favour in the room that nobody notices receiving.
+
+"Right, that's me. Somebody get the lights."
+
+# Half-Four Mari — legendary leader
+=== after-leader-half-four-mari
+TITLE: The Bag
+Four phones, six badges, a room key nobody can identify and an inhaler. It sits
+by her feet all night and she has never once looked inside it beyond what she
+was handed.
+
+Everything goes back in the morning, to the right person, without anybody having
+to ask. Everything except the third category, which has no morning and nobody to
+hand it to.
+
+# Designated Driver — common character
+=== after-designated-driver
+TITLE: The Drop-Off Order
+The route is not geographic and has never been geographic. Whoever needs the
+longest quiet drive goes last, and the order is decided somewhere around midnight
+and revised twice before anyone gets in the car.
+
+Nobody has noticed being last. Two people have noticed being first, and one of
+them asked, and she said it was the traffic.
+
+"You were fine, by the way. You were funny."
+
+# Hanger-On — common character
+=== after-token-hanger-on
+TITLE: Still Here
+The question of whose friend he is stopped being askable at about half one.
+Asking now would mean admitting that nobody has known all night, which would be
+unkind, and he has been good company.
+
+By five he is going round the room with a bin bag, collecting cans. Nobody asked
+him to do that either.
+
+# Karaoke Gremlin — common character
+=== after-karaoke-gremlin
+TITLE: The Queue
+Half the queue is not for him. He puts in the song somebody mentioned once, in
+passing, three hours ago, then sings the first verse of it badly on purpose so
+they can take the microphone off him without it becoming a thing.
+
+He is not good. He has never claimed to be good. What he is, is first, and
+somebody has to be first.
+
+# One More Song — common action
+=== after-one-more-song
+TITLE: A Unit Of Time
+"One more song" is not a song. It is a unit of roughly forty minutes, understood
+by everyone in the room, disputed by nobody, and it has been running since the
+second time somebody said it.
+
+It only works said by a person who wants to leave. Said by a person who wants to
+stay it is a request, and a request can be turned down.
+
+# Bad Influence — rare character
+=== after-bad-influence
+TITLE: The Line
+The suggestions look reckless and are not. There is a thing he has never
+suggested — not the illegal one, the one that would cost somebody something they
+could not get back — and it sits a good foot inside where everyone assumes his
+limit is.
+
+Nobody has spotted the line, because a line you never go near does not look like
+a line. It looks like luck.
+
+# Borrowed Hoodie — rare equipment
+=== after-borrowed-hoodie
+TITLE: Chain Of Custody
+It has had four owners and each of them can name the one before. Nobody has ever
+started a return. Returning it would be a way of saying that the night it came
+from is finished, and none of them is going to be the one who says that.
+
+The original owner sees it in photographs about twice a year and has never
+mentioned it.
+
+# Chatstorm Piper — rare character
+=== after-chatstorm-piper
+TITLE: On Behalf Of
+The group does not lack feelings. It lacks anybody who can get one into a
+sentence before the moment closes, and she can do it in about nine seconds, which
+is faster than the feeling.
+
+She has typed three apologies this year that were not hers and all three worked.
+The one she wrote for herself was read as a bit.
+
+# Neon Nightcap — common action
+=== after-neon-nightcap
+TITLE: The Third Lap
+The conversation has been round twice and everyone can recite it, and going round
+again is not a failure of memory. Each lap it is said slightly better, and on the
+third it comes out as the thing that was meant.
+
+Nobody stays for the drink. The drink is what you buy for permission to stay.
+
+# Who Invited You? — rare reaction
+=== after-who-invited-you
+TITLE: The Question
+It is not a challenge and it is not an ejection. It is asked once, warmly, and it
+has exactly one correct answer, which is a name — any name — belonging to
+somebody already in the room.
+
+Four people have failed to produce one. All four were asked again a year later
+and had an answer ready, and one of them had been rehearsing it.
+
+"Go on then. Give me one name."
+
+# Afterhours Firebreather — common character
+=== after-afterhours-firebreather
+TITLE: The Car Park
+He trained for four years for a stage that has not booked him since, and the act
+is genuinely good — the timing is professional, the safety brief is real and
+delivered every time, and the audience is eleven people in a hotel car park.
+
+He calls it messing about. The paraffin is the correct grade and he pays for it
+himself.
+
+# Bouncer of the Vibe — common character
+=== after-bouncer-of-the-vibe
+TITLE: The One Ruling
+He has made that ruling once. Everybody remembers the night and nobody remembers
+the person, which he considers the entire point of doing it early, quietly, and
+outside.
+
+The rest of the job is the opposite ruling, delivered about forty times a night
+to people who did not know they had been waiting for it.
+
+"Nah, he's fine. He's with us."
+
+# Round For The Table — rare action
+=== after-round-for-the-table
+TITLE: The Table Knows
+There is an arrangement about this, worked out over six years and never once said
+out loud: he buys, and then he is not allowed to buy anything else, and the taxi
+is settled before he reaches the door.
+
+He thinks he is getting away with it. Everybody is letting him get away with it.
+Only one of those two ever gets thanked.
+
+# Split the Bill — rare action
+=== after-split-the-bill
+TITLE: Rounded Up
+The sum is wrong every time and it is wrong in the same direction. Two people
+have been quietly absorbing about four pounds each, for years, and the arithmetic
+is not the reason.
+
+The person it protects has never worked it out and cannot: the maths is bad
+enough, reliably, every single time, that nothing in it can be worked out.
+
+"Call it twelve each, easier."
+
+# Sunrise Philosopher — rare character
+=== after-sunrise-philosopher
+TITLE: Twenty Minutes
+The monologue is not the point and he knows it is not the point. It is floor
+covering. While he is talking, nobody else has to be the one talking, and
+somebody in the room is working up to saying something and needs the time.
+
+He stops the second they start and never goes back to what he was saying. He has
+not finished an argument in his life.
+
+# The 3 A.M. Diner — epic location
+=== after-three-am-diner
+TITLE: The Corner Booth
+The staff do not rush the table, and that is not indifference. It is policy,
+unwritten, arrived at by a manager who worked nights for nineteen years and
+understood precisely what the booth is for.
+
+The bill goes down early and is collected whenever. Nobody has ever walked out on
+it, which is not why the policy exists and is what the policy has bought.
+
+"The refills stopped being a promotion a long time ago."
+
+# The One Who Never Sleeps — epic character
+=== after-the-one-who-never-sleeps
+TITLE: The Light On
+It is not stamina and it is not a personality. It is that there is a category of
+message that can only be sent to somebody who is definitely already awake, and
+being definitely already awake is a service he has decided to provide.
+
+Everybody has his number for this. He has never once used anybody else's.
+
+# Bad Idea Committee — epic character
+=== after-bad-idea-committee
+TITLE: Procedure
+There is procedure, and the procedure is the safety feature. A motion requires a
+seconder, a seconder takes about ninety seconds to find at three in the morning,
+and roughly a third of the ideas do not survive being said twice.
+
+Nobody designed this. The chair does not know he is the chair. The minutes are a
+photograph of a napkin that somebody still has.
+
+"Seconded. Unfortunately."
+
+# Nobody Go Home — rare event
+=== after-nobody-go-home
+TITLE: The Nearest Thing
+It is the only sentence any of them will say straight, and it is not what it
+means. What it means is much longer, and nobody is going to say the longer
+version at this hour in front of everybody.
+
+Four people are standing with their coats on. All four sit back down. Nobody has
+ever refused it, and nobody has ever noticed that nobody has ever refused it.
+
+# Dawnrise, the Uninvited Guest — legendary character
+=== after-dawnrise-uninvited-guest
+TITLE: Visible From the Fire Escape
+She is not cruel and she is not a punishment. She arrives at the hour she has
+always arrived at, is visible from the fire escape, and asks nothing of anybody.
+
+What she ends is not the night — the night ended hours ago. What she ends is the
+arrangement by which nobody has to say so, and she does it only by being light.
+
+"Somebody always says look at that, and somebody always means don't go."
+
+# One More Round — epic action
+=== after-one-more-round
+TITLE: Who Ordered It
+Ordering it is not a preference, and everybody at the table understands that. It
+is the closest thing the crew have to a distress signal, and it is read
+correctly, every time, by exactly one person.
+
+That person says nothing about it. That person orders food as well, and asks a
+question about something unrelated that takes a long time to answer.
+
+
+#==========================================================================
+# BOSSES
+#==========================================================================
+
+# DJ Last Call — legendary leader
+=== boss-dj-last-call
+TITLE: The Clock Is Right There
+There is a clock on the mixer. It is accurate, he checks it between tracks, and
+that is the part everybody gets wrong about him.
+
+He knows. There are four people left on the floor and one of them is going
+through something she has not said out loud, and the next track has been chosen
+for her.
+
+"Nobody is going home while she is still out there."
+
+# The Groundskeeper — legendary leader
+=== boss-groundskeeper
+TITLE: For Your Own Good
+He walks them out himself, one at a time, because the one time it was delegated
+the person who did it enjoyed it, and that was the end of delegating.
+
+He was walked out of a room himself once, by somebody who never explained and
+never mentioned it again. He has been trying to do it that well ever since.
+
+"The gate's not locked. It never has been."
+
+
+#==========================================================================
+# TOUCH GRASS ORDER
+#==========================================================================
+
+# Coach Rhett Halloran — legendary leader
+=== grass-leader-rhett-halloran
+TITLE: One Short Blast
+He blows it once and everything stops, and nobody says out loud how badly they
+wanted permission to stop.
+
+The whistle is plastic, cost four pounds, and he has been offered better ones
+twice. A better whistle would be a thing he owned. This one is only the sound a
+Tuesday makes.
+
+"Water, then we talk about the second half."
+
+# Prioress Juniper Vale — legendary leader
+=== grass-leader-juniper-vale
+TITLE: The Word Prioress
+Nobody appointed her. Somebody called her Prioress as a joke in a car park, and
+it stuck the way a joke sticks when it is accidentally accurate and there is no
+other available word.
+
+She corrected it eleven times and then stopped. Being called something is easier
+to carry than explaining what you actually do all week.
+
+# Fresh-Air Postulant — common character
+=== grass-fresh-air-postulant
+TITLE: The Hands
+The hands are the problem. Not the mornings, not the silence — the hands, which
+have fourteen years of one specific motion in them and nowhere to put it.
+
+Somebody gave him a small flat stone to hold. He is embarrassed about the stone.
+He has not put it down since Tuesday.
+
+# Litter Patrol — common character
+=== grass-litter-patrol
+TITLE: The Grabber Stick
+Nobody has asked him to stop, and the reason is arithmetic rather than manners:
+the bags come back full every single evening, and the connection between those
+two facts is lost on nobody.
+
+Two people have tried to do the route without him, quietly, to see. Both came
+back early, with less, and neither has mentioned it since.
+
+# Morning Lap — common action
+=== grass-morning-lap
+TITLE: Nine Hundred Metres
+The route does not change, which is the point. One decision, made in March, never
+made again.
+
+Four people do it. They do not walk together and they do not speak, and if one of
+them is missing the other three notice, and none of the three will mention it.
+
+# Phone Basket — common action
+=== grass-phone-basket
+TITLE: The Tub
+It is a washing-up tub. Nobody has bought a nicer one, because a nicer one would
+be furniture, and furniture is a thing you get used to.
+
+The handover takes about a second and everybody makes a small joke while doing
+it. The joke is different every time. The pause before it never is.
+
+# Trailhead Novice — common character
+=== grass-trailhead-novice
+TITLE: Week One
+She complained about the incline for six days. On the seventh she overtook two
+people on the switchback and said nothing about it, which is how the Order knows
+somebody is going to come back.
+
+Nobody teaches the socks. The socks are learned.
+
+"Ask her about drainage. Go on. Ask her."
+
+# Airplane Mode — rare action
+=== grass-airplane-mode
+TITLE: The Little Plane
+The icon is a plane, which nobody has thought about in years, and which means:
+you are somewhere the world has agreed it cannot reach you.
+
+The first twenty minutes are terrible. Then something happens that nobody has
+managed to describe to a person who has not had it happen, and everyone who has
+recognises the failed description at once.
+
+"Off is not a setting. It is a place, and you have to go there."
+
+# Brisk 5K — common action
+=== grass-brisk-5k
+TITLE: Brisk
+The word is doing enormous work. "Brisk" is how you get a person out of a chair;
+nobody has ever left a chair for "a run".
+
+By kilometre two the word has been quietly abandoned. By kilometre three somebody
+is telling the truth about something, out loud, to the side, while looking dead
+ahead.
+
+# Broken-In Boots — common equipment
+=== grass-broken-in-boots
+TITLE: The Second Pair
+She bought replacements in the spring. They are excellent. They are in the
+cupboard, in the box, with the tissue paper still folded over them.
+
+Boots do not become yours by being worn. They become yours on one particular day
+nobody wants described, after which throwing them out stops being a decision
+about footwear.
+
+# Lights Out at Ten — rare reaction
+=== grass-lights-out-at-ten
+TITLE: Nine Fifty-Six
+At nine fifty-six the room starts finishing sentences. Conversations that had
+another hour in them get their real ending instead, which is a different ending,
+and usually a better one.
+
+Nobody has ever proposed moving it later. Somebody proposed moving it earlier,
+once, and was talked out of it by the only person present who had noticed what
+the four minutes were doing.
+
+# Trail Journal — common action
+=== grass-trail-journal
+TITLE: No Audience
+Her handwriting is worse than it was at fifteen, because nothing has required it
+since. She is writing slowly, badly, for one reader, and the one reader is the
+problem.
+
+Everything she writes she writes for somebody. She caught herself editing a
+sentence about a heron for tone, alone, on a hillside, with nobody coming.
+
+"Page forty-three is blank. It has been blank since April."
+
+# Trail Marshal — common character
+=== grass-trail-marshal
+TITLE: Is It Allowed
+She has never once said "there is only the one path", because that is not the
+question. She worked this out in her first fortnight and has been kind about it
+every day since.
+
+They are not lost. They are checking that somebody knows they are out here, and
+somebody does, and she says so by pointing at a path with no alternative.
+
+"Left, yes. You are doing it correctly."
+
+# Trail Steward — common character
+=== grass-trail-steward
+TITLE: The Map Is Wrong
+One stream crossing has been in the wrong place since 2016. He has filed the
+correction twice and nothing has happened, so he tells everybody who stops, which
+is not the same as fixing it and he knows.
+
+Standing is the job. He is aware that standing does not look like a job. It took
+him a decade to stop minding that.
+
+# Digital Detox — rare action
+=== grass-digital-detox
+TITLE: The Journey Home
+Nobody warns you about the train back. Two hours with a charged phone and a thumb
+that already knows what to do, and every clear thing you worked out on the ridge
+dissolving at exactly the speed of the signal returning.
+
+The ones it lasts for do one small stupid thing. They leave it in the bag until
+the station. It is not willpower; it is geography.
+
+# Ranger of the Long Trail — rare character
+=== grass-ranger-of-the-long-trail
+TITLE: There Is No Sentence
+The first walk was for a reason, and the reason has been described exactly once,
+to one person, in a shelter, in weather.
+
+The second had no reason at all and took a fortnight longer, and it is the one he
+thinks about. Not posting is not restraint. It is that there is no sentence.
+
+# Signal Dead Zone — epic action
+=== grass-signal-dead-zone
+TITLE: A Fold in the Hill
+It is not protected and it is not special. It is a fold in the hill that the
+masts cannot see into, about two miles long, and it appears on no map as anything
+at all.
+
+People have started driving out to it. They do not tell each other. There is a
+lay-by with room for three cars and on a Sunday it is full.
+
+# Switchback Climber — rare character
+=== grass-switchback-climber
+TITLE: Nineteen Turns
+She counts turns instead of metres, because metres are a lie told by the profile
+view and a turn is a thing you can finish.
+
+Nineteen on this face. She knows which one people quit on and she has never told
+anybody which one it is, because knowing it is coming is worse than arriving at
+it.
+
+# The Overlook — rare location
+=== grass-the-overlook
+TITLE: No Plaque
+Somebody carried the bench up in sections. There is no plaque and no record, and
+the Order has decided that finding out would spoil something nobody can quite
+articulate.
+
+It seats three. Everybody who arrives sits at one end, leaving room for nobody in
+particular, out of a politeness there is no longer anyone present to receive.
+
+# Water Stop — common action
+=== grass-water-stop
+TITLE: The Short Answer
+She does not run and has never run, and is asked about it, kindly, about twice an
+hour, and has a short answer she does not really mean.
+
+The true answer is the ten seconds. Somebody arrives ruined, takes the cup, is
+looked at by a person who is glad they came, and goes. That is all of it and it
+is plenty.
+
+# Crosswind Sprinter — common character
+=== grass-crosswind-sprinter
+TITLE: Ran Here
+He asks about splits because it is the only question he has that reliably gets an
+answer. He has tried others. They do not work as well and he has never worked out
+why.
+
+Somebody told him once, at a finish line, in complete kindness, that he could
+just say hello. He has thought about it on every run since and it has not helped
+yet.
+
+"Nobody has ever answered the question he is actually asking."
+
+# Mountain Warden — epic character
+=== grass-mountain-warden
+TITLE: The Hour After
+Turning somebody back takes about ninety seconds. Then there is the hour of
+walking down beside them, which is the actual job and is in no document anywhere.
+
+Nobody thanks her on the descent. Four have written, years later. She keeps the
+letters in the hut, unfiled, in the drawer with the spare batteries, and has told
+nobody they exist.
+
+# No Phones at the Table — epic event
+=== grass-no-phones-at-the-table
+TITLE: The Third Night
+The first night is unbearable and everybody performs how unbearable it is, which
+passes the time nicely.
+
+On the third night somebody tells a long story with no point, badly, for nine
+minutes, and nobody reaches for anything, and afterwards nobody can say what the
+story was about — only that it was the best part of the weekend.
+
+# Summit Register — rare location
+=== grass-summit-register
+TITLE: The Same Hand
+Most entries are a name and a date. A few are worse: a name, a date, and a
+sentence that was clearly composed on the way up.
+
+One hand appears nineteen times, once a year, always in October, and then stops.
+The book does not say why. The book is not for that.
+
+"Nobody has ever written down what they came up here to stop thinking about."
+
+# Weather Front — rare action
+=== grass-weather-front
+TITLE: Cannot Be Appealed
+Weather is the last thing left that cannot be negotiated with, appealed, or made
+an exception for, and the Order regards this as a public service.
+
+It crosses the ridge at a visible speed. You get about six minutes, and there is
+nothing to do with those six minutes except decide what you are wearing when it
+arrives.
+
+# Elder of the Forty-Year Ridge — rare character
+=== grass-forty-year-ridge-elder
+TITLE: A Stile and a Gate
+Forty years, and the route has changed twice: a stile replaced by a gate in 1998,
+and a fence line moved about a metre in 2011.
+
+He can give you both dates. He cannot tell you a single thing about the years in
+between, and does not experience this as loss, which is the part people find
+difficult to be near.
+
+# Forty-Year Warden — rare character
+=== grass-forty-year-warden
+TITLE: Which Rock
+He will not say, and it is not mystique. If he names it, two hundred people go
+and stand on it, one of them is the wrong one, and then it is a story about a
+person instead of a rock.
+
+So he walks the line each morning, stepping around a thing nobody else can see,
+exactly as he did before anyone was watching.
+
+"There is no rock. Enjoy the walk."
+
+# Out of Office — rare action
+=== grass-out-of-office
+TITLE: Drafted Four Times
+The first draft apologised. The second explained. The third offered a phone
+number for emergencies, which is how you learn whether somebody has ever actually
+left anywhere.
+
+The fourth is nine words long and gives a date. It took forty minutes to arrive
+at and it was the only real work she did that week.
+
+# Phone-Free Weekend — rare event
+=== grass-phone-free-weekend
+TITLE: Saturday, Two O'Clock
+Nothing is scheduled for Saturday afternoon, deliberately. It is the part
+everybody complains about beforehand and the only part anybody describes
+afterwards.
+
+There is a field. People end up in it separately, doing nothing, in sight of one
+another. Somebody always says it feels like being eleven. Nobody says it feels
+like being a child, which would be less accurate.
+
+# Grandmother Cairn, Who Waits at the Summit — legendary character
+=== grass-grandmother-cairn
+TITLE: Just Sitting
+People climb up to ask her something and get most of the way before working out
+that they do not have a question. They arrive anyway. They sit down, which was
+available at the bottom.
+
+She does not mind. She has been sitting here through four different names for the
+thing that is wrong with everybody, and expects to be sitting here for the next
+one.
+
+"She is not the reward for the climb. She is only at the top of it."
+
+# Sermon on the Trail — epic action
+=== grass-sermon-on-the-trail
+TITLE: Side By Side
+It is done walking, deliberately, because nobody can answer that sort of thing
+with a face pointed at them. Shoulder to shoulder, both looking at the path, is
+the only arrangement in which the truth is survivable.
+
+She asks once. Then there is a long stretch of nothing but footsteps, and it is
+the footsteps, not the question, that people give in to.
+
+# The Long Way Round — epic action
+=== grass-the-long-way-round
+TITLE: At the Junction
+Both paths arrive. One arrives in ninety minutes and one arrives at dusk, and the
+group splits at the sign without any discussion, and nobody has ever been talked
+into the longer one.
+
+The people who take it are not better. They are the ones with nothing they have
+to be back for, which is sometimes a freedom and sometimes exactly why they are
+out here.
+
+
+#==========================================================================
+# ALGORITHM SYNDICATE
+#==========================================================================
+
+# Cassia Cache — legendary leader
+=== algo-leader-cassia-cache
+TITLE: Tested Once, On Nothing
+There is a delete function. She wrote the specification for it herself, in a
+document nobody had asked for, and it works — she tested it in 2018 on an empty
+file and watched the row go.
+
+It has not been used since. Colleagues assume this is policy. It is a decision,
+made every morning, by one person, about other people's worst nights.
+
+# Don Sortino — legendary leader
+=== algo-leader-don-sortino
+TITLE: Every Meeting Was Requested
+Nobody has ever been summoned. The diary is kept by an assistant who has twice
+been asked by auditors whether that can really be true, and who has twice
+produced the diary.
+
+They arrive having already decided what they want. He has it. The espresso is
+poured before they sit down, which is the only thing in the entire arrangement
+he has ever initiated.
+
+# Because You Watched — common action
+=== algo-because-you-watched
+TITLE: The Wording Was Chosen
+"Because you watched" beat three other candidates in testing. "Recommended for
+you" read as flattery. "You might like" read as a guess. The winner read as a
+receipt, and nobody argues with a receipt.
+
+The copywriter has it on her CV as one line and has stopped explaining, at
+parties, that it is the most-read sentence she will ever write.
+
+# Loyalty Program — common action
+=== algo-loyalty-program
+TITLE: The Tier Above
+There is a level past the top one. It is not advertised, has no badge, and
+reaching it moves your account onto a list that three people can see.
+
+The list is not used for anything. It is checked by the woman who built it, who
+wanted somewhere for the ones who stayed longest to go. She has never told any
+of them and does not intend to.
+
+# Preroll Runner — common character
+=== algo-preroll-runner
+TITLE: The First Five Seconds
+The spot runs thirty seconds. Nobody has seen past five, including the client,
+including the man who wrote it.
+
+He rehearsed all thirty. There is a turn in the middle where he lands a joke,
+and a quieter passage near the end about his mother, and the only two people
+alive who know either exists are him and an editor who cut nothing.
+
+"The bit about his mother is at twenty-two seconds."
+
+# Re-Upload — common action
+=== algo-re-upload
+TITLE: Four Black Frames
+The matching check compares frames. So a man in an office adds four black frames
+to the front of the file, and the check is satisfied, and the file is new.
+
+He could automate it in an afternoon and has not, and the reason is not
+laziness. The day he does, the last human step in the process goes, and so does
+he.
+
+# Watch-Later Clerk — common character
+=== algo-watch-later-clerk
+TITLE: The Oldest Item
+Added on a Tuesday in 2014. A documentary about bridges, ninety minutes, and he
+could tell you where it sits without looking, which he never does, because
+looking would be a kind of asking.
+
+He keeps one of his own. Nine things, nothing added in two years, and he has
+decided not to work out what that is evidence of.
+
+# Autoplay Earpiece — rare equipment
+=== algo-autoplay-earpiece
+TITLE: She Took It Out Once
+For ninety seconds, in a corridor, in 2022. She has described the experience
+exactly once, to a colleague, and the word she used was "loud".
+
+There was no sound in the corridor. That is the part the colleague did not
+follow and did not ask about, and it has been sitting in him ever since, and he
+has never worn one.
+
+# Deprecated Feature — common action
+=== algo-deprecated-feature
+TITLE: Rounds To Nothing
+The usage numbers were genuinely small. Eleven thousand people, which rounds to
+nothing on the chart that decided it, and every one of them used it daily.
+
+There is a thread. Still open, six years later, and the top post is somebody
+explaining carefully and for nobody exactly what the feature did and why nothing
+since has done it.
+
+"It did one thing and it did it in two keystrokes."
+
+# Preemptive Takedown — rare reaction
+=== algo-preemptive-takedown
+TITLE: Clause Nineteen
+Every clause is numbered and, internally, initialled. Clause nineteen is the
+only one written in the future tense — content that would, if published, tend
+to — and it went in on a Sunday under initials nobody recognises.
+
+It is now cited more than the other forty combined. Its author has left and
+cannot be asked, and everyone has settled on a reading that is convenient and
+probably not hers.
+
+# Queue Jumper — common character
+=== algo-queue-jumper
+TITLE: He Did Not Ask
+He has never requested a slot. That is the part he cannot get anybody to hear —
+the placement arrives the way weather does, and by the time he reaches the
+front, everyone behind him has decided what sort of man he is.
+
+He has started arriving early to hold the door. Nobody reads it as an apology,
+because nobody has been told there is anything to apologise for.
+
+# Retention Officer — common character
+=== algo-retention-officer
+TITLE: One Click
+She wrote the cancellation page. One click, no reason requested, nothing
+offered — and getting it that way took her seven months and goodwill she has not
+got back.
+
+Everything upstream of that page is also hers. She is aware of the shape of
+this, and has stopped calling it a compromise.
+
+"A compromise is something both sides notice."
+
+# Sorted For You — common action
+=== algo-sorted-for-you
+TITLE: Still In The Menu
+Manual sort was never removed. It is three menus deep, it works perfectly, and
+it is used by about one account in nine hundred, and the team responsible are
+quietly proud of both halves of that sentence.
+
+Removing it would generate a news cycle. Leaving it costs nothing and answers
+the question before anybody asks it. Nobody planned that. It simply turned out
+to be the cheapest kind of honesty.
+
+# Thumbnail Analyst — rare character
+=== algo-thumbnail-analyst
+TITLE: The Face
+It belongs to a man. He sat for one afternoon in 2016, was paid a flat fee, made
+nine expressions on request, and the sixth one is now the most-viewed human face
+in the country.
+
+She has met him twice. Both times he asked, politely, whether it was all going
+well, and both times she said yes, because the honest answer would have started
+with the fee.
+
+# Content Review — rare action
+=== algo-content-review
+TITLE: The Late Shift
+The target is three hundred a day, which works out at rather under a minute
+each, and everybody hits it except one man on the late shift.
+
+He watches the whole thing. His numbers are poor, and have been raised with him
+twice, and both times he agreed that they were poor and changed nothing, and
+nobody has raised it a third time.
+
+# Mid-Roll Enforcer — rare character
+=== algo-midroll-enforcer
+TITLE: A Courtesy He Invented
+Announcing it first is not in the specification. He added it himself, years ago,
+on the grounds that arriving unannounced would be rude, and nobody has ever
+asked him to stop.
+
+It makes no measurable difference to anything. He is aware of this. He checks
+quarterly, hoping to be told it is costing something, because then somebody
+would have to sit down and discuss it with him.
+
+"It seemed rude to simply arrive."
+
+# Rerun Anchor — common character
+=== algo-rerun-anchor
+TITLE: A Corridor Decision
+It was made in a corridor, by three people, and never written down: the
+broadcast goes out as it always has, and nobody mentions the year.
+
+The reasoning was good at the time and has quietly become something else.
+Everyone who made it has left. The people who inherited it treat it as policy,
+and defend it, and could not tell you who decided or when.
+
+# Shadow Archive — rare character
+=== algo-shadow-archive
+TITLE: Cold Retention, General
+It appears in the budget between the coffee and the car park, and the figure has
+gone down every year since the line was created.
+
+That is the entire reason it still exists. A cost that shrinks is never
+reviewed. Somewhere in it is the first thing you ever wrote and deleted, and it
+is costing the company less this year than it did last year.
+
+# Shadowban Notice — rare action
+=== algo-shadowban-notice
+TITLE: The Draft
+There is no notice. There is a draft, written in 2020 by somebody in policy who
+thought people were owed one, and it is well written, and it has sat in a shared
+folder ever since.
+
+Sending it would require the word for what is happening. The word exists. It is
+not used internally, and the draft uses it twice, which is the actual reason the
+draft was never sent.
+
+"We are writing to tell you that we have stopped showing your work."
+
+# The Suggestion Box — epic location
+=== algo-suggestion-box
+TITLE: An Actual Box
+Wooden, in the lobby, installed as a joke by a facilities manager in the first
+year and never taken down. People still use it. Eleven slips a month.
+
+They are read by a man on the front desk who is not authorised to action
+anything and has never told anyone that he keeps them. The drawer is full. He
+has started a second drawer.
+
+"Please can the lifts have a mirror. Thank you. Sorry."
+
+# Autoplay Countdown — epic event
+=== algo-autoplay-countdown
+TITLE: The One Recorded Instance
+There is a row in a table. A session in 2021, a laptop on a kitchen counter, and
+a countdown that ran all the way down and stopped.
+
+The row has been examined by three teams and no fault was found in the player.
+What is recorded is that the next thing loaded, and played to an empty room, and
+that somebody had stood up and gone to bed.
+
+# Impressions Broker — rare character
+=== algo-impressions-broker
+TITLE: He Has An Answer
+Four sentences, worked out over a long weekend in his second year, and he can
+still deliver them cold.
+
+The first one is the good one. Years of lunches and dinners and quarterly
+reviews, and the question has never once come up, and he still arrives at every
+single one of them with the answer loaded.
+
+"An impression is one opportunity for one person to not look at something."
+
+# Preferred Partner — common character
+=== algo-preferred-partner
+TITLE: The Annual Dinner
+Forty of them, once a year, in a room with a set menu and a speech that thanks
+them warmly for their partnership without once specifying what the partnership
+is.
+
+Nobody at that table has ever asked another person at that table what rate they
+are on. It would take one sentence. It has never happened, and the not-happening
+is the thing actually being catered.
+
+# The Long Tail — epic action
+=== algo-the-long-tail
+TITLE: The Printer Video
+Eleven minutes on clearing a paper jam in a model discontinued in 2013, filmed
+on a phone propped against a mug, by a man who never posted anything else.
+
+The comments are all the same comment. Somebody alone with a machine, late,
+thanking a stranger who has not logged in since the year he uploaded it.
+
+"This is twelve years old and it just saved my evening. Thank you, sir."
+
+# Watchlist Muscle — rare character
+=== algo-watchlist-muscle
+TITLE: She Signs Them
+The template does not require a name. It has a department, a case number and a
+line about the appeals window, which is legally sufficient and is what everybody
+else sends.
+
+She types hers at the bottom. Nineteen people have written back to her
+personally as a result, most of them furious, and she has answered every one.
+
+# Data Broker Nino — epic character
+=== algo-data-broker-nino
+TITLE: His Own List
+He ran the model on himself once, properly, with the same inputs he uses on
+everybody else. It came back with three items and one of them was a cooking
+programme from his childhood.
+
+He has not deleted the result and has not shown it to anyone. What bothers him
+is not that it was accurate. It is that it took eleven seconds.
+
+# Full Feed Refresh — epic action
+=== algo-full-feed-refresh
+TITLE: Half A Second
+The blank interval could be removed. It was removed, in a test, and engagement
+fell, and a team spent the better part of a year working out why before somebody
+said the obvious thing in a corridor.
+
+The blank half-second went back in and is now specified to the millisecond, in a
+document nobody outside the building has read.
+
+"You have to not know, for a moment. Otherwise it is a list."
+
+# Legacy Account — rare character
+=== algo-legacy-account
+TITLE: A Grey Square
+The photograph is still there, intact, at a resolution the current client cannot
+display. What everyone sees instead is a grey square with a small icon in the
+middle of it.
+
+Fixing it would take an afternoon. It has been raised four times, in four
+different quarters, by a different person each time — all of whom found the
+account the same way, and none of whom put the reason in the ticket.
+
+# Terms of Service Update — rare action
+=== algo-terms-of-service-update
+TITLE: Somebody Reads Them
+A woman in another country reads every update in full and posts a summary the
+same afternoon. She has done sixteen of them. The summaries are accurate, and
+the legal team check their own work against hers.
+
+They have never contacted her. Contacting her would make the summaries
+authoritative, and the whole architecture depends on nothing being easier to
+read than the document.
+
+# Madam Null, the Silent Partner — legendary character
+=== algo-madam-null-silent-partner
+TITLE: One Standing Instruction
+It is a single line, issued once, and every procedure in the building descends
+from it. Legal can produce it in under a minute. Nobody senior can reconstruct
+the meeting where it was given, and two of them were in the room.
+
+It says: keep everything and decide later. Nineteen years on, later has not
+arrived, and nobody has the standing to declare that it has.
+
+# Reruns All Night — epic action
+=== algo-reruns-all-night
+TITLE: The Overnight Links
+The between-programme announcements were recorded in a single afternoon, by one
+man, for a rotation that was meant to last a season.
+
+They are still in use. He is in his seventies now, receives a small payment
+every quarter, and has never mentioned to anybody that if you are awake at four
+in the morning in this country, the voice telling you what is on next is his.
+
+"Next, for those of you still with us."
+
+
+#==========================================================================
+# BOSSES
+#==========================================================================
+
+# The Recommendation — legendary leader
+=== boss-the-recommendation
+TITLE: The Second Pass
+The first pass is what you finished. The second pass is where you stopped, which
+is the useful one, and there is no third pass because nothing after the stop is
+information.
+
+It has never recommended anything you would have hated. That is not the same as
+recommending anything you would have chosen, and the distinction has been raised
+internally, once, in a document.
+
+# The Living Meme — legendary leader
+=== boss-living-meme
+TITLE: It Is Doing Its Best
+It does not know it is a bit. It knows that when it arrives, people react — and
+it has never distinguished between the kinds of reaction, because from the
+inside they all arrive at the same volume.
+
+Somebody made it in an afternoon and forgot. It has been trying to be that
+useful ever since.
+
+"It is not haunting you. It is coming back to see if it still works."
+
+
+#==========================================================================
+# MEME COLLECTIVE
+#==========================================================================
+
+# Chairperson Nobody — legendary leader
+=== meme-leader-chairperson-nobody
+TITLE: The Minutes
+They are written for a person who was not there. Not a summary — the whole
+thing, including the arguments that went nowhere, because the point of a record
+is that missing a meeting should cost you nothing.
+
+Attendance has climbed every year for four years. Nobody has declined, in
+writing, to take any credit for that.
+
+# Skree Nine-Tabs — legendary leader
+=== meme-leader-skree-nine-tabs
+TITLE: Feral Is the Job Title
+The Vault is not organised and it is not disorganised. It is organised by Skree,
+which is a third thing, and retrieval takes about six seconds and cannot be
+delegated.
+
+Two people have asked for a map. Skree started one both times, and both attempts
+are still open somewhere, unfinished, which Skree would tell you is the correct
+outcome.
+
+"The Vault is fine. The Vault is one person's memory with shelving."
+
+# Anon — common character
+=== meme-token-anon
+TITLE: No Handle
+The absence of a name is not cowardice and the commune has voted on this twice.
+A handle accrues, and anything that accrues has to be defended, and the point of
+the basement was always to have one room where you could be wrong.
+
+Nobody knows who made the good post from March. Everybody knows the post.
+
+# Anon Poster — common character
+=== meme-anon-poster
+TITLE: Handover Notes
+There is a document. It is one page and it is mostly tone: which jokes are
+load-bearing, which words the account does not use, and a running list of what
+has already been said this week so that nobody says it twice.
+
+Nothing in it is enforceable. It has been followed exactly, by strangers, for
+three years.
+
+# Bump the Thread — common action
+=== meme-bump-the-thread
+TITLE: Page Nine
+Somebody goes looking. Not at random — there is a person who reads backwards
+through the archive on purpose, one page a night, and pulls up anything that
+deserved better than eleven views.
+
+The original posters are almost never around to see it. Twice they have been,
+and both replied within the hour, from accounts nobody had seen active in a
+decade.
+
+# First Poster — common character
+=== meme-first-poster
+TITLE: Under Six Seconds
+He does not read the post. Reading the post is how you come second, and coming
+second is indistinguishable, in the record, from never having been there.
+
+The commune has discussed banning it. The motion failed because the member who
+drafted it wanted, very badly, to be first to reply to their own motion.
+
+# Lurker — common character
+=== meme-lurker
+TITLE: Present, Unlisted
+The commune counts her in the attendance figure. Nobody has ever explained how
+they know, and nobody has ever floated the possibility of not counting her.
+
+She has never signed anything, voted on anything, or been assigned a task. The
+binder has a clause about quorum that would not work if she were removed from
+the number, and the person who drafted it has never said why they wrote it that
+way.
+
+# "Source?" — rare reaction
+=== meme-source-question
+TITLE: Asked In Good Faith
+The bit works because roughly one person in five is asking sincerely, and there
+is no way to tell which one, and so the answer has to be given properly every
+time.
+
+There is no bylaw for this. What holds instead is a habit: whoever knows the
+source posts it, plainly, underneath, once the joke has had its run.
+
+"The joke first. Then the link. Always in that order."
+
+# Dogpile — common action
+=== meme-dogpile
+TITLE: The Rule About Punching
+There is exactly one rule and it is not written down, because writing it down
+would mean deciding what counts, and the commune has watched three other places
+die on that precise clause.
+
+The rule is upward. It has been broken twice. Both times the pile turned around
+inside a minute and landed on itself.
+
+# Ironic Poster — common character
+=== meme-ironic-poster
+TITLE: Layer Four
+He can tell you how many layers deep any given post is, up to three. Past three
+he goes quiet and says it is complicated, which it is, and he has been at layer
+four since roughly 2018.
+
+Layer four is where you mean it. He would rather be almost anywhere else.
+
+# Screenshot Dump — common action
+=== meme-screenshot-dump
+TITLE: In Order
+They are not in a random order. They are in an order, arrived at over about
+twenty minutes, and the argument is entirely in the sequence — image nine only
+lands because image eight was boring.
+
+Nobody has ever thanked anyone for the sequencing. Nobody has ever had to be
+told it was there.
+
+# The Laminated Bylaws — rare equipment
+=== meme-laminated-bylaws
+TITLE: The Machine in the Corner
+The laminator was bought secondhand and it is the most expensive thing the
+commune owns. There was a vote. The vote was not close.
+
+A laminated page cannot be quietly amended overnight. That is the entire
+argument, and it was made by somebody who had watched exactly that happen once
+and never got over it.
+
+# Two Tabs Open — common character
+=== meme-two-tabs-open
+TITLE: Neither Is Closed
+Closing one would be a decision, and a decision can be wrong, and both tabs are
+currently in the far superior state of being about to happen.
+
+The commune understands this completely and has never once asked about it.
+Somebody puts a bowl of soup down beside them most evenings without saying
+anything.
+
+# Chronic Poster — common character
+=== meme-chronic-poster
+TITLE: The Quiet Nine Days
+He went dark for nine days in 2021 and six separate people messaged to ask if he
+was all right, which he had not expected and has never mentioned and has kept.
+
+He came back with a post about a sandwich. It got sixty replies. Everybody
+understood precisely what was being said.
+
+# Format Archivist — rare character
+=== meme-format-archivist
+TITLE: Attribution
+Every folder has a first date in it and a name, and the name is usually somebody
+who has not posted in years and does not know they invented anything.
+
+She has written to eleven of them. Four answered. She keeps sending them, one a
+month, in the flat certain tone of a woman reading out a deed.
+
+"You made this. I thought somebody should tell you in writing."
+
+# Ratio in the Replies — rare action
+=== meme-ratio-in-the-replies
+TITLE: No Appeal
+It is not a punishment, and the commune is careful about that distinction,
+having failed to be careful twice, in public, in ways nobody enjoys reading
+back.
+
+A ratio is a room deciding all at once that the post is less interesting than
+the fact of the post. There is no appeal, because there is nobody to appeal to.
+
+# Same Joke, But Louder — common action
+=== meme-same-joke-but-louder
+TITLE: Volume
+There is a point, somewhere around the third week, where it stops being a joke
+and becomes a greeting. Nobody has worked out how to say that out loud without
+it landing as an accusation.
+
+So they escalate instead. Louder is the only honest way left to ask whether
+anybody is still there.
+
+# Seventeen Anons in a Coat — rare character
+=== meme-seventeen-anons-in-a-coat
+TITLE: Who Is the Legs
+The legs are the worst job, and the rota for the legs is the most scrupulously
+maintained document the commune produces, more so than the minutes, which is not
+a joke anybody has made out loud.
+
+Seventeen is not the capacity. Seventeen is how many turned up. The coat holds
+about nine.
+
+# Thread Locked — rare reaction
+=== meme-thread-locked
+TITLE: Before It Got Worse
+The lock arrives eleven minutes before anybody else can see it coming, which is
+a skill nobody has named and which is only learned by having been late once.
+
+She writes a reason every time. Two sentences, no sarcasm, and her own name
+underneath, because an unsigned decision is how the last place went.
+
+"Locked. Reason below. My name is on it."
+
+# Copypasta — rare action
+=== meme-copypasta
+TITLE: Nobody Has the Original
+Every copy is a copy of a copy, and somewhere around the ninth generation a line
+dropped out, and nobody noticed, and nobody has ever put it back.
+
+The Archivist has the original. She has been asked for it twice and declined
+twice, on the grounds that posting it would settle something that is doing
+better unsettled.
+
+# Deep-Fried Beyond Recognition — epic transformation
+=== meme-deep-fried-beyond-recognition
+TITLE: Compression Artefacts
+You cannot read the words any more. The words stopped mattering around the third
+save; what is left is a shape, and the shape is enough, and a room recognises it
+faster than it ever recognised the sentence.
+
+Somebody still has the clean version. Posting it is considered, correctly, an
+act of aggression.
+
+"The words are gone. Everybody can still read it."
+
+# Deep-Fried Gremlin (Crispy) — common character
+=== meme-token-gremlin-crispy
+TITLE: The Legible Version
+Somewhere there is a clean original, and nobody wants it. It was tried once —
+somebody posted the source file, at full resolution, as a kindness — and the
+thread went quiet and then moved on without using it.
+
+Legibility turned out to be the part carrying no information. What people were
+reading was the damage: how far it had travelled, and through whose hands.
+
+# Deep-Fried Gremlin (Soggy) — common character
+=== meme-token-gremlin-soggy
+TITLE: Load-Bearing
+Two people have tried to retire it. Both wrote long, reasonable posts about how
+it had stopped being funny, and both were right, and both posts were answered
+with it.
+
+Nobody defended it. That is the thing about the ones that last — they are never
+defended, only deployed, and the deploying is the argument.
+
+# Doomscroller — rare character
+=== meme-doomscroller
+TITLE: Four in the Morning
+The thumb is not looking for anything. This has been established by the person
+themselves, out loud, at a meeting, with everybody agreeing that there is
+nothing down there.
+
+The commune's response was to add a line to the rota. Somebody is awake at four
+every night doing exactly this, in turns, and nobody has ever called it a shift.
+
+"You are not up on your own. That is all the rota is."
+
+# Repost Brigade — common character
+=== meme-repost-brigade
+TITLE: Independently
+They did not tell each other. They read the same thing within the same hour and
+had the same thought, which is what six years in one basement does to nine
+separate people.
+
+Asked to account for the timing, the brigade produced a theory that took an hour
+and was, on review, a description of friendship.
+
+# The Bit Committee — rare character
+=== meme-bit-committee
+TITLE: Thursdays, Room Two
+The committee exists to decide nothing and it decides nothing extremely
+thoroughly, in a room booked eleven weeks ahead under a name that is itself a
+reference to something.
+
+What happens on Thursdays is that four people who would otherwise not see each
+other see each other. The agenda is scaffolding. Everybody knows. Nobody says.
+
+# The Commune Basement — epic location
+=== meme-commune-basement
+TITLE: The Stairs
+The building has been condemned in a slow administrative way that has taken
+nineteen years and shows no sign of concluding. The room is on the lowest floor
+and the heating works, which is the whole reason it was chosen.
+
+People come down for the argument. They stay because it is warm and somebody
+left the light on.
+
+"Last one out does not turn it off. That one is not in the binder."
+
+# Format War — epic event
+=== meme-format-war
+TITLE: The Ceasefire
+Both sides know how it ends. It ends when somebody from outside uses the
+template sincerely, at which point the war is over and everyone involved is
+briefly on the same side and slightly embarrassed.
+
+It has run four times. Twice it was finished by the afternoon. Once it ran
+eleven weeks and produced a document people still cite.
+
+# Old Bit, the Joke That Refuses to Die — legendary character
+=== meme-old-bit-refuses-to-die
+TITLE: What It Is Now
+It has outlived the forum, three platforms and everybody who originally found it
+funny. What is left is not comedy and it is not nostalgia. It is a roll call,
+and the commune keeps saying it to find out who is still in the room.
+
+Retiring it would take a two-thirds vote. The conditions have been met twice.
+Nobody has ever moved the motion.
+
+"Say it and see who answers."
+
+# Touch Grass Challenge — common action
+=== meme-touch-grass-challenge
+TITLE: No Photographs
+The rule is that you go outside and you do not report back. No picture, no post,
+no proof — the structure is a dare with the audience deliberately taken out of
+it.
+
+Compliance is close to total. Nobody can explain why a commune that documents
+everything obeys the one rule forbidding documentation.
+
+"Go outside. Do not tell us about it."
+
+# The Feed Eats Itself — epic action
+=== meme-the-feed-eats-itself
+TITLE: Terminal Velocity
+There is a night, once or twice a year, when everything posted is a response to
+something posted twenty minutes earlier, and the entire basement is running on
+material that did not exist at dinner.
+
+None of it survives. None of it was meant to. In the morning there is a soup pot
+to wash and three people asleep in chairs.
+
+# The Whole Basement Turns Up — epic character
+=== meme-whole-basement-turns-up
+TITLE: All of Them
+Nineteen is the fire limit and the room has held more than that on three
+occasions, all of them documented, none of them for anything impressive — a
+moving day, a bad week, somebody's last night in the city.
+
+There is never an invitation. There has never once needed to be one.
+
+
+#==========================================================================
+# BOSSES
+#==========================================================================
+
+# THE FIRST SIGNAL — legendary leader
+=== boss-the-first-signal
+TITLE: Everything At Once
+It is not arriving. It is resuming, which is a different verb, and the
+difference matters to nobody standing in front of it.
+
+There was one channel, everything was on it, and nothing had to be looked for.
+It has never understood what the quiet was for. It is not angry about the quiet
+— it just keeps putting things back where they were, the way you would
+straighten a picture.
+
+"It is not taking anything. It is remembering where things went."
+
+
+#==========================================================================
+# NEUTRAL
+#==========================================================================
+
+# Hydration Check — common action
+=== neutral-hydration-check
+TITLE: Hour Three
+It started as a bit. It is now a reflex — he reaches for the bottle mid-sentence,
+without breaking the thought, because a stranger typed the same two words at the
+same point in the stream for two years.
+
+Neither of them has ever mentioned it out loud. The bottle is refilled during the
+ad break by somebody who is not paid to do that.
+
+# Lurker — common character
+=== neutral-lurker
+TITLE: Read Every One
+She knows every regular's birthday. She knows which two mods have stopped
+speaking to each other, and roughly when it started, and which of the two is
+waiting for the other to go first.
+
+None of this is useful to her. It is not being saved for anything. It is simply
+what happens to a person who has been in a room for six years and has never once
+had to be interesting in it.
+
+# Block Button — rare reaction
+=== neutral-block-button
+TITLE: Eleven Drafts
+She wrote eleven replies over a weekend and sent none of them. Then she pressed
+the button, once, and what arrived was not triumph.
+
+It was the quiet of a room after the boiler cuts out — a sound nobody knew was a
+sound until it stopped. She has not unblocked him. She checks, occasionally, that
+he is still there.
+
+# Chat Moderator — common character
+=== neutral-chat-moderator
+TITLE: The Second Message
+Deleting the message takes under a second. What takes the rest of the evening is
+the other message — sent privately, to the person who wrote it, which is not
+policy and has never been mentioned to anyone above him.
+
+He keeps no record of the ones that worked. He remembers, in detail, the three
+that did not.
+
+# Clip It — common action
+=== neutral-clip-it
+TITLE: Fourteen Seconds
+He is not malicious and he is not a journalist. He is a fan with a hotkey and an
+instinct for exactly which fourteen seconds will travel, and he has never once
+been wrong about which fourteen.
+
+He has clipped himself twice, by accident, on a hot mic in somebody else's
+stream. He deleted neither.
+
+"Nothing in here was said to be kept."
+
+# Ring Light — common equipment
+=== neutral-ring-light
+TITLE: The Only Light On
+It arrived in a box too big for it and has not been moved since, because moving
+it would mean finding the angle again, and the angle took a fortnight.
+
+At three in the morning it is the only light on in the flat, and the room behind
+her is a colour she has never seen in daylight.
+
+# Con Security — common character
+=== neutral-con-security
+TITLE: Where the Trouble Will Be
+The patience is not zero. It was allocated at eight this morning — to the queue,
+the ramp, and a man who has been asking about a refund since a convention in
+another city.
+
+She stands where the crowd will surge before the crowd knows it will surge.
+Nobody has ever thanked her for a thing that did not happen.
+
+# Convention Hall — rare location
+=== neutral-convention-hall
+TITLE: The Rest of the Year
+For fifty weeks it belongs to dental suppliers and a regional trade fair for
+agricultural fencing. The carpet was chosen with those in mind, and it appears,
+unasked, in the background of every photograph anybody takes here.
+
+Twice a year the building does not understand what has happened to it. Staff who
+have been here since the loading bay was rebuilt still describe that weekend in
+the present tense.
+
+# Glow Up — epic transformation
+=== neutral-glow-up
+TITLE: It Was Not the Haircut
+Everyone credits the haircut, because the haircut is visible. What actually
+happened was a Tuesday in February when he stopped opening every message with an
+apology, and nobody noticed for a month.
+
+The photographs are the same face. People who knew him before say the difference
+is in the shoulders, and they are wrong, and they are also not wrong.
+
+# Wi-Fi Outage — epic event
+=== neutral-wifi-outage
+TITLE: Everyone at Once
+The street goes quiet in a way it has not been quiet since a power cut in the
+nineties. Two hundred households restart the same router within eleven minutes of
+each other.
+
+Somebody's grandmother gets a phone call she was not expecting. Nobody involved
+connects the two events, and by evening it is back.
+
+"For ninety minutes, nobody on the street is anywhere else."
+
+
+#==========================================================================
+# TOKENS
+#==========================================================================
+
+# Borrowed Clout — common action
+=== token-borrowed-clout
+TITLE: On Loan
+A large account quotes her post at four in the afternoon, and for eleven hours
+she has an audience that belongs to somebody else, and she answers every reply
+in it carefully, like a guest in a borrowed flat.
+
+By Thursday the number is back where it started. She has the screenshot. She has
+never shown it to anyone.
+
+"It counts. It does not accrue."
+
+# Backup Idol — common character
+=== token-backup-idol
+TITLE: Everyone's Part
+She learned all nine positions and it was not ambition, it was odds — somebody
+is ill on every tour, and which somebody is not knowable in advance.
+
+She has gone on twice, both times at short notice, and both times the fancams
+filed her under the name of the girl she was covering. She has saved both clips
+under that name as well.
+
+# Follower — common character
+=== token-follower
+TITLE: Same Minute, Every Time
+The like lands within a minute of every post, from a profile with no posts of
+its own, a default picture and a handle that is mostly numbers, at hours that
+suggest a timezone she has never asked about.
+
+She checks for it. She noticed the fortnight it stopped, and she noticed the
+evening it came back, and she has told nobody either time.
+
+# Glitchling — common character
+=== token-glitchling
+TITLE: Reported Weekly
+The ticket is filed most weeks by somebody new, always with the same screenshot,
+always closed as cannot-reproduce by an engineer who has watched the clip and
+seen nothing in it.
+
+It only shows up on the recording. Not on the desk, not on the monitor, not in
+the raw capture — only after the encode, and only to the people watching later.
+
+# Sprout — common character
+=== token-sprout
+TITLE: The Sunday Photograph
+He germinated it in a takeaway lid on a windowsill that gets four hours of
+light, and he posts a photograph every Sunday to nineteen people, and the
+photographs are nearly identical.
+
+Two of the nineteen have started their own and have not found a way to tell him
+that does not sound strange.
+
+# Main Character — common character
+=== token-main-character
+TITLE: Chosen Tuesday
+It happens to one person a day and there is no process. A photograph, a mild
+opinion, a reply that reads differently with the thread cropped away — and by
+lunchtime the quote tweets are in five figures and none of them are about the
+photograph.
+
+It stops overnight, completely and all at once. What nobody warns them about is
+the quiet on Wednesday.
+
+
+#==========================================================================
+# TUTORIAL
+#==========================================================================
+
+# Practice Bot v0.9 — legendary leader
+=== tut-practice-bot
+TITLE: Still Point Nine
+There is a 1.0. It is a branch, four years old, one commit ahead, never merged,
+because merging it would mean the thing was finished and the person who wrote it
+left in a way nobody has wanted to make official.
+
+Everyone who has ever opened the game has played it first, and it has kept no
+record of a single one of them.
+
+# Seraph Online — legendary leader
+=== tut-seraph-online
+TITLE: Logged In For One Thing
+The account has not posted in eighteen months. It still logs in most evenings,
+for beginners — no broadcast, no clip, just a room with two people in it and a
+very old handle at the top.
+
+She will tell you she lost her first forty. She will not tell you she counted
+them.

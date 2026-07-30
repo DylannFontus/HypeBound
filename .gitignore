@@ -1,0 +1,20 @@
+node_modules/
+dist/
+.vite/
+*.local
+.DS_Store
+
+# Build output of the verify:* scripts. Regenerated on every run, 60 MB of PNGs,
+# and never an input to anything — the scripts assert against the live DOM and
+# save these only so a human can look at what failed.
+scripts/screenshots/
+
+# Reference material, not source: 458 MB of frames extracted from a Hearthstone
+# capture, used to study card framing and animation timing. Referenced by no
+# code, and it is Blizzard's art — it must not end up in a public repository.
+hearthstone_frames/
+
+# Cloudflare Workers. `.dev.vars` holds local secrets (Supabase project ref,
+# service keys) and is the one file here that would be actively harmful to push.
+.wrangler/
+.dev.vars

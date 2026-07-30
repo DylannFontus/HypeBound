@@ -1,0 +1,1466 @@
+[
+  {
+    "id": "meme-leader-chairperson-nobody",
+    "name": "Chairperson Nobody",
+    "title": "Speaker of the Unanimous Nothing",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "prism",
+    "secondaryCurrent": "gale",
+    "tags": [
+      "commune",
+      "format"
+    ],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "onCardPlayed",
+        "playedFilter": {
+          "tag": [
+            "repost"
+          ]
+        },
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "copyCardToHand",
+            "target": {
+              "select": "triggering"
+            },
+            "costDelta": 2
+          }
+        ],
+        "text": "The first Repost card you play each turn adds a copy of itself to your hand. The copy costs (2) more."
+      }
+    ],
+    "fixation": {
+      "name": "Motion Seconded",
+      "obsessionCost": 3,
+      "target": {
+        "select": "choose",
+        "side": "friendly",
+        "zone": "hand"
+      },
+      "ops": [
+        {
+          "op": "modifyCost",
+          "target": {
+            "select": "triggering"
+          },
+          "delta": -1
+        }
+      ],
+      "text": "Choose a card in your hand: it costs (1) less."
+    },
+    "ultimate": {
+      "name": "Motion to Repost Everything",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "copyCardToHand",
+          "target": {
+            "select": "random",
+            "side": "friendly",
+            "zone": "discard",
+            "filter": {
+              "costMin": 4
+            },
+            "count": 3,
+            "optional": true
+          },
+          "costDelta": -2
+        }
+      ],
+      "text": "Add copies of 3 random cards costing (4) or more from your discard to your hand. They cost (2) less."
+    },
+    "effects": [],
+    "text": "The first **Repost** card you play each turn adds a copy of itself to your hand. The copy costs (2) more.",
+    "flavor": "We do not have a leader. We have a Chairperson. The difference is in the binder, on page four, laminated."
+  },
+  {
+    "id": "meme-leader-skree-nine-tabs",
+    "name": "Skree Nine-Tabs",
+    "title": "Feral Curator of the Vault",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "gale",
+    "secondaryCurrent": null,
+    "tags": [
+      "commune",
+      "format"
+    ],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "aura",
+        "condition": {
+          "kind": "handSizeAtLeast",
+          "side": "friendly",
+          "value": 5
+        },
+        "ops": [
+          {
+            "op": "aura",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "hand",
+              "filter": {
+                "tag": [
+                  "bit"
+                ]
+              }
+            },
+            "costDelta": -1
+          }
+        ],
+        "text": "While you have 5 or more cards in hand, your Bit cards cost (1) less."
+      }
+    ],
+    "fixation": {
+      "name": "Do A Bit",
+      "obsessionCost": 3,
+      "ops": [
+        {
+          "op": "randomOp",
+          "options": [
+            {
+              "ops": [
+                {
+                  "op": "damage",
+                  "target": {
+                    "select": "random",
+                    "side": "enemy",
+                    "zone": "board"
+                  },
+                  "amount": 2
+                }
+              ]
+            },
+            {
+              "ops": [
+                {
+                  "op": "summon",
+                  "cardId": "meme-token-anon"
+                }
+              ]
+            },
+            {
+              "ops": [
+                {
+                  "op": "draw",
+                  "count": 1
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "text": "**Bit:** • Deal 2 damage to a random enemy character. • Summon a 1/2 Anon. • Draw a card."
+    },
+    "ultimate": {
+      "name": "Maximum Bit",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "chooseOne",
+          "options": [
+            {
+              "label": "Chaos",
+              "ops": [
+                {
+                  "op": "randomOp",
+                  "options": [
+                    {
+                      "ops": [
+                        {
+                          "op": "damage",
+                          "target": {
+                            "select": "all",
+                            "side": "enemy",
+                            "zone": "board"
+                          },
+                          "amount": 3
+                        }
+                      ]
+                    },
+                    {
+                      "ops": [
+                        {
+                          "op": "damage",
+                          "target": {
+                            "select": "all",
+                            "side": "enemy",
+                            "zone": "board"
+                          },
+                          "amount": 2
+                        },
+                        {
+                          "op": "damage",
+                          "target": {
+                            "select": "leader",
+                            "side": "enemy"
+                          },
+                          "amount": 4
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "Commune",
+              "ops": [
+                {
+                  "op": "randomOp",
+                  "options": [
+                    {
+                      "ops": [
+                        {
+                          "op": "summon",
+                          "cardId": "meme-token-anon",
+                          "count": 3
+                        },
+                        {
+                          "op": "buff",
+                          "target": {
+                            "select": "all",
+                            "side": "friendly",
+                            "zone": "board"
+                          },
+                          "attack": 1,
+                          "health": 1
+                        }
+                      ]
+                    },
+                    {
+                      "ops": [
+                        {
+                          "op": "buff",
+                          "target": {
+                            "select": "all",
+                            "side": "friendly",
+                            "zone": "board"
+                          },
+                          "attack": 2,
+                          "health": 2
+                        },
+                        {
+                          "op": "draw",
+                          "count": 2
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "text": "Choose a category, then **Bit** within it. Chaos: • Deal 3 damage to all enemy characters. • Deal 2 damage to all enemy characters and 4 damage to the enemy leader. Commune: • Summon three 1/2 Anons, then give your characters +1/+1. • Give your characters +2/+2 and draw 2 cards."
+    },
+    "effects": [],
+    "text": "While you have 5 or more cards in hand, your **Bit** cards cost (1) less.",
+    "flavor": "Closed a tab once, in a year she refuses to specify. Still talks about what was lost."
+  },
+  {
+    "id": "meme-anon-poster",
+    "name": "Anon Poster",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": [
+      "anon"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "meme-token-anon"
+          }
+        ],
+        "text": "**Rushwind:** summon a 1/2 Anon."
+      }
+    ],
+    "text": "**Rushwind:** summon a 1/2 **Anon**. *(Rushwind — bonus if this is not the first card you played this turn.)*",
+    "flavor": "Four people share this account. None of them have met. All of them are correct."
+  },
+  {
+    "id": "meme-first-poster",
+    "name": "First Poster",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 2,
+    "health": 1,
+    "tags": [
+      "anon"
+    ],
+    "keywords": [
+      "raid"
+    ],
+    "effects": [],
+    "text": "**Raid.** *(Can attack the turn it is played.)*",
+    "flavor": "Read nothing. Understood less. Was, technically, first."
+  },
+  {
+    "id": "meme-bump-the-thread",
+    "name": "Bump the Thread",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": [
+      "repost",
+      "rp:bump-the-thread"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          },
+          {
+            "op": "draw",
+            "count": {
+              "kind": "count",
+              "target": {
+                "select": "all",
+                "side": "friendly",
+                "zone": "discard",
+                "filter": {
+                  "tag": [
+                    "rp:bump-the-thread"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "text": "Draw a card. **Repost:** draw 1 additional card for each other copy of this card you have already played this match."
+      }
+    ],
+    "text": "Draw a card. **Repost:** draw 1 additional card for each other copy of this card you have already played this match. *(Repost — this effect is stronger for each other copy of this card you have already played this match.)*",
+    "flavor": "The thread was from 2009. It is from today now. You did that."
+  },
+  {
+    "id": "meme-dogpile",
+    "name": "Dogpile",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": [
+      "bit"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "enemy",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "randomOp",
+            "options": [
+              {
+                "ops": [
+                  {
+                    "op": "damage",
+                    "target": {
+                      "select": "triggering"
+                    },
+                    "amount": 2
+                  }
+                ]
+              },
+              {
+                "ops": [
+                  {
+                    "op": "applyStatus",
+                    "target": {
+                      "select": "triggering"
+                    },
+                    "status": "weakened",
+                    "amount": 2,
+                    "durationTurns": 1
+                  },
+                  {
+                    "op": "draw",
+                    "count": 1
+                  }
+                ]
+              },
+              {
+                "ops": [
+                  {
+                    "op": "damage",
+                    "target": {
+                      "select": "triggering"
+                    },
+                    "amount": 1
+                  },
+                  {
+                    "op": "applyStatus",
+                    "target": {
+                      "select": "triggering"
+                    },
+                    "status": "scorched"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "Choose an enemy character. **Bit:** • Deal 2 damage to it. • Apply Weakened 2 to it until your next turn and draw a card. • Deal 1 damage to it and apply Scorched to it."
+      }
+    ],
+    "text": "Choose an enemy character. **Bit:** • Deal 2 damage to it. • Apply **Weakened 2** to it until your next turn and draw a card. • Deal 1 damage to it and apply **Scorched** to it. *(Bit — randomly choose one of the listed outcomes; outcomes with no legal target are excluded first.)*",
+    "flavor": "Nobody organised it. Everybody arrived within ninety seconds."
+  },
+  {
+    "id": "meme-source-question",
+    "name": "\"Source?\"",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": [
+      "format"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyPlaysAction",
+        "ops": [
+          {
+            "op": "copyCardToHand",
+            "target": {
+              "select": "triggering"
+            },
+            "costDelta": 2
+          }
+        ],
+        "text": "Reaction — when the enemy plays an Action: add a copy of it to your hand. It costs (2) more."
+      }
+    ],
+    "text": "Reaction — when the enemy plays an Action: add a copy of it to your hand. It costs (2) more. *(Reactions are set face-down and trigger automatically.)*",
+    "flavor": "They will not find it. They will not stop looking. That is the entire bit."
+  },
+  {
+    "id": "meme-laminated-bylaws",
+    "name": "The Laminated Bylaws",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "equipment",
+    "rarity": "rare",
+    "cost": 2,
+    "equipAttack": 1,
+    "equipHealth": 2,
+    "grantKeywords": [
+      "spotlight"
+    ],
+    "tags": [
+      "gear",
+      "commune"
+    ],
+    "keywords": [],
+    "effects": [],
+    "text": "Equipped character has +1/+2 and **Spotlight**. *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "Bylaw 12: whoever is holding the binder is, for the duration, the problem."
+  },
+  {
+    "id": "meme-ironic-poster",
+    "name": "Ironic Poster",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 2,
+    "tags": [
+      "format"
+    ],
+    "keywords": [
+      "refract"
+    ],
+    "effects": [],
+    "text": "**Refract.** *(When played, choose a Current available to your deck; this card becomes that Current while in play.)*",
+    "flavor": "Posts it ironically, then unironically, then in a way that required a committee to classify."
+  },
+  {
+    "id": "meme-same-joke-but-louder",
+    "name": "Same Joke, But Louder",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 3,
+    "tags": [
+      "repost",
+      "rp:same-joke-louder"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "any",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "triggering"
+            },
+            "amount": 2
+          },
+          {
+            "op": "damage",
+            "target": {
+              "select": "triggering"
+            },
+            "amount": {
+              "kind": "count",
+              "target": {
+                "select": "all",
+                "side": "friendly",
+                "zone": "discard",
+                "filter": {
+                  "tag": [
+                    "rp:same-joke-louder"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "text": "Choose a character. Deal 2 damage to it. **Repost:** deal 1 more damage for each other copy of this card you have already played this match."
+      }
+    ],
+    "text": "Choose a character. Deal 2 damage to it. **Repost:** deal 1 more damage for each other copy of this card you have already played this match. *(Repost — this effect is stronger for each other copy of this card you have already played this match.)*",
+    "flavor": "It was funny. It stopped being funny. It has come back around. Volume is the only variable anyone still controls."
+  },
+  {
+    "id": "meme-format-archivist",
+    "name": "Format Archivist",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 3,
+    "tags": [
+      "format",
+      "bit"
+    ],
+    "keywords": [
+      "refract"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "randomOp",
+            "options": [
+              {
+                "ops": [
+                  {
+                    "op": "draw",
+                    "count": 1
+                  }
+                ]
+              },
+              {
+                "ops": [
+                  {
+                    "op": "summon",
+                    "cardId": "meme-token-anon"
+                  }
+                ]
+              },
+              {
+                "ops": [
+                  {
+                    "op": "buff",
+                    "target": {
+                      "select": "self"
+                    },
+                    "attack": 1,
+                    "health": 1
+                  },
+                  {
+                    "op": "addKeyword",
+                    "target": {
+                      "select": "self"
+                    },
+                    "keyword": "spotlight"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "On play — **Bit:** • Draw a card. • Summon a 1/2 Anon. • This gains +1/+1 and Spotlight."
+      }
+    ],
+    "text": "**Refract.** On play — **Bit:** • Draw a card. • Summon a 1/2 **Anon**. • This gains +1/+1 and **Spotlight**. *(Bit — randomly choose one of the listed outcomes; outcomes with no legal target are excluded first.)*",
+    "flavor": "Nine hundred folders. No naming convention. Perfect recall."
+  },
+  {
+    "id": "meme-seventeen-anons-in-a-coat",
+    "name": "Seventeen Anons in a Coat",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 2,
+    "tags": [
+      "anon",
+      "commune"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "meme-token-anon"
+          }
+        ],
+        "text": "On play: summon a 1/2 Anon."
+      },
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "meme-token-anon"
+          }
+        ],
+        "text": "**Rushwind:** summon another."
+      }
+    ],
+    "text": "On play: summon a 1/2 **Anon**. **Rushwind:** summon another. *(Rushwind — bonus if this is not the first card you played this turn.)*",
+    "flavor": "The coat was donated. The plan was not. The plan has never been."
+  },
+  {
+    "id": "meme-chronic-poster",
+    "name": "Chronic Poster",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 3,
+    "attack": 3,
+    "health": 3,
+    "tags": [
+      "format"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "condition": {
+          "kind": "handSizeAtLeast",
+          "side": "enemy",
+          "value": 5
+        },
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "On play: if your opponent has 5 or more cards in hand, draw a card."
+      }
+    ],
+    "text": "On play: if your opponent has 5 or more cards in hand, draw a card.",
+    "flavor": "Has not had an unshared thought since the site launched. Considers this generous."
+  },
+  {
+    "id": "meme-bit-committee",
+    "name": "The Bit Committee",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 2,
+    "health": 4,
+    "tags": [
+      "commune",
+      "bit"
+    ],
+    "keywords": [
+      "afterparty"
+    ],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          {
+            "op": "randomOp",
+            "options": [
+              {
+                "ops": [
+                  {
+                    "op": "damage",
+                    "target": {
+                      "select": "random",
+                      "side": "enemy",
+                      "zone": "board"
+                    },
+                    "amount": 1
+                  }
+                ]
+              },
+              {
+                "ops": [
+                  {
+                    "op": "summon",
+                    "cardId": "meme-token-anon"
+                  }
+                ]
+              },
+              {
+                "ops": [
+                  {
+                    "op": "buff",
+                    "target": {
+                      "select": "random",
+                      "side": "friendly",
+                      "zone": "board"
+                    },
+                    "attack": 1,
+                    "health": 1
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "**Afterparty** — **Bit:** • Deal 1 damage to a random enemy character. • Summon a 1/2 Anon. • Give a random friendly character +1/+1."
+      }
+    ],
+    "text": "**Afterparty** — **Bit:** • Deal 1 damage to a random enemy character. • Summon a 1/2 **Anon**. • Give a random friendly character +1/+1. *(Afterparty — triggers at the end of your turn. Bit — randomly choose one of the listed outcomes.)*",
+    "flavor": "Meets Thursdays. Minutes are taken. The minutes are also a bit."
+  },
+  {
+    "id": "meme-commune-basement",
+    "name": "The Commune Basement",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "location",
+    "rarity": "epic",
+    "cost": 4,
+    "durability": 3,
+    "tags": [
+      "venue",
+      "commune"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "ops": [
+          {
+            "op": "copyCardToHand",
+            "target": {
+              "select": "random",
+              "side": "friendly",
+              "zone": "discard",
+              "filter": {
+                "costMax": 3
+              }
+            },
+            "costDelta": 1
+          }
+        ],
+        "text": "Activate (once per turn): add a copy of a random card costing (3) or less from your discard to your hand. It costs (1) more."
+      }
+    ],
+    "text": "Activate (once per turn): add a copy of a random card costing (3) or less from your discard to your hand. It costs (1) more. Durability 3.",
+    "flavor": "One lit room in a dark building, a soup pot, and a hand-lettered sign about the soup pot."
+  },
+  {
+    "id": "meme-deep-fried-beyond-recognition",
+    "name": "Deep-Fried Beyond Recognition",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "transformation",
+    "rarity": "epic",
+    "cost": 4,
+    "tags": [
+      "format",
+      "bit"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "friendly",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "randomOp",
+            "options": [
+              {
+                "ops": [
+                  {
+                    "op": "transform",
+                    "target": {
+                      "select": "triggering"
+                    },
+                    "intoCardId": "meme-token-gremlin-crispy"
+                  }
+                ]
+              },
+              {
+                "ops": [
+                  {
+                    "op": "transform",
+                    "target": {
+                      "select": "triggering"
+                    },
+                    "intoCardId": "meme-token-gremlin-soggy"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "Choose a friendly character. **Bit:** • Transform it into a 5/3 Deep-Fried Gremlin with Raid. • Transform it into a 3/5 Deep-Fried Gremlin with Spotlight."
+      }
+    ],
+    "text": "Choose a friendly character. **Bit:** • Transform it into a 5/3 **Deep-Fried Gremlin** with **Raid**. • Transform it into a 3/5 **Deep-Fried Gremlin** with **Spotlight**.",
+    "flavor": "Saved, sent, screenshotted, saved again, printed, photographed. It has been through things."
+  },
+  {
+    "id": "meme-format-war",
+    "name": "Format War",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "event",
+    "rarity": "epic",
+    "cost": 5,
+    "durationTurns": 3,
+    "tags": [
+      "format",
+      "bit"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [
+          {
+            "op": "randomOp",
+            "options": [
+              {
+                "ops": [
+                  {
+                    "op": "damage",
+                    "target": {
+                      "select": "random",
+                      "side": "enemy",
+                      "zone": "board"
+                    },
+                    "amount": 2
+                  }
+                ]
+              },
+              {
+                "ops": [
+                  {
+                    "op": "summon",
+                    "cardId": "meme-token-anon"
+                  }
+                ]
+              },
+              {
+                "ops": [
+                  {
+                    "op": "copyCardToHand",
+                    "target": {
+                      "select": "random",
+                      "side": "friendly",
+                      "zone": "discard",
+                      "filter": {
+                        "costMax": 3
+                      }
+                    },
+                    "costDelta": 1
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "Event (3 turns) — at the start of your turns, **Bit:** • Deal 2 damage to a random enemy character. • Summon a 1/2 Anon. • Add a copy of a random card costing (3) or less from your discard to your hand; it costs (1) more."
+      }
+    ],
+    "text": "Event (3 turns) — at the start of your turns, **Bit:** • Deal 2 damage to a random enemy character. • Summon a 1/2 **Anon**. • Add a copy of a random card costing (3) or less from your discard to your hand; it costs (1) more.",
+    "flavor": "Two factions. One template. Sixteen thousand replies. No survivors and, crucially, no casualties."
+  },
+  {
+    "id": "meme-old-bit-refuses-to-die",
+    "name": "Old Bit, the Joke That Refuses to Die",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 5,
+    "attack": 2,
+    "health": 6,
+    "tags": [
+      "format",
+      "finale"
+    ],
+    "keywords": [],
+    "finale": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "condition": {
+          "kind": "cardsPlayedThisTurnAtLeast",
+          "value": 3
+        },
+        "ops": [
+          {
+            "op": "addCounter",
+            "key": "punchline",
+            "amount": 1
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "counterAtLeast",
+              "key": "punchline",
+              "value": 4
+            },
+            "then": [
+              {
+                "op": "winMatch"
+              }
+            ]
+          }
+        ],
+        "text": "At the end of your turn, if you played 3 or more cards this turn, this gains a Punchline counter. At 4 Punchline counters, you win the match."
+      }
+    ],
+    "text": "**Finale.** At the end of your turn, if you played 3 or more cards this turn, this gains a Punchline counter. At 4 Punchline counters, you win the match.",
+    "flavor": "It stopped being funny in 2011. It stopped being a joke in 2019. Nobody is sure what it is now, but it is winning."
+  },
+  {
+    "id": "meme-whole-basement-turns-up",
+    "name": "The Whole Basement Turns Up",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 6,
+    "attack": 3,
+    "health": 4,
+    "tags": [
+      "anon",
+      "commune"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "meme-token-anon",
+            "count": {
+              "kind": "perTurnCardsPlayed"
+            }
+          }
+        ],
+        "text": "On play: summon a 1/2 Anon for each card you have played this turn."
+      }
+    ],
+    "text": "On play: summon a 1/2 **Anon** for each card you have played this turn.",
+    "flavor": "Someone said there would be soup. Word travelled at a speed physics does not formally allow."
+  },
+  {
+    "id": "meme-token-anon",
+    "name": "Anon",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": [
+      "anon"
+    ],
+    "keywords": [],
+    "token": true,
+    "effects": [],
+    "text": "",
+    "flavor": "Could be anyone. Is, statistically, three people and a rota."
+  },
+  {
+    "id": "meme-token-gremlin-crispy",
+    "name": "Deep-Fried Gremlin (Crispy)",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 5,
+    "health": 3,
+    "tags": [
+      "format",
+      "gremlin"
+    ],
+    "keywords": [
+      "raid"
+    ],
+    "token": true,
+    "effects": [],
+    "text": "**Raid.**",
+    "flavor": "Compressed until it developed opinions."
+  },
+  {
+    "id": "meme-token-gremlin-soggy",
+    "name": "Deep-Fried Gremlin (Soggy)",
+    "faction": "meme-collective",
+    "current": "prism",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 3,
+    "health": 5,
+    "tags": [
+      "format",
+      "gremlin"
+    ],
+    "keywords": [
+      "spotlight"
+    ],
+    "token": true,
+    "effects": [],
+    "text": "**Spotlight.**",
+    "flavor": "Resaved so many times it became structural."
+  },
+  {
+    "id": "meme-lurker",
+    "name": "Lurker",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 3,
+    "tags": [
+      "anon",
+      "commune"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "condition": {
+          "kind": "handSizeAtLeast",
+          "side": "friendly",
+          "value": 5
+        },
+        "ops": [
+          {
+            "op": "buff",
+            "target": {
+              "select": "self"
+            },
+            "attack": 1
+          }
+        ],
+        "text": "**Afterparty:** if you have 5 or more cards in hand, this gains +1/+0 permanently."
+      }
+    ],
+    "text": "**Afterparty:** if you have 5 or more cards in hand, this gains +1/+0 permanently.",
+    "flavor": "Nine years registered. Zero posts. Reads everything. Has opinions that would end friendships."
+  },
+  {
+    "id": "meme-screenshot-dump",
+    "name": "Screenshot Dump",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": [
+      "bit",
+      "repost"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "Draw a card."
+      },
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "**Rushwind:** draw another."
+      }
+    ],
+    "text": "Draw a card. **Rushwind:** draw another. *(Rushwind — bonus effect if this is not the first card you played this turn.)*",
+    "flavor": "Forty images with no context, posted at once, as an argument. It works. Nobody knows why it works."
+  },
+  {
+    "id": "meme-two-tabs-open",
+    "name": "Two Tabs Open",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 3,
+    "tags": [
+      "anon",
+      "bit"
+    ],
+    "keywords": [],
+    "effects": [],
+    "text": "",
+    "flavor": "One is the thing they are doing. One is the thing they will do instead. Both have been open since Tuesday."
+  },
+  {
+    "id": "meme-ratio-in-the-replies",
+    "name": "Ratio in the Replies",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": [
+      "bit",
+      "format"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "amount": {
+              "kind": "count",
+              "target": {
+                "select": "all",
+                "side": "friendly",
+                "zone": "board"
+              }
+            }
+          }
+        ],
+        "text": "Deal damage to each enemy character equal to the number of characters you control."
+      }
+    ],
+    "text": "Deal damage to each enemy character equal to the number of characters you control.",
+    "flavor": "Four hundred replies and not one of them is about the post. That is the ratio. That is what it means."
+  },
+  {
+    "id": "meme-repost-brigade",
+    "name": "Repost Brigade",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 3,
+    "health": 3,
+    "tags": [
+      "anon",
+      "repost"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "meme-token-anon",
+            "count": 2
+          }
+        ],
+        "text": "**Rushwind:** summon two 1/2 Anons."
+      }
+    ],
+    "text": "**Rushwind:** summon two 1/2 Anons. *(Rushwind — bonus effect if this is not the first card you played this turn.)*",
+    "flavor": "Same picture, nine accounts, four minutes apart. It is not coordinated. That is the frightening part."
+  },
+  {
+    "id": "meme-doomscroller",
+    "name": "Doomscroller",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 4,
+    "health": 4,
+    "tags": [
+      "anon",
+      "bit"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "condition": {
+          "kind": "handSizeAtLeast",
+          "side": "friendly",
+          "value": 4
+        },
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "On play: if you have 4 or more cards in hand, draw a card."
+      }
+    ],
+    "text": "On play: if you have 4 or more cards in hand, draw a card.",
+    "flavor": "Cannot stop. Is not enjoying it. Has been at this since the light was different."
+  },
+  {
+    "id": "meme-copypasta",
+    "name": "Copypasta",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 4,
+    "tags": [
+      "bit",
+      "format"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "friendly",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "copyCardToHand",
+            "target": {
+              "select": "triggering"
+            },
+            "costDelta": -1
+          }
+        ],
+        "text": "Add a copy of a friendly character to your hand. It costs (1) less."
+      }
+    ],
+    "text": "Add a copy of a friendly character to your hand. It costs (1) less.",
+    "flavor": "You have pasted this so many times you no longer read it. Neither does anybody else. It still works."
+  },
+  {
+    "id": "meme-touch-grass-challenge",
+    "name": "Touch Grass Challenge",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 5,
+    "tags": [
+      "bit",
+      "format"
+    ],
+    "keywords": [
+      "touch-grass"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "highestCost",
+          "side": "enemy",
+          "zone": "board",
+          "optional": true
+        },
+        "ops": [
+          {
+            "op": "banish",
+            "target": {
+              "select": "triggering"
+            },
+            "returnAtStartOfYourNextTurn": true
+          }
+        ],
+        "text": "**Touch Grass** the costliest enemy character."
+      },
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "**Rushwind:** draw a card."
+      }
+    ],
+    "text": "**Touch Grass** the costliest enemy character. **Rushwind:** draw a card. *(Touch Grass — banish it until the start of your next turn; it returns with base stats and no statuses or attachments.)*",
+    "flavor": "Started as an insult. Became a dare. Became a genuinely popular outdoor activity. The Order is furious about it."
+  },
+  {
+    "id": "meme-thread-locked",
+    "name": "Thread Locked",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": [
+      "commune",
+      "format"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyPlaysAction",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "enemy"
+            },
+            "amount": 2
+          },
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "**Reaction:** when your opponent plays an Action, deal 2 damage to their leader and draw a card."
+      }
+    ],
+    "text": "**Reaction:** when your opponent plays an Action, deal 2 damage to their leader and draw a card.",
+    "flavor": "This thread has been locked by a moderator. The moderator is nineteen and correct."
+  },
+  {
+    "id": "meme-the-feed-eats-itself",
+    "name": "The Feed Eats Itself",
+    "faction": "meme-collective",
+    "current": "gale",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 6,
+    "tags": [
+      "format",
+      "finale"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "enemy"
+            },
+            "amount": {
+              "kind": "count",
+              "target": {
+                "select": "all",
+                "side": "friendly",
+                "zone": "board"
+              }
+            }
+          },
+          {
+            "op": "summon",
+            "cardId": "meme-token-anon",
+            "count": 3
+          }
+        ],
+        "text": "Deal damage to the enemy leader equal to the number of characters you control, then summon three 1/2 Anons."
+      }
+    ],
+    "text": "Deal damage to the enemy leader equal to the number of characters you control, then summon three 1/2 Anons.",
+    "flavor": "The joke about the joke about the joke. Nobody remembers the first one. Everybody is still laughing."
+  }
+]

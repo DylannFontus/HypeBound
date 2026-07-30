@@ -1,0 +1,8 @@
+{
+  "beginner": { "id": "beginner", "difficulty": "beginner", "noise": 3.0, "lethalAwareness": 0.5, "confluenceAwareness": 0.2, "searchDepth": 1, "style": "balanced" },
+  "casual": { "id": "casual", "difficulty": "casual", "noise": 2.0, "lethalAwareness": 0.7, "confluenceAwareness": 0.5, "searchDepth": 1, "style": "balanced" },
+  "intermediate": { "id": "intermediate", "difficulty": "intermediate", "noise": 1.2, "lethalAwareness": 0.85, "confluenceAwareness": 0.7, "searchDepth": 2, "style": "balanced" },
+  "advanced": { "id": "advanced", "difficulty": "advanced", "noise": 0.6, "lethalAwareness": 0.95, "confluenceAwareness": 0.9, "searchDepth": 2, "style": "balanced" },
+  "expert": { "id": "expert", "difficulty": "expert", "noise": 0.2, "lethalAwareness": 1.0, "confluenceAwareness": 1.0, "searchDepth": 3, "style": "balanced" },
+  "boss": { "id": "boss", "difficulty": "boss", "noise": 0.1, "lethalAwareness": 1.0, "confluenceAwareness": 1.0, "searchDepth": 3, "style": "aggressive", "bossCards": [] }
+}

@@ -1,0 +1,1085 @@
+/* =========================================================================
+   Battle screen: 3D board host plus the DOM HUD layered above it.
+   ========================================================================= */
+
+.battle-screen { background: var(--bg-void); }
+
+/* The board reserves the upper area; the hand owns the strip beneath it, so
+   the play area is never covered by the player's own cards. */
+/* The board fills the whole screen. The hand OVERLAPS its lower margin rather
+   than occupying a reserved strip — exactly as the reference does — and the
+   cards hang off the bottom edge, small until hovered. */
+:root {
+  --hand-card-height: 17.5vh;
+}
+
+.battle-board-host {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* ---- hand bar ----------------------------------------------------------- */
+
+/* No panel, no seam, no background — the hand simply sits over the board. */
+.hand-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--hand-card-height);
+  z-index: 45;
+  pointer-events: none;
+}
+
+.hand-bar > * {
+  pointer-events: auto;
+}
+
+.hand-card {
+  position: absolute;
+  /* hangs off the bottom edge, so only the upper part of a resting card shows */
+  bottom: calc(var(--hand-card-height) * -0.14);
+  cursor: grab;
+  transform-origin: 50% 100%;
+  transform: rotate(var(--tilt, 0deg)) translateY(var(--lift, 0px));
+  transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast) var(--ease-out);
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.65));
+  /* `backwards`, NOT `both`: with `both` the finished animation keeps applying
+     its final keyframe, and because CSS animations outrank normal declarations
+     that permanently defeats the :hover transform below. */
+  animation: hand-card-in var(--dur-med) var(--ease-out) backwards;
+}
+
+.hand-card canvas {
+  display: block;
+  width: auto;
+  height: var(--hand-card-height);
+  border-radius: 10px;
+}
+
+@keyframes hand-card-in {
+  from { opacity: 0; transform: translateY(40px) scale(0.9); }
+  to { opacity: 1; }
+}
+
+/* Hover enlarges dramatically and straightens the card — this is how the
+   reference keeps a small resting hand fully readable on demand. */
+.hand-card:hover {
+  /* Scaling alone is not enough: the origin is the card bottom, which sits
+     BELOW the viewport, so a pure scale keeps the stat chips off-screen. Lift
+     it just enough to clear the edge -- but only that much, because a large
+     translate moves the card out from under the cursor and hover oscillates. */
+  transform: rotate(0deg) translateY(calc(var(--hand-card-height) * -0.3)) scale(1.85);
+  z-index: 200 !important;
+  filter: drop-shadow(0 22px 38px rgba(0, 0, 0, 0.85));
+}
+
+.hand-card.playable canvas {
+  outline: 2px solid rgba(125, 255, 176, 0.85);
+  outline-offset: -2px;
+  box-shadow: 0 0 20px rgba(125, 255, 176, 0.45);
+}
+
+.hand-card.unplayable {
+  cursor: default;
+  filter: grayscale(0.55) brightness(0.55) drop-shadow(0 8px 14px rgba(0, 0, 0, 0.6));
+}
+
+/* An unaffordable card still enlarges on hover — you need to read the cards you
+   cannot pay for yet. It stays desaturated and refuses to drag instead. */
+.hand-card.unplayable:hover {
+  transform: rotate(0deg) translateY(calc(var(--hand-card-height) * -0.3)) scale(1.8);
+  filter: grayscale(0.45) brightness(0.78) drop-shadow(0 20px 34px rgba(0, 0, 0, 0.8));
+}
+
+.hand-card.dragging {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.hand-card.leaving {
+  animation: hand-card-out var(--dur-med) var(--ease-in-out) both;
+  pointer-events: none;
+}
+
+@keyframes hand-card-out {
+  to { opacity: 0; transform: translateY(-70px) scale(0.85); }
+}
+
+/* the card that follows the cursor while dragging */
+.hand-drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 300;
+  pointer-events: none;
+  filter: drop-shadow(0 22px 34px rgba(0, 0, 0, 0.75));
+}
+
+.hand-drag-ghost canvas {
+  display: block;
+  width: auto;
+  height: calc(var(--hand-card-height) - 20px);
+  border-radius: 12px;
+  outline: 2px solid rgba(125, 255, 176, 0.9);
+  outline-offset: -2px;
+}
+
+:root[data-reduced-motion="true"] .hand-card {
+  animation: none;
+  transition: none;
+}
+
+@media (max-height: 620px) {
+  :root { --hand-card-height: 26vh; }
+}
+
+.battle-board-host canvas.shaking {
+  animation: board-shake 220ms var(--ease-out);
+}
+
+@keyframes board-shake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(calc(var(--shake, 0.4) * -8px), calc(var(--shake, 0.4) * 5px)); }
+  45% { transform: translate(calc(var(--shake, 0.4) * 7px), calc(var(--shake, 0.4) * -4px)); }
+  70% { transform: translate(calc(var(--shake, 0.4) * -4px), calc(var(--shake, 0.4) * 3px)); }
+}
+
+:root[data-reduced-motion="true"] .battle-board-host canvas.shaking { animation: none; }
+
+.vfx-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
+  transition: opacity 200ms var(--ease-out);
+}
+
+/* ---- HUD frame ---------------------------------------------------------- */
+
+.battle-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.battle-hud > * { pointer-events: auto; }
+
+.battle-hud.enemy-turn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 140px rgba(82, 200, 255, 0.14);
+}
+
+/* ---- leader plates ------------------------------------------------------ */
+
+.leader-plate {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-2);
+  border-radius: var(--radius-pill);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px);
+  cursor: pointer;
+  transition: border-color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
+  max-width: 340px;
+}
+.leader-plate:hover { border-color: var(--leader-color, var(--accent)); transform: translateX(-50%) translateY(-2px); }
+
+/* Plates anchor beside their 3D podiums (board left) so the hand fan below
+   and the character rows in the middle both stay completely unobstructed. */
+/* Anchored within the board area, which stops above the hand bar. */
+.leader-plate-enemy { top: var(--sp-3); left: var(--sp-4); }
+.leader-plate-player { bottom: var(--sp-3); left: var(--sp-4); }
+.leader-plate:hover { transform: translateY(-2px); }
+
+.leader-orb {
+  position: relative;
+  width: 58px; height: 58px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: radial-gradient(circle at 32% 28%, #3a2a5c, #12081f);
+  border: 2px solid var(--leader-color, var(--accent));
+  box-shadow: 0 0 20px color-mix(in srgb, var(--leader-color, var(--accent)) 45%, transparent), inset 0 2px 6px rgba(0,0,0,0.6);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.leader-orb-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #ff5f7a, #b31432);
+  transform: translateY(calc((1 - var(--fill, 1)) * 100%));
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+.leader-orb-value {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+}
+.leader-orb-value .hp { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700; }
+.leader-orb-value .armor { font-size: var(--fs-xs); color: var(--accent-cool); }
+
+.leader-info { min-width: 0; }
+.leader-name { font-family: var(--font-display); font-weight: 600; font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leader-title { font-size: var(--fs-xs); color: var(--text-faint); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leader-meta { display: flex; gap: var(--sp-2); margin-top: 3px; }
+.chip { font-size: var(--fs-xs); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.chip-reaction { color: var(--accent-cool); }
+
+/* ---- obsession dials ---------------------------------------------------- */
+
+.obsession-dial {
+  position: absolute;
+  width: 214px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  transition: border-color var(--dur-med), box-shadow var(--dur-med);
+}
+.obsession-enemy { top: var(--sp-3); left: 50%; transform: translateX(-50%); }
+.obsession-player { bottom: 84px; left: var(--sp-4); }
+
+.obsession-dial.danger {
+  border-color: var(--danger);
+  box-shadow: 0 0 20px rgba(255, 77, 106, 0.4);
+  animation: obsession-throb 1.8s var(--ease-in-out) infinite;
+}
+
+@keyframes obsession-throb {
+  0%, 100% { box-shadow: 0 0 18px rgba(255,77,106,0.32); }
+  50% { box-shadow: 0 0 30px rgba(255,77,106,0.6); }
+}
+
+:root[data-reduced-motion="true"] .obsession-dial.danger { animation: none; }
+
+.obs-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2); }
+.obs-label { font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
+.obs-value { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; }
+.obs-max { font-size: var(--fs-xs); color: var(--text-faint); font-weight: 400; }
+
+.obs-track { display: flex; gap: 3px; margin-top: 5px; }
+.obs-pip {
+  flex: 1;
+  height: 10px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid transparent;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast);
+}
+.obs-pip.filled { background: linear-gradient(180deg, var(--accent-bright), var(--accent)); box-shadow: 0 0 8px rgba(181,108,255,0.6); }
+.obs-pip.danger.filled { background: linear-gradient(180deg, #ff8a9a, var(--danger)); box-shadow: 0 0 10px rgba(255,77,106,0.7); }
+/* threshold markers use shape, not colour alone */
+.obs-pip.fix { border-bottom: 3px solid var(--accent-cool); }
+.obs-pip.ult { border-bottom: 3px solid var(--accent-gold); }
+
+.obs-warning { margin-top: 4px; font-size: var(--fs-xs); color: var(--danger); font-weight: 600; letter-spacing: 0.04em; }
+
+/* ---- hype crystals ------------------------------------------------------ */
+
+.hype-wrap {
+  position: absolute;
+  right: var(--sp-4);
+  bottom: var(--sp-3);
+  text-align: right;
+}
+.hype-label { font-size: var(--fs-xs); letter-spacing: 0.16em; color: var(--text-faint); margin-top: 3px; }
+.hype-row { display: flex; align-items: center; gap: 4px; justify-content: flex-end; flex-wrap: wrap; max-width: 320px; }
+
+.hype-crystal {
+  width: 15px; height: 21px;
+  clip-path: polygon(50% 0%, 100% 30%, 100% 70%, 50% 100%, 0% 70%, 0% 30%);
+  background: rgba(255,255,255,0.12);
+  transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
+}
+.hype-crystal.filled {
+  background: linear-gradient(180deg, #bfe9ff, #2f93ff 55%, #0f3f8a);
+  box-shadow: 0 0 10px rgba(58, 167, 255, 0.75);
+}
+.hype-count { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700; margin-left: var(--sp-2); font-variant-numeric: tabular-nums; }
+.hype-of { font-size: var(--fs-sm); color: var(--text-faint); font-weight: 400; }
+.hype-locked { margin-left: var(--sp-2); font-size: var(--fs-sm); color: var(--warning); }
+
+/* ---- end turn + timer --------------------------------------------------- */
+
+/* centred on the board area rather than the whole screen */
+.turn-wrap {
+  position: absolute;
+  right: var(--sp-5);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.timer-ring {
+  position: relative;
+  width: 132px; height: 132px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    conic-gradient(var(--accent) calc(var(--timer, 1) * 360deg), rgba(255,255,255,0.08) 0);
+  padding: 5px;
+  transition: background 900ms linear;
+}
+.timer-ring.rope { background: conic-gradient(var(--danger) calc(var(--timer, 1) * 360deg), rgba(255,255,255,0.08) 0); }
+
+.end-turn-btn {
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #2a1f4a, #120b22);
+  border: 2px solid var(--glass-border);
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  transition: all var(--dur-fast) var(--ease-out);
+}
+.end-turn-btn.ready {
+  color: #fff;
+  border-color: var(--accent);
+  background: radial-gradient(circle at 35% 30%, #4a2a7a, #1c0f38);
+  box-shadow: 0 0 26px rgba(181,108,255,0.55), inset 0 2px 8px rgba(255,255,255,0.14);
+  animation: end-turn-ready 2.4s var(--ease-in-out) infinite;
+}
+.end-turn-btn.ready:hover { transform: scale(1.05); box-shadow: 0 0 38px rgba(181,108,255,0.8); }
+.end-turn-btn:disabled { cursor: default; }
+
+@keyframes end-turn-ready {
+  0%, 100% { box-shadow: 0 0 22px rgba(181,108,255,0.45), inset 0 2px 8px rgba(255,255,255,0.12); }
+  50% { box-shadow: 0 0 36px rgba(181,108,255,0.75), inset 0 2px 8px rgba(255,255,255,0.18); }
+}
+
+:root[data-reduced-motion="true"] .end-turn-btn.ready { animation: none; }
+
+.timer-label {
+  position: absolute;
+  bottom: -6px; left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+.timer-label:empty { display: none; }
+
+/* ---- confluence bar ----------------------------------------------------- */
+
+.confluence-bar {
+  position: absolute;
+  left: var(--sp-4);
+  bottom: 42%;
+  display: none;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: 300px;
+}
+.confluence-bar.visible { display: flex; }
+
+.confluence-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--c-a) 30%, rgba(18,12,32,0.9)),
+    color-mix(in srgb, var(--c-b) 30%, rgba(18,12,32,0.9)));
+  border: 1px solid color-mix(in srgb, var(--c-a) 60%, transparent);
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-snap), box-shadow var(--dur-fast);
+  animation: confluence-in var(--dur-med) var(--ease-out) both;
+}
+.confluence-btn:hover {
+  transform: translateX(5px) scale(1.02);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--c-a) 50%, transparent);
+}
+
+@keyframes confluence-in {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: none; }
+}
+
+.conf-symbols { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
+.conf-sym {
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c) 45%, #000);
+  border: 1px solid var(--c);
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: #fff;
+}
+.conf-plus { font-size: var(--fs-xs); color: var(--text-faint); }
+.conf-body { min-width: 0; }
+.conf-name { display: block; font-family: var(--font-display); font-weight: 600; font-size: var(--fs-sm); }
+.conf-text { display: block; font-size: var(--fs-xs); color: var(--text-dim); line-height: 1.3; }
+
+/* ---- history panel ------------------------------------------------------ */
+
+.history-panel {
+  position: absolute;
+  right: var(--sp-4);
+  top: 74px;
+  width: 250px;
+  max-height: 210px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2) var(--sp-3);
+  transition: max-height var(--dur-med) var(--ease-out);
+}
+.history-panel.collapsed { max-height: 40px; overflow: hidden; }
+.history-head { display: flex; align-items: center; justify-content: space-between; }
+.history-toggle { min-height: 26px; min-width: 26px; padding: 0; font-size: var(--fs-xs); }
+.history-list { flex: 1 1 auto; font-size: var(--fs-xs); display: flex; flex-direction: column; gap: 2px; padding-right: 4px; }
+.history-entry { color: var(--text-dim); line-height: 1.35; animation: history-in var(--dur-fast) var(--ease-out) both; }
+.history-entry.damage { color: #ffb0b8; }
+
+@keyframes history-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- trigger rail ------------------------------------------------------- */
+
+.trigger-rail {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  align-items: center;
+  pointer-events: none;
+}
+
+.trigger-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 5px var(--sp-4);
+  border-radius: var(--radius-pill);
+  background: var(--glass-strong);
+  border: 1px solid var(--accent);
+  box-shadow: var(--glow-accent);
+  font-size: var(--fs-sm);
+  animation: trigger-in var(--dur-fast) var(--ease-snap) both;
+}
+.trigger-chip.out { animation: trigger-out var(--dur-med) var(--ease-in-out) both; }
+.trigger-card { font-weight: 600; }
+.trigger-kind { color: var(--accent-bright); font-size: var(--fs-xs); }
+
+@keyframes trigger-in {
+  from { opacity: 0; transform: scale(0.85) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes trigger-out {
+  to { opacity: 0; transform: translateY(-16px) scale(0.95); }
+}
+
+/* ---- controls / emotes -------------------------------------------------- */
+
+.battle-controls { position: absolute; top: var(--sp-3); right: var(--sp-3); display: flex; gap: var(--sp-2); }
+.battle-controls .btn { background: var(--glass-strong); }
+
+.emote-menu {
+  position: absolute;
+  top: 52px; right: 0;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2);
+  border-radius: var(--radius);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px);
+}
+.emote-menu.open { display: flex; }
+.emote-item { padding: 7px var(--sp-4); border-radius: var(--radius-sm); font-size: var(--fs-sm); text-align: left; white-space: nowrap; }
+.emote-item:hover { background: rgba(255,255,255,0.1); }
+
+/* ---- turn banner & toasts ----------------------------------------------- */
+
+.turn-banner {
+  position: absolute;
+  left: 50%; top: 42%;
+  transform: translate(-50%, -50%) scale(0.9);
+  padding: var(--sp-3) var(--sp-7);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border-bright);
+  backdrop-filter: blur(16px);
+  opacity: 0;
+  transition: opacity var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-snap);
+  pointer-events: none;
+}
+.turn-banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.turn-banner.yours { color: #fff; box-shadow: 0 0 44px rgba(181,108,255,0.6); border-color: var(--accent); }
+.turn-banner.theirs { color: var(--accent-cool); box-shadow: 0 0 44px rgba(82,200,255,0.4); border-color: var(--accent-cool); }
+
+.toast-layer { position: absolute; left: 50%; bottom: calc(var(--hand-card-height) + 90px); transform: translateX(-50%); display: flex; flex-direction: column; gap: var(--sp-2); align-items: center; pointer-events: none; }
+.toast {
+  padding: var(--sp-2) var(--sp-5);
+  border-radius: var(--radius-pill);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border-bright);
+  backdrop-filter: blur(14px);
+  font-size: var(--fs-sm);
+  animation: toast-in var(--dur-fast) var(--ease-snap) both;
+}
+.toast-error { border-color: var(--danger); color: #ffc0c8; }
+.toast.out { animation: toast-out var(--dur-med) var(--ease-in-out) both; }
+
+@keyframes toast-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-10px); } }
+
+/* ---- floating combat numbers -------------------------------------------- */
+
+.float-number {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  text-shadow: 0 3px 10px rgba(0,0,0,0.9), 0 0 22px currentColor;
+  pointer-events: none;
+  animation: float-up 1.9s var(--ease-out) both;
+  z-index: 55;
+}
+.float-damage { color: #ff5f7a; }
+.float-elemental { color: var(--accent-gold); }
+.float-heal { color: #7dffb0; }
+.float-block { color: var(--accent-cool); font-size: var(--fs-lg); }
+
+/* The reference pins damage numbers in place for ~2.2s rather than floating
+   them away, so the board doubles as combat history. This keeps a short rise
+   for legibility but then holds, and outlives the 240ms impact beat. */
+@keyframes float-up {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  10% { opacity: 1; transform: translate(-50%, -68%) scale(1.24); }
+  20% { transform: translate(-50%, -76%) scale(1); }
+  75% { opacity: 1; transform: translate(-50%, -80%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -92%) scale(0.96); }
+}
+
+:root[data-reduced-motion="true"] .float-number { animation: float-up-reduced 700ms linear both; }
+@keyframes float-up-reduced {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---- damage preview badge ----------------------------------------------- */
+
+/* An author `display` rule beats the [hidden] attribute's UA `display: none`,
+   so hiding must be stated explicitly or the preview sticks on screen. */
+.damage-preview[hidden] {
+  display: none;
+}
+
+.damage-preview {
+  position: absolute;
+  transform: translateX(-50%);
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border-bright);
+  backdrop-filter: blur(14px);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow);
+}
+.dp-damage { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 800; color: #ff5f7a; }
+.dp-bonus { color: var(--accent-gold); font-weight: 600; }
+.dp-kill { color: #ff9a5f; }
+.dp-counter { color: var(--text-dim); }
+.dp-risk { color: var(--warning); }
+.dp-lethal { color: #fff; font-weight: 800; letter-spacing: 0.14em; background: var(--danger); padding: 1px 8px; border-radius: 4px; text-align: center; }
+.dp-blocked { color: var(--accent-cool); }
+
+/* ---- overlays ----------------------------------------------------------- */
+
+.battle-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 2, 8, 0.78);
+  backdrop-filter: blur(12px);
+  animation: screen-in var(--dur-fast) var(--ease-out) both;
+}
+
+.mulligan-panel { padding: var(--sp-5); max-width: min(1180px, 94vw); display: flex; flex-direction: column; gap: var(--sp-4); align-items: center; }
+.mulligan-head { text-align: center; }
+.mulligan-head .title { margin: var(--sp-1) 0; }
+.mulligan-cards { display: flex; gap: var(--sp-3); flex-wrap: wrap; justify-content: center; }
+
+.mulligan-card {
+  position: relative;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast);
+}
+.mulligan-card:hover { transform: translateY(-10px) scale(1.04); }
+.mulligan-card canvas { display: block; border-radius: 10px; }
+.mulligan-card.selected canvas { filter: grayscale(0.7) brightness(0.6); }
+.mulligan-mark {
+  position: absolute;
+  inset: auto 0 40% 0;
+  padding: 4px;
+  background: var(--danger);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+.mulligan-card.selected .mulligan-mark { opacity: 1; }
+
+.chooser-panel, .confirm-panel, .settings-quick {
+  padding: var(--sp-5);
+  min-width: min(440px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.chooser-title { font-family: var(--font-display); margin: 0; }
+.chooser-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+.chooser-option { justify-content: flex-start; text-align: left; }
+
+.detail-overlay { cursor: pointer; }
+
+/*
+ * A press-and-hold peek is purely visual. It sits over a live drag, so it must
+ * not intercept the pointer — the board underneath still needs the moves that
+ * tell it the press turned into a drag.
+ *
+ * Scrim strength is deliberately left alone. Card frames are painted with alpha
+ * in places, so they only read as solid against the full-strength backdrop; a
+ * lighter scrim lets the board show straight through the card art.
+ */
+.battle-overlay.peeking {
+  pointer-events: none;
+  /*
+   * No backdrop-filter here. A peek sits over a *live* drag, so the WebGL board
+   * beneath it is redrawing every frame, and a continuously-changing backdrop
+   * loses the compositing race: the board paints straight through the enlarged
+   * card. A plain opaque scrim is stable, and slightly darker to make up for
+   * the blur it replaces.
+   */
+  backdrop-filter: none;
+  background: rgba(3, 2, 8, 0.88);
+}
+.detail-panel { display: flex; gap: var(--sp-5); align-items: flex-start; max-width: min(940px, 94vw); }
+.detail-panel canvas { border-radius: 14px; box-shadow: var(--shadow-lg); }
+.detail-info { padding: var(--sp-5); max-width: 380px; }
+.detail-name { font-family: var(--font-display); font-size: var(--fs-xl); margin: var(--sp-1) 0 var(--sp-2); }
+
+/* ---- victory / defeat --------------------------------------------------- */
+
+.end-overlay { background: rgba(3, 2, 8, 0.9); }
+.end-panel { text-align: center; display: flex; flex-direction: column; gap: var(--sp-3); align-items: center; }
+
+.end-title {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 11vw, 7rem);
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  animation: end-title-in 900ms var(--ease-snap) both;
+}
+.end-player .end-title {
+  background: linear-gradient(180deg, #fff5c2, #ffb43d 45%, #ff7a3d);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 40px rgba(255, 180, 61, 0.7));
+}
+.end-ai .end-title { color: #6d5a90; filter: drop-shadow(0 0 30px rgba(109, 90, 144, 0.6)); }
+.end-draw .end-title { color: var(--chrome-mid); }
+
+@keyframes end-title-in {
+  0% { opacity: 0; transform: scale(1.6); filter: blur(18px); }
+  60% { opacity: 1; transform: scale(0.97); filter: blur(0); }
+  100% { transform: scale(1); }
+}
+
+:root[data-reduced-motion="true"] .end-title { animation: none; }
+
+.end-sub { font-size: var(--fs-lg); color: var(--text-dim); animation: screen-in var(--dur-slow) var(--ease-out) 300ms both; }
+.end-stats { font-size: var(--fs-sm); }
+.end-actions { margin-top: var(--sp-4); gap: var(--sp-3); animation: screen-in var(--dur-slow) var(--ease-out) 500ms both; }
+
+/* ---- responsive tightening for small landscape phones ------------------- */
+
+@media (max-height: 520px) {
+  .history-panel { max-height: 140px; width: 210px; }
+  .obsession-dial { width: 170px; }
+  .timer-ring { width: 104px; height: 104px; }
+  .leader-orb { width: 46px; height: 46px; }
+  .confluence-bar { max-width: 230px; }
+  .conf-text { display: none; }
+}
+
+/* ---- coach overlay (tutorial, puzzles, story) ---------------------------- */
+
+/*
+ * The layer itself never eats input. Only the dimmer does, and the dimmer is a
+ * hole: the element is the lit cutout and its shadow is everything else, so the
+ * spotlighted control stays clickable while the rest of the board goes inert.
+ */
+.coach-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+
+.coach-spotlight {
+  position: absolute;
+  border-radius: var(--radius);
+  pointer-events: none;
+  box-shadow:
+    0 0 0 9999px rgba(4, 2, 10, 0.72),
+    0 0 0 2px var(--accent-bright),
+    0 0 26px 4px rgba(217, 165, 255, 0.55);
+  animation: coach-pulse 2s var(--ease-out) infinite;
+}
+
+@keyframes coach-pulse {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(4, 2, 10, 0.72), 0 0 0 2px var(--accent-bright), 0 0 26px 4px rgba(217, 165, 255, 0.55); }
+  50%      { box-shadow: 0 0 0 9999px rgba(4, 2, 10, 0.72), 0 0 0 3px var(--accent-bright), 0 0 34px 7px rgba(217, 165, 255, 0.75); }
+}
+
+:root[data-reduced-motion="true"] .coach-spotlight { animation: none; }
+
+.coach-panel {
+  position: absolute;
+  left: var(--sp-5);
+  bottom: 20vh;
+  width: min(360px, 32vw);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border-bright);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* moves out of the way when the lesson is about something on the left */
+.coach-panel.coach-panel-right { left: auto; right: var(--sp-5); }
+
+.coach-panel-in { animation: coach-in var(--dur-med) var(--ease-out) backwards; }
+
+@keyframes coach-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+:root[data-reduced-motion="true"] .coach-panel-in { animation: none; }
+
+.coach-speaker {
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+}
+
+.coach-text {
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.coach-ack { align-self: flex-end; margin-top: var(--sp-1); }
+
+@media (max-width: 900px) {
+  .coach-panel { width: min(300px, 46vw); bottom: 24vh; padding: var(--sp-3) var(--sp-4); }
+  .coach-text { font-size: var(--fs-sm); }
+}
+
+/* ---- progressive HUD reveal (teaching stages) --------------------------- */
+
+/*
+ * A lesson introduces the board one control at a time: the HUD literally gains
+ * widgets as the coach explains them. Only stages opt in — without
+ * `.tutorial-active` every widget shows normally, so a real match is untouched.
+ *
+ * Hidden widgets are removed from the layout AND from the accessibility tree,
+ * not just faded, so a screen reader is taught in the same order as everyone
+ * else and tab focus never lands on a control that has not been explained.
+ */
+.tutorial-active .hype-wrap,
+.tutorial-active .obsession-dial,
+.tutorial-active .confluence-bar,
+.tutorial-active .history-panel,
+.tutorial-active .emote-menu,
+.tutorial-active .turn-wrap {
+  display: none;
+}
+
+.tutorial-active.reveal-emotes .emote-menu.open,
+.tutorial-active.reveal-hype .hype-wrap,
+.tutorial-active.reveal-obsession .obsession-dial,
+.tutorial-active.reveal-confluence .confluence-bar,
+.tutorial-active.reveal-history .history-panel,
+.tutorial-active.reveal-endTurn .turn-wrap {
+  display: flex;
+}
+
+/*
+ * The countdown is meaningless in a lesson (refresh() never starts the timer),
+ * so only the numerals are hidden. NOT `.timer-ring` — the End Turn button is a
+ * child of the ring, so hiding it collapses the button to zero size and the
+ * stage becomes unfinishable.
+ */
+.tutorial-active .timer-label {
+  display: none;
+}
+
+/* a stage that has not taught the hand yet keeps it off-screen entirely */
+.tutorial-active .hand-bar { visibility: hidden; }
+.tutorial-active.reveal-hand .hand-bar { visibility: visible; }
+
+/* ---- leader abilities (Fixation / Ultimate) ----------------------------- */
+
+/*
+ * Obsession's payoff. Without these the meter fills and can never be spent —
+ * the abilities existed in the engine and the AI used them, but a human had no
+ * way to. Placed directly under the player's Obsession dial so the cost and the
+ * meter read together.
+ */
+.ability-bar {
+  position: absolute;
+  bottom: var(--sp-3);
+  left: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 230px;
+}
+
+.ability-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  text-align: left;
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-strong);
+  backdrop-filter: blur(10px);
+  color: var(--text-dim);
+  cursor: not-allowed;
+  transition: border-color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
+}
+
+.ability-btn.ready {
+  color: var(--text);
+  border-color: var(--accent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 35%, transparent);
+  cursor: pointer;
+}
+
+.ability-btn.ready:hover { transform: translateY(-2px); border-color: var(--accent-bright); }
+
+.ability-cost {
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-hot);
+  color: var(--text);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+}
+
+.ability-btn:disabled .ability-cost { background: var(--chrome-lo); }
+
+.ability-body { display: flex; flex-direction: column; min-width: 0; }
+.ability-name { font-size: var(--fs-sm); font-weight: 600; }
+.ability-text {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* hidden until the Obsession lesson introduces it */
+.tutorial-active .ability-bar { display: none; }
+.tutorial-active.reveal-obsession .ability-bar { display: flex; }
+
+@media (max-height: 620px) {
+  .ability-bar { width: 190px; }
+  .ability-text { display: none; }
+}
+
+/**
+ * The reward readout on the result screen.
+ *
+ * It did not exist. `recordMatch` returned what a match paid and all five call
+ * sites discarded it, so every Clout, every level and every first-win bonus was
+ * granted completely invisibly — the same failure as a reward that never
+ * arrives, minus any way to notice. The daily allowance line is here for the
+ * same reason: a ceiling nobody is told about reads as the game being broken.
+ */
+.end-rewards {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: min(320px, 80vw);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.25);
+}
+.end-reward-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  font-size: var(--fs-sm);
+}
+.end-reward-value { font-family: var(--font-display); color: var(--accent-bright); }
+.end-reward-bonus { color: var(--accent-gold); }
+.end-reward-bonus .end-reward-value { color: var(--accent-gold); }
+.end-reward-note {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  text-align: left;
+  max-width: 42ch;
+}
+
+/* ---------------------------------------------------------------------------
+   KEYBOARD PLAY AND THE BOARD MIRROR (13-accessibility.md §13, §16)
+   ------------------------------------------------------------------------ */
+
+/**
+ * The Board Mirror is visually hidden and *not* `display: none`.
+ *
+ * A screen reader ignores anything display-none or visibility-hidden, so the
+ * usual clip-rect trick is the only one that leaves the tree readable. It is
+ * focusable with ` so a keyboard user can walk the state as a list, and it
+ * becomes visible when focused — a sighted keyboard user should be able to see
+ * what a screen-reader user is hearing.
+ */
+.board-mirror {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  z-index: 60;
+}
+.board-mirror:focus-within,
+.board-mirror:focus {
+  width: min(520px, 46vw);
+  height: auto;
+  max-height: 70vh;
+  overflow-y: auto;
+  clip: auto;
+  clip-path: none;
+  white-space: normal;
+  margin: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: rgba(8, 5, 16, 0.96);
+  backdrop-filter: blur(10px);
+}
+.board-mirror-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.board-mirror-line { font-size: var(--fs-sm); line-height: 1.45; }
+.board-mirror-line.depth-1 { padding-left: var(--sp-4); color: var(--text-dim); }
+.board-mirror-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* the mode banner — §13.3 requires the player never be in an unlabelled state */
+.board-mode-banner {
+  position: absolute;
+  top: var(--sp-4);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  padding: 6px var(--sp-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent);
+  background: rgba(8, 5, 16, 0.92);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+/* the keyboard cursor in hand: the board draws its own via the card highlight */
+.hand-card.kb-focus {
+  outline: 3px solid var(--accent-bright);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+.shortcut-table td { padding: 3px var(--sp-4) 3px 0; }
+.shortcut-keys { font-family: var(--font-display); color: var(--accent-bright); white-space: nowrap; }
+.shortcut-sheet { max-height: 80vh; overflow-y: auto; }
+
+/**
+ * The Hotseat handoff must actually hide the hand - 09 section 17.
+ *
+ * It lives here rather than in screens.css because the generic .battle-overlay
+ * is defined in this file and loads after it, so a same-specificity rule over
+ * there lost: the cover computed to rgba(3, 2, 8, 0.78) and the outgoing
+ * player's hand was 22% visible through it. A hand-hiding screen that mostly
+ * hides the hand is the failure this feature exists to prevent, and the browser
+ * check now asserts near-total opacity rather than merely "not transparent".
+ */
+.battle-overlay.handoff-overlay {
+  background: #050409;
+  backdrop-filter: blur(14px);
+  opacity: 1;
+}

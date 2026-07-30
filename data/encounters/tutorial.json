@@ -1,0 +1,597 @@
+{
+  "id": "tutorial",
+  "kind": "tutorial",
+  "decks": {
+    "tut-player-basics": {
+      "name": "First Stream",
+      "leaderCardId": "meme-leader-skree-nine-tabs",
+      "cards": [
+        "meme-first-poster",
+        "algo-queue-jumper",
+        "goth-crypt-usher",
+        "viral-drama-channel",
+        "meme-first-poster",
+        "algo-queue-jumper"
+      ]
+    },
+    "tut-bot": {
+      "name": "Practice Bot v0.9",
+      "leaderCardId": "tut-practice-bot",
+      "cards": ["goth-crypt-usher", "goth-crypt-usher", "goth-crypt-usher"]
+    },
+    "tut-player-combat": {
+      "name": "Sparring Set",
+      "leaderCardId": "meme-leader-skree-nine-tabs",
+      "cards": ["goth-crypt-usher", "meme-first-poster", "viral-drama-channel"]
+    },
+    "tut-player-currents": {
+      "name": "Crosswind",
+      "leaderCardId": "meme-leader-skree-nine-tabs",
+      "cards": ["meme-first-poster", "algo-preroll-runner", "meme-first-poster"]
+    },
+    "tut-player-obsession": {
+      "name": "Mentor Loaner",
+      "leaderCardId": "tut-seraph-online",
+      "cards": ["meme-first-poster", "algo-queue-jumper"]
+    }
+  },
+  "stages": [
+    {
+      "id": "s1-log-on",
+      "title": "Log On",
+      "teaches": "Hype, playing cards, ending your turn",
+      "reveal": ["hand", "hype", "endTurn"],
+      "decks": ["tut-player-basics", "tut-bot"],
+      "seed": 101,
+      "firstSeat": 0,
+      "opponent": { "kind": "idle" },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          { "op": "hand", "seat": 0, "cards": ["meme-first-poster"] },
+          {
+            "op": "deckOrder",
+            "seat": 0,
+            "cards": ["algo-queue-jumper", "goth-crypt-usher", "viral-drama-channel"],
+            "rest": "empty"
+          },
+          { "op": "deckOrder", "seat": 1, "cards": ["goth-crypt-usher"], "rest": "empty" }
+        ]
+      },
+      "beats": [
+        {
+          "id": "welcome",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Welcome to your first stream. Everything you do costs Hype — that's the counter bottom-right. You get one on turn one, two on turn two, and so on up to ten.",
+              "spotlight": ".hype-wrap"
+            }
+          ],
+          "reveal": ["hand", "hype", "endTurn"],
+          "allow": [],
+          "until": { "when": "acknowledged" }
+        },
+        {
+          "id": "play-first-poster",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "You have one Hype and one card that costs one. Drag First Poster onto the board.",
+              "spotlight": ".hand-card"
+            }
+          ],
+          "allow": [{ "intent": "playCard" }],
+          "denyReason": "Let's start by playing First Poster — drag it onto the board.",
+          "until": { "when": "boardCount", "seat": "you", "min": 1 }
+        },
+        {
+          "id": "end-turn-1",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Spent everything? Good. Hype doesn't carry over, so an unspent crystal is a wasted one. End your turn.",
+              "spotlight": ".end-turn-btn"
+            }
+          ],
+          "allow": [{ "intent": "endTurn" }],
+          "denyReason": "Nothing left to spend this turn — hit End Turn.",
+          "until": { "when": "turnAtLeast", "value": 2 }
+        },
+        {
+          "id": "play-second",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Turn two, two Hype. Play the two-cost.",
+              "spotlight": ".hand-card"
+            }
+          ],
+          "allow": [{ "intent": "playCard" }],
+          "denyReason": "Play a card first — you have the Hype for it.",
+          "until": { "when": "boardCount", "seat": "you", "min": 2 }
+        },
+        {
+          "id": "end-turn-2",
+          "say": [
+            { "speaker": "Nova Encore", "text": "Same again. End your turn.", "spotlight": ".end-turn-btn" }
+          ],
+          "allow": [{ "intent": "endTurn" }],
+          "denyReason": "End your turn to climb to three Hype.",
+          "until": { "when": "turnAtLeast", "value": 3 }
+        },
+        {
+          "id": "spend-it-all",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Three Hype. You could play the three-cost, or two cheap ones — the board rewards bodies. Get a third character down.",
+              "spotlight": ".hand-card"
+            }
+          ],
+          "allow": [{ "intent": "playCard" }],
+          "denyReason": "Spend that Hype — get a third character onto the board.",
+          "until": { "when": "boardCount", "seat": "you", "min": 3 }
+        },
+        {
+          "id": "s1-done",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Three characters, nothing wasted. That's the whole economy. Next: making them useful."
+            }
+          ],
+          "allow": [],
+          "until": { "when": "acknowledged" }
+        }
+      ],
+      "objective": { "when": "boardCount", "seat": "you", "min": 3 }
+    },
+
+    {
+      "id": "s2-pick-a-fight",
+      "title": "Pick a Fight",
+      "teaches": "Attacking, summoning sickness, trading",
+      "reveal": ["hand", "hype", "endTurn", "leaderHealth", "targeting", "damagePreview"],
+      "decks": ["tut-player-combat", "tut-bot"],
+      "seed": 102,
+      "firstSeat": 0,
+      "opponent": { "kind": "idle" },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          { "op": "hand", "seat": 0, "cards": ["goth-crypt-usher"] },
+          { "op": "deckOrder", "seat": 0, "cards": ["meme-first-poster"], "rest": "empty" },
+          { "op": "deckOrder", "seat": 1, "cards": ["goth-crypt-usher"], "rest": "empty" },
+          { "op": "board", "seat": 0, "slot": 0, "cardId": "viral-drama-channel", "ready": true },
+          { "op": "board", "seat": 1, "slot": 0, "cardId": "after-bad-influence" },
+          { "op": "leaderHealth", "seat": 1, "value": 4 }
+        ]
+      },
+      "beats": [
+        {
+          "id": "s2-intro",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Characters attack by dragging them at a target. Your rival is on four health — take a swing at them directly.",
+              "spotlight": ".leader-plate-enemy"
+            }
+          ],
+          "allow": [],
+          "until": { "when": "acknowledged" }
+        },
+        {
+          "id": "s2-hit-leader",
+          "say": [
+            { "speaker": "Nova Encore", "text": "Drag your character onto the rival's portrait." }
+          ],
+          "allow": [{ "intent": "attack", "target": "leader" }],
+          "denyReason": "Attack the rival leader first — drag your character onto their portrait.",
+          "until": { "when": "leaderHealthAtMost", "seat": "opponent", "value": 1 }
+        },
+        {
+          "id": "s2-no-counter",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Leaders don't hit back. Characters do — remember that when you pick your target."
+            }
+          ],
+          "allow": [],
+          "until": { "when": "acknowledged" }
+        },
+        {
+          "id": "s2-play-second",
+          "say": [
+            { "speaker": "Nova Encore", "text": "Play your other character.", "spotlight": ".hand-card" }
+          ],
+          "allow": [{ "intent": "playCard" }],
+          "denyReason": "Play the card in your hand first.",
+          "until": { "when": "boardCount", "seat": "you", "min": 2 }
+        },
+        {
+          "id": "s2-sickness",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "It can't attack this turn — a character needs a turn to settle in. Some cards ignore that; most don't. End your turn."
+            }
+          ],
+          "allow": [{ "intent": "endTurn" }],
+          "denyReason": "End your turn — that character isn't ready yet.",
+          "until": { "when": "turnAtLeast", "value": 2 }
+        },
+        {
+          "id": "s2-trade",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Now the trade. Attack their character: you both deal damage at the same time, so check who survives before you swing."
+            }
+          ],
+          "allow": [{ "intent": "attack" }],
+          "denyReason": "Attack their character — that's the lesson here.",
+          "until": { "when": "boardCount", "seat": "opponent", "max": 0 }
+        },
+        {
+          "id": "s2-finish",
+          "say": [
+            { "speaker": "Nova Encore", "text": "Board's clear. Swing at the leader and close it out." }
+          ],
+          "allow": [{ "intent": "attack" }],
+          "denyReason": "Finish the leader with your surviving character.",
+          "until": { "when": "matchEnded" }
+        }
+      ],
+      "objective": { "when": "matchEnded" }
+    },
+
+    {
+      "id": "s3-the-bodyguard",
+      "title": "The Bodyguard",
+      "teaches": "Spotlight forces your attacks onto the bodyguard",
+      "reveal": ["hand", "hype", "endTurn", "leaderHealth", "targeting", "damagePreview", "statusIcons"],
+      "decks": ["tut-player-combat", "tut-bot"],
+      "seed": 103,
+      "firstSeat": 0,
+      "opponent": { "kind": "idle" },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          { "op": "deckOrder", "seat": 0, "cards": ["meme-first-poster"], "rest": "empty" },
+          { "op": "deckOrder", "seat": 1, "cards": ["goth-crypt-usher"], "rest": "empty" },
+          { "op": "board", "seat": 0, "slot": 0, "cardId": "viral-drama-channel", "ready": true },
+          { "op": "board", "seat": 0, "slot": 1, "cardId": "meme-first-poster", "ready": true },
+          { "op": "board", "seat": 1, "slot": 0, "cardId": "grass-trail-steward" },
+          { "op": "board", "seat": 1, "slot": 1, "cardId": "after-bad-influence" },
+          { "op": "leaderHealth", "seat": 1, "value": 3 }
+        ]
+      },
+      "beats": [
+        {
+          "id": "s3-intro",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "That 1/4 has Spotlight. While it's on the board, everything behind it is off limits — the leader included. Try dragging at the leader and watch the arrow refuse."
+            }
+          ],
+          "allow": [],
+          "until": { "when": "acknowledged" }
+        },
+        {
+          "id": "s3-break-the-wall",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "So you go through it. Attack the Spotlight character with both of yours.",
+              "spotlight": ".battle-board-host"
+            }
+          ],
+          "allow": [{ "intent": "attack", "target": "character" }],
+          "denyReason": "Spotlight is in the way — you have to attack that character first.",
+          "until": { "when": "boardCount", "seat": "opponent", "max": 1 }
+        },
+        {
+          "id": "s3-exposed",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Down it goes, and the way through opens. That's the whole trade-off of a bodyguard: it buys the turn it costs you. End your turn."
+            }
+          ],
+          "allow": [{ "intent": "endTurn" }],
+          "denyReason": "End your turn — nothing left to swing with.",
+          "until": { "when": "turnAtLeast", "value": 2 }
+        },
+        {
+          "id": "s3-finish",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Now go past what's left. Their other character can wait — the leader can't."
+            }
+          ],
+          "allow": [{ "intent": "attack", "target": "leader" }],
+          "denyReason": "Go for the leader — trading into their last character just costs you your survivor.",
+          "until": { "when": "matchEnded" }
+        }
+      ],
+      "objective": { "when": "matchEnded" }
+    },
+
+    {
+      "id": "s4-know-your-currents",
+      "title": "Know Your Currents",
+      "teaches": "The Current advantage cycle and its +1 damage",
+      "reveal": [
+        "hand", "hype", "endTurn", "leaderHealth", "targeting", "damagePreview", "statusIcons", "currentBadges"
+      ],
+      "decks": ["tut-player-currents", "tut-bot"],
+      "seed": 104,
+      "firstSeat": 0,
+      "opponent": { "kind": "idle" },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          { "op": "deckOrder", "seat": 0, "cards": ["meme-first-poster"], "rest": "empty" },
+          { "op": "deckOrder", "seat": 1, "cards": ["goth-crypt-usher"], "rest": "empty" },
+          { "op": "board", "seat": 0, "slot": 0, "cardId": "meme-first-poster", "ready": true },
+          { "op": "board", "seat": 1, "slot": 0, "cardId": "corp-unpaid-intern" },
+          { "op": "leaderHealth", "seat": 1, "value": 2 }
+        ]
+      },
+      "beats": [
+        {
+          "id": "s4-intro",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Every card belongs to a Current. Cinder beats Gale, Gale beats Root, Root beats Pulse, Pulse beats Tide, Tide beats Cinder. Halo and Veil beat each other. Prism plays nice with everyone."
+            },
+            {
+              "speaker": "Nova Encore",
+              "text": "Attack into a Current you beat and you deal one extra damage. Your 2-attack Gale character hits that 3-health Root wall for three."
+            }
+          ],
+          "allow": [],
+          "until": { "when": "acknowledged" }
+        },
+        {
+          "id": "s4-use-the-bonus",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Take the wall down. Watch the damage preview call out the bonus."
+            }
+          ],
+          "allow": [{ "intent": "attack", "target": "character" }],
+          "denyReason": "Attack the Root wall — that's where your Current advantage pays.",
+          "until": { "when": "boardCount", "seat": "opponent", "max": 0 }
+        },
+        {
+          "id": "s4-that-is-the-cycle",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Two attack, three damage. One point doesn't sound like much until it's the difference between a trade and a clean kill. End your turn."
+            }
+          ],
+          "allow": [{ "intent": "endTurn" }],
+          "denyReason": "End your turn.",
+          "until": { "when": "turnAtLeast", "value": 2 }
+        },
+        {
+          "id": "s4-finish",
+          "say": [{ "speaker": "Nova Encore", "text": "Close it out." }],
+          "allow": [{ "intent": "attack" }],
+          "denyReason": "Swing at the leader.",
+          "until": { "when": "matchEnded" }
+        }
+      ],
+      "objective": { "when": "matchEnded" }
+    },
+
+    {
+      "id": "s5-crossover-episode",
+      "title": "Crossover Episode",
+      "teaches": "Confluences: two Currents in one turn",
+      "reveal": [
+        "hand", "hype", "endTurn", "leaderHealth", "targeting", "damagePreview",
+        "statusIcons", "currentBadges", "confluence"
+      ],
+      "decks": ["tut-player-currents", "tut-bot"],
+      "seed": 105,
+      "firstSeat": 0,
+      "opponent": { "kind": "idle" },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          { "op": "hand", "seat": 0, "cards": ["meme-first-poster", "algo-preroll-runner"] },
+          { "op": "deckOrder", "seat": 0, "cards": ["meme-first-poster"], "rest": "empty" },
+          { "op": "deckOrder", "seat": 1, "cards": ["goth-crypt-usher"], "rest": "empty" },
+          { "op": "leaderHealth", "seat": 1, "value": 6 }
+        ]
+      },
+      "beats": [
+        {
+          "id": "s5-intro",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Play two different Currents in the SAME turn and they combine into a Confluence. Gale plus Pulse is Tempest."
+            },
+            {
+              "speaker": "Nova Encore",
+              "text": "Both your cards cost one, so you'll need two Hype. End your turn once to get there."
+            }
+          ],
+          "allow": [{ "intent": "endTurn" }],
+          "denyReason": "End your turn — you need two Hype to play both Currents at once.",
+          "until": { "when": "turnAtLeast", "value": 2 }
+        },
+        {
+          "id": "s5-play-gale",
+          "say": [
+            { "speaker": "Nova Encore", "text": "Two Hype. Play the Gale card.", "spotlight": ".hand-card" }
+          ],
+          "allow": [{ "intent": "playCard" }],
+          "denyReason": "Play the Gale card first.",
+          "until": { "when": "boardCount", "seat": "you", "min": 1 }
+        },
+        {
+          "id": "s5-play-pulse",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "And the Pulse card, same turn — that's what pairs them.",
+              "spotlight": ".hand-card"
+            }
+          ],
+          "allow": [{ "intent": "playCard" }],
+          "denyReason": "Play the Pulse card in this same turn to complete the pair.",
+          "until": { "when": "boardCount", "seat": "you", "min": 2 }
+        },
+        {
+          "id": "s5-fire-tempest",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Two Currents, one turn — Tempest is lit. Fire it. One Confluence per player per turn, so make it count.",
+              "spotlight": ".confluence-bar"
+            }
+          ],
+          "allow": [{ "intent": "activateConfluence" }],
+          "denyReason": "Activate the Tempest Confluence.",
+          "until": { "when": "confluenceUsed" }
+        },
+        {
+          "id": "s5-done",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "That's a Confluence. Nine pairs exist, one for every combination that isn't Prism — and Prism counts as whatever it's standing next to."
+            }
+          ],
+          "allow": [],
+          "until": { "when": "acknowledged" }
+        }
+      ],
+      "objective": { "when": "confluenceUsed" }
+    },
+
+    {
+      "id": "s6-down-bad",
+      "title": "Down Bad",
+      "teaches": "Obsession, Fixation and the Ultimate",
+      "reveal": [
+        "hand", "hype", "endTurn", "leaderHealth", "targeting", "damagePreview",
+        "statusIcons", "currentBadges", "confluence", "obsession"
+      ],
+      "decks": ["tut-player-obsession", "tut-bot"],
+      "seed": 106,
+      "firstSeat": 0,
+      "opponent": { "kind": "idle" },
+      "scenario": {
+        "shuffle": false,
+        "deal": false,
+        "borrowedClout": false,
+        "mulligan": "none",
+        "setup": [
+          { "op": "deckOrder", "seat": 0, "cards": ["meme-first-poster"], "rest": "empty" },
+          { "op": "deckOrder", "seat": 1, "cards": ["goth-crypt-usher"], "rest": "empty" },
+          { "op": "board", "seat": 0, "slot": 0, "cardId": "viral-drama-channel", "ready": true },
+          { "op": "obsession", "seat": 0, "value": 7 },
+          { "op": "leaderHealth", "seat": 1, "value": 5 }
+        ]
+      },
+      "beats": [
+        {
+          "id": "s6-intro",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Obsession is the other meter. It climbs when you buff your own characters and when Parasocial cards resolve — and it doesn't reset between turns."
+            },
+            {
+              "speaker": "Nova Encore",
+              "text": "At three you can spend it on your leader's Fixation. At seven, the Ultimate. Sit above eight and every enemy source hits you for one extra — the deeper you go, the harder you hit and the harder you get hit."
+            },
+            {
+              "speaker": "Nova Encore",
+              "text": "You're on seven, and your rival is on five. Seraph's Ultimate deals exactly five."
+            }
+          ],
+          "reveal": ["obsession"],
+          "allow": [],
+          "until": { "when": "acknowledged" }
+        },
+        {
+          "id": "s6-grand-finale",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Spend it. Grand Finale, straight to the face.",
+              "spotlight": ".obsession-player"
+            }
+          ],
+          "allow": [{ "intent": "useFixation", "kind": "ultimate" }],
+          "denyReason": "The Ultimate is the one you want — Patch Notes would spend the Obsession you need for it.",
+          "until": { "when": "matchEnded" }
+        }
+      ],
+      "objective": { "when": "matchEnded" }
+    },
+
+    {
+      "id": "s7-graduation-stream",
+      "title": "Graduation Stream",
+      "teaches": "A real match, your own deck, no hand-holding",
+      "reveal": [
+        "hand", "hype", "endTurn", "leaderHealth", "targeting", "damagePreview",
+        "statusIcons", "currentBadges", "confluence", "obsession", "history", "emotes"
+      ],
+      "decks": ["$player", "$rival"],
+      "seed": 107,
+      "opponent": { "kind": "ai", "difficulty": "beginner" },
+      "beats": [
+        {
+          "id": "s7-intro",
+          "say": [
+            {
+              "speaker": "Nova Encore",
+              "text": "Your deck, a real opponent, every rule switched on. You'll mulligan first — throw back anything you can't cast in the first few turns."
+            },
+            {
+              "speaker": "Nova Encore",
+              "text": "Losing is fine. I lost my first forty. Go on."
+            }
+          ],
+          "allow": [],
+          "until": { "when": "acknowledged" }
+        },
+        {
+          "id": "s7-play",
+          "until": { "when": "matchEnded" }
+        }
+      ],
+      "objective": { "when": "matchEnded" }
+    }
+  ]
+}

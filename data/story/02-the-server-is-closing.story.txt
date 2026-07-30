@@ -1,0 +1,382 @@
+# Chapter 2 of the HYPEBOUND story campaign.
+#
+# Copy TEMPLATE.story.txt to start one of your own, and read
+# HOW-TO-WRITE-A-CHAPTER.md — both are in this folder.
+
+TITLE: The Server Is Closing
+FACTION: Gothic Royalty
+ABOUT: The Manor has been running for sixteen years for a canon that ended in 2009. Its host has posted a shutdown date. Morvina treats the announcement as a scheduling error, the court treats it as a funeral, and the scavengers treat it as inventory.
+
+
+=== EPISODE: The Announcement Post
+
+NARRATION: THE MANOR — a self-hosted persistent world, four percent occupancy, sixteen years uptime. Nobody has patched it since the year the source material ended.
+
+POST: SERVICE NOTICE. This host will be decommissioned in thirty (30) days. Please export any data you wish to retain. Thank you for sixteen years.
+
+Countess Morvina Vane: Warden. There is a notice on the gate.
+Warden Elowe: There is, my lady.
+Countess Morvina Vane: It has a date on it.
+Warden Elowe: It does.
+Countess Morvina Vane (composed): Then it is a scheduling matter. Schedules are moved. Have it moved.
+
+NARRATION: Warden Elowe has moderated an empty forum for six years. She has never once asked to be relieved.
+
+Warden Elowe: I have written to them. Twice.
+Countess Morvina Vane: And?
+Warden Elowe: The second reply was the same as the first, with a different name at the bottom.
+
+NARRATION: Something arrives at the east door. It is not a guest. It is carrying a manifest.
+
+The Migration Daemon (flat): ARCHIVE PASS ONE OF FOUR. ENUMERATING GEOMETRY. ENUMERATING FURNITURE. ENUMERATING PERSONS.
+Countess Morvina Vane: I beg your pardon.
+The Migration Daemon (flat): PERSONS ARE FURNITURE FOR PACKING PURPOSES. THIS IS NOT A JUDGEMENT. IT IS A SCHEMA.
+
+CHOICE: It has come to pack the house. What does the Countess do?
+  * Receive it properly. It is a guest.
+      REMEMBER: manners held
+      REMEMBER: elowe trust + 1
+      Countess Morvina Vane (gracious): Then you will be shown to the east drawing room, you will be offered something, and you will decline it, and we will both have done this correctly.
+      Warden Elowe (quietly): She means it. She means all of it.
+  * Refuse it the door.
+      REMEMBER: manners held is false
+      Countess Morvina Vane (cold): You have a manifest. I have a threshold. Neither of us is going to move, and one of us has been here longer.
+      The Migration Daemon (flat): NOTED. RE-ENUMERATING FROM THE WINDOW.
+
+NARRATION: Sixteen years of held ground, and it comes down to whether a bot can be made to leave a hallway.
+
+BATTLE: The Migration Daemon
+  PLAYS: Cassia Cache
+  YOU PLAY: Countess Morvina Vane
+  DIFFICULTY: beginner
+  THEIR HEALTH: 24
+  RULE: thirty days notice
+  IF YOU LOSE:
+    The Migration Daemon (flat): PASS ONE COMPLETE. BEGINNING PASS TWO.
+    Countess Morvina Vane: Begin it again, then. I have thirty days and nowhere at all to be.
+
+The Migration Daemon (flat): PASS ONE INCOMPLETE. RETRY SCHEDULED. TWENTY-NINE DAYS REMAIN.
+
+NARRATION: It leaves through the window it came in by, politely, and the counter on the gate ticks down one.
+
+Countess Morvina Vane: Warden. Convene the court.
+Warden Elowe: My lady, the court is four people and one of them is a portrait.
+Countess Morvina Vane: Then convene the three and hang the fourth where he can hear.
+
+
+=== EPISODE: Court of the Silent Fandom
+
+NARRATION: The Long Gallery. Four chairs, three occupied, and above the fireplace a portrait of somebody who logged off in 2014 and never came back.
+
+Alaric Thornheart (drawling): I move that we do nothing. It has served us admirably for sixteen years.
+Countess Morvina Vane: You move that we do nothing about everything, Alaric. It is your only motion.
+Alaric Thornheart: It is a good motion. Look how well the Manor has done under it.
+
+IF manners held:
+  Warden Elowe: The daemon was courteous, for what it is worth. It said thank you at the gate.
+  Alaric Thornheart: Of course it did. They always do. That is the part that gets you.
+OTHERWISE:
+  Warden Elowe: We put it out of the window, my lady. It came back through the window.
+  Alaric Thornheart: Then it has learned the house better than half the court has.
+
+NARRATION: There are three positions, and the court has taken all of them at once: preserve it, port it, or let it perish beautifully.
+
+Alaric Thornheart: I have been writing my memoirs for eleven years. I am up to the second week.
+Countess Morvina Vane: Alaric.
+Alaric Thornheart (sharper): My point, Regent, is that a thing that is finished is *finished*, and we are the only people in the world who have not noticed. I would like to be allowed to not finish something in peace.
+Countess Morvina Vane: You would like the ending to be your idea.
+Alaric Thornheart: I would like the ending to be *somebody's* idea. It is currently a billing decision.
+
+NARRATION: He is not wrong, and being not wrong has never once stopped a duel in this house.
+
+Alaric Thornheart (rising): Regent's Prerogative, then. Take it from me at the table and the court is yours to point at whatever you like.
+
+BATTLE: Alaric Thornheart
+  PLAYS: Alaric Thornheart
+  DIFFICULTY: casual
+  RULE: the court reconvenes
+  IF YOU LOSE:
+    Alaric Thornheart (bowing): Again, then. It is not as though either of us has an appointment.
+
+Alaric Thornheart: Well. Yes. That is why you are the Regent and I am the man with eleven years of second week.
+Countess Morvina Vane: You will help.
+Alaric Thornheart: I will help. I will complain the entire time and I will help.
+Warden Elowe: I have made a list of everything that is only in here.
+Countess Morvina Vane: How long is it?
+Warden Elowe: Four hundred and six items, my lady. I did not include the people.
+
+
+=== EPISODE: The Archive Rats
+
+NARRATION: Day nineteen. The Manor's west wing has been getting lighter. Not brighter — lighter. Things are going.
+
+Warden Elowe: Scrapers. Three of them, in the undercroft, with a cart and a very good ladder.
+Alaric Thornheart: A cart. In my undercroft.
+Warden Elowe: It is not your undercroft, my lord, it is the Manor's.
+Alaric Thornheart: That was going to be my next point and you have taken it.
+
+NARRATION: They are not vandals. They are meticulous, they are insured, and they have done this to eleven worlds this year.
+
+The Scraper Crew: We pull the assets before the host wipes the disk. Everything we take stays readable. Everything we leave stops existing on the fourteenth.
+Countess Morvina Vane: You are looting a house with the family still in it.
+The Scraper Crew: We are photographing a house that is on fire. You are welcome to keep standing in it.
+
+BATTLE: The Scraper Crew
+  PLAYS: Ashvyre
+  DIFFICULTY: intermediate
+  IF YOU LOSE:
+    The Scraper Crew: We will be here tomorrow. That is the entire business model.
+    Countess Morvina Vane: So will I.
+
+NARRATION: They stop when she wins. They do not leave. They put the ladder down and wait, because they have had this conversation in eleven houses and they know which part comes next.
+
+The Scraper Crew: Offer stands either way. Hire us and the Manor becomes an archive — readable forever, walkable never. Or throw us out and it stays alive right up until the fourteenth, and then it is gone the way the others went.
+Warden Elowe: My lady. If we hire them, does it still count as here?
+
+CHOICE: Nineteen days left. What happens to the Manor?
+  * Hire them. Let it be an archive.
+      REMEMBER: hired the scrapers
+      REMEMBER: elowe trust + 1
+      Countess Morvina Vane: Take everything. Take the wallpaper. Take the sixteen years of the gate log, all of it, including the nights nobody came.
+      The Scraper Crew: That is four hundred gigabytes of nobody coming.
+      Countess Morvina Vane: It is the most accurate thing in the house.
+      NARRATION: They work through the night, and the Manor gets lighter, and the light is a kind of mercy nobody in the court will say out loud.
+  * Drive them off. It stays alive until it doesn't.
+      REMEMBER: drove them off
+      Countess Morvina Vane: Out. With the ladder.
+      Alaric Thornheart (delighted): With the *cart*, Regent, let us do this properly.
+      NARRATION: The undercroft stays full. Everything in it will stop existing on the fourteenth, and every person in the room now knows that, and stays anyway.
+
+Warden Elowe: Nineteen days.
+Countess Morvina Vane: Nineteen days.
+
+
+=== SIDE CUT: Inventory
+UNLOCKED BY: hired the scrapers
+
+NARRATION: Eighteen days left. The Scrapers work in pairs and they work fast, and by the second morning every object in the Manor has a number on a small green sticker in the bottom right corner of it.
+
+The Scraper Crew: Six thousand one hundred and four objects. That's the house.
+Warden Elowe: The house is nine hundred years old.
+The Scraper Crew: Six thousand one hundred and four.
+
+NARRATION: Nobody argues with the number. The number is correct. It is also the first time anybody has known it, and knowing it turns out to be a kind of loss.
+
+Countess Morvina Vane: Which one is the throne?
+The Scraper Crew: Four-one-one-two.
+Countess Morvina Vane: And the window Juno likes?
+The Scraper Crew: Four-one-one-three. We did that room in order.
+
+NARRATION: Juno Pale has spent an hour and a half following two strangers around her own court, reading the stickers out loud, in a voice that has been getting quieter the whole time.
+
+Juno Pale: What number would I be.
+The Scraper Crew: You're not an object.
+Juno Pale (bright): No, I know. I'm asking what number. If.
+
+BATTLE: Six Thousand One Hundred and Four
+  PLAYS: Cassia Cache
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    The Scraper Crew: Nothing has been taken. It has been counted. Those are different things.
+    Countess Morvina Vane: Again.
+
+Countess Morvina Vane: Leave the stickers on.
+Warden Elowe: Countess —
+Countess Morvina Vane (composed): Leave them on. In eighteen days somebody will be glad of a house that says what everything is, and I would rather it was us who wrote it down than them.
+
+
+=== EPISODE: Juno's First Time
+
+NARRATION: Day six. Somebody new walks through the front gate for the first time in two years, and nobody in the Manor has any idea what to do about it.
+
+Juno Pale (bright): Hi — hello — sorry — is this thing still on? The listing said it was still on.
+Warden Elowe: It is still on.
+Juno Pale: Oh good. Oh, this is GORGEOUS. What is it?
+Countess Morvina Vane: ...I beg your pardon?
+Juno Pale: The house. What's it from? I only found the listing.
+
+NARRATION: Sixteen years. Four hundred and six items that exist nowhere else. A canon that ended in 2009. And the first new arrival since spring has never heard of any of it.
+
+Alaric Thornheart (faintly): She does not know.
+Warden Elowe: She does not know.
+Alaric Thornheart: Somebody ought to tell her.
+Warden Elowe (gentle): Somebody ought to let her look at it first.
+
+NARRATION: She looks at it for four hours. She reads the wall plaques. She finds the ossuary choir and sits with them through an entire performance of something that has not had an audience since 2017.
+
+Juno Pale: Okay so I have questions.
+Countess Morvina Vane: I imagine you do.
+Juno Pale: Is the countess a real person or is she a character?
+Countess Morvina Vane: ...Ask me again in six days.
+
+IF hired the scrapers:
+  Juno Pale: Also there are three people in the basement photographing a chair.
+  Alaric Thornheart: Yes. We are aware. We hired them.
+  Juno Pale: That's so sad.
+  Alaric Thornheart: Thank you. Nobody else has said so.
+OTHERWISE:
+  Juno Pale: Also somebody's left a ladder outside the wall.
+  Alaric Thornheart: They have. We ejected the ladder's owners.
+  Juno Pale: Did it help?
+  Alaric Thornheart: It helped *me*.
+
+NARRATION: The court's custom for a newcomer is a duel, because the court's custom for everything is a duel. Nobody has had cause to explain this in two years.
+
+Juno Pale (delighted): Wait, we FIGHT? With the cards? Is that a thing you all do here?
+Countess Morvina Vane: It is the thing we do here.
+Juno Pale: This place rules. This place absolutely rules and it's closing on the fourteenth and that is INSANE.
+
+BATTLE: Juno Pale
+  PLAYS: Vera Foamhammer
+  YOU PLAY: Countess Morvina Vane
+  DIFFICULTY: intermediate
+  RULE: nobody really dies here
+  IF YOU LOSE:
+    Juno Pale: Sorry! Sorry. Was that rude? That felt rude.
+    Countess Morvina Vane: It was correct. Correct is never rude. Again.
+
+Juno Pale (breathless): Okay. Okay. Best game I've had all year and I don't understand a single thing about it.
+
+NARRATION: And then she asks it. Not unkindly, and not as an argument — she asks it the way you ask about a train timetable.
+
+Juno Pale: So why does it have to be this one? Like — you could build it again. Couldn't you? Somewhere else?
+
+NARRATION: Four hundred and six items. Sixteen years of gate logs. A portrait of somebody who left in 2014, hung where he can hear.
+
+CHOICE: Nobody in the court has ever been asked that. What does Morvina say?
+  * Because the geometry is not the world.
+      REMEMBER: morvina answered
+      REMEMBER: elowe trust + 1
+      Countess Morvina Vane: You could rebuild every room of it in a week. And on the first night you would stand in a perfect copy of my gallery, and nobody would be late, because nobody would ever have been late here before.
+      Countess Morvina Vane: It is not the house. It is the sixteen years of people walking into it.
+      Juno Pale (quiet): Oh.
+  * Say nothing. She has no answer.
+      REMEMBER: morvina said nothing
+      NARRATION: The Countess opens her mouth, and finds that in sixteen years of holding this house nobody has once made her say why, and that she does not have it ready.
+      Warden Elowe (softly): Someone has to be here when the last person shows up, miss. That is all it is. That is all it has ever been.
+      Juno Pale: ...Is that the answer?
+      Warden Elowe: It is *my* answer. I have had six years to get it short.
+
+Juno Pale: Six days, right?
+Countess Morvina Vane: Six days.
+Juno Pale: Then I'm going to be here for all of them.
+
+
+=== EPISODE: Rehosting
+
+NARRATION: Day two. A company has read the shutdown notice and has an offer, and the offer arrives with a lanyard.
+
+The Compliance Team (pleasant): We can mirror it. All of it. Live by Friday, uptime guaranteed, no shutdown date at all — ever.
+Countess Morvina Vane: And the terms.
+The Compliance Team: We host it, so we own the instance. Names, likenesses, sixteen years of logs. You keep playing. Nothing you can see changes.
+Alaric Thornheart: Nothing we can *see*.
+The Compliance Team: I'd rather be honest about the wording than smooth about it. You'd find it in the document anyway, and then you'd trust me less.
+
+NARRATION: They are not lying, they are not sneering, and they have plainly read the wall plaques on the way in. That is what makes it hard.
+
+IF morvina answered:
+  The Compliance Team: For what it's worth — the thing you said to the newcomer about the sixteen years of people walking in. We can't host that. I know we can't. I'm still offering.
+  Countess Morvina Vane: You have been listening at doors.
+  The Compliance Team: I've been reading the gate log. You made it public in 2011.
+OTHERWISE:
+  The Compliance Team: Nobody here has been able to tell me what the Manor actually is. That's normally a bad sign for a valuation. It has not been, in this case.
+
+Warden Elowe: My lady. If we sign, the gate stays open.
+Alaric Thornheart: If we sign, the gate belongs to a department.
+Warden Elowe: The gate has belonged to a billing address for sixteen years, my lord. That is why there is a notice on it.
+
+NARRATION: The compliance team has brought its own table. They always do.
+
+BATTLE: The Compliance Team
+  PLAYS: Sterling Bright
+  DIFFICULTY: intermediate
+  RULE: thirty days notice
+  IF YOU LOSE:
+    The Compliance Team: Take the note. It isn't a punishment, it's a note.
+    Countess Morvina Vane: It is a table in my gallery is what it is. Again.
+
+The Compliance Team: Well played. The offer is the same whether you win, which I appreciate is an annoying thing to hear.
+
+CHOICE: Two days left. Sign, or don't.
+  * Take the mirror. Let it live, owned.
+      REMEMBER: took the mirror
+      Countess Morvina Vane: We sign.
+      Alaric Thornheart: Regent —
+      Countess Morvina Vane: We sign, Alaric, because the alternative is that on the fourteenth I am correct and alone, and I have been correct and alone for sixteen years and I find I am not proud of it.
+      NARRATION: The document is nine pages. She reads all nine, in front of them, and does not hurry.
+  * Let it end well. One last night, then dark.
+      REMEMBER: let it end
+      Countess Morvina Vane: No. Thank you — genuinely — and no.
+      The Compliance Team: May I ask why? For my notes.
+      Countess Morvina Vane: Because a thing that cannot end was never alive, and I have spent sixteen years being extremely rude about that in the other direction.
+      NARRATION: They pack the table. On the way out, one of them signs the guest book, which nobody has asked anybody to do since 2019.
+
+
+=== EPISODE: Last Login
+
+NARRATION: The fourteenth. Four percent occupancy is now, briefly, forty. Everybody who ever had an account has logged in for the last night, and the Manor has not been this loud since the canon ended.
+
+Juno Pale: There are so many people. Where were they all?
+Warden Elowe: Here, miss. Just not at the same time.
+
+IF took the mirror:
+  NARRATION: The mirror goes live at eight. The same rooms, the same wallpaper, a different owner, and a gate with no date on it.
+  Alaric Thornheart: It is identical.
+  Countess Morvina Vane: It is identical.
+  Alaric Thornheart: I hate it enormously and I am going to log in every day.
+OTHERWISE:
+  NARRATION: There is no mirror. At midnight the host pulls the disk and four hundred and six things stop existing, and everybody in the Long Gallery knows the exact minute.
+  Alaric Thornheart: I have finished the memoirs.
+  Countess Morvina Vane: You have not.
+  Alaric Thornheart: No. But I have written the last line, and I am going to read it out at eleven, and nobody is going to be able to check the middle.
+
+NARRATION: At half past ten, the candles in the Long Gallery go out in order, from the door inward, which is not a thing the Manor has ever done.
+
+The Widow (softly): You are all still here. Good. Nobody go anywhere.
+
+NARRATION: She is not from the Manor. She has been keeping a vigil somewhere with worse wallpaper, and she has read the shutdown notice, and she has come to make sure this one never finishes either.
+
+The Widow (softly): I have held nine of these. Nine worlds, nine last nights, and not one of them has ever been allowed to close. Sit down. It does not have to be over. It never has to be over.
+Countess Morvina Vane: ...Warden. Who is that.
+Warden Elowe (quietly): That is what I would have been, my lady. In another six years.
+
+BATTLE: The Widow of Dead Fandoms
+  PLAYS: The Widow of Dead Fandoms
+  DIFFICULTY: boss
+  RULE: the court reconvenes
+  IF YOU LOSE:
+    The Widow (softly): Stay. Stay, stay, stay. There is no version of this where I let it be finished.
+    Countess Morvina Vane: I know. I have been you since 2009. Again.
+
+NARRATION: The Widow does not leave so much as stop insisting. The candles come back up, all at once, and the Long Gallery is extremely full and extremely bright and has eighty minutes left.
+
+Countess Morvina Vane: Warden Elowe.
+Warden Elowe: My lady.
+Countess Morvina Vane: You have moderated an empty room for six years, and I have never once thanked you for it, because thanking you would have meant admitting the room was empty.
+Warden Elowe: I know, my lady.
+Countess Morvina Vane: Thank you.
+
+IF elowe trust is at least 3:
+  Warden Elowe (steady): Someone has to be here when the last person shows up. Tonight everyone showed up, so it turns out I was right, but only in the last eighty minutes of sixteen years, which I would call about typical for this house.
+  NARRATION: It is the closest thing to a joke she has made in six years, and the Long Gallery laughs like it is 2009.
+
+Juno Pale: What happens at midnight?
+Countess Morvina Vane: At midnight there is a last login. There is always a last login. Somebody is the last person through the gate and nobody ever knows it was them.
+Juno Pale: That's horrible.
+Countess Morvina Vane: It is the kindest thing about it. Nobody has to carry it.
+
+IF took the mirror:
+  NARRATION: At 23:59 the old host goes dark, and forty people are already standing in an identical gallery on somebody else's disk, mid-sentence, and not one of them stops talking.
+  POST: gate log, final entry, THE MANOR (original host): "session ended — 40 connected". Recovered from GLIMMR — platform offline.
+  Alaric Thornheart: Regent. It is the fifteenth.
+  Countess Morvina Vane: So it is.
+OTHERWISE:
+  NARRATION: At 23:59 the Long Gallery is full, and at midnight it is not anything at all, and the last thing anybody sees is the guest book, which has one signature in it from a compliance officer who did not have to.
+  POST: gate log, final entry, THE MANOR: "session ended — 40 connected". Recovered from GLIMMR — platform offline.
+  Warden Elowe: My lady, it is —
+  NARRATION: — and then there is no gallery to finish the sentence in, which the court would agree, afterwards, is exactly how the house would have wanted to do it.
+
+IF morvina said nothing:
+  NARRATION: Somewhere in a mirror, or in an archive, or in nothing at all, there is a question from a newcomer that the Regent of the Silent Fandom never did answer out loud.
+  Juno Pale: Why this one?
+  Countess Morvina Vane: ...Because you asked about it. That is the whole answer. That was always the whole answer.

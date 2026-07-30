@@ -1,0 +1,12 @@
+{
+  "scorched": { "id": "scorched", "name": "Scorched", "text": "Takes 1 damage at the end of its controller's turn, then Scorched is removed unless renewed.", "polarity": "negative", "iconShape": "flame" },
+  "shielded": { "id": "shielded", "name": "Shielded", "text": "Negates the next instance of damage.", "polarity": "positive", "iconShape": "bubble" },
+  "armor": { "id": "armor", "name": "Armor", "text": "Absorbs the next X total damage.", "polarity": "positive", "iconShape": "plate" },
+  "cancelled": { "id": "cancelled", "name": "Cancelled", "text": "Text is blank. Cannot attack or use abilities.", "polarity": "negative", "iconShape": "strike-circle" },
+  "lurking": { "id": "lurking", "name": "Lurking", "text": "Cannot be targeted or attacked by the enemy until it attacks or deals damage.", "polarity": "positive", "iconShape": "hood" },
+  "warded": { "id": "warded", "name": "Warded", "text": "Cannot be targeted by enemy Actions or abilities. Can still be attacked.", "polarity": "positive", "iconShape": "ward-diamond" },
+  "weakened": { "id": "weakened", "name": "Weakened", "text": "-X Attack (minimum 0).", "polarity": "negative", "iconShape": "down-chevron" },
+  "empowered": { "id": "empowered", "name": "Empowered", "text": "+X Attack.", "polarity": "positive", "iconShape": "up-chevron" },
+  "cursed": { "id": "cursed", "name": "Cursed", "text": "A Veil mark. Suffers the stated effect when the stated trigger occurs.", "polarity": "negative", "iconShape": "hex-eye" },
+  "banished": { "id": "banished", "name": "Banished", "text": "Touching grass. Off the board; returns at the stated time with base stats and no statuses.", "polarity": "negative", "iconShape": "leaf-exit" }
+}

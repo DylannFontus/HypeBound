@@ -1,0 +1,568 @@
+[
+  {
+    "id": "goth-leader-morvina-vane",
+    "name": "Countess Morvina Vane",
+    "title": "Regent of the Silent Fandom",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "veil",
+    "secondaryCurrent": "root",
+    "tags": ["royal", "courtier"],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "afterparty",
+        "condition": { "kind": "not", "c": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board" }, "min": 3 } },
+        "ops": [{ "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }],
+        "text": "Afterparty: if you control 2 or fewer characters, restore 2 health to your leader."
+      }
+    ],
+    "fixation": {
+      "name": "A Sip of Devotion",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "any", "zone": "board" },
+      "ops": [
+        { "op": "damage", "target": { "select": "triggering" }, "amount": 1 },
+        { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+      ],
+      "text": "Deal 1 damage to a character and restore 2 health to your leader."
+    },
+    "ultimate": {
+      "name": "Midnight Court",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "resurrect", "target": { "select": "all", "side": "friendly", "zone": "discard", "filter": { "type": ["character"] } }, "count": 2 },
+        { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 4 }
+      ],
+      "text": "Resurrect 2 random friendly characters defeated this match. Restore 4 health to your leader."
+    },
+    "effects": [],
+    "text": "Afterparty: if you control 2 or fewer characters, restore 2 health to your leader.",
+    "flavor": "Her canon concluded in 2003. She regards this as a scheduling problem, and she has cleared her calendar."
+  },
+  {
+    "id": "goth-leader-alaric-thornheart",
+    "name": "Alaric Thornheart",
+    "title": "The Heir Interminable",
+    "faction": "gothic-royalty",
+    "current": "root",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "root",
+    "secondaryCurrent": "veil",
+    "tags": ["royal"],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "afterparty",
+        "ops": [
+          { "op": "buff", "target": { "select": "random", "side": "friendly", "zone": "board", "filter": { "hasKeyword": "grow" } }, "health": 1 }
+        ],
+        "text": "Afterparty: give a random friendly character with **Grow** +0/+1."
+      }
+    ],
+    "fixation": {
+      "name": "Patience of Stone",
+      "obsessionCost": 3,
+      "target": { "select": "choose", "side": "friendly", "zone": "board" },
+      "ops": [
+        { "op": "heal", "target": { "select": "triggering" }, "amount": 3 },
+        { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 1 }
+      ],
+      "text": "Restore 3 health to a friendly character and 1 health to your leader."
+    },
+    "ultimate": {
+      "name": "Century Bloom",
+      "obsessionCost": 7,
+      "ops": [
+        { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "hasKeyword": "grow" } }, "attack": 3, "health": 3 },
+        { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board" }, "attack": 1, "health": 1 }
+      ],
+      "text": "Give your characters with **Grow** +3/+3, then give all your characters +1/+1."
+    },
+    "effects": [],
+    "text": "Afterparty: give a random friendly character with **Grow** +0/+1.",
+    "flavor": "Four hundred years into the memoirs. Still chapter one. The prose is, admittedly, immaculate."
+  },
+
+  {
+    "id": "goth-candlewake-mourner",
+    "name": "Candlewake Mourner",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": ["courtier"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onDefeat",
+        "ops": [{ "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }],
+        "text": "When this is defeated, restore 2 health to your leader."
+      }
+    ],
+    "text": "When this is defeated, restore 2 health to your leader.",
+    "flavor": "Posts the anniversary tribute every year. Gets seven likes every year. He is fine. He is completely fine."
+  },
+  {
+    "id": "goth-crypt-usher",
+    "name": "Crypt Usher",
+    "faction": "gothic-royalty",
+    "current": "root",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": ["courtier"],
+    "keywords": ["spotlight"],
+    "effects": [],
+    "text": "**Spotlight.** *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "Row F, seat twelve. Please keep the aisle clear of the recently living."
+  },
+  {
+    "id": "goth-graveside-sapling",
+    "name": "Graveside Sapling",
+    "faction": "gothic-royalty",
+    "current": "root",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": ["estate"],
+    "keywords": ["grow"],
+    "grow": {
+      "turns": 1,
+      "ops": [{ "op": "buff", "target": { "select": "self" }, "attack": 1, "health": 1 }]
+    },
+    "effects": [],
+    "text": "**Grow 1:** +1/+1. *(After surviving 1 of your turn-ends in play, this gains the upgrade permanently.)*",
+    "flavor": "Planted over a forum that went read-only. It is thriving. It is, frankly, smug about it."
+  },
+  {
+    "id": "goth-toast-to-the-departed",
+    "name": "A Toast to the Departed",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": ["ritual"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "any", "zone": "board", "optional": true },
+        "ops": [
+          { "op": "damage", "target": { "select": "triggering" }, "amount": 1 },
+          { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+        ],
+        "text": "Deal 1 damage to a character. Restore 2 health to your leader."
+      }
+    ],
+    "text": "Deal 1 damage to a character. Restore 2 health to your leader.",
+    "flavor": "To absent friends, cancelled shows, and the group chat that went quiet in March."
+  },
+
+  {
+    "id": "goth-ossuary-choirboy",
+    "name": "Ossuary Choirboy",
+    "faction": "gothic-royalty",
+    "current": "root",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 1,
+    "health": 3,
+    "tags": ["ghost", "courtier"],
+    "keywords": ["grow"],
+    "grow": {
+      "turns": 2,
+      "ops": [{ "op": "buff", "target": { "select": "self" }, "attack": 2, "health": 2 }]
+    },
+    "effects": [],
+    "text": "**Grow 2:** +2/+2. *(After surviving 2 of your turn-ends in play, this gains the upgrade permanently.)*",
+    "flavor": "Three centuries of choir practice. Still flat on the high note. Nobody dares mention it."
+  },
+  {
+    "id": "goth-pallid-courtier",
+    "name": "Pallid Courtier",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 2,
+    "tags": ["courtier"],
+    "keywords": ["comeback"],
+    "comeback": { "mode": "hand", "delayTurns": 1 },
+    "effects": [],
+    "text": "**Comeback.** *(When this is defeated, return it to your hand at the start of your next turn.)*",
+    "flavor": "You cannot get rid of him. He has a standing invitation and absolutely no plans."
+  },
+  {
+    "id": "goth-widows-bargain",
+    "name": "Widow's Bargain",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": ["ritual"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [
+          { "op": "destroy", "target": { "select": "triggering" } },
+          { "op": "draw", "count": 2 },
+          { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+        ],
+        "text": "Defeat a friendly character. Draw 2 cards and restore 2 health to your leader."
+      }
+    ],
+    "text": "Defeat a friendly character. Draw 2 cards and restore 2 health to your leader.",
+    "flavor": "The terms are generous. The terms are always generous. Read them anyway."
+  },
+  {
+    "id": "goth-twenty-year-grudge",
+    "name": "Twenty-Year Grudge",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": ["curse"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyAttacksCharacter",
+        "ops": [
+          { "op": "damage", "target": { "select": "triggering" }, "amount": 3 },
+          { "op": "applyStatus", "target": { "select": "triggering" }, "status": "cursed" }
+        ],
+        "text": "Reaction — when the enemy attacks one of your characters: deal 3 damage to the attacker and apply Cursed to it."
+      }
+    ],
+    "text": "Reaction — when the enemy attacks one of your characters: deal 3 damage to the attacker and apply Cursed to it. *(Cursed is a Veil mark; the court's cards notice it.)*",
+    "flavor": "The thread was locked in 2004. The grudge was not."
+  },
+
+  {
+    "id": "goth-thornhedge-sentinel",
+    "name": "Thornhedge Sentinel",
+    "faction": "gothic-royalty",
+    "current": "root",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 4,
+    "tags": ["courtier", "estate"],
+    "keywords": ["spotlight", "grow"],
+    "grow": {
+      "turns": 3,
+      "ops": [{ "op": "buff", "target": { "select": "self" }, "attack": 3, "health": 3 }]
+    },
+    "effects": [],
+    "text": "**Spotlight.** **Grow 3:** +3/+3. *(After surviving 3 of your turn-ends in play, this gains the upgrade permanently.)*",
+    "flavor": "The hedge has been growing since the estate went offline. The hedge is winning."
+  },
+  {
+    "id": "goth-portrait-that-watches",
+    "name": "The Portrait That Watches",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 3,
+    "tags": ["ghost", "estate"],
+    "keywords": ["corrupt"],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "chooseOne",
+            "options": [
+              { "label": "Observe", "ops": [{ "op": "draw", "count": 1 }] },
+              {
+                "label": "Corrupt: Pry",
+                "ops": [
+                  { "op": "discard", "target": { "select": "all", "side": "enemy", "zone": "hand" }, "count": 2 },
+                  { "op": "damage", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "On play — choose one: draw a card; or **Corrupt** — the enemy discards 2 random cards and your leader takes 2 damage."
+      }
+    ],
+    "text": "On play — choose one: draw a card; or **Corrupt** — the enemy discards 2 random cards and your leader takes 2 damage. *(Corrupt replaces the normal benefit with the darker version.)*",
+    "flavor": "Its eyes follow the cursor. Also the mouse. Also you, at three in the morning."
+  },
+  {
+    "id": "goth-sepulchre-rose-garden",
+    "name": "Sepulchre Rose Garden",
+    "faction": "gothic-royalty",
+    "current": "root",
+    "type": "location",
+    "rarity": "rare",
+    "cost": 3,
+    "durability": 3,
+    "tags": ["estate", "venue"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [
+          { "op": "heal", "target": { "select": "triggering" }, "amount": 2 },
+          { "op": "buff", "target": { "select": "triggering" }, "health": 1 }
+        ],
+        "text": "Activate (once per turn): restore 2 health to a friendly character and give it +0/+1."
+      }
+    ],
+    "text": "Activate (once per turn): restore 2 health to a friendly character and give it +0/+1. Durability 3.",
+    "flavor": "Roses grown through the server racks. The uptime is immaculate. The smell is not."
+  },
+  {
+    "id": "goth-heirloom-fang",
+    "name": "Heirloom Fang",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "equipment",
+    "rarity": "rare",
+    "cost": 3,
+    "equipAttack": 2,
+    "equipHealth": 0,
+    "tags": ["gear", "relic"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onAttack",
+        "ops": [{ "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }],
+        "text": "When the equipped character attacks, restore 2 health to your leader."
+      }
+    ],
+    "text": "Equipped character has +2 Attack. When it attacks, restore 2 health to your leader.",
+    "flavor": "Nine generations. Never needs sharpening. Still not dishwasher safe."
+  },
+
+  {
+    "id": "goth-duchess-of-dead-threads",
+    "name": "Duchess of Dead Threads",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 4,
+    "attack": 3,
+    "health": 4,
+    "tags": ["royal", "courtier"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "enemy", "zone": "board", "optional": true },
+        "ops": [
+          { "op": "applyStatus", "target": { "select": "triggering" }, "status": "cursed" },
+          { "op": "applyStatus", "target": { "select": "triggering" }, "status": "weakened", "amount": 2, "durationTurns": 1 }
+        ],
+        "text": "On play: apply Cursed to an enemy character and give it Weakened 2 until your next turn."
+      }
+    ],
+    "text": "On play: apply Cursed to an enemy character and give it Weakened 2 until your next turn.",
+    "flavor": "She remembers what you posted. She has printed it. She has had it framed."
+  },
+  {
+    "id": "goth-raised-to-the-peerage",
+    "name": "Raised to the Peerage",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "transformation",
+    "rarity": "epic",
+    "cost": 4,
+    "tags": ["ritual"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [
+          { "op": "transform", "target": { "select": "triggering" }, "intoCardId": "goth-token-revenant-noble" }
+        ],
+        "text": "Transform a friendly character into a 4/4 Revenant Noble."
+      }
+    ],
+    "text": "Transform a friendly character into a 4/4 Revenant Noble.",
+    "flavor": "Your post count has been reviewed by the court. Congratulations. Kneel."
+  },
+  {
+    "id": "goth-rose-crypt-abbess",
+    "name": "Rose Crypt Abbess",
+    "faction": "gothic-royalty",
+    "current": "root",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 4,
+    "attack": 2,
+    "health": 4,
+    "tags": ["royal", "estate"],
+    "keywords": ["afterparty"],
+    "effects": [
+      {
+        "trigger": "aura",
+        "ops": [
+          { "op": "aura", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "excludeSelf": true } }, "health": 1 }
+        ],
+        "text": "Your other characters have +0/+1."
+      },
+      {
+        "trigger": "afterparty",
+        "oncePerTurn": true,
+        "ops": [{ "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }],
+        "text": "**Afterparty:** restore 2 health to your leader."
+      }
+    ],
+    "text": "Your other characters have +0/+1. **Afterparty:** restore 2 health to your leader.",
+    "flavor": "She runs the archive, the choir, and everyone's blood pressure."
+  },
+
+  {
+    "id": "goth-vigil-everlasting",
+    "name": "Vigil Everlasting",
+    "faction": "gothic-royalty",
+    "current": "root",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 5,
+    "tags": ["ritual"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          { "op": "resurrect", "target": { "select": "all", "side": "friendly", "zone": "discard", "filter": { "type": ["character"] } }, "count": 1 },
+          { "op": "buff", "target": { "select": "all", "side": "friendly", "zone": "board" }, "health": 1 }
+        ],
+        "text": "Resurrect a random friendly character defeated this match. Give your characters +0/+1."
+      }
+    ],
+    "text": "Resurrect a random friendly character defeated this match. Give your characters +0/+1. *(Resurrected characters return with base stats.)*",
+    "flavor": "Nobody in this family has ever accepted a series finale as load-bearing."
+  },
+  {
+    "id": "goth-lord-of-the-last-episode",
+    "name": "Lord of the Last Episode",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 5,
+    "attack": 3,
+    "health": 5,
+    "tags": ["royal", "courtier"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "enemy", "zone": "board", "filter": { "hasStatus": "cursed" }, "optional": true },
+        "ops": [
+          { "op": "destroy", "target": { "select": "triggering" } },
+          { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 3 }
+        ],
+        "text": "On play: destroy a Cursed enemy character, then restore 3 health to your leader."
+      }
+    ],
+    "text": "On play: destroy a Cursed enemy character, then restore 3 health to your leader.",
+    "flavor": "He attends every ending. He has never once agreed with one."
+  },
+
+  {
+    "id": "goth-vespertine-final-requiem",
+    "name": "Vespertine, the Final Requiem",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 6,
+    "attack": 0,
+    "health": 8,
+    "tags": ["royal", "ghost"],
+    "keywords": ["afterparty"],
+    "finale": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "oncePerTurn": true,
+        "condition": { "kind": "controlsAtLeast", "target": { "select": "all", "side": "friendly", "zone": "board", "filter": { "excludeSelf": true } }, "min": 3 },
+        "ops": [
+          { "op": "addCounter", "key": "requiem", "amount": 1 },
+          { "op": "if", "condition": { "kind": "counterAtLeast", "key": "requiem", "value": 4 }, "then": [{ "op": "winMatch" }] }
+        ],
+        "text": "**Afterparty:** if you control 3 or more other characters, gain a Requiem counter. At 4 Requiem counters, you win the match."
+      }
+    ],
+    "text": "**Afterparty:** if you control 3 or more other characters, gain a Requiem counter. At 4 Requiem counters, you win the match.",
+    "flavor": "Everyone she has ever mourned will be in attendance. So will you."
+  },
+  {
+    "id": "goth-court-of-second-funerals",
+    "name": "Court of Second Funerals",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "event",
+    "rarity": "epic",
+    "cost": 6,
+    "durationTurns": 3,
+    "tags": ["ritual"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [
+          { "op": "resurrect", "target": { "select": "all", "side": "friendly", "zone": "discard", "filter": { "type": ["character"] } }, "count": 1 },
+          { "op": "heal", "target": { "select": "leader", "side": "friendly" }, "amount": 2 }
+        ],
+        "text": "Event (3 turns) — at the start of your turns: resurrect a random friendly character defeated this match and restore 2 health to your leader."
+      }
+    ],
+    "text": "Event (3 turns) — at the start of your turns: resurrect a random friendly character defeated this match and restore 2 health to your leader.",
+    "flavor": "The first funeral was rushed. The court has notes."
+  },
+
+  {
+    "id": "goth-token-revenant-noble",
+    "name": "Revenant Noble",
+    "faction": "gothic-royalty",
+    "current": "veil",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 4,
+    "health": 4,
+    "tags": ["royal", "ghost"],
+    "keywords": [],
+    "token": true,
+    "effects": [],
+    "text": "",
+    "flavor": "Was a nobody on Tuesday. Is a Somebody, terribly, by Wednesday."
+  }
+]

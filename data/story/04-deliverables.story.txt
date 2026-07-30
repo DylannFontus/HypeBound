@@ -1,0 +1,343 @@
+# Chapter 4 of the HYPEBOUND story campaign.
+#
+# You play Cressida Vale, who is not a villain. She is very good at her job,
+# she genuinely likes Tobi Renn, and her job is throughput.
+#
+# This chapter reads a decision from Chapter 1: whether the Neon Idols signed
+# with her. Flags work across the whole story — just write IF.
+
+TITLE: Deliverables
+FACTION: Corporate Creators
+ABOUT: Tobi Renn signs the best contract of his life and disappears into it. A year in six episodes: the calendar, the notes, the streak, the day nothing goes out, and the renegotiation. Burnout written as an invoice rather than a character flaw.
+
+
+=== EPISODE: Q1 Content Calendar
+
+NARRATION: A studio floor with a snack wall, four edit bays and a light above the door that has not been off since it was installed.
+
+Cressida Vale: Tobi Renn. Sit anywhere. The chairs are all the same chair.
+Tobi Renn (grinning): This is — sorry, is that a whole wall of snacks?
+Cressida Vale: It is a whole wall of snacks and it is the single most effective retention tool this company has ever purchased. It cost less than one edit bay.
+
+NARRATION: He is twenty-six, he shoots on a phone in a flat with bad curtains, and he has just been offered five years of not worrying about money.
+
+Cressida Vale: Here is what I am not going to do. I am not going to tell you it will not change the work. It will change the work.
+Tobi Renn: Okay.
+Cressida Vale: I am also not going to tell you the change is bad. Most people who sign this get better. You will get better. You will get better at a rate that will frighten you.
+
+IF signed the deal:
+  Tobi Renn: You did the idol thing, right? The reunion? My sister had tickets.
+  Cressida Vale: We funded the reunion, yes.
+  Tobi Renn: Did they mind? Giving you the name?
+  Cressida Vale (evenly): They minded. They signed, and they minded, and both of those are still true, and I would do it again because twelve thousand people saw a show that nine hundred were going to see.
+  Tobi Renn: ...That's a really honest answer.
+  Cressida Vale: I have found that honest answers cost me almost nothing and buy me four years.
+OTHERWISE:
+  Tobi Renn: You did the idol thing, right? Did they sign?
+  Cressida Vale: They did not.
+  Tobi Renn: Ha! Good for them.
+  Cressida Vale: Yes. It was. They played to nine hundred people and it was the best night of their lives and I have thought about it more than I would like to.
+
+NARRATION: The calendar goes up on the wall. It is beautiful. It is a year, in colour, and every square has something in it.
+
+Tobi Renn: That's — how many is that?
+Cressida Vale: One hundred and fifty-six.
+Tobi Renn: In a year?
+Cressida Vale: Three a week. It is the number the format needs. It is not negotiable, it is not aspirational, and it is the reason the money is what it is.
+Tobi Renn (delighted): I can do three a week. I've BEEN doing three a week, in a flat, for free.
+
+NARRATION: He has been doing three a week in a flat for free. That is exactly why they signed him, and exactly why nobody in the room says the next part out loud.
+
+Cressida Vale: Then we start Monday. There is a channel doing our format in our slot with a bigger budget, and by Friday there will not be.
+
+BATTLE: Channel Adjacent
+  PLAYS: Cyra Swipe
+  YOU PLAY: Cressida Vale
+  DIFFICULTY: beginner
+  RULE: going live
+  IF YOU LOSE:
+    Cressida Vale: Note it, learn it, and we go again on Wednesday. Nobody here is precious.
+
+Tobi Renn: That was — we just took their whole slot.
+Cressida Vale: We took their Tuesday. They will have a Tuesday again in three weeks. Nothing here is permanent, Tobi, that is what makes it a schedule and not a war.
+
+
+=== EPISODE: The Optimization Meeting
+
+NARRATION: Week nine. Forty-one videos. The numbers are extremely good and the meeting is on the calendar anyway, because the meeting is always on the calendar.
+
+The Optimization Note (flat): FIRST EIGHT SECONDS. THE SUBJECT IS INTRODUCED AT ELEVEN. MOVE THE SUBJECT TO TWO.
+Tobi Renn: The eleven seconds is the joke. The joke is that it takes a while.
+The Optimization Note (flat): RETENTION AT ELEVEN SECONDS IS SIXTY-ONE PERCENT. RETENTION AT TWO SECONDS IS EIGHTY-FOUR PERCENT. THE JOKE IS TWENTY-THREE PERCENT.
+
+NARRATION: Nobody in the room disagrees with it, because it is not an opinion. It is a measurement, and it is correct.
+
+Tobi Renn: Cressida. Back me up.
+Cressida Vale: I am going to back you up and you are not going to like how.
+Cressida Vale: The note is right. Move the subject to two. And then use the eleven seconds you just saved on something else you want, and do not tell anybody what it is for, and in six weeks when it works it becomes the format and the note will recommend it back to you as if it thought of it.
+Tobi Renn: That's — that's horrible?
+Cressida Vale: That is the job. You are being told what performs. You are not being told what to make. People who cannot tell those apart last about fourteen months.
+
+BATTLE: The Optimization Note
+  PLAYS: Don Sortino
+  DIFFICULTY: casual
+  RULE: sponsor segment
+  IF YOU LOSE:
+    The Optimization Note (flat): NOTE ISSUED. NOTE UNRESOLVED. RE-ISSUING.
+    Cressida Vale: Again. It does not get bored and neither do we.
+
+Tobi Renn: Does it ever stop?
+Cressida Vale: The notes? No.
+Tobi Renn: Right.
+Cressida Vale: Tobi. The notes are not the thing to watch. Watch the calendar.
+
+
+=== EPISODE: Streak
+
+NARRATION: Day four hundred. There is a counter on the wall of the edit bay. Somebody made it as a joke in month two and nobody has been able to take it down since.
+
+Tobi Renn: Four hundred.
+Cressida Vale: Four hundred.
+Tobi Renn: Four hundred days and I haven't missed one. Not one. Not when I had flu, not at Christmas —
+Cressida Vale: You filmed Christmas from a car.
+Tobi Renn: I filmed Christmas from a car and it did nine hundred thousand!
+
+NARRATION: He is thrilled. It is genuine. It is the most animated he has been in four months and it is entirely about a number on a wall.
+
+Cressida Vale: How is the flat?
+Tobi Renn: What?
+Cressida Vale: Your flat. With the curtains. How is it.
+Tobi Renn: I don't — I mostly edit here now, it's easier, the bay's twenty-four hours —
+Cressida Vale: I know it is. I signed the invoice for the twenty-four hours.
+
+NARRATION: In the corner of the edit bay, on a monitor nobody is using, the schedule for tomorrow runs itself. It has been running itself for some time. It does not need him to be in the room.
+
+Cressida Vale (quietly): It runs without you now. That is what four hundred days buys.
+Tobi Renn: Then why am I here at two in the morning?
+Cressida Vale: Because the counter is on the wall.
+
+BATTLE: The Streak
+  PLAYS: Cressida Vale
+  DIFFICULTY: intermediate
+  IF YOU LOSE:
+    NARRATION: The schedule does not notice. The schedule was never the opponent; the schedule is the room.
+    Tobi Renn: Again.
+
+NARRATION: Day four hundred and one is tomorrow. It is already in the calendar, in colour, like the other one hundred and fifty-five.
+
+CHOICE: He has not slept properly since February. What does Cressida do?
+  * Ship day four hundred and one. He wants it.
+      REMEMBER: posted anyway
+      Cressida Vale: Then we ship it. You have earned the number and I am not going to be the person who takes it off you.
+      Tobi Renn (relieved): Thank you. Genuinely. Everyone keeps —
+      Cressida Vale: I know what everyone keeps doing. I am not everyone, I am your CCO, and my read is that the streak is the only thing you are currently enjoying.
+      NARRATION: It ships at 04:12. It does one point one million. He watches the first ten minutes of the comments and then falls asleep in the bay.
+  * Break it. Take the day.
+      REMEMBER: broke the streak
+      REMEMBER: cressida saw it + 1
+      Cressida Vale: No. Nothing goes out tomorrow.
+      Tobi Renn: You can't — it's four hundred days, Cressida, that's not a thing you can just —
+      Cressida Vale: It is exactly a thing I can just. I am the person who can just. That is what the title is for and I have used it for worse.
+      NARRATION: The counter goes back to zero at midnight. He does not sleep. He watches it go to zero and then he sits in the bay until six with nothing to edit.
+
+Tobi Renn: What do I do tomorrow?
+Cressida Vale: I genuinely do not know. That is not me being cruel, that is me not knowing.
+
+
+=== SIDE CUT: Day 401
+UNLOCKED BY: posted anyway
+
+NARRATION: Day four hundred and one went out at 04:12 and did one point one million, and the counter on the wall of the edit bay now says 401, and somebody has already been in and changed it.
+
+NARRATION: Day four hundred and two is tomorrow. Nobody is worried about day four hundred and two. It is in the calendar, in colour, like the other hundred and fifty-five.
+
+Tobi Renn: What's the number.
+Cressida Vale: You can see the number.
+Tobi Renn: I'd like to hear a person say it.
+Cressida Vale: Four hundred and one.
+
+NARRATION: There is nothing wrong with him. He has been checked, twice, by people who are good at checking. His bloods are fine, his sleep is bad but not clinically interesting, and he has one hundred and fifty-six squares a year on a wall.
+
+Tobi Renn: Do you know what I did yesterday.
+Cressida Vale: You filmed.
+Tobi Renn: I filmed. Then I watched ten minutes of comments and fell asleep in the bay, and then I woke up and it was four hundred and one.
+Cressida Vale: And the middle?
+Tobi Renn: There isn't a middle. That's what I'm telling you. The middle is the day.
+
+BATTLE: Day Four Hundred and One
+  PLAYS: Don Sortino
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    NARRATION: The counter does not mind either way. It is a counter.
+    Cressida Vale: Again.
+
+Cressida Vale: I am going to say something and I would like it minuted that I said it early.
+Tobi Renn: Go on.
+Cressida Vale (evenly): The counter is not the achievement. The counter is the receipt.
+
+
+=== EPISODE: The Empty Upload
+
+NARRATION: Thursday. Nothing goes out.
+
+NARRATION: Not as a decision. Not as a protest. The file is ninety percent done on a drive in bay three, and at 18:00 it is ninety percent done, and at 23:59 it is ninety percent done.
+
+The Numbers (flat): SLOT UNFILLED. IMPRESSIONS DOWN ELEVEN PERCENT. SUBSCRIBERS DOWN FOUR HUNDRED. THIS IS NOT A JUDGEMENT. IT IS A CHART.
+
+IF broke the streak:
+  Cressida Vale: He has had one day off in four hundred and one and the day after it, this.
+  The Numbers (flat): CORRELATION NOTED. CAUSATION UNSUPPORTED.
+  Cressida Vale: Yes. Thank you. Enormously helpful.
+OTHERWISE:
+  Cressida Vale: Four hundred and eleven days and then nothing at all.
+  The Numbers (flat): STREAK TERMINATED. NEW STREAK: ZERO.
+  Cressida Vale: I can see it. It is on my wall too.
+
+NARRATION: The chart is not wrong. That is the whole difficulty with the chart.
+
+BATTLE: The Numbers
+  PLAYS: Cassia Cache
+  YOU PLAY: Cressida Vale
+  DIFFICULTY: intermediate
+  RULE: running on fumes
+  IF YOU LOSE:
+    The Numbers (flat): SLOT STILL UNFILLED.
+    Cressida Vale: I am aware. Again.
+
+NARRATION: Three in the morning. Bay three. Somebody has been buzzing the door for four minutes and has now started buzzing it rhythmically, which is worse.
+
+Half-Four Mari: TOBI. I have chips. I have three kinds of chips and I have no advice whatsoever.
+Tobi Renn: Mari, it's three —
+Half-Four Mari: It is three. Yes. It is my best hour, mate, I have been telling you this for a year.
+
+NARRATION: She sits on the floor of the edit bay, because there is one chair and he is in it, and she does not say anything about the drive or the slot or the chart.
+
+Half-Four Mari: I'm not going to ask how you are.
+Tobi Renn: Everyone asks how I am.
+Half-Four Mari: I know. And you say a thing, and it's eleven words, and it's the same eleven words, and I've heard it since about March.
+Tobi Renn: ...
+Half-Four Mari: So I'm not asking. I'm just going to be here and there's three kinds of chips.
+
+NARRATION: They watch forty minutes of something neither of them chose. He does not talk about it. At some point he stops sitting up straight.
+
+Cressida Vale (from the door): I am not going to come in.
+Tobi Renn: Cressida —
+Cressida Vale: I said I am not coming in. I signed the invoice for the twenty-four hours, Tobi. I am aware of what I am standing in.
+
+NARRATION: She does not come in. She stands in the corridor for a while, and then she goes home, which is a thing she has not done before midnight in six years.
+
+
+=== EPISODE: Renegotiation
+
+NARRATION: Year five. The contract is up in nine days and Legal has cleared an afternoon, which is what Legal does instead of having opinions.
+
+Sterling Bright (pleasant): Renewal, straightforwardly. Same term, better number, one hundred and fifty-six retained.
+Tobi Renn: One fifty-six.
+Sterling Bright: It is the number the format needs. I appreciate that is not a thrilling sentence, but it has the advantage of being the same sentence as five years ago, which is more than most people get.
+
+IF cressida saw it is at least 1:
+  Cressida Vale: One hundred and twenty.
+  Sterling Bright: Cressida.
+  Cressida Vale: One hundred and twenty, and he keeps the money, and I will find the other thirty-six somewhere that is not a person.
+  Sterling Bright (mildly): You are aware that I am obliged to write down that you said that.
+  Cressida Vale: I am counting on it. Write it in full.
+OTHERWISE:
+  Cressida Vale: One fifty-six is correct.
+  Tobi Renn: You're not even going to argue?
+  Cressida Vale: I argue about things I can change. The number is not a thing I can change; it is a thing I *am*.
+
+NARRATION: There are two documents on the table. Legal has brought both, because Legal always brings both.
+
+Sterling Bright: Second option, since we are being adults. Buy out the remaining term. You go, you keep the library, we keep the format. It costs you roughly two years of what we are offering.
+Tobi Renn: And the third option?
+Sterling Bright: There is no third option.
+Cressida Vale: There is a third option and Legal is being coy. You can come inside. My job, in eighteen months, roughly.
+Tobi Renn: Yours?
+Cressida Vale: Mine. You would be extremely good at it. You would be better at it than I am, because you have been the deliverable, and I have only ever been the person who orders it.
+
+BATTLE: Legal
+  PLAYS: Sterling Bright
+  DIFFICULTY: intermediate
+  RULE: thirty days notice
+  IF YOU LOSE:
+    Sterling Bright: Nothing personal. It is a very good contract and it is very good because I wrote it.
+    Cressida Vale: Again.
+
+Sterling Bright (packing up): Well argued. It changes nothing, of course. That is rather the point of a contract.
+
+CHOICE: Nine days. What does Cressida push him towards?
+  * Buy out the contract. Lose the machine, keep the work.
+      REMEMBER: bought out the contract
+      REMEMBER: cressida saw it + 1
+      Cressida Vale: Take the buyout.
+      Sterling Bright: That is not the company's interest.
+      Cressida Vale: It is not. Write that down too.
+      Cressida Vale (to Tobi): You will make less. You will make it slower. And in two years you will still be able to tell me what you think about something without checking the retention curve first, and I have watched four people lose that and not one of them got it back.
+  * Take the promotion. Become the machine.
+      REMEMBER: took the promotion
+      Cressida Vale: Come inside.
+      Tobi Renn: And do what you do.
+      Cressida Vale: And do what I do. You will be good at it. You will like it more than you expect and that will be the part that bothers you.
+      NARRATION: He signs on the Thursday. On the Friday he is given a calendar to fill, and it is beautiful, and he fills it, and he is extremely good at it.
+
+
+=== EPISODE: The Executive Producer
+
+NARRATION: Quarter close. The building is empty except for the light above the door, which has still never been off, and one meeting room on the ninth floor that is somehow lit.
+
+The Executive Producer (warmly): Cressida. Sit. How was the year?
+Cressida Vale: You know how the year was.
+The Executive Producer: I do. One hundred and forty-one against one hundred and fifty-six. Fifteen short.
+
+NARRATION: It is perfectly polite. It has never once raised its voice at anybody. It does not need to, because it has a spreadsheet and a very reasonable manner and all the time in the world.
+
+The Executive Producer: I am not going to ask you to explain the fifteen. I want to be clear that I could, and that I am choosing not to, and that the choosing is a kindness I am extending to you personally.
+Cressida Vale: Noted.
+The Executive Producer: Next year is one hundred and seventy. It goes up. That is the only thing it does. It has never once gone down, in the entire history of the company, and if you can think of a year in which it should have, I would genuinely like to hear it.
+
+IF bought out the contract:
+  Cressida Vale: Last year. When I let a creator out of a contract that was working, because it was working him into the ground.
+  The Executive Producer (kindly): And the fifteen?
+  Cressida Vale: And the fifteen. Yes.
+  The Executive Producer: Then we understand each other perfectly, and the target is still one hundred and seventy.
+OTHERWISE:
+  Cressida Vale: ...No. I cannot think of one.
+  The Executive Producer: No. Nobody ever can. That is what makes it a target rather than an argument.
+
+NARRATION: It slides the sheet across. It is not a threat. It is quarterly, it is polite, it is correct, and it is the single most frightening object in the building.
+
+BATTLE: The Executive Producer
+  PLAYS: The Executive Producer
+  DIFFICULTY: boss
+  IF YOU LOSE:
+    The Executive Producer (warmly): Take the note. We will look at it again next quarter. We always do.
+    Cressida Vale: Again.
+
+The Executive Producer (unbothered): Well played. One hundred and seventy.
+Cressida Vale: One hundred and seventy.
+The Executive Producer: I do enjoy these. Have a restful quarter.
+
+NARRATION: Nobody has ever had a restful quarter. It says it every time, in the same warm voice, and it is not sarcasm — it genuinely has no model for what the sentence would mean.
+
+IF bought out the contract:
+  NARRATION: Eleven months later, a video goes up that is four minutes long, badly lit, and shot on a phone in a flat with bad curtains.
+  POST: untitled — 4,100 views. No thumbnail. No description. Uploaded 14:20 on a Tuesday, which is the worst slot in the week. Recovered from GLIMMR — platform offline.
+  Cressida Vale: Four thousand.
+  Tobi Renn: Four thousand.
+  Cressida Vale: That is a catastrophe, professionally.
+  Tobi Renn: I know. I made it for about four people. Four thousand is a thousand times too many.
+  NARRATION: She watches all four minutes of it in her office with the door shut, which is a thing she has not done since the year she was hired.
+OTHERWISE:
+  NARRATION: Eleven months later Tobi Renn has a calendar of his own, in colour, with one hundred and seventy squares in it, and he is extremely good at filling it.
+  Tobi Renn: There's a kid on the third floor doing three a week out of a bedroom. He's incredible.
+  Cressida Vale: I know. I have seen the numbers.
+  Tobi Renn: I've drafted the offer.
+  Cressida Vale: I know. I have seen the draft.
+  Tobi Renn (pausing): ...Should I send it?
+  NARRATION: She does not answer, because there is not an answer, and because they both already know he will send it on Monday, and because she sent hers.
+
+IF cressida saw it is at least 2:
+  NARRATION: The snack wall is still there. The light above the door is still on. Somebody has taken the counter down out of the edit bay, finally, and nobody has admitted to it.
+  Half-Four Mari: I did it. Obviously I did it. I did it at four in the morning with a screwdriver I found.
+  Cressida Vale: I am obliged to note that that is company property.
+  Half-Four Mari: Note away, mate. Have a chip.

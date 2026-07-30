@@ -1,0 +1,323 @@
+# Chapter 10 of the HYPEBOUND story campaign, and the last one.
+#
+# Two communities go to war over who made a joke first. It is extremely funny for
+# three episodes. Then the joke gets pointed at one of their own, and a comedy
+# community has to do the least funny thing there is: retire a bit that still
+# works.
+#
+# NOTE TO WHOEVER EDITS THIS FILE: the Collective is not stupid and the bit is
+# not bad. Every laugh in here has to be at PROCEDURE — minutes, bylaws, a
+# binder — and never at somebody for finding a frog funny for nine years. The
+# moment a line looks down at these people the chapter is over.
+#
+# DELIBERATE DEVIATIONS, flagged rather than absorbed:
+#   1. The design (§3.11) follows Anon Prime, First of the Reposters, with Lil
+#      Gremlin, Patron of the Bit. Neither was built. The Collective ships two
+#      leaders — Chairperson Nobody, Speaker of the Unanimous Nothing, and Skree
+#      Nine-Tabs, Feral Curator of the Vault — and both already own their halves
+#      of this: Nobody has the binder, Skree has the archive.
+#   2. Branch A unlocks the Side Cut the design asks for (§3.11), "Mod
+#      Application", on the merge — one board of four hundred with one moderator
+#      is a problem that only exists if you merged.
+#   3. The signature card "Cite Your Sources (Nobody Will)" is honoured as an
+#      object rather than forced into a deck: somebody does eventually cite the
+#      source, in full, with a link, and nobody reads it.
+#   4. Episode 5 needed a rule the library did not have — a thing across the table
+#      that will not stay down. IT CAME BACK is Nobody Really Dies Here aimed the
+#      other way, and is the only new mechanic this chapter asked for.
+#   5. NOT DELIVERED: §3.12 says clearing all ten chapters should unlock the
+#      Archive entry "The First Signal, Annotated" off a `campaign.chaptersCleared`
+#      counter. That counter does not exist and neither does the entry. It is an
+#      Archive feature, not a writing one, and no line in this file pretends
+#      otherwise.
+#   6. Episode 5 runs DIFFICULTY: advanced, as Chapters 8 and 9 do. It is the
+#      only fight in the chapter against something that cannot be beaten, and it
+#      should feel like it.
+#   7. Reads one decision from Chapter 1. It has a standing OTHERWISE and the
+#      chapter reads complete for somebody who has played nothing else.
+#
+# THE COUNTS, so nobody has to re-derive them:
+#   the hat  posted 03:12, nine years ago, by Grout · 41,206 logged reposts
+#   the vote 312 voting members · Bylaw 31 requires unanimity · it goes 311 to 1
+
+TITLE: Repost
+FACTION: Meme Collective
+ABOUT: Two communities go to war over who posted a picture of a frog in a hat first. Nine years of evidence, a laminated binder, sixty-one reaction images and zero jurisdiction. Then somebody points the joke at the man who made it, and the Old Board finds out that a bylaw written as a joke in year two is the only thing holding the door.
+
+
+=== EPISODE: The Original Post
+
+NARRATION: THE OLD BOARD. Nine years old, one moderator, four hundred people who have never met and a binder that is laminated because of an incident.
+
+POST: THE HAT — a photograph of a frog wearing a small hat. Posted 03:12 on a Tuesday, nine years ago, by GROUT. Body text: none. Title: none. Known reposts: 41,206 and counting, logged by the Vault across every site that has since closed.
+
+Chairperson Nobody: The Chair recognises that a claim has been made.
+Skree Nine-Tabs: They're saying it's theirs.
+Chairperson Nobody: The Chair recognises that a claim has been made, Skree, and the Chair would like the minutes to reflect that it was recognised calmly.
+
+NARRATION: There is no Chair. There is a folding chair, and whoever sits in it is the Chair, and this has been true for nine years and has never once produced a problem, which is itself the most frightening fact about the Old Board.
+
+Vint: Our archive has it four days earlier. I'm not being funny —
+Skree Nine-Tabs: You are being extremely funny. That's the whole thing you do.
+Vint: I'm not being funny, I'm being accurate. Four days. It's dated.
+
+Grout: I posted it at ten past three in the morning because I couldn't sleep and there was a frog on the bins.
+Vint: There is no frog on any bins in your photo.
+Grout: The frog was ON the bins. Then I put a hat on it. In an image editor. Obviously.
+Vint: See, that's the bit where I stop being able to follow you.
+
+NARRATION: This is what the war is. It will run for eleven days and produce more written material than the founding of most nations.
+
+BATTLE: Vint
+  PLAYS: Cyra Swipe
+  YOU PLAY: Chairperson Nobody
+  DIFFICULTY: beginner
+  IF YOU LOSE:
+    Vint: Four days, mate. Four days. I'll be here.
+    Chairperson Nobody: The Chair moves that we go again.
+
+Chairperson Nobody: Minute it as follows. "A claim of prior art was received from the New Feed. The Board did not accept it. The Board did not reject it. The Board asked for the source."
+Skree Nine-Tabs: They'll never cite the source.
+Chairperson Nobody: They will never cite the source. That is why we ask.
+
+
+=== EPISODE: Format War
+
+NARRATION: Day four. The hat has been through things.
+
+POST: THE VAULT, PARTIAL INDEX. Hat with a bigger hat. Hat with the hat removed, which caused a schism. Hat rendered in three dimensions by somebody with a job. Hat, deep-fried, resaved eleven times, structurally compromised. Hat with a New Feed watermark, which is the one that started the second half of this.
+
+Halo Nine: I'm going to be honest with you because I respect the Board.
+Skree Nine-Tabs: Here it comes.
+Halo Nine: We remix better than you. That's not an insult. You archive better than anyone alive and you remix like a museum.
+
+Skree Nine-Tabs: I have forty-one thousand two hundred and six of them logged.
+Halo Nine: I know. That's what I mean. Nobody counts the ones they're still making.
+
+NARRATION: She is not wrong, and the Old Board knows she is not wrong, and the Old Board is about to spend nine hours proving her wrong in a way that proves her point.
+
+Grout: They did one where it's the hat, but the frog is the hat.
+Chairperson Nobody: Is that good?
+Grout: It's the best one anybody's done in three years and it's theirs and I've looked at it about thirty times.
+
+BATTLE: Halo Nine
+  PLAYS: Blayze Trendall
+  DIFFICULTY: casual
+  RULE: best mistake
+  IF YOU LOSE:
+    Halo Nine: That one's going in the folder. No hard feelings. Genuinely, that's a compliment.
+    Skree Nine-Tabs: Again.
+
+NARRATION: Nothing the Board makes that week is wasted, which is the problem. Every bad variant gets saved by somebody, and the bad ones breed faster.
+
+Chairperson Nobody: Skree. Off the record.
+Skree Nine-Tabs: There's no record, we're in a corridor.
+Chairperson Nobody: Off the corridor, then. Are they better at it than us?
+Skree Nine-Tabs: ...They're faster. It's not the same thing and I'm not going to say which one is better in a corridor.
+
+
+=== EPISODE: The Truce Thread
+
+NARRATION: Day six. Somebody opens a thread called TRUCE and it is agreed, without anybody agreeing to it, that the thread will be conducted entirely in reaction images.
+
+NARRATION: The thread runs to sixty-one posts and contains eleven words, nine of which are in one post that everybody scrolled straight past.
+
+Chairperson Nobody: I am going to minute this thread.
+Skree Nine-Tabs: You can't minute that thread.
+Chairperson Nobody: I am the Chair and the thread is Board business.
+
+POST: MINUTES OF THE TRUCE THREAD, page 1 of 4. "Post 1: the New Feed opens with a cartoon dog in a burning room. Post 2: the Board replies with a man holding a small sign. Post 3: New Feed, an anime character adjusting spectacles, which the Chair reads as a concession on procedure. Post 4: the Board, a shrugging skeleton. The Chair notes this was unhelpful."
+
+NARRATION: It takes him six hours. It is the single most complete diplomatic record in the history of either community and neither side disputes a word of it, because neither side can face reading it.
+
+Vint: Alright. What do you actually want?
+Chairperson Nobody: For the record to say where it came from.
+Vint: And if the record says it came from us?
+Chairperson Nobody: Then it says that, and it will be the first true thing anybody has said in this argument, and I will minute it, and we will all feel terrible and go to bed.
+
+BATTLE: Both Sides At Once
+  PLAYS: Chairperson Nobody
+  DIFFICULTY: intermediate
+  IF YOU LOSE:
+    NARRATION: Half the room is arguing with the other half about which half is arguing.
+    Chairperson Nobody: The Chair moves that we go again.
+
+POST: reply #58 in TRUCE, by an account with no avatar, nine years of registration and zero previous posts. It is a screenshot. The full chain of custody is inside the image — three dead sites, two archive mirrors, a date, and a link that still works — where not one word of it is searchable. Nobody replies to it. It has one reaction, from Skree, and the reaction is a picture of a frog in a hat.
+
+CHOICE: Two communities, one joke, and no jurisdiction whatsoever.
+  * Merge. One board, one archive, one hat.
+      REMEMBER: merged the boards
+      Chairperson Nobody: Then we merge, and the Vault takes both archives, and the Chair is elected from the whole of it.
+      Halo Nine: You'd let us in the Vault?
+      Skree Nine-Tabs: I would let you in the Vault and I would watch you the entire time and I would enjoy it.
+      NARRATION: It works, mostly. It is louder. Three people leave over it and two of them come back within the month and nobody mentions that either.
+  * Fork cleanly. Two boards, both archives, no hard feelings.
+      REMEMBER: forked cleanly
+      REMEMBER: grout heard it + 1
+      Chairperson Nobody: Then we fork, properly, on purpose, while everybody still likes each other. Both archives get a full copy. Nobody is anybody's splinter.
+      Vint: That's — that's weirdly generous?
+      Chairperson Nobody: It is the only kind of ending this has that nobody has to lose. I have read nine years of these. They all end the other way.
+      NARRATION: Two boards, two archives, one hat in both of them, and a cross-post rule written in an afternoon that will hold for a decade.
+
+
+=== SIDE CUT: Mod Application
+UNLOCKED BY: merged the boards
+
+NARRATION: Day seven. One board now, four hundred and some people, and exactly one moderator, who owns a folding chair and a laminated binder and has not slept properly since the merge.
+
+Chairperson Nobody: We are going to need another one.
+Skree Nine-Tabs: Another Chair?
+Chairperson Nobody: Another moderator. There is a difference and it is on page two.
+
+POST: MOD APPLICATION FORM, version one, drafted by the Chair. Q1: "Why do you want to moderate?" Q2: "Have you ever locked a thread?" Q3: "Would you like to?" Q4 was removed by the Chair on the grounds that it had become a bit.
+
+NARRATION: Nine people apply in the first hour. Eight of them are doing a bit. The ninth has written four hundred words and has read the binder, all of it, including page nine, which nobody has read since the day it was laminated.
+
+Vint: It's me. Obviously it's me. I've been arguing with you people for nine days, that's basically an interview.
+Chairperson Nobody: You are from the New Feed.
+Vint: There is no New Feed. You merged us. That was the entire thing that happened.
+Chairperson Nobody: ...The Chair notes that as a point well made, and is annoyed about it.
+
+BATTLE: Nine Applications
+  PLAYS: Skree Nine-Tabs
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    NARRATION: Eight of the nine are still doing the bit. One of them has escalated the bit.
+    Chairperson Nobody: The Chair moves that we go again.
+
+Skree Nine-Tabs: You're going to give it to him.
+Chairperson Nobody: I am going to give it to him.
+Skree Nine-Tabs: Because he read page nine.
+Chairperson Nobody: Because he read page nine. And because in two days somebody is going to need a moderator who is not me, and I would like there to be one.
+
+
+=== EPISODE: It Stopped Being Funny
+
+NARRATION: Day nine. Grout says a thing in a thread about something else entirely, and it is a bad take, and he is wrong, and being wrong on the Old Board has always been a survivable condition.
+
+NARRATION: Then somebody replies with the hat. Then somebody else does. And it is funny for about the first forty of them.
+
+POST: the hat, the hat, the hat. One thousand eight hundred and six times in five hours, in his replies, in his mentions, in a thread about buses, and in one place he had not logged into for four years. Not one person who posted it thought they were the problem, and each of them was correct.
+
+Grout: It's fine.
+Skree Nine-Tabs: It's not.
+Grout: It's my joke. It's literally my joke, I can't complain about my own joke, that's not — there isn't a version of that which isn't pathetic.
+
+IF merged the boards:
+  NARRATION: It comes from everywhere at once, because there is one board now and it is very large, and nobody can tell whose neighbours these are.
+  Halo Nine: Half of that's ours. I know it is. I can't find them and I can't stop them and I'm not going to pretend otherwise.
+OTHERWISE:
+  NARRATION: It comes over the fork, which has a cross-post rule, and the cross-post rule holds, and it turns out that a rule which stops floods does nothing whatsoever about a drip.
+  Vint: We're not brigading. I've checked. Ours is forty people doing it once each, which is worse, because there's nothing to switch off.
+
+Chairperson Nobody: The Chair would like to say something not as the Chair.
+Skree Nine-Tabs: Say it as you, then.
+Chairperson Nobody: I don't have a way to do that. I have a binder. That's the whole of what I brought.
+
+BATTLE: Dogpile
+  PLAYS: Skree Nine-Tabs
+  YOU PLAY: Chairperson Nobody
+  DIFFICULTY: intermediate
+  RULE: punchline recursion
+  IF YOU LOSE:
+    NARRATION: The same joke comes back into your hand, costing one more, and it is still funny, and that is not a defence.
+    Chairperson Nobody: The Chair moves that we go again.
+
+Grout: Don't do anything about it.
+Chairperson Nobody: I have to minute that you said that.
+Grout: Minute it. I mean it. Nine years of people say hello to each other with that picture. You take that away and I'm the man who took it away, and I'd rather be the man it happens to.
+
+
+=== EPISODE: Retire the Bit
+
+NARRATION: Day eleven. A motion is put, in writing, in the proper form, on the retirement of a picture of a frog in a hat. Four hundred people are on the Board and three hundred and twelve of them have ever posted, which is what Bylaw 9 says a vote is. Every one of the three hundred and twelve turns up. Nobody makes a single joke about turnout, which has never happened before.
+
+Chairperson Nobody: Bylaw 31. Written in year two, by four people, at four in the morning, as a bit.
+Skree Nine-Tabs: Read it out.
+Chairperson Nobody: "No bit shall be retired save by the unanimous assent of the Board." They thought it was funny because they thought it would never be used.
+
+NARRATION: It is the funniest thing in the binder and it is now the only thing holding the door, and everybody in the room understands both halves of that at the same moment.
+
+BATTLE: The Bit Itself
+  PLAYS: Chairperson Nobody
+  DIFFICULTY: advanced
+  RULE: it came back
+  IF YOU LOSE:
+    NARRATION: You put it down. It gets up. It is not malicious and it is not alive and it does not stop.
+    Chairperson Nobody: Again.
+
+NARRATION: The vote is three hundred and eleven to one.
+
+Skree Nine-Tabs: Grout.
+Grout: Yeah.
+Skree Nine-Tabs: You voted against retiring the thing that is currently being used to take you apart.
+Grout: I made one thing. In nine years, on the internet, I made one thing that people liked, and it was an accident, and it was a frog on some bins at ten past three in the morning.
+Grout: I'm not going to be the reason it's gone.
+
+CHOICE: Three hundred and eleven to one, and the one is the man it made.
+  * Go and ask him to change his vote.
+      REMEMBER: asked him
+      REMEMBER: grout heard it + 1
+      Chairperson Nobody: Grout. I'm going to say the whole thing out loud, badly, and then I'm going to leave.
+      Grout: You don't have to —
+      Chairperson Nobody: You made a good thing. It is still a good thing. And I have watched it be pointed at you for two days and I would like it to stop more than I would like to keep it, and I think three hundred and ten other people would say that if anybody had asked them to say it in words.
+      NARRATION: Grout does not answer for a while. Then he changes his vote, and the motion carries, unanimously, at 03:12, which nobody plans and everybody notices.
+  * Take the target off him instead.
+      REMEMBER: reclaimed it
+      Chairperson Nobody: The bit lives. The Chair rules, under Bylaw 12, that the Chair is now the problem.
+      Skree Nine-Tabs: You can't make yourself the target of a bit by ruling.
+      Chairperson Nobody: I have a binder, a folding chair and four hundred people who do what the binder says. Watch me.
+      NARRATION: For the next month the hat is posted at the Chair, exclusively, several hundred times a day, by people who think this is enormously funny and are not entirely wrong. Grout gets nothing. Grout notices that he gets nothing.
+
+
+=== EPISODE: The Living Meme
+
+NARRATION: The Vault at four in the morning, because Skree keeps the hours she keeps. Nine hundred folders, no naming convention, perfect recall.
+
+NARRATION: What is in here is not a monster. It has no plan and it is not angry and it is not, whatever anybody says in a thread, ironic. It is a thing that got said so many times it started arriving on its own.
+
+Skree Nine-Tabs: It doesn't know what we did tonight.
+Chairperson Nobody: No.
+Skree Nine-Tabs: It doesn't know it was ever funny either. That's the bit people get wrong about it. It's not clinging on. It hasn't got anything to cling on with.
+
+BATTLE: The Living Meme
+  PLAYS: The Living Meme
+  DIFFICULTY: boss
+  IF YOU LOSE:
+    NARRATION: An old bit resurfaces. Then another one. None of them are new and it does not appear to mind.
+    Skree Nine-Tabs: Again.
+
+Skree Nine-Tabs: I closed a tab once.
+Chairperson Nobody: You've mentioned.
+Skree Nine-Tabs: I have mentioned it, yes, for a number of years, and I'm going to tell you the actual thing now because it's four in the morning and you minuted a thread of pictures. It wasn't a good tab. It wasn't rare. I just never found out what happened next, and it turns out that is the entire feeling, and everything in these nine hundred folders is me making sure it never happens again.
+Chairperson Nobody: That's why the Vault.
+Skree Nine-Tabs: That's why the Vault.
+
+IF asked him:
+  NARRATION: The hat is retired. There is a folder for it, sealed, with a date on it, and one line under the date in Skree's handwriting: "posted 03:12. retired 03:12."
+  Skree Nine-Tabs: Nine years exactly, near enough.
+  Chairperson Nobody: Near enough.
+OTHERWISE:
+  NARRATION: The hat is not retired. It is in the folders with everything else, still working, still funny, still arriving, and it is pointed at a folding chair now instead of at a man.
+  Skree Nine-Tabs: That's not nothing.
+  Chairperson Nobody: It is not nothing. It is also not what he asked for, and he did not ask for anything, which is the part I keep coming back to.
+
+IF kept the name:
+  NARRATION: There is a poster on the Vault wall, four years old, from a reunion show that nine hundred people went to. Somebody offered that group an enormous amount of money for their name and they said no and kept it and played to a smaller room.
+  Skree Nine-Tabs: They're the only ones I know of who won one of these.
+  Chairperson Nobody: They didn't win. They just refused to sell it, which is a different thing, and it is the only move on the board that always works.
+OTHERWISE:
+  NARRATION: There is a poster on the Vault wall, four years old, from a reunion show that twelve thousand people went to under a name that no longer belongs to the people who made it.
+  Skree Nine-Tabs: Everybody sells it eventually.
+  Chairperson Nobody: Everybody sells it eventually, and we do not have anything to sell, and I have decided to enjoy that.
+
+IF grout heard it is at least 2:
+  NARRATION: Grout posts once more that year, in a thread about something else entirely, and it is a photograph of a bin.
+  POST: no title, no body. A wheelie bin at night, flash on, nothing on it. 41 replies, all of them the same three words, none of which are "the" or "hat".
+  Grout: That's just a bin.
+  Skree Nine-Tabs: Filed.
+
+POST: THE VAULT, LAST ENTRY OF THE NIGHT. Number forty-one thousand two hundred and seven. She files one a night whatever happens, and has done since the year she will not specify. Recovered from GLIMMR — platform offline.
+
+Chairperson Nobody: The Chair moves that we go to bed.
+Skree Nine-Tabs: Seconded, obviously.

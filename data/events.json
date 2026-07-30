@@ -1,0 +1,577 @@
+{
+  "_readme": [
+    "LIMITED-TIME EVENTS. 09-game-modes.md §14, 03-screens-and-navigation.md §4.4.3,",
+    "and 07-economy-and-monetization.md (event currencies, §8.4 reruns).",
+    "",
+    "An event is a data bundle: run windows, a currency of its own, missions, a shop,",
+    "and the modes it points at. Adding an event needs no code — that is the point.",
+    "",
+    "RUNS ARE PUBLISHED, NOT PROMISED. §14 makes reruns policy: 'every event returns",
+    "within 2 seasons' and 'nothing gameplay-relevant is permanently missable'. A",
+    "promise in prose is not a schedule, so every run window an event will ever have",
+    "is written here from the start — exactly as banners.json does it. checkEventData()",
+    "refuses an event with fewer than two runs, refuses runs that overlap, and refuses",
+    "a gap between consecutive runs longer than rerunWithinWeeks. That is what makes",
+    "'nothing is permanently missable' a property of the data rather than a hope.",
+    "",
+    "HONEST TIMERS. Every window is a real UTC datetime and the screen prints the real",
+    "end. There is no countdown that outlives its event and no 'ends soon!' that means",
+    "nothing. An event that has ended reads as ended, with the date it returns.",
+    "",
+    "EVENT CURRENCY NEVER EXPIRES INTO NOTHING. 07 §3: leftover tokens convert to Clout",
+    "at 1:5 when a run ends, logged in the inbox. conversionToClout is that 5, in one",
+    "place, so the screen's promise and the payout cannot drift apart.",
+    "",
+    "MISSION OBJECTIVES ARE THE MISSIONS SYSTEM'S OWN. The 'objective' block below is",
+    "the same Objective type data/missions.json uses, measured by the same code. Event",
+    "missions are credited per match rather than recomputed from the outcome log,",
+    "because that log is pruned to what the daily and weekly rotation still needs —",
+    "roughly a week, against a fortnight-long event. Credit has to be additive to be",
+    "correct, so 'distinct' requirements are refused here and only here: counting",
+    "distinct factions needs the whole set at once, and a running total cannot know",
+    "whether today's faction was already seen. checkEventData() enforces it."
+  ],
+  "rerunWithinWeeks": 16,
+  "conversionToClout": 5,
+  "remix": {
+    "_note": [
+      "WEEKLY RULE MODIFIERS - 09-game-modes.md section 12, 'Remix Queue'.",
+      "",
+      "Section 12 says the modifiers are 'data-driven event configs (data/events.json)',",
+      "so they live here rather than in a file of their own.",
+      "",
+      "A modifier is built out of three general mechanisms the engine already had, and",
+      "no new ones:",
+      "",
+      "  balance     - MatchConfig.balanceOverrides, whose own comment in types.ts",
+      "                already reads 'balance overrides for boss battles / weekly",
+      "                modifiers'. The engine anticipated this mode.",
+      "  passive     - CardPatch.passive, 'appended to a leader's passive list - how an",
+      "                artifact attaches to a player'. A Remix passive is appended to",
+      "                BOTH leaders, which is the only difference between a global rule",
+      "                and a Doomscroll artifact.",
+      "  costCeiling - every card costing more than this costs exactly this, applied as",
+      "                computed cardOverrides. One general mechanism; Budget Cuts is the",
+      "                only modifier that currently uses it.",
+      "",
+      "All ten of section 12.1's launch rotation are listed, because the table is",
+      "content and dropping the four that need engine work would quietly rewrite the",
+      "spec. A modifier carrying a 'deferred' string is not in the rotation and must",
+      "carry no rule fields - checkRemixData enforces both halves, so a deferral cannot",
+      "hide a half-built rule and a rule cannot ship unannounced."
+    ],
+    "questWinsRequired": 3,
+    "questClout": 150,
+    "modifiers": [
+      {
+        "id": "main-character-energy",
+        "name": "Main Character Energy",
+        "text": "The first Character you play each turn gains Spotlight and +1/+1.",
+        "passive": [
+          {
+            "trigger": "onCardPlayed",
+            "oncePerTurn": true,
+            "playedFilter": {
+              "type": [
+                "character"
+              ]
+            },
+            "ops": [
+              {
+                "op": "addKeyword",
+                "target": {
+                  "select": "triggering"
+                },
+                "keyword": "spotlight"
+              },
+              {
+                "op": "buff",
+                "target": {
+                  "select": "triggering"
+                },
+                "attack": 1,
+                "health": 1
+              }
+            ],
+            "text": "Main Character Energy - the first Character you play each turn gains Spotlight and +1/+1."
+          }
+        ]
+      },
+      {
+        "id": "everything-is-content",
+        "name": "Everything Is Content",
+        "text": "The first card you play each turn gains Viral.",
+        "passive": [
+          {
+            "trigger": "onCardPlayed",
+            "oncePerTurn": true,
+            "ops": [
+              {
+                "op": "addKeyword",
+                "target": {
+                  "select": "triggering"
+                },
+                "keyword": "viral"
+              }
+            ],
+            "text": "Everything Is Content - the first card you play each turn gains Viral."
+          }
+        ]
+      },
+      {
+        "id": "speedrun-any-percent",
+        "name": "Speedrun Any%",
+        "text": "Turn timer is 35 seconds. Both players draw 2 cards at the start of their turn.",
+        "balance": {
+          "timer.turnSeconds": 35,
+          "draw.perTurn": 2
+        }
+      },
+      {
+        "_note": [
+          "Deferred. 'Banished until that player's next turn' is a timed banish, and",
+          "banish in this engine is permanent - scheduleDelayed could return it, but",
+          "there is no target selector for 'the highest-Attack character on each side',",
+          "only highestCost and lowestCost. Two missing pieces, both engine work."
+        ],
+        "id": "touch-some-grass",
+        "name": "Touch Some Grass",
+        "text": "At the start of each player's turn, the highest-Attack character on each side is Banished until that player's next turn.",
+        "deferred": "needs a highest-Attack target selector and a timed banish; the DSL has highestCost/lowestCost and a permanent banish, so both halves are engine work rather than authoring"
+      },
+      {
+        "_note": [
+          "Deferred. The engine tracks confluence use per turn as a boolean",
+          "(player.confluenceUsedThisTurn), so 'two per turn' is not a number that can",
+          "be overridden - it is a counter the engine does not keep."
+        ],
+        "id": "crossover-episode",
+        "name": "Crossover Episode",
+        "text": "You may activate two Confluences per turn (each pair still once).",
+        "deferred": "the engine records confluence use as a per-turn boolean rather than a count, so there is no number for balanceOverrides to bend - it needs a real counter first"
+      },
+      {
+        "id": "budget-cuts",
+        "name": "Budget Cuts",
+        "text": "Max Hype is capped at 7. Cards costing 8 or more cost 7.",
+        "balance": {
+          "hype.cap": 7
+        },
+        "costCeiling": 7
+      },
+      {
+        "id": "echo-chamber",
+        "name": "Echo Chamber",
+        "text": "The first Action you play each turn adds a copy costing (1) more to your hand.",
+        "passive": [
+          {
+            "trigger": "onCardPlayed",
+            "oncePerTurn": true,
+            "playedFilter": {
+              "type": [
+                "action"
+              ]
+            },
+            "ops": [
+              {
+                "op": "copyCardToHand",
+                "target": {
+                  "select": "triggering"
+                },
+                "costDelta": 1
+              }
+            ],
+            "text": "Echo Chamber - the first Action you play each turn adds a copy costing (1) more to your hand."
+          }
+        ]
+      },
+      {
+        "_note": [
+          "Deferred. This is a new thing the player DOES, not a rule about what",
+          "happens - it needs an intent, a button, an AI that knows when to press it",
+          "and a replay decoding. Every other modifier here is a passive or a number."
+        ],
+        "id": "feed-refresh",
+        "name": "Feed Refresh",
+        "text": "Once per turn, you may discard your hand and draw that many cards.",
+        "deferred": "a new player action, not a passive rule: it needs its own intent, a HUD control, AI that knows when to use it and a replay path, none of which a data-driven modifier can add"
+      },
+      {
+        "id": "down-bad",
+        "name": "Down Bad",
+        "text": "Both players gain 1 Obsession at the start of their turn. Fixations cost 2 Obsession.",
+        "balance": {
+          "obsession.fixationCost": 2
+        },
+        "passive": [
+          {
+            "trigger": "startOfTurn",
+            "ops": [
+              {
+                "op": "gainObsession",
+                "amount": 1
+              }
+            ],
+            "text": "Down Bad - gain 1 Obsession at the start of your turn."
+          }
+        ]
+      },
+      {
+        "_note": [
+          "Deferred, and the honest reason is that half of it is not a match rule at",
+          "all. The Prism splash limit is enforced by validateDeck when a deck is",
+          "SAVED, long before a match config exists, so a per-match override would",
+          "change nothing about the decks people bring. 'Refract may choose any",
+          "Current' is a real match rule and is engine work."
+        ],
+        "id": "prism-party",
+        "name": "Prism Party",
+        "text": "The Prism splash limit is removed this week; Refract may choose any Current.",
+        "deferred": "the splash limit is a deck-building rule enforced at save time, not a match rule, so a match-scoped override would not change which decks players bring; and letting Refract choose any Current is engine work in the confluence path"
+      }
+    ]
+  },
+  "events": [
+    {
+      "_note": [
+        "The convention event, and the one that is running as this build ships.",
+        "Con Badges are one of the four event currencies 07 names by example."
+      ],
+      "id": "hypecon",
+      "name": "HYPECON",
+      "blurb": "Three halls, one working escalator, and a queue for a signing that ended yesterday. Wear the badge anyway.",
+      "accent": "#3fc7c0",
+      "emblem": "stamp",
+      "rules": [
+        "Every match played anywhere in the game counts toward HYPECON missions — the convention does not care which hall you are in.",
+        "Con Badges are earned from event missions only. They are not dropped, sold, or purchasable.",
+        "Badges left over when the doors close convert to Clout at 1 : 5, and the receipt lands in your inbox."
+      ],
+      "currency": {
+        "id": "con-badges",
+        "name": "Con Badges",
+        "symbol": "◈"
+      },
+      "featuredModes": [
+        "ai",
+        "boss",
+        "puzzle"
+      ],
+      "runs": [
+        {
+          "startAt": "2026-07-24T00:00:00.000Z",
+          "days": 14
+        },
+        {
+          "startAt": "2026-11-06T00:00:00.000Z",
+          "days": 14
+        }
+      ],
+      "missions": [
+        {
+          "id": "hypecon-badge-pickup",
+          "name": "Badge Pickup",
+          "text": "Complete 3 matches.",
+          "objective": {
+            "all": [
+              {
+                "need": "matches",
+                "target": 3
+              }
+            ]
+          },
+          "reward": 40
+        },
+        {
+          "id": "hypecon-panel-circuit",
+          "name": "Panel Circuit",
+          "text": "Win 2 matches.",
+          "objective": {
+            "all": [
+              {
+                "need": "matches",
+                "target": 2,
+                "filter": {
+                  "won": true
+                }
+              }
+            ]
+          },
+          "reward": 60
+        },
+        {
+          "id": "hypecon-artist-alley",
+          "name": "Artist Alley",
+          "text": "Play 40 cards.",
+          "objective": {
+            "all": [
+              {
+                "need": "sum",
+                "stat": "cardsPlayed",
+                "target": 40
+              }
+            ]
+          },
+          "reward": 50
+        },
+        {
+          "id": "hypecon-main-stage",
+          "name": "Main Stage",
+          "text": "Activate 4 Confluences.",
+          "objective": {
+            "all": [
+              {
+                "need": "sum",
+                "stat": "confluencesActivated",
+                "target": 4
+              }
+            ]
+          },
+          "reward": 70
+        }
+      ],
+      "shop": [
+        {
+          "id": "hypecon-cardback",
+          "name": "HYPECON Card Back",
+          "kind": "cosmetic",
+          "ref": "cardBack:event:hypecon",
+          "cost": 120,
+          "stock": 1
+        },
+        {
+          "id": "hypecon-drops",
+          "name": "Merch Drops ×3",
+          "kind": "drops",
+          "amount": 3,
+          "cost": 80,
+          "stock": 2
+        },
+        {
+          "id": "hypecon-signal",
+          "name": "250 Signal",
+          "kind": "signal",
+          "amount": 250,
+          "cost": 45,
+          "stock": 4
+        }
+      ],
+      "completion": {
+        "missionsRequired": 3,
+        "cosmeticId": "frame:event:hypecon"
+      }
+    },
+    {
+      "_note": [
+        "The concluded one. Its first run is in the past as this build ships, which is",
+        "what gives the archive a real entry rather than an empty rail — and its second",
+        "run is the rerun notice §4.4.3 asks the archive to carry."
+      ],
+      "id": "encore-livestream",
+      "name": "The Encore Livestream",
+      "blurb": "Twelve hours of a stage nobody left. The chat replayed itself twice and nobody noticed.",
+      "accent": "#e46bd6",
+      "emblem": "starburst",
+      "rules": [
+        "A concluded event is replayable as a Rerun: the missions and the shop return exactly as you left them.",
+        "Glowsticks you already earned are still yours when it comes back — progress and stock carry across runs.",
+        "Rerun entries pay base rewards. Nothing here is gone forever."
+      ],
+      "currency": {
+        "id": "glowsticks",
+        "name": "Glowsticks",
+        "symbol": "❘"
+      },
+      "featuredModes": [
+        "ai",
+        "story"
+      ],
+      "runs": [
+        {
+          "startAt": "2026-05-11T00:00:00.000Z",
+          "days": 14
+        },
+        {
+          "startAt": "2026-08-24T00:00:00.000Z",
+          "days": 14
+        }
+      ],
+      "missions": [
+        {
+          "id": "encore-soundcheck",
+          "name": "Soundcheck",
+          "text": "Complete 2 matches.",
+          "objective": {
+            "all": [
+              {
+                "need": "matches",
+                "target": 2
+              }
+            ]
+          },
+          "reward": 40
+        },
+        {
+          "id": "encore-crowd-work",
+          "name": "Crowd Work",
+          "text": "Deal 60 damage to enemy Leaders.",
+          "objective": {
+            "all": [
+              {
+                "need": "sum",
+                "stat": "damageToEnemyLeader",
+                "target": 60
+              }
+            ]
+          },
+          "reward": 60
+        },
+        {
+          "id": "encore-one-more-song",
+          "name": "One More Song",
+          "text": "Win 3 matches.",
+          "objective": {
+            "all": [
+              {
+                "need": "matches",
+                "target": 3,
+                "filter": {
+                  "won": true
+                }
+              }
+            ]
+          },
+          "reward": 80
+        }
+      ],
+      "shop": [
+        {
+          "id": "encore-cardback",
+          "name": "Encore Card Back",
+          "kind": "cosmetic",
+          "ref": "cardBack:event:encore-livestream",
+          "cost": 110,
+          "stock": 1
+        },
+        {
+          "id": "encore-clout",
+          "name": "400 Clout",
+          "kind": "clout",
+          "amount": 400,
+          "cost": 60,
+          "stock": 3
+        }
+      ],
+      "completion": {
+        "missionsRequired": 2,
+        "cosmeticId": "frame:event:encore-livestream"
+      }
+    },
+    {
+      "_note": [
+        "The upcoming one, so the 'coming up' rail is not empty either. Pixel Pumpkins",
+        "is 07's own example currency for exactly this event."
+      ],
+      "id": "glitchoween",
+      "name": "Glitchoween",
+      "blurb": "The render farm caught something. It is fine. The skeletons are supposed to clip through the floor like that.",
+      "accent": "#f0862a",
+      "emblem": "mask",
+      "rules": [
+        "Glitchoween runs alongside the Weekly Boss and The Doomscroll — every match in either counts.",
+        "Pixel Pumpkins are earned from event missions only.",
+        "Leftovers convert to Clout at 1 : 5 when the run ends, with a receipt in your inbox."
+      ],
+      "currency": {
+        "id": "pixel-pumpkins",
+        "name": "Pixel Pumpkins",
+        "symbol": "✸"
+      },
+      "featuredModes": [
+        "boss",
+        "roguelike"
+      ],
+      "runs": [
+        {
+          "startAt": "2026-10-19T00:00:00.000Z",
+          "days": 14
+        },
+        {
+          "startAt": "2027-02-05T00:00:00.000Z",
+          "days": 14
+        }
+      ],
+      "missions": [
+        {
+          "id": "glitchoween-trick",
+          "name": "Trick",
+          "text": "Apply Cancelled 5 times.",
+          "objective": {
+            "all": [
+              {
+                "need": "sum",
+                "stat": "cancelledApplied",
+                "target": 5
+              }
+            ]
+          },
+          "reward": 50
+        },
+        {
+          "id": "glitchoween-treat",
+          "name": "Treat",
+          "text": "Defeat 12 characters.",
+          "objective": {
+            "all": [
+              {
+                "need": "sum",
+                "stat": "charactersDefeated",
+                "target": 12
+              }
+            ]
+          },
+          "reward": 60
+        },
+        {
+          "id": "glitchoween-haunt",
+          "name": "Haunted Run",
+          "text": "Win 2 matches.",
+          "objective": {
+            "all": [
+              {
+                "need": "matches",
+                "target": 2,
+                "filter": {
+                  "won": true
+                }
+              }
+            ]
+          },
+          "reward": 70
+        }
+      ],
+      "shop": [
+        {
+          "id": "glitchoween-cardback",
+          "name": "Glitchoween Card Back",
+          "kind": "cosmetic",
+          "ref": "cardBack:event:glitchoween",
+          "cost": 120,
+          "stock": 1
+        },
+        {
+          "id": "glitchoween-drops",
+          "name": "Merch Drops ×2",
+          "kind": "drops",
+          "amount": 2,
+          "cost": 60,
+          "stock": 3
+        }
+      ],
+      "completion": {
+        "missionsRequired": 2,
+        "cosmeticId": "frame:event:glitchoween"
+      }
+    }
+  ]
+}

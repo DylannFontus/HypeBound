@@ -1,0 +1,1411 @@
+[
+  {
+    "id": "grass-leader-juniper-vale",
+    "name": "Prioress Juniper Vale",
+    "title": "Warden of the Long Weekend",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "root",
+    "secondaryCurrent": "gale",
+    "tags": [
+      "monk",
+      "trail"
+    ],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "condition": {
+          "kind": "obsessionAtLeast",
+          "side": "enemy",
+          "value": 8
+        },
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "enemy"
+            },
+            "amount": 2
+          },
+          {
+            "op": "removeObsession",
+            "amount": 2,
+            "side": "enemy"
+          }
+        ],
+        "text": "At the start of your turn, if your opponent is **Obsessed**, deal 2 damage to the enemy leader and remove 2 Obsession from them."
+      }
+    ],
+    "fixation": {
+      "name": "Confiscate the Phone",
+      "obsessionCost": 3,
+      "target": {
+        "select": "choose",
+        "side": "enemy",
+        "zone": "board"
+      },
+      "ops": [
+        {
+          "op": "removeStatus",
+          "target": {
+            "select": "triggering"
+          },
+          "polarity": "positive"
+        },
+        {
+          "op": "destroyEquipment",
+          "target": {
+            "select": "triggering"
+          }
+        },
+        {
+          "op": "applyStatus",
+          "target": {
+            "select": "triggering"
+          },
+          "status": "weakened",
+          "amount": 1,
+          "durationTurns": 1
+        }
+      ],
+      "text": "Remove all positive statuses from an enemy character, destroy its Equipment, and apply **Weakened 1** to it until your next turn."
+    },
+    "ultimate": {
+      "name": "Silent Retreat",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "banish",
+          "target": {
+            "select": "all",
+            "side": "enemy",
+            "zone": "board"
+          },
+          "returnAtStartOfYourNextTurn": true
+        },
+        {
+          "op": "removeObsession",
+          "amount": 3,
+          "side": "enemy"
+        }
+      ],
+      "text": "**Touch Grass** all enemy characters. Remove 3 Obsession from your opponent."
+    },
+    "effects": [],
+    "text": "At the start of your turn, if your opponent is **Obsessed**, deal 2 damage to the enemy leader and remove 2 Obsession from them.",
+    "flavor": "She has never once raised her voice. She refers to your entire deck as \"the situation\"."
+  },
+  {
+    "id": "grass-leader-rhett-halloran",
+    "name": "Coach Rhett Halloran",
+    "title": "The Whistle",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "gale",
+    "secondaryCurrent": null,
+    "tags": [
+      "coach",
+      "trail"
+    ],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "aura",
+        "ops": [
+          {
+            "op": "aura",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "hand",
+              "filter": {
+                "costMax": 1
+              }
+            },
+            "costDelta": 1
+          }
+        ],
+        "text": "Enemy cards that cost (1) or less cost (1) more."
+      }
+    ],
+    "fixation": {
+      "name": "Lap Around the Field",
+      "obsessionCost": 3,
+      "target": {
+        "select": "choose",
+        "side": "any",
+        "zone": "board",
+        "filter": {
+          "costMax": 4
+        }
+      },
+      "ops": [
+        {
+          "op": "banish",
+          "target": {
+            "select": "triggering"
+          },
+          "returnAtStartOfYourNextTurn": true
+        }
+      ],
+      "text": "**Touch Grass** a character that costs (4) or less."
+    },
+    "ultimate": {
+      "name": "Mandatory Field Day",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "returnToHand",
+          "target": {
+            "select": "all",
+            "side": "enemy",
+            "zone": "board",
+            "filter": {
+              "costMax": 4
+            }
+          }
+        },
+        {
+          "op": "applyStatus",
+          "target": {
+            "select": "all",
+            "side": "enemy",
+            "zone": "board"
+          },
+          "status": "weakened",
+          "amount": 2,
+          "durationTurns": 1
+        }
+      ],
+      "text": "Return all enemy characters that cost (4) or less to their owner's hand, then apply **Weakened 2** to all enemy characters until your next turn."
+    },
+    "effects": [],
+    "text": "Enemy cards that cost (1) or less cost (1) more.",
+    "flavor": "Diagnosed a twelve-card combo turn as a hydration problem. Was, infuriatingly, not entirely wrong."
+  },
+  {
+    "id": "grass-trailhead-novice",
+    "name": "Trailhead Novice",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 3,
+    "tags": [
+      "monk",
+      "trail"
+    ],
+    "keywords": [
+      "grow"
+    ],
+    "grow": {
+      "turns": 2,
+      "ops": [
+        {
+          "op": "buff",
+          "target": {
+            "select": "self"
+          },
+          "attack": 1,
+          "health": 2
+        }
+      ]
+    },
+    "effects": [],
+    "text": "**Grow 2:** +1/+2. *(After surviving 2 of your turn-ends in play, gains the upgrade permanently.)*",
+    "flavor": "Week one, complained about the incline. Week three, owns a whistle and a strong opinion about socks."
+  },
+  {
+    "id": "grass-litter-patrol",
+    "name": "Litter Patrol",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": [
+      "ranger",
+      "trail"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "enemy",
+          "zone": "board",
+          "optional": true
+        },
+        "ops": [
+          {
+            "op": "destroyEquipment",
+            "target": {
+              "select": "triggering"
+            }
+          }
+        ],
+        "text": "On play: destroy an enemy character's Equipment."
+      }
+    ],
+    "text": "On play: destroy an enemy character's Equipment.",
+    "flavor": "Grabber stick. Hi-vis vest. No functioning sense of when a bit has gone on too long."
+  },
+  {
+    "id": "grass-fresh-air-postulant",
+    "name": "Fresh-Air Postulant",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": [
+      "monk"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "removeObsession",
+            "amount": 1,
+            "side": "enemy"
+          }
+        ],
+        "text": "On play: remove 1 Obsession from your opponent."
+      }
+    ],
+    "text": "On play: remove 1 Obsession from your opponent.",
+    "flavor": "Two weeks in. Still flinches at notification sounds that are not happening."
+  },
+  {
+    "id": "grass-trail-steward",
+    "name": "Trail Steward",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 1,
+    "health": 4,
+    "tags": [
+      "monk",
+      "trail"
+    ],
+    "keywords": [
+      "spotlight"
+    ],
+    "effects": [],
+    "text": "**Spotlight.** *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "Stands at the junction. Points at the map. Will outlast you, the weather, and the map."
+  },
+  {
+    "id": "grass-ranger-of-the-long-trail",
+    "name": "Ranger of the Long Trail",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 3,
+    "health": 3,
+    "tags": [
+      "ranger",
+      "trail"
+    ],
+    "keywords": [
+      "rushwind",
+      "touch-grass"
+    ],
+    "effects": [
+      {
+        "trigger": "rushwind",
+        "target": {
+          "select": "random",
+          "side": "enemy",
+          "zone": "board",
+          "filter": {
+            "costMax": 3
+          }
+        },
+        "ops": [
+          {
+            "op": "banish",
+            "target": {
+              "select": "triggering"
+            },
+            "returnAtStartOfYourNextTurn": true
+          }
+        ],
+        "text": "**Rushwind: Touch Grass** a random enemy character that costs (3) or less."
+      }
+    ],
+    "text": "**Rushwind: Touch Grass** a random enemy character that costs (3) or less. *(Rushwind — bonus effect if this is not the first card you played this turn. Touch Grass — banish it until the start of your next turn; it returns with base stats and no statuses or attachments.)*",
+    "flavor": "Walked the whole thing twice. Has posted about it zero times. That is the flex."
+  },
+  {
+    "id": "grass-mountain-warden",
+    "name": "Mountain Warden",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 4,
+    "attack": 2,
+    "health": 6,
+    "tags": [
+      "ranger",
+      "monk"
+    ],
+    "keywords": [
+      "spotlight"
+    ],
+    "effects": [
+      {
+        "trigger": "aura",
+        "ops": [
+          {
+            "op": "aura",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "attack": -1
+          }
+        ],
+        "text": "Enemy characters have -1 Attack."
+      }
+    ],
+    "text": "**Spotlight.** Enemy characters have -1 Attack.",
+    "flavor": "Has turned back eleven expeditions and lost none of them. Would like that on the record."
+  },
+  {
+    "id": "grass-crosswind-sprinter",
+    "name": "Crosswind Sprinter",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 4,
+    "health": 3,
+    "tags": [
+      "ranger"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "addKeyword",
+            "target": {
+              "select": "self"
+            },
+            "keyword": "raid"
+          }
+        ],
+        "text": "**Rushwind:** this gains **Raid**."
+      }
+    ],
+    "text": "**Rushwind:** this gains **Raid**. *(Rushwind — bonus effect if this is not the first card you played this turn. Raid — can attack the turn it is played.)*",
+    "flavor": "Ran here. Will run back. Has already asked what your splits were."
+  },
+  {
+    "id": "grass-forty-year-ridge-elder",
+    "name": "Elder of the Forty-Year Ridge",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 5,
+    "attack": 3,
+    "health": 5,
+    "tags": [
+      "ranger",
+      "monk",
+      "trail"
+    ],
+    "keywords": [
+      "touch-grass"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "enemy",
+          "zone": "board",
+          "optional": true
+        },
+        "ops": [
+          {
+            "op": "banish",
+            "target": {
+              "select": "triggering"
+            },
+            "returnAtStartOfYourNextTurn": true
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "obsessionAtLeast",
+              "side": "enemy",
+              "value": 8
+            },
+            "then": [
+              {
+                "op": "removeObsession",
+                "amount": 2,
+                "side": "enemy"
+              }
+            ]
+          }
+        ],
+        "text": "On play: **Touch Grass** an enemy character. **Intervention:** also remove 2 Obsession from your opponent."
+      }
+    ],
+    "text": "On play: **Touch Grass** an enemy character. **Intervention:** also remove 2 Obsession from your opponent. *(Touch Grass — banish it until the start of your next turn; it returns with base stats and no statuses or attachments. Intervention — bonus while your opponent is **Obsessed**: 8 or more Obsession.)*",
+    "flavor": "Has walked the same eleven miles since before the platform, throughout the platform, and after it."
+  },
+  {
+    "id": "grass-grandmother-cairn",
+    "name": "Grandmother Cairn, Who Waits at the Summit",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 6,
+    "attack": 0,
+    "health": 8,
+    "tags": [
+      "monk",
+      "trail"
+    ],
+    "keywords": [
+      "afterparty"
+    ],
+    "finale": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "oncePerTurn": true,
+        "condition": {
+          "kind": "not",
+          "c": {
+            "kind": "obsessionAtLeast",
+            "side": "enemy",
+            "value": 3
+          }
+        },
+        "ops": [
+          {
+            "op": "addCounter",
+            "key": "serenity",
+            "amount": 1
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "counterAtLeast",
+              "key": "serenity",
+              "value": 3
+            },
+            "then": [
+              {
+                "op": "winMatch"
+              }
+            ]
+          }
+        ],
+        "text": "**Afterparty:** if your opponent's Obsession is 2 or less, this gains a Serenity counter. At 3 Serenity counters, you win the match."
+      }
+    ],
+    "text": "**Finale.** **Afterparty:** if your opponent's Obsession is 2 or less, this gains a Serenity counter. At 3 Serenity counters, you win the match.",
+    "flavor": "She has been up there since before the servers. She is not waiting for you. She is just sitting."
+  },
+  {
+    "id": "grass-phone-basket",
+    "name": "Phone Basket",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": [
+      "detox"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "enemy",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "removeStatus",
+            "target": {
+              "select": "triggering"
+            },
+            "polarity": "positive"
+          },
+          {
+            "op": "destroyEquipment",
+            "target": {
+              "select": "triggering"
+            }
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "obsessionAtLeast",
+              "side": "enemy",
+              "value": 8
+            },
+            "then": [
+              {
+                "op": "applyStatus",
+                "target": {
+                  "select": "triggering"
+                },
+                "status": "weakened",
+                "amount": 2,
+                "durationTurns": 1
+              }
+            ]
+          }
+        ],
+        "text": "Remove all positive statuses from an enemy character and destroy its Equipment. **Intervention:** also apply **Weakened 2** to it until your next turn."
+      }
+    ],
+    "text": "Remove all positive statuses from an enemy character and destroy its Equipment. **Intervention:** also apply **Weakened 2** to it until your next turn. *(Intervention — bonus while your opponent is **Obsessed**: 8 or more Obsession. Weakened 2 — -2 Attack.)*",
+    "flavor": "A plastic tub by the door. Everyone laughs about it. Everyone complies. Someone always cries at hour four."
+  },
+  {
+    "id": "grass-brisk-5k",
+    "name": "Brisk 5K",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": [
+      "trail"
+    ],
+    "keywords": [
+      "touch-grass"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "any",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "banish",
+            "target": {
+              "select": "triggering"
+            },
+            "returnAtStartOfYourNextTurn": true
+          }
+        ],
+        "text": "**Touch Grass** a character."
+      }
+    ],
+    "text": "**Touch Grass** a character. *(Banish it until the start of your next turn; it returns with base stats and no statuses or attachments.)*",
+    "flavor": "\"It's only five kilometres.\" It is never only five kilometres."
+  },
+  {
+    "id": "grass-trail-journal",
+    "name": "Trail Journal",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": [
+      "trail",
+      "detox"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          },
+          {
+            "op": "gainObsession",
+            "amount": 1
+          }
+        ],
+        "text": "Draw a card and gain 1 Obsession."
+      }
+    ],
+    "text": "Draw a card and gain 1 Obsession.",
+    "flavor": "Page 40, a pressed flower. Page 41, a careful drawing of a bird. Page 42, \"do they even miss me\"."
+  },
+  {
+    "id": "grass-digital-detox",
+    "name": "Digital Detox",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": [
+      "detox"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "removeObsession",
+            "amount": 3,
+            "side": "enemy"
+          },
+          {
+            "op": "heal",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 3
+          },
+          {
+            "op": "gainObsession",
+            "amount": 1
+          }
+        ],
+        "text": "Remove 3 Obsession from your opponent, restore 3 health to your leader, and gain 1 Obsession."
+      }
+    ],
+    "text": "Remove 3 Obsession from your opponent, restore 3 health to your leader, and gain 1 Obsession.",
+    "flavor": "Day one is withdrawal. Day two is clarity. Day three you start a newsletter about it."
+  },
+  {
+    "id": "grass-signal-dead-zone",
+    "name": "Signal Dead Zone",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 3,
+    "tags": [
+      "detox",
+      "weather"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "disableAuras",
+            "durationTurns": 1
+          }
+        ],
+        "text": "All Location, Event and aura effects are disabled for both players until your next turn."
+      },
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "status": "weakened",
+            "amount": 1,
+            "durationTurns": 1
+          }
+        ],
+        "text": "**Rushwind:** also apply **Weakened 1** to all enemy characters until your next turn."
+      }
+    ],
+    "text": "All Location, Event and aura effects are disabled for both players until your next turn. **Rushwind:** also apply **Weakened 1** to all enemy characters until your next turn.",
+    "flavor": "Somewhere down in the valley, a sponsorship deal quietly expires."
+  },
+  {
+    "id": "grass-weather-front",
+    "name": "Weather Front",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 4,
+    "tags": [
+      "weather"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "status": "weakened",
+            "amount": 2,
+            "durationTurns": 1
+          }
+        ],
+        "text": "Apply **Weakened 2** to all enemy characters until your next turn."
+      },
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "removeStatus",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "polarity": "positive"
+          }
+        ],
+        "text": "**Rushwind:** also remove all positive statuses from them."
+      }
+    ],
+    "text": "Apply **Weakened 2** to all enemy characters until your next turn. **Rushwind:** also remove all positive statuses from them. *(Rushwind — bonus effect if this is not the first card you played this turn. Weakened 2 — -2 Attack.)*",
+    "flavor": "The forecast was clear. The forecast has been revised. Bring the other jacket."
+  },
+  {
+    "id": "grass-sermon-on-the-trail",
+    "name": "Sermon on the Trail",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 6,
+    "tags": [
+      "detox",
+      "monk"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "enemy"
+            },
+            "amount": {
+              "kind": "obsession",
+              "side": "enemy"
+            }
+          },
+          {
+            "op": "removeObsession",
+            "amount": 10,
+            "side": "enemy"
+          }
+        ],
+        "text": "Deal damage to the enemy leader equal to your opponent's Obsession, then remove all of your opponent's Obsession."
+      }
+    ],
+    "text": "Deal damage to the enemy leader equal to your opponent's Obsession, then remove all of your opponent's Obsession.",
+    "flavor": "It is not a lecture. It is worse. It is a question, asked kindly, about how you are actually doing."
+  },
+  {
+    "id": "grass-broken-in-boots",
+    "name": "Broken-In Boots",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "equipment",
+    "rarity": "common",
+    "cost": 2,
+    "equipAttack": 1,
+    "equipHealth": 2,
+    "tags": [
+      "gear",
+      "trail"
+    ],
+    "keywords": [
+      "touch-grass"
+    ],
+    "effects": [
+      {
+        "trigger": "onDefeat",
+        "ops": [
+          {
+            "op": "banish",
+            "target": {
+              "select": "random",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "returnAtStartOfYourNextTurn": true
+          }
+        ],
+        "text": "When the equipped character is defeated, **Touch Grass** a random enemy character."
+      }
+    ],
+    "text": "Equipped character has +1/+2. When the equipped character is defeated, **Touch Grass** a random enemy character. *(Touch Grass — banish it until the start of your next turn; it returns with base stats and no statuses or attachments.)*",
+    "flavor": "Eleven years old, resoled twice, and they have firm opinions about your chosen route."
+  },
+  {
+    "id": "grass-the-overlook",
+    "name": "The Overlook",
+    "faction": "touch-grass-order",
+    "current": "root",
+    "type": "location",
+    "rarity": "rare",
+    "cost": 3,
+    "durability": 3,
+    "tags": [
+      "venue",
+      "trail"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "target": {
+          "select": "choose",
+          "side": "friendly",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "triggering"
+            },
+            "status": "shielded"
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "obsessionAtLeast",
+              "side": "enemy",
+              "value": 8
+            },
+            "then": [
+              {
+                "op": "heal",
+                "target": {
+                  "select": "leader",
+                  "side": "friendly"
+                },
+                "amount": 2
+              }
+            ]
+          }
+        ],
+        "text": "Activate (once per turn): give a friendly character **Shielded**. **Intervention:** also restore 2 health to your leader."
+      }
+    ],
+    "text": "Activate (once per turn): give a friendly character **Shielded**. **Intervention:** also restore 2 health to your leader. Durability 3. *(Shielded — negates the next instance of damage. Intervention — bonus while your opponent is **Obsessed**: 8 or more Obsession.)*",
+    "flavor": "Four hours up. One bench. No bars. The view does not load; it is simply already there."
+  },
+  {
+    "id": "grass-lights-out-at-ten",
+    "name": "Lights Out at Ten",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": [
+      "monk",
+      "detox"
+    ],
+    "keywords": [
+      "touch-grass"
+    ],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyUsesFixation",
+        "ops": [
+          {
+            "op": "banish",
+            "target": {
+              "select": "random",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "returnAtStartOfYourNextTurn": true
+          },
+          {
+            "op": "removeObsession",
+            "amount": 2,
+            "side": "enemy"
+          }
+        ],
+        "text": "Reaction — when your opponent uses a Fixation ability: **Touch Grass** a random enemy character and remove 2 Obsession from your opponent."
+      }
+    ],
+    "text": "Reaction — when your opponent uses a Fixation ability: **Touch Grass** a random enemy character and remove 2 Obsession from your opponent. *(Touch Grass — banish it until the start of your next turn; it returns with base stats and no statuses or attachments.)*",
+    "flavor": "The generator goes off at ten. The generator does not negotiate and the generator has no app."
+  },
+  {
+    "id": "grass-phone-free-weekend",
+    "name": "Phone-Free Weekend",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "event",
+    "rarity": "rare",
+    "cost": 5,
+    "durationTurns": 3,
+    "tags": [
+      "detox",
+      "weather"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [
+          {
+            "op": "removeObsession",
+            "amount": 2,
+            "side": "enemy"
+          },
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "all",
+              "side": "enemy",
+              "zone": "board"
+            },
+            "status": "weakened",
+            "amount": 1,
+            "durationTurns": 1
+          }
+        ],
+        "text": "Event (3 turns) — at the start of your turns: remove 2 Obsession from your opponent and apply **Weakened 1** to all enemy characters until your next turn."
+      }
+    ],
+    "text": "Event (3 turns) — at the start of your turns: remove 2 Obsession from your opponent and apply **Weakened 1** to all enemy characters until your next turn.",
+    "flavor": "Friday: a coach, a cabin, a bucket. Sunday: nobody can remember what the argument was even about."
+  },
+  {
+    "id": "grass-morning-lap",
+    "name": "Morning Lap",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": [
+      "coach",
+      "detox"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "Draw a card."
+      },
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 2
+          }
+        ],
+        "text": "**Rushwind:** your leader gains 2 Armor."
+      }
+    ],
+    "text": "Draw a card. **Rushwind:** your leader gains 2 Armor. *(Rushwind — bonus effect if this is not the first card you played this turn.)*",
+    "flavor": "Before the phone. That is the whole rule and it is the only rule anybody breaks."
+  },
+  {
+    "id": "grass-trail-marshal",
+    "name": "Trail Marshal",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 3,
+    "tags": [
+      "ranger",
+      "trail"
+    ],
+    "keywords": [
+      "spotlight"
+    ],
+    "effects": [],
+    "text": "**Spotlight.** *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "Stands at the junction all day pointing left. There is nothing to the right. Somebody still asks, hourly."
+  },
+  {
+    "id": "grass-airplane-mode",
+    "name": "Airplane Mode",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": [
+      "detox",
+      "gear"
+    ],
+    "keywords": [
+      "touch-grass"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "enemy",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "banish",
+            "target": {
+              "select": "triggering"
+            },
+            "returnAtStartOfYourNextTurn": true
+          }
+        ],
+        "text": "**Touch Grass** an enemy character."
+      }
+    ],
+    "text": "**Touch Grass** an enemy character. *(Touch Grass — banish it until the start of your next turn; it returns with base stats and no statuses or attachments.)*",
+    "flavor": "Off is a setting. Nobody believes it until it happens to them mid-sentence."
+  },
+  {
+    "id": "grass-water-stop",
+    "name": "Water Stop",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "action",
+    "rarity": "common",
+    "cost": 3,
+    "tags": [
+      "trail",
+      "coach"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "heal",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board"
+            },
+            "amount": 2
+          },
+          {
+            "op": "heal",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 2
+          }
+        ],
+        "text": "Restore 2 health to your leader and to each friendly character."
+      }
+    ],
+    "text": "Restore 2 health to your leader and to each friendly character.",
+    "flavor": "A folding table, four hundred paper cups, and one volunteer who has been here since five."
+  },
+  {
+    "id": "grass-switchback-climber",
+    "name": "Switchback Climber",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 3,
+    "health": 3,
+    "tags": [
+      "ranger",
+      "trail"
+    ],
+    "keywords": [
+      "rushwind"
+    ],
+    "effects": [
+      {
+        "trigger": "rushwind",
+        "ops": [
+          {
+            "op": "buff",
+            "target": {
+              "select": "self"
+            },
+            "attack": 1,
+            "health": 1
+          }
+        ],
+        "text": "**Rushwind:** this gains +1/+1."
+      }
+    ],
+    "text": "**Rushwind:** this gains +1/+1. *(Rushwind — bonus effect if this is not the first card you played this turn.)*",
+    "flavor": "Up is not the hard part. Up, then across, then up again, then across, is the hard part."
+  },
+  {
+    "id": "grass-no-phones-at-the-table",
+    "name": "No Phones at the Table",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "event",
+    "rarity": "epic",
+    "cost": 4,
+    "durationTurns": 3,
+    "tags": [
+      "detox",
+      "venue"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [
+          {
+            "op": "modifyCost",
+            "target": {
+              "select": "random",
+              "side": "enemy",
+              "zone": "hand",
+              "count": 2,
+              "optional": true
+            },
+            "delta": 1
+          }
+        ],
+        "text": "At the start of each of your turns, two random cards in your opponent's hand cost (1) more."
+      }
+    ],
+    "text": "At the start of each of your turns, two random cards in your opponent's hand cost (1) more.",
+    "flavor": "The basket by the door. Everyone agreed to it. Everyone agreed to it and then everyone looked at the basket for an hour."
+  },
+  {
+    "id": "grass-forty-year-warden",
+    "name": "Forty-Year Warden",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 5,
+    "attack": 4,
+    "health": 6,
+    "tags": [
+      "ranger",
+      "monk"
+    ],
+    "keywords": [
+      "spotlight",
+      "touch-grass"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "highestCost",
+          "side": "enemy",
+          "zone": "board",
+          "optional": true
+        },
+        "ops": [
+          {
+            "op": "banish",
+            "target": {
+              "select": "triggering"
+            },
+            "returnAtStartOfYourNextTurn": true
+          }
+        ],
+        "text": "On play: **Touch Grass** the costliest enemy character."
+      }
+    ],
+    "text": "**Spotlight.** On play: **Touch Grass** the costliest enemy character. *(Touch Grass — banish it until the start of your next turn; it returns with base stats and no statuses or attachments.)*",
+    "flavor": "Forty years on the same ridge. Knows which rock moves. Has never told anybody which rock moves."
+  },
+  {
+    "id": "grass-out-of-office",
+    "name": "Out of Office",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 5,
+    "tags": [
+      "detox",
+      "gear"
+    ],
+    "keywords": [
+      "touch-grass"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "all",
+          "side": "enemy",
+          "zone": "board",
+          "filter": {
+            "costMax": 3
+          }
+        },
+        "ops": [
+          {
+            "op": "banish",
+            "target": {
+              "select": "triggering"
+            },
+            "returnAtStartOfYourNextTurn": true
+          }
+        ],
+        "text": "**Touch Grass** every enemy character that costs (3) or less."
+      }
+    ],
+    "text": "**Touch Grass** every enemy character that costs (3) or less. *(Touch Grass — banish them until the start of your next turn; they return with base stats and no statuses or attachments.)*",
+    "flavor": "Back on the 14th. Your message has not been forwarded to anybody, because there is nobody, because we all went."
+  },
+  {
+    "id": "grass-summit-register",
+    "name": "Summit Register",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "location",
+    "rarity": "rare",
+    "cost": 4,
+    "durability": 3,
+    "tags": [
+      "trail",
+      "venue"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          },
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 1
+          }
+        ],
+        "text": "**Activate:** draw a card and your leader gains 1 Armor."
+      }
+    ],
+    "text": "**Activate:** draw a card and your leader gains 1 Armor.",
+    "flavor": "A tin box and a pencil on a string. Six hundred names. Nobody has ever checked it against anything."
+  },
+  {
+    "id": "grass-the-long-way-round",
+    "name": "The Long Way Round",
+    "faction": "touch-grass-order",
+    "current": "gale",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 6,
+    "tags": [
+      "trail",
+      "monk"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 2
+          },
+          {
+            "op": "heal",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 5
+          },
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 5
+          }
+        ],
+        "text": "Draw 2 cards. Restore 5 health to your leader and give it 5 Armor."
+      }
+    ],
+    "text": "Draw 2 cards. Restore 5 health to your leader and give it 5 Armor.",
+    "flavor": "Eleven extra miles for a view you have seen. That is not the point and you know it is not the point."
+  }
+]

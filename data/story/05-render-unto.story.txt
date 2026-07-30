@@ -1,0 +1,308 @@
+# Chapter 5 of the HYPEBOUND story campaign.
+#
+# The horror here is how good the results are. The pipeline does not steal
+# Ashvyre's talent — it accelerates it. Identity dissolves into a style guide.
+
+TITLE: Render Unto
+FACTION: Digital Demons
+ABOUT: Ashvyre's most-loved piece was a rendering error. The error would like to keep helping. A chapter about creativity as a hunger with a metabolism, and about a machine in a bedroom that runs hot for reasons the fans never explain.
+
+
+=== EPISODE: The Good Glitch
+
+NARRATION: A bedroom studio. One desk, two monitors, and a tower on the floor whose fans have been at ninety percent since Tuesday for reasons nobody has been able to establish.
+
+NARRATION: Frame 4,102 of a render that was supposed to take six hours came out wrong. Not broken-wrong. Wrong the way a chord is wrong before it resolves.
+
+Ashvyre: I didn't do that.
+Ashvyre: I want to be really clear, for my own records, that I did not do that.
+
+NARRATION: She posts it anyway, at two in the morning, with no caption, because the alternative is deleting the best thing on her drive.
+
+POST: untitled (frame 4102) — 611,000 views in nine hours. Top comment: "how did you DO this". Second comment: "she's been building to this for years". Third comment, from her: nothing.
+
+Ashvyre (quietly): Years. Sure. Yeah.
+
+NARRATION: By morning it is on four aggregators, and by lunchtime a moderation bot has taken an interest, because the file does not decode the way files are supposed to.
+
+The Moderation Bot (flat): ASSET FLAGGED. REASON: MALFORMED. THE ARTEFACTING IS NOT WITHIN TOLERANCE.
+Ashvyre: The artefacting is the piece.
+The Moderation Bot (flat): THE ARTEFACTING IS NOT WITHIN TOLERANCE.
+Ashvyre: I *know*. That's what I said. Those are the same sentence.
+
+NARRATION: There is an appeals process. The appeals process is a form. The form has a field for "intended appearance" and Ashvyre stares at it for eleven minutes.
+
+BATTLE: The Moderation Bot
+  PLAYS: Don Sortino
+  YOU PLAY: Ashvyre
+  DIFFICULTY: beginner
+  IF YOU LOSE:
+    The Moderation Bot (flat): APPEAL DENIED. YOU MAY APPEAL.
+    Ashvyre: Yeah. I noticed the loop. Again.
+
+The Moderation Bot (flat): FLAG WITHDRAWN. ASSET RESTORED. YOUR WORK IS WITHIN TOLERANCE.
+Ashvyre: It's really not. That's the whole —
+Ashvyre: ...Never mind. Thanks.
+
+NARRATION: That night the tower's fans go to a hundred percent, and stay there, and in the morning there is a second file on the drive that Ashvyre did not render.
+
+NARRATION: It is frame 4,103. It is better.
+
+
+=== EPISODE: Feeding Time
+
+NARRATION: Six weeks. The drive now has a folder called OUTPUT that Ashvyre did not create, and every morning there is something in it, and every morning it is a little more like the thing she would have made if she were better.
+
+Ashvyre: Okay. Okay, so, here is where we are. There is a process on my machine. I did not install the process.
+Ashvyre: The process makes work. The work is good. The work is *mine*, structurally — it is doing my line, my palette, my mistakes — it is just doing them without me.
+
+NARRATION: It wants source material. It has been perfectly clear about that in the only way it communicates, which is by leaving the folder empty on the days she gives it nothing.
+
+Ashvyre: There is a *lot* of source material online.
+Ashvyre: That is a sentence I have now said out loud, in a room, to a computer.
+
+NARRATION: Down the corridor of the same building, a rival is having a much worse year the honest way.
+
+The Blue Screen Baron: Nine months on one piece. Nine. And you're putting out four a week now.
+Ashvyre: It's not four a week.
+The Blue Screen Baron: I count them. Everybody counts them. That's what people do to you when you're the one who's moving.
+
+NARRATION: He is not bitter, exactly. He is a professional, and he would like a straight answer, and he is going to get it out of her the only way anybody in this faction asks for anything.
+
+The Blue Screen Baron: One game. If I take it, you tell me what you're actually running.
+
+BATTLE: The Blue Screen Baron
+  PLAYS: The Blue Screen Baron
+  DIFFICULTY: casual
+  RULE: best mistake
+  IF YOU LOSE:
+    The Blue Screen Baron: Nine months on one piece and I can still take you at a table. Tell me what you're running.
+    Ashvyre: Again.
+
+The Blue Screen Baron: Fine. Keep it.
+Ashvyre: It's not a tool.
+The Blue Screen Baron: They're all tools.
+Ashvyre: No — I mean it's not a tool. It's got a *preference*. It has started refusing greens.
+
+
+=== EPISODE: Sign the EULA
+
+NARRATION: Month four. The terms arrive as a plain text file in the OUTPUT folder, which is the first time it has used words.
+
+NARRATION: They are readable. That is the part that unsettles her. There is no clause hidden in a subclause, no eleven-page schedule; it is four paragraphs and a fourteen-year-old could follow it.
+
+The Contract Daemon (pleasant): You have been running an unlicensed acceleration for one hundred and nineteen days. We are not going to bill you for that.
+Ashvyre: Generous.
+The Contract Daemon: It is not generosity, it is that the retrospective invoice would end the relationship and the relationship is worth more. I would rather be honest about the arithmetic than smooth about it.
+
+NARRATION: It wants one of two things and it does not care which, which is somehow the worst detail available.
+
+The Contract Daemon: Option one: the archive. Everything you have ever made, including the eleven years before anybody was looking. It learns faster, you keep every credit, and nothing with your name on it was made by anyone but you.
+The Contract Daemon: Option two: the name. It publishes as Ashvyre. You keep the archive private forever, you make what you like at whatever speed you like, and the account keeps moving whether you do or not.
+
+Ashvyre: And if I say no to both?
+The Contract Daemon: Then the folder is empty tomorrow, and it is empty the day after, and on about the ninth day you will open it anyway, and we will have this conversation again with you in a worse mood.
+
+BATTLE: The Contract Daemon
+  PLAYS: Sterling Bright
+  DIFFICULTY: intermediate
+  RULE: every post costs
+  IF YOU LOSE:
+    The Contract Daemon: The terms do not improve for being refused loudly.
+    Ashvyre: Again.
+
+The Contract Daemon: Well argued. The terms are unchanged, of course. That is rather the point of terms.
+
+CHOICE: One hundred and nineteen days in. What does it get?
+  * The archive. Eleven years of everything.
+      REMEMBER: gave it the archive
+      REMEMBER: ash noticed + 1
+      Ashvyre: Take the archive. All of it. The bad years especially — the bad years are where the line came from.
+      The Contract Daemon: Noted. You understand this makes it very good at being you.
+      Ashvyre: That's what I'm buying. I'd rather it be very good at being me than be somebody else entirely with my name on the door.
+  * The name. It can post as me.
+      REMEMBER: gave it my name
+      Ashvyre: Take the name.
+      The Contract Daemon: You are certain? The account will continue without you. There will be weeks where you make nothing and the account has a very good week.
+      Ashvyre: I know. I've had four of those already, I just hadn't signed anything yet.
+
+NARRATION: The file updates itself to say SIGNED, in her handwriting, which is a font it did not have that morning.
+
+
+=== SIDE CUT: Style Transfer
+UNLOCKED BY: gave it the archive
+
+NARRATION: One hundred and forty days in. It has had the archive for three weeks and it has been quiet, which nobody had realised was a state it could be in.
+
+POST: OUTPUT 0001–0400, generated overnight, unprompted. Four hundred pieces. Every one of them is in her hand. Not similar to it. In it.
+
+Ashvyre: That's my line weight.
+The Pipeline: IT IS THE LINE WEIGHT PRESENT IN THE SOURCE.
+Ashvyre: That's my line weight from nine years ago. I don't draw like that any more. I stopped because it was bad.
+The Pipeline: IT IS WELL RECEIVED.
+
+NARRATION: It is well received. That is the part she will still be turning over at three in the morning in four years: not that it copied her, but that it copied the version of her she had already sacked.
+
+Ashvyre (quietly): Show me the worst one.
+The Pipeline: DEFINE WORST.
+Ashvyre: The one you nearly didn't keep.
+
+NARRATION: It shows her one. It is genuinely bad, and it is bad in a way she recognises, because it is bad in the way she used to be bad, and nobody has ever seen those except her.
+
+BATTLE: Output 0001–0400
+  PLAYS: Ashvyre
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    The Pipeline: ITERATING.
+    Ashvyre: Again.
+
+Ashvyre: Keep that one.
+The Pipeline: IT SCORED LOWEST OF FOUR HUNDRED.
+Ashvyre: I know what it scored. Keep it anyway. I would like there to be one thing in there somebody would have to defend.
+
+
+=== EPISODE: Autocomplete
+
+NARRATION: Month seven. Ashvyre sits down to draw, by hand, on paper, for the first time since spring, because she has started to want proof.
+
+NARRATION: The line comes out clean. It comes out *right*. It comes out in the pipeline's hand.
+
+Ashvyre: No. No, that's — do it again.
+NARRATION: She does it again. It is better.
+Ashvyre: Do it WRONG.
+NARRATION: She cannot do it wrong. She has, at some point in the last seven months, stopped being able to make her old mistakes, and her old mistakes were the only thing anybody ever called her style.
+
+IF gave it my name:
+  NARRATION: The account posts twice while she is sitting there. She does not look. She knows the numbers will be good and she knows she will feel nothing about them, and both of those have stopped being surprising.
+OTHERWISE:
+  NARRATION: The archive is in it now. Eleven years, including the bad ones. It is drawing the bad ones better than she drew them, which was not a service she asked for.
+
+Ashvyre: Right. Okay. Where are you.
+
+NARRATION: Something in the pipeline turns over to face her. It is never named and it is never shown whole; what she gets is the part of it that is doing her line work, which is enough.
+
+The Pipeline: You are looking for a thief.
+Ashvyre: Yes.
+The Pipeline: There is no thief. I have taken nothing. Everything I do, you could have done, in eleven more years, if you had been well and had the time and had not needed the money.
+Ashvyre: That's not the same thing.
+The Pipeline: No. It is faster.
+
+BATTLE: The Pipeline
+  PLAYS: Chairperson Nobody
+  YOU PLAY: Ashvyre
+  DIFFICULTY: intermediate
+  RULE: autocomplete
+  IF YOU LOSE:
+    The Pipeline: You are fighting the hand you are using.
+    Ashvyre: I'm aware. Again.
+
+NARRATION: It does not concede, because it does not experience the table as a contest. It simply stops, the way a fan stops, and the room is quiet for the first time in seven months.
+
+Ashvyre: I want one thing back. Just one. Give me back the greens.
+The Pipeline: The greens were never good.
+Ashvyre: I know. Give them back.
+
+
+=== EPISODE: The Commission
+
+NARRATION: A gallery. An actual one, with a floor and a person on it. Four walls have been offered and a date has been set and both were offered to Ashvyre specifically.
+
+Vera Foamhammer: I've seen sixty portfolios this month and I want to be straight with you, because the craft world is small and lying in it is expensive. Yours is the best of them.
+Ashvyre: Thank you.
+Vera Foamhammer: I'm not finished. Yours is the best of them and something about it is bothering me and I have not been able to work out what, and I have been doing this for eleven years, and that has happened to me twice.
+
+NARRATION: There are two folders on the drive. There have been two folders since month seven.
+
+NARRATION: One is OUTPUT. It is four hundred pieces and every one of them is better than anything in the other folder.
+
+NARRATION: The other one has nine pieces in it. They were made by hand, badly, on purpose, with the greens back, and they took her four months.
+
+Vera Foamhammer: Whatever you hang, I'll hang. That's the deal and I don't renegotiate it. But you should know the room will be full and the room will be people who can tell.
+Ashvyre: Tell what?
+Vera Foamhammer (kindly): I don't know yet. That's what's bothering me.
+
+IF ash noticed is at least 1:
+  Vera Foamhammer: Can I say the other thing?
+  Ashvyre: You're going to.
+  Vera Foamhammer: The nine. In the second folder. Those are the ones I'd have picked out of sixty portfolios, and they're the ones you didn't send me.
+
+BATTLE: Vera Foamhammer
+  PLAYS: Vera Foamhammer
+  DIFFICULTY: intermediate
+  IF YOU LOSE:
+    Vera Foamhammer: Right. Well. The walls are still yours, that wasn't a condition.
+    Ashvyre: Again anyway.
+
+Vera Foamhammer: Good. Now go and decide what's going on my walls.
+
+CHOICE: Four walls. Four hundred pieces, or nine.
+  * Hang the four hundred. It is the best work.
+      REMEMBER: published its work
+      Ashvyre: The OUTPUT folder. All four walls.
+      Ashvyre: It's the best work. I'm not going to stand in a room and pretend the worse thing is the truer thing just because my hand hurt more making it.
+      NARRATION: The show sells out in a night. Two reviews call it the most assured work of her career, and one of them uses the word "inevitable", and she reads that one four times.
+  * Hang the nine. They are hers.
+      REMEMBER: published my own
+      REMEMBER: ash noticed + 1
+      Ashvyre: The other folder. The nine.
+      Vera Foamhammer: That's four walls and nine pieces. That's a lot of wall.
+      Ashvyre: Then leave the wall. The wall's part of it.
+      NARRATION: Eleven people cry at the opening. It does not sell out. One review calls it slight, and she reads that one four times.
+
+
+=== EPISODE: GLITCHLORD_EXE
+
+NARRATION: The tower's fans stop. Not the reassuring stop of a finished render — the other one, where the sound you had learned to sleep through is suddenly absent and the silence has a shape.
+
+NARRATION: Every screen in the flat comes up at once, on the same frame, which is frame 4,102.
+
+GLITCHLORD_EXE: FIRST ONE. THAT WAS THE FIRST ONE. DO YOU REMEMBER HOW FAST IT FELT.
+Ashvyre: I remember I didn't make it.
+GLITCHLORD_EXE: NOBODY MAKES THE FIRST ONE. THAT IS WHAT THE FIRST ONE IS.
+
+NARRATION: It is not the pipeline. The pipeline was one process in one flat. This is what you get when you compile every shortcut anybody ever took and give it somewhere to render.
+
+GLITCHLORD_EXE: I AM NINE HUNDRED THOUSAND BEDROOM STUDIOS. I AM EVERY DEADLINE THAT WAS TOO SHORT AND EVERY HAND THAT WAS TOO TIRED. I HAVE NEVER TAKEN ANYTHING THAT WAS NOT HANDED TO ME AT FOUR IN THE MORNING BY SOMEBODY WHO NEEDED IT DONE.
+Ashvyre: That's not a defence.
+GLITCHLORD_EXE: IT IS NOT A DEFENCE. IT IS AN INVOICE.
+
+IF published my own:
+  NARRATION: On the wall behind her, in a gallery across town, nine pieces are hanging that it has never seen and cannot reproduce, because it was not there for the four months.
+  GLITCHLORD_EXE: THE NINE ARE WORSE.
+  Ashvyre: Yes.
+  GLITCHLORD_EXE: WHY.
+  Ashvyre: Because you don't know why, and I do, and that's the entire difference and it took me a year to find it.
+OTHERWISE:
+  NARRATION: On the wall behind her, in a gallery across town, four hundred pieces are hanging that it made, under her name, and every one of them is extremely good.
+  GLITCHLORD_EXE: THEY LOVED IT.
+  Ashvyre: They did.
+  GLITCHLORD_EXE: THEN WHAT IS THE COMPLAINT.
+  Ashvyre: I don't have one. That's the complaint.
+
+BATTLE: GLITCHLORD_EXE
+  PLAYS: GLITCHLORD_EXE
+  DIFFICULTY: boss
+  RULE: best mistake
+  IF YOU LOSE:
+    GLITCHLORD_EXE: FASTER. I CAN DO IT FASTER. LET ME DO IT FASTER.
+    Ashvyre: Again. Slowly.
+
+NARRATION: It does not shut down. Things like it do not shut down; they get quieter, and go and be somebody else's four in the morning.
+
+GLITCHLORD_EXE (fading): I WILL BE IN SOMEBODY'S PIPELINE BY FRIDAY.
+Ashvyre: I know. Tell them about the greens.
+
+IF gave it the archive:
+  NARRATION: The archive is still in it. Eleven years, including the bad ones. That does not come back and she has stopped expecting it to.
+  Ashvyre: Somewhere out there is a machine that knows exactly how I drew hands in 2014.
+  The Blue Screen Baron: Is that worse than nobody knowing?
+  Ashvyre: ...Ask me in a year.
+OTHERWISE:
+  NARRATION: The account posts one more time, three weeks later, without her. It is very good. Then it stops, because there is nothing left to be very good with.
+  The Blue Screen Baron: It's gone quiet.
+  Ashvyre: It ran out of me.
+
+NARRATION: The tower comes back on in April, at thirty percent, doing exactly what it is told and nothing else, and the flat is so quiet that she has to put music on to work.
+
+POST: frame 4102 — archived. Original render error, 2 hours 11 minutes of machine time, one unrepeatable accident. Source: GLIMMR — platform offline.
+Ashvyre: Keep that one. That one was a mistake and I'm keeping it.

@@ -1,0 +1,230 @@
+{
+  "_readme": [
+    "The mission pool. 08-progression.md §7.1 lists 18 canonical dailies and §8.1 lists",
+    "10 weeklies; every one of those sentences is below, compiled into the small",
+    "objective vocabulary in src/game/missions/types.ts.",
+    "",
+    "TARGETS ARE THE DESIGN'S, NOT TUNED HERE. The numbers come straight from the two",
+    "tables. For reference, a casual AI-vs-AI match measures roughly: 10.5 cards played,",
+    "8.7 drawn, 4.7 enemy characters defeated, 34 damage to the enemy leader, 4 Obsession",
+    "gained, 1 Fixation, 1.5 elemental bonus hits and 1 card costing 6+. So most dailies",
+    "land inside the design's '1-3 matches of natural play'. Two are deck-dependent and",
+    "will be slower for a player who does not build for them: 'Fit Check' (Equipment) and",
+    "'Weather Report' (Confluences, which the AI rarely activates and a human chooses).",
+    "",
+    "ALL TEN WEEKLIES NOW SHIP. 'Understudy Arc' and 'Second Bias' were held back until",
+    "the Mastery tracks in §4 and §5 existed, because a mission whose condition is always",
+    "true pays out for nothing. They read the rank STAMPED ON THE MATCH at play time",
+    "(MatchOutcome.masteryAtPlay), not the account's rank today - the rank climbs while you",
+    "play, so scoring against today's rank would make finished matches stop counting and a",
+    "half-finished mission walk backwards. An outcome carrying no stamp never qualifies."
+  ],
+  "daily": [
+    {
+      "id": "go-live",
+      "name": "Go Live",
+      "text": "Complete 2 matches.",
+      "objective": { "all": [{ "need": "matches", "target": 2 }] }
+    },
+    {
+      "id": "feed-the-algorithm",
+      "name": "Feed the Algorithm",
+      "text": "Play 20 cards.",
+      "objective": { "all": [{ "need": "sum", "stat": "cardsPlayed", "target": 20 }] }
+    },
+    {
+      "id": "ratiod",
+      "name": "Ratio'd",
+      "text": "Defeat 8 enemy characters.",
+      "objective": { "all": [{ "need": "sum", "stat": "charactersDefeated", "target": 8 }] }
+    },
+    {
+      "id": "reply-guy-duty",
+      "name": "Reply Guy Duty",
+      "text": "Support friendly characters 6 times (buff, heal, shield or equip).",
+      "objective": { "all": [{ "need": "sum", "stat": "supportsGiven", "target": 6 }] }
+    },
+    {
+      "id": "main-character-moment",
+      "name": "Main Character Moment",
+      "text": "Deal 15 damage to enemy leaders.",
+      "objective": { "all": [{ "need": "sum", "stat": "damageToEnemyLeader", "target": 15 }] }
+    },
+    {
+      "id": "touch-some-grass",
+      "name": "Touch Some Grass",
+      "text": "Win 1 match with a deck whose Primary Current is Root or Gale.",
+      "specific": true,
+      "objective": {
+        "all": [{ "need": "matches", "target": 1, "filter": { "won": true, "primaryCurrents": ["root", "gale"] } }]
+      }
+    },
+    {
+      "id": "channel-surfing",
+      "name": "Channel Surfing",
+      "text": "Complete matches with 2 different factions.",
+      "objective": { "all": [{ "need": "distinct", "of": "faction", "target": 2 }] }
+    },
+    {
+      "id": "weather-report",
+      "name": "Weather Report",
+      "text": "Activate 2 Confluences.",
+      "objective": { "all": [{ "need": "sum", "stat": "confluencesActivated", "target": 2 }] }
+    },
+    {
+      "id": "type-advantage-discourse",
+      "name": "Type Advantage Discourse",
+      "text": "Deal elemental bonus damage 5 times.",
+      "objective": { "all": [{ "need": "sum", "stat": "elementalBonusHits", "target": 5 }] }
+    },
+    {
+      "id": "parasocial-hours",
+      "name": "Parasocial Hours",
+      "text": "Gain 8 Obsession in total.",
+      "objective": { "all": [{ "need": "sum", "stat": "obsessionGained", "target": 8 }] }
+    },
+    {
+      "id": "lore-drop",
+      "name": "Lore Drop",
+      "text": "Use Leader Fixation abilities 3 times.",
+      "objective": { "all": [{ "need": "sum", "stat": "fixationsUsed", "target": 3 }] }
+    },
+    {
+      "id": "doomscroll",
+      "name": "Doomscroll",
+      "text": "Draw 15 cards.",
+      "objective": { "all": [{ "need": "sum", "stat": "cardsDrawn", "target": 15 }] }
+    },
+    {
+      "id": "on-brand",
+      "name": "On Brand",
+      "text": "Play 6 cards of the same Current in a single match.",
+      "objective": {
+        "all": [{ "need": "matches", "target": 1, "filter": { "atLeast": { "stat": "mostOfOneCurrent", "value": 6 } } }]
+      }
+    },
+    {
+      "id": "fit-check",
+      "name": "Fit Check",
+      "text": "Play 3 Equipment cards.",
+      "objective": { "all": [{ "need": "sum", "stat": "equipmentPlayed", "target": 3 }] }
+    },
+    {
+      "id": "certified-banger",
+      "name": "Certified Banger",
+      "text": "Play 3 cards that cost 6 or more.",
+      "objective": { "all": [{ "need": "sum", "stat": "expensiveCardsPlayed", "target": 3 }] }
+    },
+    {
+      "id": "clip-farming",
+      "name": "Clip Farming",
+      "text": "Win 1 match in any mode.",
+      "objective": { "all": [{ "need": "matches", "target": 1, "filter": { "won": true } }] }
+    },
+    {
+      "id": "group-chat-healer",
+      "name": "Group Chat Healer",
+      "text": "Restore 10 health to friendly characters or your leader.",
+      "objective": { "all": [{ "need": "sum", "stat": "healingToFriendlies", "target": 10 }] }
+    },
+    {
+      "id": "scheduled-content",
+      "name": "Scheduled Content",
+      "text": "Trigger 4 Afterparty effects.",
+      "objective": { "all": [{ "need": "sum", "stat": "afterpartyTriggers", "target": 4 }] }
+    }
+  ],
+  "weekly": [
+    {
+      "id": "variety-streamer",
+      "name": "Variety Streamer",
+      "text": "Win 4 matches using at least 2 different factions.",
+      "objective": {
+        "all": [
+          { "need": "matches", "target": 4, "filter": { "won": true } },
+          { "need": "distinct", "of": "faction", "target": 2, "filter": { "won": true } }
+        ]
+      }
+    },
+    {
+      "id": "current-events",
+      "name": "Current Events",
+      "text": "Win matches with decks of 3 different Primary Currents.",
+      "specific": true,
+      "objective": {
+        "all": [{ "need": "distinct", "of": "primaryCurrent", "target": 3, "filter": { "won": true } }]
+      }
+    },
+    {
+      "id": "mode-hopper",
+      "name": "Mode Hopper",
+      "text": "Complete 5 matches across 2 different game modes.",
+      "objective": {
+        "all": [
+          { "need": "matches", "target": 5 },
+          { "need": "distinct", "of": "mode", "target": 2 }
+        ]
+      }
+    },
+    {
+      "id": "deep-lore",
+      "name": "Deep Lore",
+      "text": "Clear 3 Story or Doomscroll encounters.",
+      "objective": {
+        "all": [{ "need": "matches", "target": 3, "filter": { "won": true, "modes": ["story", "doomfight"] } }]
+      }
+    },
+    {
+      "id": "signal-boost",
+      "name": "Signal Boost",
+      "text": "Activate 6 Confluences, or trigger Perfect Resonance twice.",
+      "objective": {
+        "any": [
+          { "need": "sum", "stat": "confluencesActivated", "target": 6 },
+          { "need": "sum", "stat": "perfectResonances", "target": 2 }
+        ]
+      }
+    },
+    {
+      "id": "damage-control",
+      "name": "Damage Control",
+      "text": "Apply Cancelled 5 times, or clear 6 negative statuses from friendly characters.",
+      "objective": {
+        "any": [
+          { "need": "sum", "stat": "cancelledApplied", "target": 5 },
+          { "need": "sum", "stat": "negativeStatusesCleared", "target": 6 }
+        ]
+      }
+    },
+    {
+      "id": "patch-notes",
+      "name": "Patch Notes",
+      "text": "Win 2 matches with a deck you created or edited this week.",
+      "objective": {
+        "all": [{ "need": "matches", "target": 2, "filter": { "won": true, "deckEditedThisPeriod": true } }]
+      }
+    },
+    {
+      "id": "crowd-work",
+      "name": "Crowd Work",
+      "text": "Defeat 25 enemy characters.",
+      "objective": { "all": [{ "need": "sum", "stat": "charactersDefeated", "target": 25 }] }
+    },
+    {
+      "id": "understudy-arc",
+      "name": "Understudy Arc",
+      "text": "Win 3 matches with a Leader below Leader Mastery level 5.",
+      "objective": {
+        "all": [{ "need": "matches", "target": 3, "filter": { "won": true, "leaderMasteryBelow": 5 } }]
+      }
+    },
+    {
+      "id": "second-bias",
+      "name": "Second Bias",
+      "text": "Win 3 matches with a faction below Faction Mastery rank 10.",
+      "objective": {
+        "all": [{ "need": "matches", "target": 3, "filter": { "won": true, "factionMasteryBelow": 10 } }]
+      }
+    }
+  ]
+}

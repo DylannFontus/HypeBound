@@ -1,0 +1,232 @@
+{
+  "_readme": [
+    "Patch notes — 03-screens-and-navigation.md §4.2.3, and the enforcement column of",
+    "07-economy-and-monetization.md §6 policies F1 and F4.",
+    "",
+    "TWO RULES MAKE A PATCH NOTE UNABLE TO LIE.",
+    "",
+    "1. A CARD ENTRY STORES ONLY THE `before`. The `after` is read off the shipped",
+    "   card, or off the next release that touched the same card. So a note claiming",
+    "   a cost went to 4 cannot survive the card actually costing 5 — there is no",
+    "   second copy of the new value to drift from the first.",
+    "",
+    "2. EVERY RELEASE CARRIES THE ECONOMY IT SHIPPED WITH, and the newest release's",
+    "   snapshot must equal `balance.economy` exactly. F4 forbids changing published",
+    "   odds without a named product and a patch note; this is what makes that",
+    "   forbidding real rather than aspirational. Edit a rate without adding a",
+    "   release and `npm test` fails and says so.",
+    "",
+    "   The snapshot on a release that has not shipped yet may simply be updated in",
+    "   place; the check exists to make the change deliberate, not to make it hard.",
+    "",
+    "Versions are semver strings and must increase. `cards` entries name a real card",
+    "id and at least one field that genuinely differs from its `after`."
+  ],
+  "releases": [
+    {
+      "version": "0.2.0",
+      "releasedAt": "2026-07-29T00:00:00.000Z",
+      "headline": "The Gauntlet, and a hardening pass",
+      "summary": "Draft ships as Gauntlet Practice. Alongside it, a sweep through the known-gaps list closed the ones this build could: a save layer that would have wiped every account on the next version bump, the AI daily Clout allowance that had never existed, a result screen that never told you what a match paid, the tutorial rewards the spec promised, and 26 accessibility audio cues that are synthesised rather than loaded.",
+      "economy": {
+        "craftCost": {
+          "common": 40,
+          "rare": 100,
+          "epic": 400,
+          "legendary": 1600
+        },
+        "dustValue": {
+          "common": 10,
+          "rare": 25,
+          "epic": 100,
+          "legendary": 400
+        },
+        "packSize": 5,
+        "pack": {
+          "price": 100,
+          "rates": {
+            "common": 0.7,
+            "rare": 0.235,
+            "epic": 0.05,
+            "legendary": 0.015
+          },
+          "minRarePerPack": 1,
+          "legendaryPity": 40
+        },
+        "dupeConversionBonus": 1.5,
+        "grandTour": {
+          "clout": 1000,
+          "drops": 10,
+          "legendaryChoices": 1
+        },
+        "banner": {
+          "pullPrice": 150,
+          "tenPullMultiple": 10,
+          "rates": {
+            "common": 0.6,
+            "rare": 0.3,
+            "epic": 0.08,
+            "legendary": 0.02
+          },
+          "featuredShare": {
+            "legendary": 0.5,
+            "epic": 0.5
+          },
+          "epicPityWindow": 10,
+          "hardPity": 50,
+          "wishlistLimit": 10,
+          "tokensPerPull": 1,
+          "tokenPrices": {
+            "common": 2,
+            "rare": 5,
+            "epic": 15,
+            "legendary": 50
+          }
+        },
+        "missions": {
+          "dailyClout": 50,
+          "dailyXp": 300,
+          "weeklyClout": 200,
+          "weeklyXp": 1000,
+          "firstWinOfDayClout": 30,
+          "weeklyWrapDrops": 1,
+          "weeklyRestockDrops": 3,
+          "rookieRoadDays": 28,
+          "rookieRoadMultiplier": 2,
+          "match": {
+            "winClout": 60,
+            "lossClout": 35
+          },
+          "aiDailyCapWins": 8,
+          "dailyPuzzleClout": 30,
+          "dailyBonusDrops": 1,
+          "dailyBonusEvery": 7
+        }
+      },
+      "cards": [],
+      "rules": [
+        "The Gauntlet waives the constructed copy limits: a drafted deck may hold any number of copies of a card, if the offers allow it. It is the only rule the mode overrides.",
+        "Prism may be drafted up to the canonical splash limit and then stops being offered, exactly as in constructed — and never stops for a leader whose own Current is Prism."
+      ],
+      "systems": [
+        "The Gauntlet (Practice): a leader from three factions, 30 picks of 3 from the whole card pool regardless of what you own, then a run to 12 wins or 3 losses against an opponent that drafts its own deck through the same offers.",
+        "Clout from playing the AI now spends against one shared daily allowance, and a capped payout says so instead of quietly paying less.",
+        "The result screen prints what a match paid — Clout, the first-win bonus, Fame XP, a level, a first clear, a Grand Tour unlock. It printed none of it before.",
+        "A match is banked when its result appears rather than when you leave the screen, so closing the tab on a win no longer loses it.",
+        "Accessibility audio cues for 26 of the 34 events in 13-accessibility.md §11, synthesised from oscillators and filtered noise rather than played from files.",
+        "The tutorial pays its completion package: three Merch Drops, the Day One card back and the title Fresh Poster.",
+        "The Event Hub: limited-time events with published run windows, their own currency, missions and a shop. Leftover event currency converts to Clout at 1:5 when a run ends, with a receipt in your inbox.",
+        "The Remix Queue (This Week's Meta): one global rule modifier a week, applied to both players, from a published ten-entry rotation. Six of the ten are playable; the other four say why not.",
+        "Two bonus daily slots: a Daily Puzzle worth 30 Clout and a Daily Doomscroll on a seed shared by everybody. Every seven dailies completed pays a Merch Drop, counted cumulatively and never reset.",
+        "The Custom Lobby: set starting health, hand sizes, deck size, the turn timer, a ban list and any Remix modifier, then play the AI or hand the device back and forth in Hotseat. Settings that make the game easier than standard pay nothing, and the lobby says so before you start.",
+        "Every leader now has all four Mastery lore chapters, every character has both Bias Board pages, and every card has its Story tab. 652 blocks, none of them placeholders."
+      ],
+      "fixes": [
+        "A save written at one schema version is now carried forward instead of discarded. Bumping the profile version would have reset every account: the collection, the decks, the Mastery and the cosmetics, silently, on the next load.",
+        "Defaults are filled at every depth, so a field added inside a saved object arrives with its value rather than as undefined.",
+        "Twenty screens were rendering their header as three stacked blocks in the top-left corner: the class they all use had no CSS rule at all.",
+        "The AI daily Clout cap named in 09-game-modes.md §3 existed only in the design document. It is enforced now, against a shared account-wide ledger.",
+        "recordMatch returned what a match paid and all five callers discarded it, so every grant was invisible."
+      ]
+    },
+    {
+      "version": "0.1.0",
+      "releasedAt": "2026-07-06T00:00:00.000Z",
+      "headline": "First Upload",
+      "summary": "The first build. Everything below is what this release establishes rather than what it changes — there is no earlier version for it to differ from, and this page will say so until there is.",
+      "economy": {
+        "craftCost": {
+          "common": 40,
+          "rare": 100,
+          "epic": 400,
+          "legendary": 1600
+        },
+        "dustValue": {
+          "common": 10,
+          "rare": 25,
+          "epic": 100,
+          "legendary": 400
+        },
+        "packSize": 5,
+        "pack": {
+          "price": 100,
+          "rates": {
+            "common": 0.7,
+            "rare": 0.235,
+            "epic": 0.05,
+            "legendary": 0.015
+          },
+          "minRarePerPack": 1,
+          "legendaryPity": 40
+        },
+        "dupeConversionBonus": 1.5,
+        "grandTour": {
+          "clout": 1000,
+          "drops": 10,
+          "legendaryChoices": 1
+        },
+        "banner": {
+          "pullPrice": 150,
+          "tenPullMultiple": 10,
+          "rates": {
+            "common": 0.6,
+            "rare": 0.3,
+            "epic": 0.08,
+            "legendary": 0.02
+          },
+          "featuredShare": {
+            "legendary": 0.5,
+            "epic": 0.5
+          },
+          "epicPityWindow": 10,
+          "hardPity": 50,
+          "wishlistLimit": 10,
+          "tokensPerPull": 1,
+          "tokenPrices": {
+            "common": 2,
+            "rare": 5,
+            "epic": 15,
+            "legendary": 50
+          }
+        },
+        "missions": {
+          "dailyClout": 50,
+          "dailyXp": 300,
+          "weeklyClout": 200,
+          "weeklyXp": 1000,
+          "firstWinOfDayClout": 30,
+          "weeklyWrapDrops": 1,
+          "weeklyRestockDrops": 3,
+          "rookieRoadDays": 28,
+          "rookieRoadMultiplier": 2
+        }
+      },
+      "cards": [],
+      "rules": [
+        "Max Hype equals your turn number, capped at 10, and refills at the start of your turn.",
+        "The second player receives one Borrowed Clout — a 0-cost card worth +1 Hype for that turn only — after the mulligan, rather than an extra card.",
+        "A deck is 30 cards, at most 2 copies of anything and 1 of a Legendary, from your Leader's faction and its Primary and Secondary Currents.",
+        "A pure single-Current deck unlocks Perfect Resonance after 7 cards of that Current; a dual-Current deck gives that up for its Confluence.",
+        "Drawing from an empty deck is Burnout: escalating damage rather than an instant loss."
+      ],
+      "systems": [
+        "Battle, the tutorial, Puzzle Rush, the Grand Tour, the Weekly Boss, the Doomscroll and story chapter 1.",
+        "Collection, deck builder, crafting, Merch Drops and the Backstage Shop.",
+        "Daily and weekly missions with banking windows, the Stream Check-In, and the Rookie Road.",
+        "Faction Mastery, Leader Mastery, the Bias Board and achievements.",
+        "The Hype Wave: 50 tiers, Wave Rebound, the Archive Pass and the Encore.",
+        "Headliner Banners: published odds, the Encore Meter, wishlists, Backstage Tokens and a published rerun calendar.",
+        "The Inbox, carrying local system mail derived from the save's own facts.",
+        "Cosmetics: card backs, titles, profile frames, portrait badges and emotes."
+      ],
+      "fixes": [
+        "Flow now implements all four of its canonical channels. It fired on one, so every card printed with the keyword had been promising three triggers it did not have.",
+        "Obsession gained in a match no longer misses the first increase, which the 'gain N Obsession' daily reads.",
+        "A Doomscroll run turned away at act 4 no longer reports having cleared it, in the summary or in the saved best-run record.",
+        "The Grand Tour's reward can no longer become claimable a second time after the claim ledger trims itself.",
+        "The Welcome Back package no longer pays into the wallet silently; it arrives in the inbox and waits to be taken.",
+        "The lobby's Daily Missions panel shows the missions the account is actually holding, rather than three fixed rows."
+      ]
+    }
+  ]
+}

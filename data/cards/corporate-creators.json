@@ -1,0 +1,1377 @@
+[
+  {
+    "id": "corp-leader-cressida-vale",
+    "name": "Cressida Vale",
+    "title": "Chief Executive of Engagement",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "root",
+    "secondaryCurrent": "halo",
+    "tags": [
+      "exec"
+    ],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "condition": {
+          "kind": "controlsAtLeast",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board",
+            "filter": {
+              "costMin": 5
+            }
+          },
+          "min": 1
+        },
+        "ops": [
+          {
+            "op": "gainHype",
+            "amount": 1
+          }
+        ],
+        "text": "Quarterly Guidance: at the start of your turn, if you control a character that costs (5) or more, gain 1 Hype this turn only."
+      }
+    ],
+    "fixation": {
+      "name": "Budget Reallocation",
+      "obsessionCost": 3,
+      "target": {
+        "select": "choose",
+        "side": "friendly",
+        "zone": "board",
+        "optional": true
+      },
+      "ops": [
+        {
+          "op": "gainHype",
+          "amount": 1
+        },
+        {
+          "op": "buff",
+          "target": {
+            "select": "triggering"
+          },
+          "health": 2
+        }
+      ],
+      "text": "Gain 1 Hype this turn only and give a friendly character +0/+2."
+    },
+    "ultimate": {
+      "name": "Annual Shareholder Meeting",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "gainHype",
+          "amount": 2,
+          "permanent": true
+        },
+        {
+          "op": "gainHype",
+          "amount": 2
+        },
+        {
+          "op": "draw",
+          "count": 2
+        }
+      ],
+      "text": "Gain 2 max Hype permanently, up to 10. Gain 2 Hype this turn only and draw 2 cards."
+    },
+    "effects": [],
+    "text": "Quarterly Guidance: at the start of your turn, if you control a character that costs (5) or more, gain 1 Hype this turn only.",
+    "flavor": "Calls her own feelings \"sentiment.\" Has never been rude to anyone. Has ended eleven careers."
+  },
+  {
+    "id": "corp-leader-sterling-bright",
+    "name": "Sterling Bright",
+    "title": "Vice President of Brand Safety",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "leader",
+    "rarity": "legendary",
+    "cost": 0,
+    "health": 30,
+    "primaryCurrent": "halo",
+    "secondaryCurrent": null,
+    "tags": [
+      "exec",
+      "legal"
+    ],
+    "keywords": [],
+    "passive": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 1
+          }
+        ],
+        "text": "Brand Safety: at the start of your turn, give your leader **Armor 1**."
+      }
+    ],
+    "fixation": {
+      "name": "Press Release",
+      "obsessionCost": 3,
+      "target": {
+        "select": "choose",
+        "side": "friendly",
+        "zone": "board",
+        "optional": true
+      },
+      "ops": [
+        {
+          "op": "applyStatus",
+          "target": {
+            "select": "triggering"
+          },
+          "status": "shielded"
+        },
+        {
+          "op": "applyStatus",
+          "target": {
+            "select": "leader",
+            "side": "friendly"
+          },
+          "status": "armor",
+          "amount": 2
+        }
+      ],
+      "text": "Give a friendly character **Shielded** and give your leader **Armor 2**."
+    },
+    "ultimate": {
+      "name": "Company-Wide Rebrand",
+      "obsessionCost": 7,
+      "ops": [
+        {
+          "op": "removeStatus",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board"
+          },
+          "polarity": "negative"
+        },
+        {
+          "op": "applyStatus",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board"
+          },
+          "status": "shielded"
+        },
+        {
+          "op": "applyStatus",
+          "target": {
+            "select": "leader",
+            "side": "friendly"
+          },
+          "status": "armor",
+          "amount": 5
+        }
+      ],
+      "text": "Remove all negative statuses from your characters, give them all **Shielded**, and give your leader **Armor 5**."
+    },
+    "effects": [],
+    "text": "Brand Safety: at the start of your turn, give your leader **Armor 1**.",
+    "flavor": "Apologizes exclusively in the passive voice. Mistakes were made, by no one in particular."
+  },
+  {
+    "id": "corp-unpaid-intern",
+    "name": "Unpaid Intern",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 0,
+    "health": 3,
+    "tags": [
+      "intern"
+    ],
+    "keywords": [
+      "spotlight"
+    ],
+    "effects": [],
+    "text": "**Spotlight.** *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "Credited as \"Production Support.\" Is, in fact, the production."
+  },
+  {
+    "id": "corp-lobby-greeter",
+    "name": "Lobby Greeter",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 1,
+    "health": 3,
+    "tags": [
+      "intern"
+    ],
+    "keywords": [
+      "spotlight"
+    ],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 2
+          }
+        ],
+        "text": "On play: give your leader **Armor 2**."
+      }
+    ],
+    "text": "**Spotlight.** On play: give your leader **Armor 2**. *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "Has said \"welcome to campus\" forty-one thousand times and meant it twice."
+  },
+  {
+    "id": "corp-merch-table-lead",
+    "name": "Merch Table Lead",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 1,
+    "health": 3,
+    "tags": [
+      "sponsor"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "gainHype",
+            "amount": 1
+          }
+        ],
+        "text": "On play: gain 1 Hype this turn only."
+      }
+    ],
+    "text": "On play: gain 1 Hype this turn only.",
+    "flavor": "Moves nine hundred units of a lanyard nobody asked for. Every quarter. Reliably."
+  },
+  {
+    "id": "corp-compliance-officer",
+    "name": "Compliance Officer",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 3,
+    "attack": 2,
+    "health": 4,
+    "tags": [
+      "legal"
+    ],
+    "keywords": [
+      "inspire"
+    ],
+    "effects": [
+      {
+        "trigger": "inspire",
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 1
+          }
+        ],
+        "text": "**Inspire:** give your leader **Armor 1**."
+      }
+    ],
+    "text": "**Inspire:** give your leader **Armor 1**. *(Inspire — triggers when this or another friendly character is healed, shielded, or buffed.)*",
+    "flavor": "Every joke you have ever made is now a document with a retention schedule."
+  },
+  {
+    "id": "corp-regional-ad-partner",
+    "name": "Regional Ad Partner",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "character",
+    "rarity": "common",
+    "cost": 3,
+    "attack": 2,
+    "health": 4,
+    "tags": [
+      "sponsor"
+    ],
+    "keywords": [
+      "grow"
+    ],
+    "grow": {
+      "turns": 2,
+      "ops": [
+        {
+          "op": "buff",
+          "target": {
+            "select": "self"
+          },
+          "attack": 2,
+          "health": 2
+        }
+      ]
+    },
+    "effects": [],
+    "text": "**Grow 2:** this gains +2/+2. *(Grow — after surviving 2 of your turn-ends in play, it gains the stated upgrade.)*",
+    "flavor": "Owns the billboard by the interchange. Then the interchange. Then, quietly, you."
+  },
+  {
+    "id": "corp-title-sponsor",
+    "name": "Title Sponsor",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 2,
+    "health": 5,
+    "tags": [
+      "sponsor"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "gainHype",
+            "amount": 1
+          }
+        ],
+        "text": "At the start of your turn, gain 1 Hype this turn only."
+      }
+    ],
+    "text": "At the start of your turn, gain 1 Hype this turn only.",
+    "flavor": "The arena has an official name. It is a payment processor. Nobody has ever used it."
+  },
+  {
+    "id": "corp-ambrose-kell-majority-shareholder",
+    "name": "Ambrose Kell, Majority Shareholder",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "character",
+    "rarity": "legendary",
+    "cost": 7,
+    "attack": 1,
+    "health": 9,
+    "tags": [
+      "exec"
+    ],
+    "keywords": [],
+    "finale": true,
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "condition": {
+          "kind": "controlsAtLeast",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board",
+            "filter": {
+              "costMin": 5,
+              "excludeSelf": true
+            }
+          },
+          "min": 1
+        },
+        "ops": [
+          {
+            "op": "addCounter",
+            "key": "marketShare",
+            "amount": 1
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "counterAtLeast",
+              "key": "marketShare",
+              "value": 4
+            },
+            "then": [
+              {
+                "op": "winMatch"
+              }
+            ]
+          }
+        ],
+        "text": "**Finale:** at the end of your turn, if you control another character that costs (5) or more, gain a Market Share counter. At 4 Market Share counters, you win the match."
+      }
+    ],
+    "text": "**Finale:** at the end of your turn, if you control another character that costs (5) or more, gain a Market Share counter. At 4 Market Share counters, you win the match.",
+    "flavor": "He has never watched a single second of anything he owns."
+  },
+  {
+    "id": "corp-onboarding-packet",
+    "name": "Onboarding Packet",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": [
+      "contract"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "gainHype",
+            "amount": 1
+          },
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 2,
+            "label": "Onboarding Packet — probation review",
+            "ops": [
+              {
+                "op": "if",
+                "condition": {
+                  "kind": "controlsAtLeast",
+                  "target": {
+                    "select": "all",
+                    "side": "friendly",
+                    "zone": "board"
+                  },
+                  "min": 3
+                },
+                "then": [
+                  {
+                    "op": "draw",
+                    "count": 1
+                  }
+                ],
+                "else": [
+                  {
+                    "op": "damage",
+                    "target": {
+                      "select": "leader",
+                      "side": "friendly"
+                    },
+                    "amount": 2
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "**Sign:** gain 1 Hype this turn only. **Due (2):** if you control 3 or more characters, draw a card; otherwise your leader takes 2 damage."
+      }
+    ],
+    "text": "**Sign:** Gain 1 Hype this turn only. **Due (2):** If you control 3 or more characters, draw a card; otherwise your leader takes 2 damage. *(Due — this obligation resolves at the start of your turn 2 turns from now and is visible to both players.)*",
+    "flavor": "Ninety-one pages. Two are about the work. Eighty-nine are about the mug."
+  },
+  {
+    "id": "corp-approved-messaging",
+    "name": "Approved Messaging",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": [
+      "brand"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "friendly",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "triggering"
+            },
+            "status": "shielded"
+          },
+          {
+            "op": "heal",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 2
+          }
+        ],
+        "text": "Give a friendly character **Shielded** and restore 2 Health to your leader."
+      }
+    ],
+    "text": "Give a friendly character **Shielded** and restore 2 Health to your leader. *(Shielded — negates the next instance of damage.)*",
+    "flavor": "\"We hear you, we see you, and we have no further comment at this time.\""
+  },
+  {
+    "id": "corp-brand-partnership",
+    "name": "Brand Partnership",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": [
+      "contract"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "gainHype",
+            "amount": 1,
+            "permanent": true
+          },
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 3,
+            "label": "Brand Partnership — deliverables due",
+            "ops": [
+              {
+                "op": "if",
+                "condition": {
+                  "kind": "controlsAtLeast",
+                  "target": {
+                    "select": "all",
+                    "side": "friendly",
+                    "zone": "board",
+                    "filter": {
+                      "costMin": 5
+                    }
+                  },
+                  "min": 1
+                },
+                "then": [
+                  {
+                    "op": "draw",
+                    "count": 1
+                  }
+                ],
+                "else": [
+                  {
+                    "op": "damage",
+                    "target": {
+                      "select": "leader",
+                      "side": "friendly"
+                    },
+                    "amount": 3
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "**Sign:** gain 1 max Hype permanently, up to 10. **Due (3):** if you control a character that costs (5) or more, draw a card; otherwise your leader takes 3 damage."
+      }
+    ],
+    "text": "**Sign:** Gain 1 max Hype permanently, up to 10. **Due (3):** If you control a character that costs (5) or more, draw a card; otherwise your leader takes 3 damage. *(Due — this obligation resolves at the start of your turn 3 turns from now and is visible to both players.)*",
+    "flavor": "Signed in a conference room named Serenity. There are no windows in Serenity."
+  },
+  {
+    "id": "corp-sponsored-segment",
+    "name": "Sponsored Segment",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": [
+      "contract",
+      "brand"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 2
+          },
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 2,
+            "label": "Sponsored Segment — deliverables due",
+            "ops": [
+              {
+                "op": "if",
+                "condition": {
+                  "kind": "controlsAtLeast",
+                  "target": {
+                    "select": "all",
+                    "side": "friendly",
+                    "zone": "board",
+                    "filter": {
+                      "tag": [
+                        "sponsor"
+                      ]
+                    }
+                  },
+                  "min": 1
+                },
+                "then": [
+                  {
+                    "op": "gainHype",
+                    "amount": 2
+                  }
+                ],
+                "else": [
+                  {
+                    "op": "discard",
+                    "target": {
+                      "select": "random",
+                      "side": "friendly",
+                      "zone": "hand"
+                    },
+                    "count": 2
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "**Sign:** draw 2 cards. **Due (2):** if you control a Sponsor, gain 2 Hype this turn only; otherwise discard 2 random cards."
+      }
+    ],
+    "text": "**Sign:** Draw 2 cards. **Due (2):** If you control a Sponsor, gain 2 Hype this turn only; otherwise discard 2 random cards. *(Due — this obligation resolves at the start of your turn 2 turns from now and is visible to both players.)*",
+    "flavor": "\"And that brings us to today's partner, who I am contractually delighted about.\""
+  },
+  {
+    "id": "corp-network-special",
+    "name": "Network Special",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 6,
+    "tags": [
+      "brand",
+      "broadcast"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-brand-ambassador",
+            "count": 2
+          }
+        ],
+        "text": "Summon two 4/4 Brand Ambassadors."
+      }
+    ],
+    "text": "Summon two 4/4 Brand Ambassadors.",
+    "flavor": "Ninety minutes of programming inside one hundred and ten minutes of sponsor read."
+  },
+  {
+    "id": "corp-earnings-call",
+    "name": "Earnings Call",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "action",
+    "rarity": "epic",
+    "cost": 8,
+    "tags": [
+      "broadcast",
+      "finance"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "leader",
+          "side": "enemy"
+        },
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "triggering"
+            },
+            "amount": {
+              "kind": "hypeSpentThisTurn"
+            }
+          }
+        ],
+        "text": "Deal damage to the enemy leader equal to the Hype you've spent this turn."
+      }
+    ],
+    "text": "Deal damage to the enemy leader equal to the Hype you've spent this turn.",
+    "flavor": "Guidance was revised upward. Somewhere, a person was revised downward."
+  },
+  {
+    "id": "corp-cease-and-desist",
+    "name": "Cease and Desist",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": [
+      "legal"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyPlaysCharacter",
+        "ops": [
+          {
+            "op": "cancel",
+            "target": {
+              "select": "triggering"
+            },
+            "durationTurns": 2
+          }
+        ],
+        "text": "Reaction — when the enemy plays a character: apply **Cancelled** to it for 2 turns."
+      }
+    ],
+    "text": "Reaction — when the enemy plays a character: apply **Cancelled** to it for 2 turns. *(Cancelled — text blank, cannot attack or use abilities.)*",
+    "flavor": "Legal never sends threats. Legal sends a calendar invite with no agenda."
+  },
+  {
+    "id": "corp-company-lanyard",
+    "name": "Company Lanyard",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "equipment",
+    "rarity": "common",
+    "cost": 1,
+    "equipAttack": 0,
+    "equipHealth": 2,
+    "grantKeywords": [
+      "spotlight"
+    ],
+    "tags": [
+      "gear",
+      "intern"
+    ],
+    "keywords": [],
+    "effects": [],
+    "text": "Equipped character has +0/+2 and **Spotlight**. *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "Scan in, scan out. The badge decides whether you existed today."
+  },
+  {
+    "id": "corp-corporate-campus",
+    "name": "Corporate Campus",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "location",
+    "rarity": "epic",
+    "cost": 5,
+    "durability": 3,
+    "tags": [
+      "venue",
+      "campus"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-intern"
+          },
+          {
+            "op": "if",
+            "condition": {
+              "kind": "controlsAtLeast",
+              "target": {
+                "select": "all",
+                "side": "friendly",
+                "zone": "board",
+                "filter": {
+                  "tag": [
+                    "sponsor"
+                  ]
+                }
+              },
+              "min": 1
+            },
+            "then": [
+              {
+                "op": "gainHype",
+                "amount": 1
+              }
+            ]
+          }
+        ],
+        "text": "Activate (once per turn): summon a 1/1 Intern. If you control a Sponsor, gain 1 Hype this turn only."
+      }
+    ],
+    "text": "Activate (once per turn): summon a 1/1 Intern. If you control a Sponsor, gain 1 Hype this turn only. Durability 3.",
+    "flavor": "Free snacks, a nap pod, and a door that locks from the outside on weekends."
+  },
+  {
+    "id": "corp-brand-refresh",
+    "name": "Brand Refresh",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "transformation",
+    "rarity": "rare",
+    "cost": 4,
+    "tags": [
+      "contract",
+      "brand"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "friendly",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "transform",
+            "target": {
+              "select": "triggering"
+            },
+            "intoCardId": "token-brand-ambassador"
+          },
+          {
+            "op": "scheduleDelayed",
+            "delayTurns": 2,
+            "label": "Brand Refresh — rollout review",
+            "ops": [
+              {
+                "op": "if",
+                "condition": {
+                  "kind": "controlsAtLeast",
+                  "target": {
+                    "select": "all",
+                    "side": "friendly",
+                    "zone": "board",
+                    "filter": {
+                      "tag": [
+                        "sponsor"
+                      ]
+                    }
+                  },
+                  "min": 1
+                },
+                "then": [
+                  {
+                    "op": "draw",
+                    "count": 1
+                  }
+                ],
+                "else": [
+                  {
+                    "op": "damage",
+                    "target": {
+                      "select": "leader",
+                      "side": "friendly"
+                    },
+                    "amount": 2
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "text": "**Sign:** transform a friendly character into a 4/4 Brand Ambassador. **Due (2):** if you control a Sponsor, draw a card; otherwise your leader takes 2 damage."
+      }
+    ],
+    "text": "**Sign:** Transform a friendly character into a 4/4 Brand Ambassador. **Due (2):** If you control a Sponsor, draw a card; otherwise your leader takes 2 damage. *(Due — this obligation resolves at the start of your turn 2 turns from now and is visible to both players.)*",
+    "flavor": "Same person. New colourway. Legally distinct personality."
+  },
+  {
+    "id": "corp-positive-press",
+    "name": "Positive Press",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "event",
+    "rarity": "epic",
+    "cost": 4,
+    "durationTurns": 3,
+    "tags": [
+      "brand",
+      "press"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 2
+          },
+          {
+            "op": "heal",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 2
+          }
+        ],
+        "text": "Event (3 turns) — at the start of your turns: give your leader **Armor 2** and restore 2 Health to your leader."
+      }
+    ],
+    "text": "Event (3 turns) — at the start of your turns: give your leader **Armor 2** and restore 2 Health to your leader.",
+    "flavor": "Twelve outlets ran the same paragraph. Someone was paid to write that paragraph."
+  },
+  {
+    "id": "token-intern",
+    "name": "Intern",
+    "faction": "corporate-creators",
+    "current": "root",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 1,
+    "tags": [
+      "intern"
+    ],
+    "keywords": [],
+    "token": true,
+    "effects": [],
+    "text": "",
+    "flavor": "Cohort of forty. Two get offers. The rest get a testimonial quote."
+  },
+  {
+    "id": "token-brand-ambassador",
+    "name": "Brand Ambassador",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 4,
+    "health": 4,
+    "tags": [
+      "brand",
+      "sponsor"
+    ],
+    "keywords": [],
+    "token": true,
+    "effects": [],
+    "text": "",
+    "flavor": "Smiles on a schedule. Blinks on a schedule. Loves the product on a schedule."
+  },
+  {
+    "id": "corp-badge-check",
+    "name": "Badge Check",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": [
+      "legal",
+      "brand"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 3
+          }
+        ],
+        "text": "Your leader gains 3 Armor."
+      }
+    ],
+    "text": "Your leader gains 3 Armor.",
+    "flavor": "Nobody gets past the desk without one. The desk has never once been the problem."
+  },
+  {
+    "id": "corp-front-of-house",
+    "name": "Front of House",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 0,
+    "health": 3,
+    "tags": [
+      "intern",
+      "brand"
+    ],
+    "keywords": [
+      "spotlight"
+    ],
+    "effects": [],
+    "text": "**Spotlight.** *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "Smiles at everyone. Remembers everyone. Is paid to be the first thing that happens to you."
+  },
+  {
+    "id": "corp-brand-safety-review",
+    "name": "Brand Safety Review",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": [
+      "legal",
+      "brand"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": {
+          "select": "choose",
+          "side": "friendly",
+          "zone": "board"
+        },
+        "ops": [
+          {
+            "op": "removeStatus",
+            "target": {
+              "select": "triggering"
+            },
+            "polarity": "negative"
+          },
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "triggering"
+            },
+            "status": "shielded"
+          }
+        ],
+        "text": "Remove all negative statuses from a friendly character and give it **Shielded**."
+      }
+    ],
+    "text": "Remove all negative statuses from a friendly character and give it **Shielded**. *(Shielded — negates the next damage taken.)*",
+    "flavor": "The review found nothing. The review always finds nothing. That is what the review is for."
+  },
+  {
+    "id": "corp-hr-mediator",
+    "name": "HR Mediator",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 1,
+    "health": 4,
+    "tags": [
+      "exec",
+      "legal"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "heal",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board",
+              "filter": {
+                "isDamaged": true
+              }
+            },
+            "amount": 1
+          }
+        ],
+        "text": "At the start of your turn, restore 1 health to each damaged friendly character."
+      }
+    ],
+    "text": "At the start of your turn, restore 1 health to each damaged friendly character.",
+    "flavor": "Her role is to make sure nobody says anything that could later be quoted. She is extremely good at it."
+  },
+  {
+    "id": "corp-quarterly-goodwill",
+    "name": "Quarterly Goodwill",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 3,
+    "tags": [
+      "finance",
+      "press"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "heal",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 4
+          },
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "Restore 4 health to your leader and draw a card."
+      }
+    ],
+    "text": "Restore 4 health to your leader and draw a card.",
+    "flavor": "Goodwill is an accounting term. It means the difference between what a thing is worth and what we paid. It is always positive on our sheets."
+  },
+  {
+    "id": "corp-legal-department",
+    "name": "Legal Department",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "character",
+    "rarity": "rare",
+    "cost": 4,
+    "attack": 2,
+    "health": 6,
+    "tags": [
+      "legal",
+      "exec"
+    ],
+    "keywords": [
+      "spotlight",
+      "inspire"
+    ],
+    "effects": [
+      {
+        "trigger": "inspire",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 2
+          }
+        ],
+        "text": "**Inspire:** your leader gains 2 Armor. Once per turn."
+      }
+    ],
+    "text": "**Spotlight.** **Inspire:** your leader gains 2 Armor. Once per turn. *(Inspire — triggers when this or another friendly character is healed, shielded, or buffed.)*",
+    "flavor": "Six people, one shared calendar, and the institutional ability to make a problem take four years."
+  },
+  {
+    "id": "corp-goodwill-ambassador",
+    "name": "Goodwill Ambassador",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "character",
+    "rarity": "common",
+    "cost": 4,
+    "attack": 3,
+    "health": 4,
+    "tags": [
+      "brand",
+      "press"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board",
+              "filter": {
+                "excludeSelf": true
+              }
+            },
+            "status": "shielded"
+          }
+        ],
+        "text": "On play: give your other characters **Shielded**."
+      }
+    ],
+    "text": "On play: give your other characters **Shielded**. *(Shielded — negates the next damage taken.)*",
+    "flavor": "Flown in for the weekend to stand near things and be photographed not disliking them."
+  },
+  {
+    "id": "corp-crisis-comms",
+    "name": "Crisis Comms",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "action",
+    "rarity": "rare",
+    "cost": 5,
+    "tags": [
+      "press",
+      "legal"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [
+          {
+            "op": "heal",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board"
+            },
+            "amount": 3
+          },
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 4
+          }
+        ],
+        "text": "Restore 3 health to each friendly character. Your leader gains 4 Armor."
+      }
+    ],
+    "text": "Restore 3 health to each friendly character. Your leader gains 4 Armor.",
+    "flavor": "The statement was drafted in March, for March. It has been used eleven times since and remains accurate."
+  },
+  {
+    "id": "corp-employee-of-the-year",
+    "name": "Employee of the Year",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "character",
+    "rarity": "epic",
+    "cost": 5,
+    "attack": 3,
+    "health": 6,
+    "tags": [
+      "exec",
+      "brand"
+    ],
+    "keywords": [
+      "inspire"
+    ],
+    "effects": [
+      {
+        "trigger": "inspire",
+        "ops": [
+          {
+            "op": "buff",
+            "target": {
+              "select": "self"
+            },
+            "attack": 1,
+            "health": 1
+          }
+        ],
+        "text": "**Inspire:** this gains +1/+1."
+      }
+    ],
+    "text": "**Inspire:** this gains +1/+1.",
+    "flavor": "Eleven years. A plaque with her name spelled correctly on the second attempt. She keeps it at the office, which tells you everything."
+  },
+  {
+    "id": "corp-golden-parachute",
+    "name": "Golden Parachute",
+    "faction": "corporate-creators",
+    "current": "halo",
+    "type": "reaction",
+    "rarity": "epic",
+    "cost": 6,
+    "tags": [
+      "contract",
+      "finance"
+    ],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "friendlyCharacterDefeated",
+        "ops": [
+          {
+            "op": "resurrect",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "discard",
+              "filter": {
+                "type": [
+                  "character"
+                ]
+              }
+            },
+            "count": 1
+          },
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "status": "armor",
+            "amount": 5
+          },
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ],
+        "text": "**Reaction:** when a friendly character is defeated, return a friendly character from your discard pile to the board, your leader gains 5 Armor, and you draw a card."
+      }
+    ],
+    "text": "**Reaction:** when a friendly character is defeated, return a friendly character from your discard pile to the board, your leader gains 5 Armor, and you draw a card.",
+    "flavor": "Termination triggers the clause. The clause is longer than the contract. The clause is the contract."
+  }
+]

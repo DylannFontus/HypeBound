@@ -1,0 +1,63 @@
+# Build HYPEBOUND and publish it to GitHub Pages.
+#
+# The client is a pure static bundle — every card, encounter and balance number
+# is imported at build time (`src/engine/content.ts`), and routing is hash-based
+# — so Pages can serve it with no server, no rewrite rules and no SPA fallback.
+#
+# The gate before publishing is deliberate. `npm run build` runs `tsc --noEmit`
+# first, and the test suite runs ahead of both: this is the last point at which
+# a mistake is private. Everything past it is a public URL.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race to publish. Queue instead of cancelling, so a green
+# commit is never dropped in favour of a later one that might be red.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Runs before the build so a broken rule fails the job for the honest
+      # reason, rather than surfacing as a confusing type error downstream.
+      # CI is also the first machine to build this on a case-sensitive
+      # filesystem, which is worth knowing about here rather than in production.
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

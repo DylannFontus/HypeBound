@@ -1,0 +1,433 @@
+{
+  "_readme": [
+    "The menu of battle rules a story writer can pick from with a RULE: line.",
+    "Writers never edit this file - they pick a name from HOW-TO-WRITE-A-CHAPTER.md.",
+    "Adding one needs someone comfortable with the effects DSL in src/engine/types.ts.",
+    "text is printed word for word on the pre-battle brief: the player is never surprised.",
+    "side says whose leader the effects are attached to. balanceOverrides is optional and affects the whole match.",
+    "Any key starting with an underscore is a note and is ignored."
+  ],
+  "clip-farm": {
+    "name": "Clip Farm",
+    "text": "At the end of their turn, if they played 2 or more cards, they draw a card.",
+    "side": "opponent",
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "condition": {
+          "kind": "cardsPlayedThisTurnAtLeast",
+          "value": 2
+        },
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  "the-room-remembers": {
+    "name": "The Room Remembers",
+    "text": "At the start of your turn, if you control 3 or more characters, a random one of them gets +1/+1.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "condition": {
+          "kind": "controlsAtLeast",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board"
+          },
+          "min": 3
+        },
+        "ops": [
+          {
+            "op": "buff",
+            "target": {
+              "select": "random",
+              "side": "friendly",
+              "zone": "board",
+              "count": 1
+            },
+            "attack": 1,
+            "health": 1
+          }
+        ]
+      }
+    ]
+  },
+  "every-post-costs": {
+    "name": "Every Post Costs",
+    "text": "Whenever you play a card, deal 1 damage to your own leader.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "onCardPlayed",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 1
+          }
+        ]
+      }
+    ]
+  },
+  "sponsor-segment": {
+    "name": "Sponsor Segment",
+    "text": "At the start of your turn, a random card in your hand costs (1) more.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "modifyCost",
+            "target": {
+              "select": "random",
+              "side": "friendly",
+              "zone": "hand",
+              "count": 1
+            },
+            "delta": 1
+          }
+        ]
+      }
+    ]
+  },
+  "suppressed-reach": {
+    "name": "Suppressed Reach",
+    "text": "At the start of your turn a random card in your hand costs (1) more. At the end of your turn, draw a card. You are being throttled, not silenced.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "modifyCost",
+            "target": {
+              "select": "random",
+              "side": "friendly",
+              "zone": "hand",
+              "count": 1
+            },
+            "delta": 1
+          }
+        ]
+      },
+      {
+        "trigger": "afterparty",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  "autocomplete": {
+    "name": "Autocomplete",
+    "text": "At the start of your turn a random card in your hand costs (1) less. At the end of your turn, deal 1 damage to your leader. It plays beautifully and it is eating you.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "modifyCost",
+            "target": {
+              "select": "random",
+              "side": "friendly",
+              "zone": "hand",
+              "count": 1
+            },
+            "delta": -1
+          }
+        ]
+      },
+      {
+        "trigger": "afterparty",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 1
+          }
+        ]
+      }
+    ]
+  },
+  "running-on-fumes": {
+    "name": "Running on Fumes",
+    "text": "Maximum Hype is 6 for both players this battle, and you draw an extra card at the start of your turn. Every idea, no energy to make any of them.",
+    "side": "you",
+    "balanceOverrides": {
+      "hype.cap": 6
+    },
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  "hall-repair": {
+    "name": "Hall Repair",
+    "text": "At the start of your turn, restore 1 health to each damaged friendly character.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "heal",
+            "target": {
+              "select": "all",
+              "side": "friendly",
+              "zone": "board",
+              "filter": {
+                "isDamaged": true
+              }
+            },
+            "amount": 1
+          }
+        ]
+      }
+    ]
+  },
+  "punchline-recursion": {
+    "name": "Punchline Recursion",
+    "text": "Whenever you play an Action, add a copy of it to your hand that costs (1) more. The joke will not stop coming back, and it gets more expensive every time it does.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "onCardPlayed",
+        "playedFilter": {
+          "type": [
+            "action"
+          ]
+        },
+        "ops": [
+          {
+            "op": "copyCardToHand",
+            "target": {
+              "select": "triggering"
+            },
+            "costDelta": 1
+          }
+        ]
+      }
+    ]
+  },
+  "going-live": {
+    "name": "Going Live",
+    "text": "They draw an extra card on their first turn. The room is loud and they came prepared.",
+    "side": "opponent",
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "once": true,
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  "blown-fuse": {
+    "name": "Blown Fuse",
+    "text": "The first card you play each turn blows a fuse: you have 1 less Hype next turn.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "onCardPlayed",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "lockHype",
+            "amount": 1
+          }
+        ]
+      }
+    ]
+  },
+  "the-crowd-carries-you": {
+    "name": "The Crowd Carries You",
+    "text": "At the end of your turn, if you control 3 or more characters, restore 2 health to your leader.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "afterparty",
+        "condition": {
+          "kind": "controlsAtLeast",
+          "target": {
+            "select": "all",
+            "side": "friendly",
+            "zone": "board"
+          },
+          "min": 3
+        },
+        "ops": [
+          {
+            "op": "heal",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 2
+          }
+        ]
+      }
+    ]
+  },
+  "she-wont-swing-first": {
+    "name": "She Won't Swing First",
+    "text": "Their characters arrive Weakened — 1 less attack until their next turn. She is not here to fight you; she is here to be found.",
+    "side": "opponent",
+    "effects": [
+      {
+        "trigger": "onCardPlayed",
+        "playedFilter": {
+          "type": [
+            "character"
+          ]
+        },
+        "ops": [
+          {
+            "op": "applyStatus",
+            "target": {
+              "select": "triggering"
+            },
+            "status": "weakened",
+            "amount": 1,
+            "durationTurns": 1
+          }
+        ]
+      }
+    ]
+  },
+  "the-court-reconvenes": {
+    "name": "The Court Reconvenes",
+    "text": "The first time each turn one of your characters is defeated, draw a card.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "onFriendlyDefeated",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  "nobody-really-dies-here": {
+    "name": "Nobody Really Dies Here",
+    "text": "The first character you lose each turn stands back up at 1 health, keeping everything done to it.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "onFriendlyDefeated",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "revive",
+            "target": {
+              "select": "triggering"
+            },
+            "health": 1
+          }
+        ]
+      }
+    ]
+  },
+  "thirty-days-notice": {
+    "name": "Thirty Days' Notice",
+    "text": "At the start of your turn, deal 1 damage to your leader and draw a card. The clock is running and it is not going to stop.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "startOfTurn",
+        "ops": [
+          {
+            "op": "damage",
+            "target": {
+              "select": "leader",
+              "side": "friendly"
+            },
+            "amount": 1
+          },
+          {
+            "op": "draw",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  "best-mistake": {
+    "name": "Best Mistake",
+    "text": "The first character you lose each turn leaves a 1/1 Glitchling behind. Nothing here is wasted, which is the problem.",
+    "side": "you",
+    "effects": [
+      {
+        "trigger": "onFriendlyDefeated",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "summon",
+            "cardId": "token-glitchling",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  "it-came-back": {
+    "_note": "Nobody Really Dies Here, aimed the other way: the thing across the table is the one that will not stay down.",
+    "name": "It Came Back",
+    "text": "The first character they lose each turn stands back up at 1 health, keeping everything done to it. It stopped being funny and it did not stop.",
+    "side": "opponent",
+    "effects": [
+      {
+        "trigger": "onFriendlyDefeated",
+        "oncePerTurn": true,
+        "ops": [
+          {
+            "op": "revive",
+            "target": {
+              "select": "triggering"
+            },
+            "health": 1
+          }
+        ]
+      }
+    ]
+  },
+  "signal-dead-zone": {
+    "_note": "Re-prices YOUR leader only. The other seat is the one who chose to be out here and is not reaching for anything.",
+    "name": "Signal Dead Zone",
+    "text": "Your Fixation costs 2 more Obsession this battle. No bars, no reception, and nothing to reach for.",
+    "side": "you",
+    "fixationCost": 2
+  }
+}

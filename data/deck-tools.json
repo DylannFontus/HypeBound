@@ -1,0 +1,81 @@
+{
+  "_readme": [
+    "DECK-BUILDING ASSISTANCE — 03-screens-and-navigation.md §4.3.2's 'suggested",
+    "cards and replacements-for-missing', 'Auto-complete deck' and 'AI-assisted",
+    "build (build around this card)'.",
+    "",
+    "THE RULE THESE NUMBERS SERVE. 14-ai-design.md: the builder's auto-generate",
+    "'runs live from the player's collection (pool restricted to owned cards),",
+    "then reports which suggested cards the player is missing'. Every suggestion",
+    "below is drawn from what the account owns; anything it would have suggested",
+    "and cannot is reported separately as something to craft.",
+    "",
+    "WHY WEIGHTS AND NOT A HEURISTIC IN CODE. A suggestion the player disagrees",
+    "with is a suggestion they need to be able to argue with, and a number in a",
+    "file is arguable. It also means the ranking can be re-tuned after a human",
+    "playtest without touching a line of TypeScript — which is the one lever the",
+    "balance work has been waiting on.",
+    "",
+    "THE SCORE. Every candidate is scored as the weighted sum of five terms, and",
+    "the largest term is what the suggestion says out loud. That is the whole",
+    "reason the terms are separate rather than one blended number: a suggestion",
+    "that cannot explain itself is one nobody can act on."
+  ],
+
+  "weights": {
+    "_note": [
+      "curve      — how many cards short of TARGET_CURVE this card's cost bucket",
+      "             is. The single most useful signal for a half-built deck, and",
+      "             the highest weight for that reason.",
+      "tag        — how often this faction's own targeting filters name a tag the",
+      "             card carries. Derived by payoffTags() from the card data, so",
+      "             it needs no per-faction archetype list to maintain.",
+      "synergy    — how many cards ALREADY in the draft share a tag with it. This",
+      "             is what makes suggestions converge on an archetype instead of",
+      "             recommending thirty unrelated good cards.",
+      "current    — a small nudge toward the leader's Primary Current, which is",
+      "             what keeps Confluences and Resonance reachable.",
+      "resonance  — a larger nudge, but only for a deck that is already pure: a",
+      "             pure deck is seven cards from Perfect Resonance and every",
+      "             off-Current card throws that away."
+    ],
+    "curve": 3,
+    "tag": 1,
+    "synergy": 1.5,
+    "current": 2,
+    "resonance": 4
+  },
+
+  "suggestions": {
+    "_note": [
+      "`show` is how many suggestions the panel offers at once. Small on purpose:",
+      "a list of twenty is a second card pool, and the player already has one.",
+      "",
+      "`craftTargets` is how many cards it will name that it would have suggested",
+      "if you owned them. §14 requires it report them; it does not require a",
+      "shopping list as long as the pool.",
+      "",
+      "`minScoreToShow` stops the panel padding itself out with cards it has no",
+      "actual reason to recommend once the good ones run out. A short honest list",
+      "beats a long one."
+    ],
+    "show": 6,
+    "craftTargets": 4,
+    "minScoreToShow": 0.5
+  },
+
+  "replacements": {
+    "_note": [
+      "For a card in the list the account cannot legally run — an imported deck",
+      "code, or a card dismantled after the deck was saved — the closest owned",
+      "substitute. Closeness is scored on the same terms as a suggestion, plus a",
+      "bonus for landing in the same cost bucket, because a replacement that",
+      "changes the curve is not a replacement.",
+      "",
+      "`sameCostBonus` is deliberately large: the whole point of a replacement is",
+      "that the deck keeps its shape."
+    ],
+    "sameCostBonus": 6,
+    "adjacentCostBonus": 2
+  }
+}

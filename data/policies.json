@@ -1,0 +1,184 @@
+{
+  "_readme": [
+    "Privacy, legal and support text — 03-screens-and-navigation.md §4.6.4, §4.6.5, §4.6.6.",
+    "",
+    "TWO RULES.",
+    "",
+    "1. A DOCUMENT THAT HAS NOT BEEN WRITTEN SAYS SO. `status` is either \"written\" or",
+    "   \"not-written\", and a not-written document renders as an explanation of what is",
+    "   missing rather than as placeholder legalese. A Terms of Service that nobody",
+    "   drafted is worse than none at all: somebody might rely on it.",
+    "",
+    "2. ATTRIBUTIONS ARE CHECKED AGAINST package.json. Every runtime and tooling",
+    "   dependency must appear in `attributions`, and every attribution must name a",
+    "   real dependency. Adding a package without attributing it fails `npm test`.",
+    "",
+    "The privacy claims here are about THIS build. It takes no payments, has no",
+    "server, and makes no network request that is not a file it shipped with —",
+    "`verify:fairness` proves that last one by watching the browser rather than by",
+    "believing this file."
+  ],
+
+  "privacy": {
+    "version": "1.0",
+    "effectiveDate": "2026-07-06T00:00:00.000Z",
+    "summary": [
+      "This build collects nothing, sends nothing, and has nowhere to send it to. There is no account, no server, no analytics and no advertising identifier.",
+      "Everything the game knows about you is in your browser's local storage on this device: your collection, your decks, your match history, your settings and your progress. You can read all of it — the export button below writes it out as JSON — and you can delete all of it in one action.",
+      "Clearing your browser data for this site deletes the save. There is no cloud copy, so there is also no way for anyone, including us, to recover it."
+    ],
+    "categories": [
+      {
+        "name": "Account",
+        "collected": false,
+        "detail": "There is no account. No email address, no username on a server, no login of any kind. The display name you choose is stored on this device and never leaves it."
+      },
+      {
+        "name": "Gameplay",
+        "collected": true,
+        "detail": "Matches, decks, collection, progression and settings, stored locally so the game can continue where you left off. Nothing is transmitted.",
+        "where": "localStorage, under keys beginning hypebound:"
+      },
+      {
+        "name": "Telemetry and analytics",
+        "collected": false,
+        "detail": "None. There is no analytics SDK in the build, no event pipeline and no crash reporter. This is why there is no 'analytics opt-out' toggle: a switch that turns off something that does not exist would imply the something exists."
+      },
+      {
+        "name": "Purchases",
+        "collected": false,
+        "detail": "This build takes no payments. There is no payment processor, no card details and no purchase history, and the premium currency is earned rather than bought."
+      },
+      {
+        "name": "Device",
+        "collected": true,
+        "detail": "Your browser reports its own capabilities to the page — screen size, graphics support, language — the way it does to every website. None of it is recorded or sent; it is read to size the board and pick a graphics tier.",
+        "where": "in memory, for the length of the session"
+      }
+    ],
+    "children": [
+      "The game is not directed at children under 13 and no age is collected, because no personal data is collected at all.",
+      "The parental controls the design describes — spending caps, guardian PINs, playtime reports — belong to the online build, where there is something to control. This build has no purchasing and no communication features, which is the strongest version of those controls available offline."
+    ],
+    "requests": [
+      "There is no data controller to write to, because there is no collected data to request. Everything is on your device and the export button hands you all of it.",
+      "When the online build arrives, this page gains a real contact route, a real retention schedule, and a real deletion process — and this paragraph goes away."
+    ]
+  },
+
+  "legal": {
+    "documents": [
+      {
+        "id": "terms",
+        "title": "Terms of Service",
+        "status": "not-written",
+        "note": "No terms have been drafted, and shipping placeholder legalese would be worse than shipping nothing: it reads as binding and nobody wrote it. This build is unreleased, non-commercial, takes no payments and creates no account, so there is currently no service to set terms for. Terms are required before any distribution."
+      },
+      {
+        "id": "eula",
+        "title": "End User Licence Agreement",
+        "status": "not-written",
+        "note": "Same as above, and for the same reason. What can be said today is what the build actually is: a local, offline application that runs entirely in your browser and neither transmits nor receives anything."
+      },
+      {
+        "id": "attribution",
+        "title": "Open-source attributions",
+        "status": "written",
+        "version": "1.0",
+        "effectiveDate": "2026-07-06T00:00:00.000Z",
+        "body": [
+          "This game is built on the packages listed below. The list is generated from the dependency manifest rather than maintained by hand — a package added without an attribution fails the build.",
+          "Card art, leader medallions and cosmetic emblems are procedurally generated from the card data by this project's own renderer. Nothing in the build is traced, sampled or derived from third-party artwork."
+        ]
+      },
+      {
+        "id": "trademarks",
+        "title": "Trademarks and content",
+        "status": "written",
+        "version": "1.0",
+        "effectiveDate": "2026-07-06T00:00:00.000Z",
+        "body": [
+          "HYPEBOUND, its factions, its characters and its card text are original work belonging to this project.",
+          "The game is a comedy about internet culture. Any resemblance between a card and a specific real person is parody of a type rather than of an individual, and no real person, brand or platform is depicted, endorsed or affiliated."
+        ]
+      }
+    ],
+    "attributions": [
+      { "package": "three", "license": "MIT", "use": "the WebGL renderer behind the battle board" },
+      { "package": "zod", "license": "MIT", "use": "schema validation for every data file the game loads" },
+      { "package": "@types/three", "license": "MIT", "use": "type definitions for three" },
+      { "package": "playwright-core", "license": "Apache-2.0", "use": "drives the browser verification scripts" },
+      { "package": "typescript", "license": "Apache-2.0", "use": "the language and its type checker" },
+      { "package": "vite", "license": "MIT", "use": "the dev server and production bundler" },
+      { "package": "vitest", "license": "MIT", "use": "the unit test runner" }
+    ]
+  },
+
+  "support": {
+    "faq": [
+      {
+        "id": "where-is-my-save",
+        "question": "Where is my save, and can I lose it?",
+        "tags": ["save", "data"],
+        "answer": [
+          "In this browser's local storage, on this device only. There is no cloud copy in the offline build.",
+          "Clearing site data, using a private window, or switching browser or device all mean a different save. The Privacy screen has an export button that writes the whole thing out as JSON, which is the only backup that currently exists."
+        ]
+      },
+      {
+        "id": "no-purchases",
+        "question": "How do I buy Clout or Glimmer?",
+        "tags": ["purchases", "money"],
+        "answer": [
+          "You cannot. This build takes no payments at all — there is no store, no payment processor and no real-money currency.",
+          "Clout is earned by playing. Glimmer, the premium currency, is earned too: the Hype Wave pays it out, which is what makes the Backstage Pass something a free player reaches on their own."
+        ]
+      },
+      {
+        "id": "odds",
+        "question": "Are the odds really what the game says they are?",
+        "tags": ["odds", "fairness", "purchases"],
+        "answer": [
+          "Yes, and the build is arranged so that they cannot quietly stop being. The disclosure page and the roller read the same numbers out of the same file, and a test asserts the two tables are identical rather than merely similar.",
+          "A published rate also cannot change without a patch note: every release carries a snapshot of the economy it shipped with, and the newest snapshot has to equal the shipped one or the tests fail."
+        ]
+      },
+      {
+        "id": "rules-question",
+        "question": "I have a rules question about a card",
+        "tags": ["rules", "cards"],
+        "answer": [
+          "Every card's full text is on its detail view in the collection, including the reminder text that shorter frames leave off.",
+          "The Currents, the Confluences and every keyword have their own reference pages reachable from the collection's filter bar."
+        ]
+      },
+      {
+        "id": "report-bug",
+        "question": "How do I report a bug?",
+        "tags": ["bug", "contact"],
+        "answer": [
+          "Use the diagnostic export below. It gathers the build version, your browser's own description of itself, a hash of the loaded data, and the seed of your last match — which is usually enough to replay the exact game that went wrong.",
+          "You are shown the whole file before anything happens to it. It contains no name, no save data and nothing that identifies you."
+        ]
+      },
+      {
+        "id": "offline",
+        "question": "Why can I not play against other people?",
+        "tags": ["online", "multiplayer"],
+        "answer": [
+          "There is no server yet. Ranked play, casual queues, tournaments, friends, clubs, spectating and leaderboards all need one, and none of them are faked in the meantime — every screen that would need a server says so instead of showing an empty version of itself.",
+          "Everything that measures you against yourself works offline: the statistics dashboard, match history with full replays, Mastery, the Bias Board and achievements."
+        ]
+      },
+      {
+        "id": "self-exclusion",
+        "question": "I want to limit how much I play",
+        "tags": ["wellbeing", "spending"],
+        "answer": [
+          "Nothing in this game punishes you for leaving. There are no streaks, no lose-it-if-you-miss-it rewards, and no daily window you have to catch — missions bank for three days and the Weekly Restock banks for four weeks.",
+          "There is nothing to spend money on, so there is nothing to cap. Session reminders and spending controls arrive with the online build, where they will have something to act on."
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,199 @@
+[
+  {
+    "id": "neutral-con-security",
+    "name": "Con Security",
+    "faction": "neutral",
+    "current": "root",
+    "type": "character",
+    "rarity": "common",
+    "cost": 3,
+    "attack": 2,
+    "health": 4,
+    "tags": ["staff", "convention"],
+    "keywords": ["spotlight"],
+    "effects": [],
+    "text": "**Spotlight.** *(Enemies must attack characters with Spotlight before other targets.)*",
+    "flavor": "Badge. Lanyard. Zero patience."
+  },
+  {
+    "id": "neutral-chat-moderator",
+    "name": "Chat Moderator",
+    "faction": "neutral",
+    "current": "halo",
+    "type": "character",
+    "rarity": "common",
+    "cost": 2,
+    "attack": 2,
+    "health": 2,
+    "tags": ["staff", "chat"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board", "optional": true },
+        "ops": [{ "op": "heal", "target": { "select": "triggering" }, "amount": 2 }]
+      }
+    ],
+    "text": "On play: restore 2 health to a friendly character.",
+    "flavor": "Deleting negativity since account creation."
+  },
+  {
+    "id": "neutral-ring-light",
+    "name": "Ring Light",
+    "faction": "neutral",
+    "current": "cinder",
+    "type": "equipment",
+    "rarity": "common",
+    "cost": 2,
+    "equipAttack": 2,
+    "equipHealth": 0,
+    "tags": ["gear"],
+    "keywords": [],
+    "effects": [],
+    "text": "Equipped character has +2 Attack.",
+    "flavor": "Suddenly, everyone looks like they sleep eight hours."
+  },
+  {
+    "id": "neutral-clip-it",
+    "name": "Clip It",
+    "faction": "neutral",
+    "current": "pulse",
+    "type": "action",
+    "rarity": "common",
+    "cost": 2,
+    "tags": ["clip"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "any", "zone": "board" },
+        "ops": [{ "op": "damage", "target": { "select": "triggering" }, "amount": 2 }]
+      }
+    ],
+    "text": "Deal 2 damage to a character.",
+    "flavor": "That's going in the compilation."
+  },
+  {
+    "id": "neutral-block-button",
+    "name": "Block Button",
+    "faction": "neutral",
+    "current": "gale",
+    "type": "reaction",
+    "rarity": "rare",
+    "cost": 2,
+    "tags": ["moderation"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "reaction",
+        "reactionOn": "enemyPlaysCharacter",
+        "ops": [{ "op": "applyStatus", "target": { "select": "triggering" }, "status": "weakened", "amount": 2, "durationTurns": 1 }]
+      }
+    ],
+    "text": "Reaction — when the enemy plays a character: it gets Weakened 2 until your next turn.",
+    "flavor": "The most powerful button ever engineered."
+  },
+  {
+    "id": "neutral-convention-hall",
+    "name": "Convention Hall",
+    "faction": "neutral",
+    "current": "root",
+    "type": "location",
+    "rarity": "rare",
+    "cost": 3,
+    "durability": 3,
+    "tags": ["convention", "venue"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "activate",
+        "ops": [{ "op": "summon", "cardId": "token-follower" }]
+      }
+    ],
+    "text": "Activate (once per turn): summon a 1/1 Follower. Durability 3.",
+    "flavor": "Doors open at ten. The line formed at four."
+  },
+  {
+    "id": "neutral-wifi-outage",
+    "name": "Wi-Fi Outage",
+    "faction": "neutral",
+    "current": "veil",
+    "type": "event",
+    "rarity": "epic",
+    "cost": 4,
+    "durationTurns": 2,
+    "tags": ["disaster"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "eventTick",
+        "ops": [{ "op": "damage", "target": { "select": "random", "side": "enemy", "zone": "board" }, "amount": 1 }]
+      }
+    ],
+    "text": "Event (2 turns) — at the start of your turns: deal 1 damage to a random enemy character.",
+    "flavor": "Have you tried unplugging your entire life and plugging it back in?"
+  },
+  {
+    "id": "neutral-glow-up",
+    "name": "Glow Up",
+    "faction": "neutral",
+    "current": "prism",
+    "type": "transformation",
+    "rarity": "epic",
+    "cost": 4,
+    "tags": ["makeover"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "friendly", "zone": "board" },
+        "ops": [{ "op": "transform", "target": { "select": "triggering" }, "intoCardId": "token-main-character" }]
+      }
+    ],
+    "text": "Transform a friendly character into a 4/4 Main Character.",
+    "flavor": "Same person. New arc."
+  },
+  {
+    "id": "neutral-lurker",
+    "name": "Lurker",
+    "faction": "neutral",
+    "current": "veil",
+    "type": "character",
+    "rarity": "common",
+    "cost": 1,
+    "attack": 1,
+    "health": 2,
+    "tags": ["chat"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "ops": [{ "op": "applyStatus", "target": { "select": "self" }, "status": "lurking" }]
+      }
+    ],
+    "text": "On play: gain Lurking. *(Cannot be targeted or attacked until it acts.)*",
+    "flavor": "Three years in chat. Zero messages. Sees everything."
+  },
+  {
+    "id": "neutral-hydration-check",
+    "name": "Hydration Check",
+    "faction": "neutral",
+    "current": "tide",
+    "type": "action",
+    "rarity": "common",
+    "cost": 1,
+    "tags": ["wellness"],
+    "keywords": [],
+    "effects": [
+      {
+        "trigger": "onPlay",
+        "target": { "select": "choose", "side": "any", "zone": "board" },
+        "ops": [
+          { "op": "heal", "target": { "select": "triggering" }, "amount": 3 }
+        ]
+      }
+    ],
+    "text": "Restore 3 health to a character.",
+    "flavor": "Chat says drink water. Chat is, for once, correct."
+  }
+]

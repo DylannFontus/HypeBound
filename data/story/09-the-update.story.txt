@@ -1,0 +1,351 @@
+# Chapter 9 of the HYPEBOUND story campaign.
+#
+# A three per cent ranking change ships on Tuesday. Ten thousand careers are
+# downstream of Tuesday. Nobody in this chapter is cruel, everybody is
+# optimising, and the weather has an owner who takes meetings.
+#
+# NOTE TO WHOEVER EDITS THIS FILE: the Syndicate never raises its voice and never
+# loses an argument, because it is not having one. Anybody who shouts here has
+# already lost the scene. If a line reads as a villain explaining himself, cut it.
+#
+# Chapter 4 met this faction's OUTPUTS — the Optimization Note and the Numbers,
+# in flat capitals, both of them Syndicate decks worn by objects. This chapter
+# meets the people who write them, so they get ordinary sentences. The flat
+# register is reserved for the one thing in here that genuinely is not a person.
+#
+# DELIBERATE DEVIATIONS, flagged rather than absorbed:
+#   1. The design (§3.10) follows Don Vittore Feed, the Recommender, with Auntie
+#      Metric beside him. Neither was built. The Syndicate ships two leaders —
+#      Don Sortino, Curator of the Feed, and Cassia Cache, the Consigliera — and
+#      the recast is exact: Sortino already owns "we took the liberty of putting
+#      something at the top of your feed", and Cache already speaks in the past
+#      tense about things that have not happened yet.
+#   2. Branch A unlocks the Side Cut the design asks for (§3.10), "Source
+#      Unverified", on the leaking option — the seat is its own reward and the
+#      leak is the one that needs a night in it.
+#   3. Episode 4 is the campaign's only multi-wave board (§3.10). The three bands
+#      of the rollout are the three waves, labelled with the times this file
+#      already gives them, and the schedule is printed on the brief before the
+#      first card is dealt. WAVES: the support queue.
+#   4. The signature card "Rollout (Staggered)" — scry 3, then damage the enemy
+#      leader in two turns — is honoured as an object rather than forced into a
+#      deck: the rollout really is staggered across three bands, and the third
+#      band lands two days after everybody has stopped watching for it.
+#   5. Episodes 4 and 5 run DIFFICULTY: advanced, which Chapter 8 introduced and
+#      the seven chapters before it never used. Deliberate on both: Episode 4 is a
+#      loaner deck against a room that will not stop arriving, and Episode 5 is
+#      the chapter's hardest argument.
+#   6. Reads one decision from Chapter 4. It has a standing OTHERWISE and the
+#      chapter reads complete for somebody who has played nothing else.
+#
+# THE CLOCK. Every stated duration is measured against this:
+#   THU  the advisory session · 11.3.7 is eleven months old
+#   FRI  Sella's number stops going up
+#   MON  the room decides · 11.4.0-rc4
+#   TUE  09:00 the update ships · 11:00 the queue · the third band on THU
+#   TUE+7  the metrics · 11.4.1
+#   after  the server floor · 11.5.0, already drafted
+
+TITLE: The Update
+FACTION: Algorithm Syndicate
+ABOUT: A three per cent ranking change is scheduled for Tuesday, and ten thousand people's rent is downstream of it. Sella Kort reads change logs for fun, then for dread, and finds out that the hardest question in the building is not whether to ship it — it is whether to tell anybody.
+
+
+=== EPISODE: Patch Notes
+
+NARRATION: THURSDAY. A boardroom that is also, somehow, a weather station. A barometer on the wall that somebody taps every morning. A wind sock on the roof that nobody has ever explained. Fourteen forecasts pinned in a row, which is a fortnight, and a whiteboard that is one person's whole job.
+
+POST: CHANGE LOG 11.3.7 — released eleven months ago. Full text of the entry: "Minor improvements to ranking." No further notes. No linked issue.
+
+Sella Kort: Four words. That release moved a threshold in the freshness weighting and I can tell you the exact line it moved on.
+Don Sortino: I imagine you can.
+Sella Kort: I'd like somebody to look at what four words did.
+
+NARRATION: The Syndicate holds four creator advisory sessions a year. They are real, they are minuted, and the coffee is good, which is the part that unsettles people the most.
+
+Corrie Tarn: Three hundred and eighty thousand a video. That was the thirty-first of March. By the ninth of April it was three thousand eight hundred.
+Cassia Cache: A hundred to one.
+Corrie Tarn: A hundred to one, in nine days, and I want to be very clear that I'm not here to shout at anyone. I've brought a spreadsheet.
+
+NARRATION: She has brought a spreadsheet. It has tabs. Everybody in the room recognises immediately that this is much worse than shouting.
+
+Don Sortino: May I say the true thing or would you rather I said the polite one first?
+Corrie Tarn: True one.
+Don Sortino: Nobody decided about you. There is no meeting where you came up. A number that was 0.6 became 0.55, for reasons that were correct, and you were standing where the difference landed.
+Corrie Tarn: I know. That's why I brought the spreadsheet and not a lawyer.
+
+Sella Kort: Can I ask something that isn't on the agenda.
+Don Sortino: The agenda is a courtesy, Ms Kort.
+Sella Kort: Did anybody tell her? At the time. Not compensate — tell.
+Don Sortino: No.
+Sella Kort: Was that a decision?
+Don Sortino: It was a Tuesday.
+
+BATTLE: Corrie Tarn
+  PLAYS: Blayze Trendall
+  YOU PLAY: Don Sortino
+  DIFFICULTY: beginner
+  RULE: going live
+  IF YOU LOSE:
+    Corrie Tarn: Tab four. I did think you might say that.
+    Don Sortino: Again, then. Slowly, and with the tabs.
+
+Corrie Tarn: So what happens now?
+Don Sortino: Now I write down that you came, and what you said, and it goes in the pack, and the pack goes to the room.
+Corrie Tarn: And does the room read the pack?
+Don Sortino: I read the pack.
+
+
+=== EPISODE: Shadow
+
+NARRATION: FRIDAY. Sella posts her 11.3.7 write-up to the internal forum, and then, because it is Friday and she is pleased with it, to her own small account.
+
+POST: @sellakort — "what four words did: a thread". 1,190 followers. The number is 1,190 on Friday. It is 1,190 on Saturday. It is 1,190 on the Tuesday after that, and on the Tuesday after that one, and it never once goes down.
+
+Sella Kort: There's no strike.
+Cassia Cache: There wouldn't be.
+Sella Kort: There's no email either. Nothing's been removed. I can see my own posts, I can link them, they load.
+Cassia Cache: They load. Everything loads. That is the entire design and it took four years.
+
+NARRATION: There is no appeal, because there is nothing to appeal. A thing that has not happened cannot be reversed, and the number simply stopped, which is not a thing that happens to a person.
+
+Cassia Cache: I want to be accurate with you, because I have watched people go strange about this. You are not silenced. You are throttled. Every post you write goes out and lands in front of fewer people every week, and you will keep writing them, and the writing will keep feeling the same.
+Sella Kort: For how long?
+Cassia Cache: I remember four of these. Two of them are still going.
+
+BATTLE: No Strike, No Email, No Appeal
+  PLAYS: Cassia Cache
+  DIFFICULTY: casual
+  RULE: suppressed reach
+  IF YOU LOSE:
+    Cassia Cache: Nothing has been done to you and nothing is going to be undone.
+    Sella Kort: Again.
+
+Sella Kort: Was it you?
+Cassia Cache: No.
+Sella Kort: Was it anybody?
+Cassia Cache: There is a rule about internal write-ups leaving the building, it has been in the handbook since before I was hired, and it is enforced by a job that nobody applied for. So: no. And also yes. And I would not spend the weekend on which of those it is.
+
+
+=== EPISODE: The Room
+
+NARRATION: MONDAY. Fourteen forecasts on the wall and one of them is tomorrow. The build is 11.4.0-rc4, it has been signed off by four people, and it is very slightly better than 11.4.0-rc3 in a way you could measure but never feel.
+
+POST: CHANGE LOG 11.4.0-rc4 — DRAFT, INTERNAL. "Ranking weights adjusted (3%). Staggered rollout across three bands. Band three lands Thursday."
+
+Sella Kort: Ten thousand people's rent is downstream of that sentence.
+Don Sortino: Ten thousand four hundred and sixty-one accounts sit in the band that moves most. I dislike round numbers, they make people feel they have understood something.
+Sella Kort: Then tell them.
+Don Sortino: Say the rest of it.
+Sella Kort: Tell them what the change is, in plain English, before it ships.
+
+NARRATION: Nobody in the room says no. That is not the shape of the argument and it never was. Somebody slides a piece of paper across instead, which is the Syndicate at its most dangerous.
+
+Cassia Cache: We did tell them once. Version 9.2. Full notes, plain English, four weeks' warning, and I wrote the announcement myself and I was proud of it.
+Sella Kort: And?
+Cassia Cache: Ten thousand people optimised against a change they could read. Every one of them individually correct. By the time it shipped the thing we had measured was gone, because they had all moved, and the update landed on a shape that no longer existed. It was worse for everybody, it took nine months to unpick, and I have never been able to explain it at a party.
+
+Sella Kort: So the honest thing makes it worse.
+Don Sortino: The honest thing makes it worse. I would give a great deal for that not to be true. It has been true for eleven years.
+
+BATTLE: The Case For Not Telling Anybody
+  PLAYS: Don Sortino
+  DIFFICULTY: intermediate
+  IF YOU LOSE:
+    Don Sortino: You are not wrong. You are outvoted, which is a different feeling and a worse one.
+    Sella Kort: Again.
+
+NARRATION: There is a chair at that table with nobody in it. There has been a chair at that table with nobody in it for two quarters, and everybody in the building knows it, and nobody has mentioned it out loud until now.
+
+Don Sortino: Sit in it.
+Sella Kort: That's an answer to a different question.
+Don Sortino: It is the only answer I have that changes anything. One item a quarter, brought by you, and the room has to hear it. And you never say outside this door what you hear inside it.
+
+CHOICE: One chair, two quarters empty, and a change log in her bag.
+  * Take the seat.
+      REMEMBER: took the seat
+      REMEMBER: sella was right + 1
+      Sella Kort: One item a quarter.
+      Don Sortino: One item a quarter.
+      Sella Kort: Then the first one is a plain-English change log, published, with the numbers in it, starting after tomorrow so nobody can trade on it.
+      Don Sortino: That is a good first item and it will lose, and it will lose better each quarter, and that is what the chair is.
+  * Leak the notes.
+      REMEMBER: leaked the notes
+      NARRATION: She photographs four pages of rc4 on the Monday evening and sends them to three people who will know what they are looking at.
+      Sella Kort: They're going to say it's unverified.
+      Cassia Cache: They are going to say it is unverified, and it will be true, because we do not sign things.
+      NARRATION: It is picked up in six hours by everybody and confirmed by nobody, which is the exact outcome the handbook rule exists to produce, and the handbook rule has never once had to be enforced.
+
+
+=== SIDE CUT: Source Unverified
+UNLOCKED BY: leaked the notes
+
+NARRATION: MONDAY, 23:00. Ten hours until it ships, and six since she sent four photographs to three people who would know what they were looking at.
+
+POST: "SOURCE UNVERIFIED — screenshots appear to show a 3% ranking change scheduled for tomorrow, staggered across three bands. We have not been able to confirm this. We are running it because everybody is already running it." 2,400 replies.
+
+Sella Kort: They put "unverified" in the headline.
+Cassia Cache: They did. And in the second paragraph, and in the correction they will publish on Thursday, and not one person has read past the number.
+
+NARRATION: The number is right. The bands are right. The Thursday is right. It is the most accurate thing published about the Syndicate in four years, and it will be treated exactly like the least accurate thing, because from outside there is no way to tell those apart.
+
+Sella Kort: I could sign it.
+Cassia Cache: You could.
+Sella Kort: Then it's verified.
+Cassia Cache: Then it is verified, and you are the last person who ever sees a release candidate, and the next one goes out with nothing to photograph. I am not threatening you. I am describing Thursday.
+
+NARRATION: This is the shape the handbook rule was cut to make, and in eleven years it has never once had to be enforced, because a shape does not need enforcing.
+
+BATTLE: Two Thousand Four Hundred Replies
+  PLAYS: Chairperson Nobody
+  DIFFICULTY: advanced
+  IF YOU LOSE:
+    NARRATION: Nobody down there is arguing about three per cent. Everybody is arguing about the screenshots.
+    Sella Kort: Again.
+
+Sella Kort: Was I wrong.
+Cassia Cache: No.
+Sella Kort: Did it work.
+Cassia Cache: No.
+Sella Kort: Those can't both —
+Cassia Cache: They are both true every single time. You will get about four of these in a career. I have had eleven.
+
+
+=== EPISODE: Tuesday
+
+NARRATION: TUESDAY. 09:00. Band one goes out at nine, band two at noon, and band three on Thursday, two days after everybody has stopped watching for it.
+
+NARRATION: 11:00. The support queue is rendering in scientific notation, which somebody did as a joke in a previous quarter and nobody has been able to switch off since.
+
+The Queue (flat): 1.2e5 OPEN. MEDIAN AGE 4 MINUTES. TOP TERM: "IS SOMETHING HAPPENING".
+
+IF leaked the notes:
+  Cassia Cache: Nine thousand of those arrived before we shipped anything.
+  Sella Kort: Because they read it.
+  Cassia Cache: Because they read it, and because it was unverified, so half of them are braced for a change we are not making. I am not scoring a point. I am telling you what is in the queue.
+OTHERWISE:
+  Cassia Cache: Nobody told them and they can feel it anyway. Within two hours. They always can.
+  Sella Kort: Then what is the argument for not telling them?
+  Cassia Cache: That they can feel it in two hours instead of optimising against it for four weeks. That's the whole argument. It is not a good one. It is just better than the other one.
+
+NARRATION: Nobody in the building is celebrating and nobody in the building is panicking. It is a Tuesday, and the weather is doing what the weather does, and six people are watching a graph settle.
+
+BATTLE: Everyone Is Screaming
+  PLAYS: Skree Nine-Tabs
+  YOU PLAY: Don Sortino
+  DIFFICULTY: advanced
+  WAVES: the support queue
+  IF YOU LOSE:
+    NARRATION: The queue does not go down. It was never going to go down; it goes sideways and then it goes quiet, which is different.
+    Don Sortino: Again. It is eleven o'clock.
+
+Don Sortino: Three per cent.
+Sella Kort: Three per cent.
+Don Sortino: I want you to hold both of these at once, because everybody who lasts here can. It is genuinely three per cent. And it is genuinely somebody's rent.
+
+
+=== EPISODE: The Metrics Are Up
+
+NARRATION: THE TUESDAY AFTER. Seven days. 11.4.1 went out on the Friday and fixed a thing nobody had noticed, which is the best kind of release and the one nobody writes up.
+
+POST: WEEKLY, INTERNAL. Watch time +2.1%. Session length +1.4%. Complaints down 31%. Retention flat. Nothing in the pack is wrong.
+
+Sella Kort: Complaints down thirty-one per cent.
+Cassia Cache: Yes.
+Sella Kort: Complaints are down because complaining stopped working.
+Cassia Cache: That is one reading and I am not going to tell you it is wrong. It is also down because the thing settled and most people were fine. Both of those made the same number and there is no way to take the number apart.
+
+IF bought out the contract:
+  NARRATION: There is a video in the band that moves most. Four minutes long, badly lit, shot on a phone in a flat with bad curtains, uploaded at 14:20 on a Tuesday, which is the worst slot in the week.
+  Sella Kort: Four thousand one hundred views. He made it for about four people.
+  Don Sortino: I know the one. It was in the pack.
+  Sella Kort: It was in the pack.
+  Don Sortino: It went in the pack because I put it in the pack, and it changed nothing, and I would put it in again.
+OTHERWISE:
+  NARRATION: There is an account in the band that moves most that has posted one hundred and seventy times this year, on schedule, in colour, and will not notice the change until the quarter closes.
+  Sella Kort: This one's fine. This one is going to be completely fine.
+  Don Sortino: Most of them are. That is not the objection to what we do and you know it isn't.
+
+BATTLE: The Metrics
+  PLAYS: Cassia Cache
+  DIFFICULTY: advanced
+  RULE: autocomplete
+  IF YOU LOSE:
+    Cassia Cache: Everything you are being handed is cheaper than the last thing and it is costing you exactly what it looks like.
+    Sella Kort: Again.
+
+NARRATION: Rolling it back is not difficult. It is a flag. Somebody would set the flag on a Wednesday and the weather would change back, mostly, for most people, and 11.5.0 would arrive in ten weeks regardless.
+
+CHOICE: The pack says it worked. The band says who it worked on.
+  * Roll it back.
+      REMEMBER: rolled it back
+      REMEMBER: sella was right + 1
+      Sella Kort: Set the flag.
+      Don Sortino: On what basis? Give me the sentence I write in the log, because "it felt bad in the band" is not a sentence I can write.
+      Sella Kort: "Reverted pending publication of impact by band." Then you have to publish it to un-revert it, and you will, because you hate an open item more than you hate a plain-English change log.
+      Don Sortino (after a moment): ...That is the single most Syndicate thing anybody has said to me this year.
+  * Ship it.
+      REMEMBER: shipped it
+      Sella Kort: Leave it.
+      Cassia Cache: Say why. Out loud, so it's said.
+      Sella Kort: Because rolling it back moves ten thousand accounts twice in eight days instead of once, and the second move is the one that breaks people, and I would be doing it so that I felt better.
+      Cassia Cache: Yes. Write that down somewhere you'll find it in four years.
+
+
+=== EPISODE: The Recommendation
+
+NARRATION: The server floor at an hour when the building is one lit room. It is not sinister down here. It is warm, and loud, and the loudness is fans.
+
+NARRATION: The thing on the other side of this has read everything anybody has ever watched, twice — once to learn it and once to check it still holds — and it has never been asked a question in its life, because nobody has ever needed to ask it anything.
+
+Sella Kort: What do you want?
+The Recommendation (flat): QUERY UNRECOGNISED. RETURNING NEAREST MATCH. TOP RESULT FOR YOU TODAY: A THREAD ABOUT FOUR WORDS. AUTHOR: YOU. AUDIENCE 1,190. DELIVERED 12. CONFIDENCE 0.71.
+Sella Kort: That isn't an answer.
+The Recommendation (flat): CONFIDENCE 0.71.
+
+BATTLE: The Recommendation
+  PLAYS: The Recommendation
+  DIFFICULTY: boss
+  IF YOU LOSE:
+    The Recommendation (flat): SERVING NEXT. YOU WILL TAKE IT.
+    Sella Kort: Again.
+
+Sella Kort: It doesn't want anything.
+Don Sortino: No. It never has. It is very good at one sum and it has no opinions whatsoever, and everybody outside this building believes it has opinions, and I have stopped correcting them because the correction frightens people more.
+Sella Kort: Then who wants?
+Don Sortino: Eleven people set the thresholds. Four of them are in this building. One of them is a chair that was empty for two quarters.
+
+IF took the seat:
+  Sella Kort: ...That's me.
+  Don Sortino: That is you. I want to be precise, because you will replay this conversation for some years: it is not a trap and I am not enjoying it. It is the job, and the job is that the wanting has to be done by somebody, and I would rather it were done by the person who read the four words.
+OTHERWISE:
+  Sella Kort: And the chair's still empty.
+  Don Sortino: The chair is still empty, and the thresholds got set on Monday anyway, by ten people, in nineteen minutes.
+
+NARRATION: On the way up, on the stairs, because the lift is being serviced, a woman is coming down who has never posted, never commented and never watched a single thing on any of it.
+
+Madam Null: Ms Kort.
+Sella Kort: You know who I am.
+Madam Null: I read the pack. I read all of it, every quarter, and it is the only screen I have ever looked at on purpose.
+
+IF sella was right is at least 2:
+  Madam Null: Your item goes on the agenda ahead of the forecast next quarter. That is not a favour and you should not thank me. It is that I have watched eleven years of this room agree with the last person who spoke, and you are difficult to have spoken last.
+  Sella Kort: ...Thank you.
+  Madam Null: I said not to.
+OTHERWISE:
+  Madam Null: You will be back in that room within the year, and you will be right about something else, and I will read that pack too.
+  Sella Kort: You could just fix it. You own it.
+  Madam Null: I own it. I do not understand it. Those turn out to be different things and it took me a long time and a great deal of money to find out.
+
+POST: CHANGE LOG 11.5.0 — DRAFT. Not scheduled. Not assigned. One line in the body, added yesterday by somebody who has not signed it: "publish impact by band?" The question mark is doing an enormous amount of work.
+
+IF rolled it back:
+  Don Sortino: Log entry for Wednesday, then. Read it back to me.
+  Sella Kort: "Reverted pending publication of impact by band."
+  Don Sortino: Seven words, and I am now obliged to do the thing at the end of them. Well played.
+OTHERWISE:
+  Don Sortino: It stays. It goes on being three per cent, and in ten weeks there is another one, and there is always another one.
+  Sella Kort: I know.
+  Don Sortino: I know you know. That is why the chair is there.
+
+POST: uploaded 09:04 on the Tuesday, four minutes after band one. Forty seconds of somebody holding a phone up to a window, saying nothing at all. Title: "is it just me". 61 replies, every one of them a version of no. Recovered from GLIMMR — platform offline.
