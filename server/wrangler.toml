@@ -30,6 +30,10 @@ class_name = "MatchRoom"
 name = "CASUAL_QUEUE"
 class_name = "CasualQueue"
 
+[[durable_objects.bindings]]
+name = "PLAYER_RECORD"
+class_name = "PlayerRecord"
+
 [[migrations]]
 tag = "v1"
 # `new_sqlite_classes`, NOT `new_classes`. This is the line that decides whether
@@ -39,6 +43,17 @@ tag = "v1"
 # migration that created it, so getting this wrong means a new class name and a
 # data migration rather than a config edit.
 new_sqlite_classes = ["MatchRoom", "CasualQueue"]
+
+# A NEW tag, not an edit to v1.
+#
+# Wrangler tracks applied migrations by tag, and v1 has already run against the
+# deployed worker. Adding `PlayerRecord` to that list would have changed a
+# migration the server considers spent: the tag is already applied, so the new
+# class would never get its migration and the binding would fail at runtime
+# rather than at deploy. Every later class gets its own tag, for ever.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["PlayerRecord"]
 
 # ---------------------------------------------------------------------------
 # Public configuration. Nothing secret lives here.

@@ -66,6 +66,8 @@ export interface InitBody {
 
 const STORAGE_SAVE = "save";
 const STORAGE_PLAYERS = "players";
+/** Set once the result has been written, so a rebuilt room does not write it again. */
+const STORAGE_RESULTS_WRITTEN = "resultsWritten";
 
 /** How often the room wakes itself to check the turn clock. */
 const ALARM_INTERVAL_MS = 1_000;
@@ -236,11 +238,62 @@ export class MatchRoom extends DurableObject<Env> {
    */
   private async commit(room: Room, out: Outgoing[], skipSave: boolean): Promise<void> {
     if (!skipSave) await this.ctx.storage.put(STORAGE_SAVE, room.save());
+    await this.writeResults(room, out);
     for (const { seat, frame } of out) {
       for (const socket of this.ctx.getWebSockets(`seat:${seat}`)) {
         this.send(socket, frame);
       }
     }
+  }
+
+  /**
+   * Record the outcome, once, in each player's own Durable Object.
+   *
+   * Driven off the `ended` frame rather than off `room.winner`, because that
+   * frame is emitted exactly once — `Room.endedFrames` guards on
+   * `endedAnnounced` — and carries the engine's own reason. Reading `winner`
+   * instead would fire on every subsequent tick of a finished room.
+   *
+   * The storage flag is the second guard and the one that survives eviction: a
+   * room rebuilt from its journal has `endedAnnounced` restored, but a crash
+   * between the write and the flag would otherwise re-run this. `apply()` is
+   * idempotent by `matchId` as the third, because two guards that both live
+   * here can both be wrong in the same way.
+   */
+  private async writeResults(room: Room, out: Outgoing[]): Promise<void> {
+    const ended = out.map(({ frame }) => frame).find((frame) => frame.t === "ended");
+    if (!ended || ended.t !== "ended") return;
+    if (await this.ctx.storage.get<boolean>(STORAGE_RESULTS_WRITTEN)) return;
+
+    const players = await this.ctx.storage.get<[string, string]>(STORAGE_PLAYERS);
+    if (!players) return;
+
+    const state = room.authoritativeState();
+    const endedAtMs = this.clock.now();
+
+    await Promise.all(
+      ([0, 1] as Seat[]).map(async (seat) => {
+        const outcome = ended.winner === "draw" ? "draw" : ended.winner === seat ? "win" : "loss";
+        const stub = this.env.PLAYER_RECORD.get(this.env.PLAYER_RECORD.idFromName(players[seat]));
+        await stub.fetch(
+          new Request("https://player/result", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              matchId: room.matchId,
+              outcome,
+              leaderCardId: state.players[seat].leaderCardId,
+              opponentLeaderCardId: state.players[seat === 0 ? 1 : 0].leaderCardId,
+              turns: state.turn,
+              endedAtMs,
+              reason: ended.reason,
+            }),
+          })
+        );
+      })
+    );
+
+    await this.ctx.storage.put(STORAGE_RESULTS_WRITTEN, true);
   }
 
   private send(ws: WebSocket, frame: ServerEnvelope): void {

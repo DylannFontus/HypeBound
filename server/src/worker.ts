@@ -18,6 +18,7 @@ import type { Env } from "./env";
 
 export { MatchRoom } from "./matchRoom";
 export { CasualQueue } from "./casualQueue";
+export { PlayerRecord } from "./playerRecord";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -40,6 +41,18 @@ export default {
         origin,
         env
       );
+    }
+
+    /**
+     * Your own record, and only your own. The id comes from the verified token,
+     * so there is no parameter naming whose record to read and therefore no
+     * request that can ask for somebody else's.
+     */
+    if (url.pathname === "/me/record") {
+      const identified = await identify(request, url, env);
+      if ("response" in identified) return cors(identified.response, origin, env);
+      const stub = env.PLAYER_RECORD.get(env.PLAYER_RECORD.idFromName(identified.userId));
+      return cors(await stub.fetch(new Request("https://player/record")), origin, env);
     }
 
     /**
