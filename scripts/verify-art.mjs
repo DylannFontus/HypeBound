@@ -348,7 +348,7 @@ for (const [slot, rel] of Object.entries(audioSlots)) {
 }
 
 const audioOnDisk = existsSync(AUDIO_DIR)
-  ? walkFiles(AUDIO_DIR, "", /\.(mp3|ogg|wav|m4a)$/i)
+  ? walkFiles(AUDIO_DIR, "", /\.(mp3|ogg|wav|m4a|flac|opus)$/i)
   : [];
 
 const unreachable = audioOnDisk.filter((file) => !wanted.has(file));

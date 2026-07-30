@@ -480,19 +480,43 @@ have checked that before writing §4 rather than after.
 Wiring all ten is small, and I can do it whenever you want. I would rather say
 so than let you spend generations on silence.
 
-### 5.2 Format
+### 5.2 Format — FLAC
 
-- **WAV, 16-bit, 44.1 kHz.** Not MP3, for a reason specific to short sounds:
-  MP3 encoders prepend a few milliseconds of padding to every file, and on a
-  60 ms click that padding is audible as lag. WAV has none. At these lengths the
-  files are tens of kilobytes and they load on demand, so the size argument that
-  favours MP3 for music does not apply.
+**FLAC, 44.1 kHz.** Of the three formats Stable Audio will export, this is the
+one that works, and the reason is specific to short sounds rather than to
+quality.
+
+**MP3 is the one to avoid here.** Every MP3 encoder prepends padding — usually
+10–25 ms of silence at the head of the file. On a two-minute music track that is
+invisible; on a 60 ms click it is a tenth of the sound's length arriving as
+latency, and `decodeAudioData` does not reliably honour the gapless tags that
+would let a player trim it. The interface would feel mushy and nothing would
+look wrong.
+
+**FLAC has no such padding.** It is lossless with exact sample counts, so the
+first sample of the file is the first sample of the sound. Verified in this
+project's own target browser: `canPlayType("audio/flac")` returns `probably`,
+which is the strongest answer that call ever gives. Firefox and Safari 11+
+decode it too.
+
+**Opus would also work** — its pre-skip is recorded in the container and
+decoders trim it correctly — but Safari's support for Opus in Ogg has been
+patchy, and the file-size advantage that makes Opus attractive is worth almost
+nothing for sounds this short. FLAC is the safer pick at no real cost.
+
+Everything else stays as it was:
+
 - **Mono for the interface group, stereo for everything else.** UI sounds should
   feel like they come from the interface, not from somewhere in the room.
-- **Folder:** `public/assets/audio/sfx/<group>/<name>.wav`
+- **Folder:** `public/assets/audio/sfx/<group>/<name>.flac`
 - Normalise peaks to about **−3 dBFS**, then pull the interface group down
   roughly **6 dB** relative to combat. A click as loud as a spell is a click that
   makes people mute the game.
+- All 42 slots in `data/audio-manifest.json` already point at these exact
+  `.flac` paths, so a file dropped in plays with no code change.
+
+*(The music tracks in §4 stay MP3 — they are minutes long, the padding is
+inaudible, and 192 kbps is a third the size of lossless.)*
 
 ### 5.3 Getting one-shots out of a music model
 
@@ -524,22 +548,22 @@ err quiet and err short.
 
 | Slot | File | Length | Prompt |
 |---|---|---|---|
-| `sfx.ui.click` | `sfx/ui/click.wav` | 60 ms | A single short dry synthetic UI click. A tight pitched tick with a glassy body and no tail, like a small hard button. |
-| `sfx.ui.hover` | `sfx/ui/hover.wav` | 40 ms | A very short airy UI blip, higher and much quieter than a click. One soft sine tick with a breath of filtered noise. |
-| `sfx.ui.back` | `sfx/ui/back.wav` | 90 ms | A short descending two-tone UI blip, a small downward interval, soft and rounded. |
-| `sfx.ui.error` | `sfx/ui/error.wav` | 120 ms | A short dull refusal buzz. A low detuned double-tick, flat and blunt — discouraging without being harsh or alarming. |
-| `sfx.ui.navigate` ⚠ | `sfx/ui/navigate.wav` | 90 ms | A short lateral swish, a tiny filtered noise sweep resolving into a soft tick. |
-| `sfx.ui.toggle` | `sfx/ui/toggle.wav` | 80 ms | A small mechanical switch. A crisp two-part snap — on, then settle. |
-| `sfx.ui.confirm` | `sfx/ui/confirm.wav` | 220 ms | A short bright rising two-note chime, clean and affirmative, with a small bell timbre. |
-| `sfx.ui.reward` | `sfx/ui/reward.wav` | 700 ms | A sparkling ascending arpeggio of small bell tones with a light shimmering decay. Generous and pleased. |
+| `sfx.ui.click` | `sfx/ui/click.flac` | 60 ms | A single short dry synthetic UI click. A tight pitched tick with a glassy body and no tail, like a small hard button. |
+| `sfx.ui.hover` | `sfx/ui/hover.flac` | 40 ms | A very short airy UI blip, higher and much quieter than a click. One soft sine tick with a breath of filtered noise. |
+| `sfx.ui.back` | `sfx/ui/back.flac` | 90 ms | A short descending two-tone UI blip, a small downward interval, soft and rounded. |
+| `sfx.ui.error` | `sfx/ui/error.flac` | 120 ms | A short dull refusal buzz. A low detuned double-tick, flat and blunt — discouraging without being harsh or alarming. |
+| `sfx.ui.navigate` ⚠ | `sfx/ui/navigate.flac` | 90 ms | A short lateral swish, a tiny filtered noise sweep resolving into a soft tick. |
+| `sfx.ui.toggle` | `sfx/ui/toggle.flac` | 80 ms | A small mechanical switch. A crisp two-part snap — on, then settle. |
+| `sfx.ui.confirm` | `sfx/ui/confirm.flac` | 220 ms | A short bright rising two-note chime, clean and affirmative, with a small bell timbre. |
+| `sfx.ui.reward` | `sfx/ui/reward.flac` | 700 ms | A sparkling ascending arpeggio of small bell tones with a light shimmering decay. Generous and pleased. |
 
 ### 5.5 Cards — 11
 
 | Slot | File | Length | Prompt |
 |---|---|---|---|
-| `sfx.card.draw` | `sfx/card/draw.wav` | 250 ms | A single playing card sliding off the top of a deck. A short paper friction sweep ending in a soft snap. |
-| `sfx.card.burn` ⚠ | `sfx/card/burn.wav` | 500 ms | A card catching fire. A quick paper crumple with a small flame whoosh and a brief ember crackle. |
-| `sfx.card.set` ⚠ | `sfx/card/set.wav` | 180 ms | A card placed face-down on a table. A soft muted slap on felt, close and dry. |
+| `sfx.card.draw` | `sfx/card/draw.flac` | 250 ms | A single playing card sliding off the top of a deck. A short paper friction sweep ending in a soft snap. |
+| `sfx.card.burn` ⚠ | `sfx/card/burn.flac` | 500 ms | A card catching fire. A quick paper crumple with a small flame whoosh and a brief ember crackle. |
+| `sfx.card.set` ⚠ | `sfx/card/set.flac` | 180 ms | A card placed face-down on a table. A soft muted slap on felt, close and dry. |
 
 **Playing a card, by Current.** Eight sounds, one per element, each the moment of
 commitment. They should be siblings: same length, same weight, different
@@ -547,29 +571,29 @@ material.
 
 | Slot | File | Length | Prompt |
 |---|---|---|---|
-| `sfx.card.play.cinder` | `sfx/card/play-cinder.wav` | 600 ms | A burst of flame igniting. A fast whoosh opening into a crackling ember tail. |
-| `sfx.card.play.tide` | `sfx/card/play-tide.wav` | 650 ms | A wave breaking. A rush of water into a splash, with a draining pull behind it. |
-| `sfx.card.play.root` | `sfx/card/play-root.wav` | 600 ms | Wood and earth. A deep creaking growth, soil shifting, and a vine snapping taut. |
-| `sfx.card.play.gale` | `sfx/card/play-gale.wav` | 550 ms | A sharp gust of wind passing quickly. A filtered air whoosh with a thin whistle at its peak. |
-| `sfx.card.play.pulse` | `sfx/card/play-pulse.wav` | 500 ms | An electric discharge. A crackling arc with a bright zap and a short buzzing tail. |
-| `sfx.card.play.halo` | `sfx/card/play-halo.wav` | 700 ms | A shaft of light opening. A bright swelling shimmer with a soft wordless choral bloom. |
-| `sfx.card.play.veil` | `sfx/card/play-veil.wav` | 650 ms | Shadow gathering. A low reversed whisper swelling into a muffled thud that eats the air. |
-| `sfx.card.play.prism` | `sfx/card/play-prism.wav` | 600 ms | Crystal refraction. A glass chime splitting into several pitched shards that scatter apart. |
+| `sfx.card.play.cinder` | `sfx/card/play-cinder.flac` | 600 ms | A burst of flame igniting. A fast whoosh opening into a crackling ember tail. |
+| `sfx.card.play.tide` | `sfx/card/play-tide.flac` | 650 ms | A wave breaking. A rush of water into a splash, with a draining pull behind it. |
+| `sfx.card.play.root` | `sfx/card/play-root.flac` | 600 ms | Wood and earth. A deep creaking growth, soil shifting, and a vine snapping taut. |
+| `sfx.card.play.gale` | `sfx/card/play-gale.flac` | 550 ms | A sharp gust of wind passing quickly. A filtered air whoosh with a thin whistle at its peak. |
+| `sfx.card.play.pulse` | `sfx/card/play-pulse.flac` | 500 ms | An electric discharge. A crackling arc with a bright zap and a short buzzing tail. |
+| `sfx.card.play.halo` | `sfx/card/play-halo.flac` | 700 ms | A shaft of light opening. A bright swelling shimmer with a soft wordless choral bloom. |
+| `sfx.card.play.veil` | `sfx/card/play-veil.flac` | 650 ms | Shadow gathering. A low reversed whisper swelling into a muffled thud that eats the air. |
+| `sfx.card.play.prism` | `sfx/card/play-prism.flac` | 600 ms | Crystal refraction. A glass chime splitting into several pitched shards that scatter apart. |
 
 ### 5.6 Combat — 3
 
 | Slot | File | Length | Prompt |
 |---|---|---|---|
-| `sfx.combat.attack` | `sfx/combat/attack.wav` | 300 ms | A committed swing. A fast whoosh with a metallic edge and no impact at the end — the hit is a separate sound. |
-| `sfx.combat.impact` | `sfx/combat/impact.wav` | 350 ms | A heavy landed hit. A thick percussive thud with a crunchy transient and a tight low body. |
-| `sfx.combat.defeat` | `sfx/combat/defeat.wav` | 800 ms | A character breaking apart. A crumbling collapse falling away into a low descending thud. |
+| `sfx.combat.attack` | `sfx/combat/attack.flac` | 300 ms | A committed swing. A fast whoosh with a metallic edge and no impact at the end — the hit is a separate sound. |
+| `sfx.combat.impact` | `sfx/combat/impact.flac` | 350 ms | A heavy landed hit. A thick percussive thud with a crunchy transient and a tight low body. |
+| `sfx.combat.defeat` | `sfx/combat/defeat.flac` | 800 ms | A character breaking apart. A crumbling collapse falling away into a low descending thud. |
 
 ### 5.7 Statuses — 2
 
 | Slot | File | Length | Prompt |
 |---|---|---|---|
-| `sfx.status.apply` | `sfx/status/apply.wav` | 300 ms | A condition latching on. A short metallic clasp with a small magical shimmer over it. |
-| `sfx.status.expire` ⚠ | `sfx/status/expire.wav` | 400 ms | A condition lifting. A soft reversed shimmer releasing and fading away. |
+| `sfx.status.apply` | `sfx/status/apply.flac` | 300 ms | A condition latching on. A short metallic clasp with a small magical shimmer over it. |
+| `sfx.status.expire` ⚠ | `sfx/status/expire.flac` | 400 ms | A condition lifting. A soft reversed shimmer releasing and fading away. |
 
 ### 5.8 Confluences — 9
 
@@ -578,34 +602,34 @@ anything else here, and each should audibly contain **both** of its parents.
 
 | Slot | File | Length | Prompt |
 |---|---|---|---|
-| `sfx.confluence.steamveil` | `sfx/confluence/steamveil.wav` | 1.2 s | Fire meeting water. A violent hiss of steam erupting, then softening into a broad concealing veil of vapour. |
-| `sfx.confluence.bloom` | `sfx/confluence/bloom.wav` | 1.1 s | Water and growth. A wet surge blossoming open into rising bell chimes and unfurling leaves. |
-| `sfx.confluence.sandstorm` | `sfx/confluence/sandstorm.wav` | 1.3 s | Earth and wind. A driving abrasive roar of grit and torn leaves sweeping past. Harsh and dry. |
-| `sfx.confluence.tempest` | `sfx/confluence/tempest.wav` | 1.2 s | Wind and lightning. A rising gust cracked open by a sharp thunderclap, with a rolling tail. |
-| `sfx.confluence.starflare` | `sfx/confluence/starflare.wav` | 1.2 s | Energy and fire. A charging electrical whine collapsing inward, then a bright explosive flare outward. |
-| `sfx.confluence.blackflame` | `sfx/confluence/blackflame.wav` | 1.2 s | Fire and shadow. An inverted whoosh — a flame that pulls sound inward and swallows it rather than roaring. |
-| `sfx.confluence.sanctuary` | `sfx/confluence/sanctuary.wav` | 1.3 s | Growth and light. A warm ascending pad closing into a protective bell, like a dome sealing over. |
-| `sfx.confluence.eclipse` | `sfx/confluence/eclipse.wav` | 1.4 s | Light and shadow. A bright ringing tone collapsing into a hollow drone as everything is smothered. |
-| `sfx.confluence.refraction` | `sfx/confluence/refraction.wav` | 1.1 s | A prism splitting a beam. One pure tone fanning out into many pitches at once, glassy and bright. |
+| `sfx.confluence.steamveil` | `sfx/confluence/steamveil.flac` | 1.2 s | Fire meeting water. A violent hiss of steam erupting, then softening into a broad concealing veil of vapour. |
+| `sfx.confluence.bloom` | `sfx/confluence/bloom.flac` | 1.1 s | Water and growth. A wet surge blossoming open into rising bell chimes and unfurling leaves. |
+| `sfx.confluence.sandstorm` | `sfx/confluence/sandstorm.flac` | 1.3 s | Earth and wind. A driving abrasive roar of grit and torn leaves sweeping past. Harsh and dry. |
+| `sfx.confluence.tempest` | `sfx/confluence/tempest.flac` | 1.2 s | Wind and lightning. A rising gust cracked open by a sharp thunderclap, with a rolling tail. |
+| `sfx.confluence.starflare` | `sfx/confluence/starflare.flac` | 1.2 s | Energy and fire. A charging electrical whine collapsing inward, then a bright explosive flare outward. |
+| `sfx.confluence.blackflame` | `sfx/confluence/blackflame.flac` | 1.2 s | Fire and shadow. An inverted whoosh — a flame that pulls sound inward and swallows it rather than roaring. |
+| `sfx.confluence.sanctuary` | `sfx/confluence/sanctuary.flac` | 1.3 s | Growth and light. A warm ascending pad closing into a protective bell, like a dome sealing over. |
+| `sfx.confluence.eclipse` | `sfx/confluence/eclipse.flac` | 1.4 s | Light and shadow. A bright ringing tone collapsing into a hollow drone as everything is smothered. |
+| `sfx.confluence.refraction` | `sfx/confluence/refraction.flac` | 1.1 s | A prism splitting a beam. One pure tone fanning out into many pitches at once, glassy and bright. |
 
 ### 5.9 Match flow — 7
 
 | Slot | File | Length | Prompt |
 |---|---|---|---|
-| `sfx.resonance` | `sfx/match/resonance.wav` | 800 ms | Two forces aligning. A pure ringing tone with a slow beating harmonic swell as they lock together. |
-| `sfx.obsession.gain` | `sfx/match/obsession-gain.wav` | 250 ms | A meter ticking upward. A short bright pitched pip with a small pressure swell behind it. |
-| `sfx.obsession.full` | `sfx/match/obsession-full.wav` | 1.2 s | A meter reaching maximum. A rising charge resolving into a resonant bell with a low boom underneath. |
-| `sfx.turn.start` | `sfx/match/turn-start.wav` | 500 ms | Your turn beginning. A clean two-note rising chime over a soft low impact. Attentive, not celebratory. |
-| `sfx.turn.warning` ⚠ | `sfx/match/turn-warning.wav` | 1.5 s | Time running out. An urgent repeating tick, tightening and rising in tension. Seamless loop. |
-| `sfx.victory` | `sfx/match/victory.wav` | 1.5 s | A triumphant sting. Bright brass and a bell hit together, with a shimmering decay. |
-| `sfx.defeat` | `sfx/match/defeat.wav` | 1.5 s | A deflating sting. A descending detuned tone falling into a dull thud. Disappointed, not tragic. |
+| `sfx.resonance` | `sfx/match/resonance.flac` | 800 ms | Two forces aligning. A pure ringing tone with a slow beating harmonic swell as they lock together. |
+| `sfx.obsession.gain` | `sfx/match/obsession-gain.flac` | 250 ms | A meter ticking upward. A short bright pitched pip with a small pressure swell behind it. |
+| `sfx.obsession.full` | `sfx/match/obsession-full.flac` | 1.2 s | A meter reaching maximum. A rising charge resolving into a resonant bell with a low boom underneath. |
+| `sfx.turn.start` | `sfx/match/turn-start.flac` | 500 ms | Your turn beginning. A clean two-note rising chime over a soft low impact. Attentive, not celebratory. |
+| `sfx.turn.warning` ⚠ | `sfx/match/turn-warning.flac` | 1.5 s | Time running out. An urgent repeating tick, tightening and rising in tension. Seamless loop. |
+| `sfx.victory` | `sfx/match/victory.flac` | 1.5 s | A triumphant sting. Bright brass and a bell hit together, with a shimmering decay. |
+| `sfx.defeat` | `sfx/match/defeat.flac` | 1.5 s | A deflating sting. A descending detuned tone falling into a dull thud. Disappointed, not tragic. |
 
 ### 5.10 Packs — 2
 
 | Slot | File | Length | Prompt |
 |---|---|---|---|
-| `sfx.pack.open` ⚠ | `sfx/pack/open.wav` | 700 ms | Foil tearing open. A crisp plastic rip releasing into a bright sparkle. |
-| `sfx.pack.rareReveal` ⚠ | `sfx/pack/rare-reveal.wav` | 1.8 s | Something rare revealing itself. A rising charge into a radiant bell chime with a long shimmering tail. A reward, not a jumpscare. |
+| `sfx.pack.open` ⚠ | `sfx/pack/open.flac` | 700 ms | Foil tearing open. A crisp plastic rip releasing into a bright sparkle. |
+| `sfx.pack.rareReveal` ⚠ | `sfx/pack/rare-reveal.flac` | 1.8 s | Something rare revealing itself. A rising charge into a radiant bell chime with a long shimmering tail. A reward, not a jumpscare. |
 
 ---
 
@@ -665,7 +689,7 @@ with no code change and no deploy.
 | Interface icons | 8 | 512² PNG | `public/assets/icons/ui/` |
 | Board backgrounds | 12 | 3840×2160 PNG → WebP | `public/assets/boards/` |
 | Music and ambience | 17 | MP3 192 kbps | `public/assets/audio/music/`, `/ambient/` |
-| Sound effects | 42 | WAV 16-bit 44.1 kHz | `public/assets/audio/sfx/` |
+| Sound effects | 42 | FLAC 44.1 kHz | `public/assets/audio/sfx/` |
 | **Total** | **113** | | |
 
 **Arrived so far: 42 of 113** — the two brand assets and all 40 icons. Still to
