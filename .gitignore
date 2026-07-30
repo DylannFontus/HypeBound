@@ -21,3 +21,18 @@ hearthstone_frames/
 # `.dev.vars.example` is committed and documents both.
 .wrangler/
 .dev.vars
+
+# Hand-kept notes of account and access details. The repository is public, so
+# anything here would be published the moment it was staged — including by a
+# `git add -A`, which is how this project has been committing.
+#
+# Ignoring a file is a seatbelt, not a lock: `git add -f` overrides it, archives
+# and backups do not read it, and a rename to something not listed here is not
+# covered. Real credentials are safer outside the working tree entirely — a
+# password manager, or `wrangler secret put`, which stores them at Cloudflare
+# and never on disk.
+server access.txt
+access.txt
+credentials.txt
+secrets.txt
+*.secrets
