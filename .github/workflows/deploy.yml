@@ -36,10 +36,15 @@ jobs:
           node-version: 20
           cache: npm
 
-      # Turns Pages on for the repository if it is not already, and reports the
-      # base URL. Without it the first run of this workflow fails with "Pages
-      # is not enabled" and has to be fixed by hand in Settings.
+      # Turns Pages on for the repository if it is not already.
+      #
+      # `enablement` defaults to false, in which case the action only *reads*
+      # the Pages config and fails when there is none — which is exactly the
+      # situation on a repository that has never deployed. Opting in is what
+      # makes the very first push work without a manual visit to Settings.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - run: npm ci
 
