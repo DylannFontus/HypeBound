@@ -344,7 +344,8 @@ function boot(): void {
       onNeedsSignIn: () => shell.navigate("signin"),
       onNeedsDeck: () => shell.navigate("decks"),
       onPlayAi: () => shell.navigate("play"),
-      onMatchFound: ({ matchId, seat }) => shell.navigate("online", { match: matchId, seat: String(seat) }),
+      onMatchFound: ({ matchId, seat, opponentLeaderCardId }) =>
+        shell.navigate("online", { match: matchId, seat: String(seat), opp: opponentLeaderCardId }),
     })
   );
 
@@ -356,8 +357,8 @@ function boot(): void {
    * `shell.ts`'s `navigating` guard, which drops a hashchange arriving during
    * the await — a second navigation in the ~50 ms this takes.
    */
-  shell.register("online", async () => {
-    const matchId = new URLSearchParams(location.hash.split("?")[1] ?? "").get("match") ?? "";
+  shell.register("online", async (params) => {
+    const matchId = params.get("match") ?? "";
     const token = await accessToken();
     if (!matchId || !token) {
       shell.navigate(token ? "play" : "signin");
@@ -365,7 +366,7 @@ function boot(): void {
     }
 
     const deck = activeDeck() ?? playableDeck(content, selectableLeaders(content)[0]?.id ?? "");
-    const screen = new BattleScreen({
+    const screen: BattleScreen = new BattleScreen({
       content,
       playerDeck: deck,
       transport: new WsTransport({
@@ -376,11 +377,34 @@ function boot(): void {
       }),
       endActions: { primary: "Queue again", secondary: "Back to modes" },
       /**
-       * No `onSettle`. Results, rewards and rating are the server's to write
-       * (§12, §13) and none of that exists yet — banking Clout from a match
-       * this client did not adjudicate would be paying out on an outcome it
-       * cannot verify.
+       * The match pays, and the two halves of "pays" go to different places.
+       *
+       * The **authoritative** result — who won, against which leader, why — is
+       * written by the server into the account's own Durable Object, because a
+       * client that reports its own wins reports wins it did not have. That has
+       * already happened by the time this runs; nothing here can affect it.
+       *
+       * The **local** rewards are Clout and XP in the on-device save, exactly
+       * as an offline match pays them. That is not a new integrity hole: the
+       * save is the player's own file and always has been, so a player editing
+       * their own Clout is cheating nobody. What must not be client-authored is
+       * the *record*, and it is not.
+       *
+       * `record` is null, so there is no replay to watch afterwards and no
+       * per-match statistics — a client cannot reconstruct a game it did not
+       * simulate. The history entry says the match happened and what it paid.
        */
+      onSettle: (result) =>
+        recordMatch(null, result.winner === "player" ? "win" : result.winner === "ai" ? "loss" : "draw", {
+          deckName: deck.name,
+          leaderCardId: deck.leaderCardId,
+          // The opponent's leader is on the board, so it is read from the view
+          // rather than guessed — this is the one fact about them a seat has.
+          opponentLeaderCardId: params.get("opp") ?? "unknown",
+          mode: "casual-online",
+          content,
+          ...(deck.editedAt !== undefined ? { deckEditedAt: deck.editedAt } : {}),
+        }),
       onExit: (result) => shell.navigate(result.action === "again" ? "queue" : "play"),
     });
     return { root: screen.root, dispose: () => screen.dispose() };

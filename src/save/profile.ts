@@ -1236,7 +1236,22 @@ export const OUTCOME_LOG_LIMIT = 200;
  * rather than with wins, so experimenting with new decks is never punished.
  */
 export function recordMatch(
-  record: MatchRecord,
+  /**
+   * The replayable record, or **null** for a match this client did not
+   * adjudicate.
+   *
+   * An online client cannot build one: a `MatchRecord` is `{ seed, decks,
+   * intents }` and a `PlayerView` carries none of the three, deliberately,
+   * because any of them would tell the client what it is about to draw.
+   *
+   * Nothing new had to be invented to accept that. `MatchHistoryEntry.record`
+   * was already optional — "absent means not replayable, which the UI shows
+   * honestly" — and the stats deriver already produced null for a record that
+   * would not replay, with everything downstream simply getting no credit. An
+   * online match takes that existing path: the outcome, the Clout and the XP
+   * all land; the replay and the per-match statistics do not exist to land.
+   */
+  record: MatchRecord | null,
   outcome: "win" | "loss" | "draw",
   meta: {
     deckName: string;
@@ -1249,6 +1264,8 @@ export function recordMatch(
     seat?: Seat;
     /** when the deck played was last saved, for the "edited this week" weekly */
     deckEditedAt?: number;
+    /** Turn count, for a match with no record to read it out of. */
+    turns?: number;
     now?: number;
   }
 ): MatchRewards {
@@ -1289,7 +1306,7 @@ export function recordMatch(
    * simply gets no credit — the same bargain as before.
    */
   let reading: MatchReading | null = null;
-  if (meta.content) {
+  if (meta.content && record) {
     try {
       reading = readMatch(record, meta.content, meta.seat ?? 0);
     } catch {
@@ -1327,7 +1344,7 @@ export function recordMatch(
       leaderCardId: meta.leaderCardId,
       opponentLeaderCardId: meta.opponentLeaderCardId,
       result: outcome,
-      turns: record.result?.turns ?? 0,
+      turns: record?.result?.turns ?? meta.turns ?? 0,
       mode: meta.mode,
       ...(stats
         ? {
@@ -1341,7 +1358,7 @@ export function recordMatch(
             },
           }
         : {}),
-      record: structuredClone(record),
+      ...(record ? { record: structuredClone(record) } : {}),
     });
     draft.history = draft.history.slice(0, 60);
     // drop the heavy part from everything but the newest handful

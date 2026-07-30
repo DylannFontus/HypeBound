@@ -149,6 +149,11 @@ try {
     }
   }
 
+  const cloutBefore = await b.page.evaluate(() => {
+    const raw = localStorage.getItem("hypebound:profile");
+    return raw ? JSON.parse(raw).data?.clout ?? null : null;
+  });
+
   console.log("\n6. A real intent, applied by the server and seen by both");
   const beforeB = await b.page.evaluate(() => window.hypeboundBattle?.view()?.turn ?? -1);
   const conceded = await a.page.evaluate(async () => {
@@ -215,6 +220,50 @@ try {
   } else {
     fail(`win rates: ${records[0]?.body?.winRate} and ${records[1]?.body?.winRate}`);
   }
+  console.log("\n8. The winner was paid, locally");
+  const rewardBlock = await b.page.locator("#end-rewards").count();
+  console.log(`   (#end-rewards on B's overlay: ${rewardBlock})`);
+  /**
+   * Read from localStorage, not from the module.
+   *
+   * `page.evaluate` importing `/src/save/profile.ts` can land on a different
+   * module instance from the running app's, and a store that keeps its state in
+   * memory would then answer from a stale copy — which is exactly what happened
+   * here, reporting an unpaid match that had in fact been paid. The saved bytes
+   * are the thing that survives a reload, so they are the thing to assert on.
+   */
+  const readSaved = (page) =>
+    page.evaluate(() => {
+      const raw = localStorage.getItem("hypebound:profile");
+      const data = raw ? JSON.parse(raw).data : null;
+      return { clout: data?.clout ?? null, first: data?.history?.[0] ?? null };
+    });
+  const savedAfter = await readSaved(b.page);
+  const cloutAfter = savedAfter.clout;
+  if (cloutAfter > cloutBefore) ok(`B's Clout moved ${cloutBefore} to ${cloutAfter}`);
+  else fail(`B's Clout did not move (${cloutBefore} to ${cloutAfter})`);
+
+  const entry = savedAfter.first;
+  const history = entry ? { mode: entry.mode, result: entry.result, hasRecord: entry.record !== undefined } : null;
+  if (history?.mode === "casual-online" && history.result === "win") ok("and the match is in their history as a win");
+  else fail(`history entry: ${JSON.stringify(history)}`);
+  // A client cannot replay a match it did not simulate, and the history says so
+  // rather than storing a record it invented.
+  if (history && history.hasRecord === false) ok("with no replay, which is the honest answer");
+  else fail("a replay was stored for a match this client did not adjudicate");
+
+  console.log("\n9. The queue screen shows the record back to the player");
+  await b.page.goto(`${ORIGIN}/#queue`, { waitUntil: "networkidle" });
+  await b.page.waitForSelector(".queue-screen", { timeout: 20000 });
+  await b.page.waitForFunction(() => !document.querySelector("#queue-record")?.hasAttribute("hidden"), { timeout: 20000 })
+    .catch(() => {});
+  const recordLine = await b.page.locator("#queue-record").innerText().catch(() => "");
+  if (/1.0/.test(recordLine.replace(/[^0-9.]/g, ".")) || /100%/.test(recordLine)) ok(`it reads "${recordLine.trim()}"`);
+  else fail(`record line read "${recordLine.trim()}"`);
+  await b.page.evaluate(() => {
+    const { LobbySocket } = { LobbySocket: null };
+    void LobbySocket;
+  });
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error));
 } finally {

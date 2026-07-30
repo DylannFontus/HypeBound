@@ -117,7 +117,8 @@ export interface BattleScreenOptions {
    */
   onSettle?: (result: {
     winner: "player" | "ai" | "draw";
-    record: MatchRecord;
+    /** Null online: a client cannot build a replay of a match it did not simulate. */
+    record: MatchRecord | null;
     playerLeaderHealth: number;
   }) => MatchSettlement | null;
   onExit: (result: {
@@ -1399,16 +1400,19 @@ export class BattleScreen {
     /**
      * The replay record and the final health, read once.
      *
-     * `finishRecord()` is typed nullable because a *networked* client cannot
-     * build one — it never learns the seed or either decklist. This screen is
-     * the offline one and its transport is always the authority, so the record
-     * is always present; the fallback exists so that the reward path degrades
-     * to "pay nothing" rather than throwing if that ever stops being true.
+     * `finishRecord()` is null for a networked client, which never learns the
+     * seed or either decklist and so cannot build one.
      *
-     * Online settlement will not come through here at all. Results are written
-     * by the room and pushed to the client (§12.5, "the client never reports
-     * outcomes"), which is why widening `onSettle` to accept a null record
-     * would be modelling a case that will never reach it.
+     * This used to say online settlement "will not come through here at all",
+     * and would skip settling entirely without a record. Half of that was
+     * right: the **authoritative** result — who won — is written by the room
+     * into the account's own storage and never travels through this screen.
+     *
+     * The other half was wrong, and cost an online winner their payout. Clout
+     * and XP are a *local* save, exactly as they are offline, and they do come
+     * through here. Skipping them because there is no replay to attach
+     * conflated "we cannot prove what happened" with "we cannot pay for it" —
+     * and the proving already happened, on the server.
      */
     const record = this.match.finishRecord();
     const finalHealth = finalView.you.leaderHealth;
@@ -1420,7 +1424,8 @@ export class BattleScreen {
      * is the one bug in this area that would be worth more to a player than to
      * report.
      */
-    if (!this.settled && record) {
+    // No `&& record`: a match with no replay is still a match that was played.
+    if (!this.settled) {
       this.settled = true;
       const paid = this.options.onSettle?.({
         winner: outcome,

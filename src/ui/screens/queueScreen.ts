@@ -25,6 +25,7 @@ import { accessToken, currentAccount } from "../../auth/account";
 import { onlineAvailable, queueSocketUrl } from "../../config";
 import { LobbySocket, type QueueStatus } from "../../net/lobbySocket";
 import { browserSockets } from "../../net/wsTransport";
+import { describeRecord, fetchMyRecord } from "../../net/playerRecord";
 import { contentHash } from "../../engine/content";
 
 export interface QueueCallbacks {
@@ -33,7 +34,7 @@ export interface QueueCallbacks {
   onNeedsSignIn: () => void;
   /** No legal deck selected — there is nothing to queue with. */
   onNeedsDeck: () => void;
-  onMatchFound: (match: { matchId: string; seat: Seat }) => void;
+  onMatchFound: (match: { matchId: string; seat: Seat; opponentLeaderCardId: string }) => void;
   /** §9.3's honest offer: the player chose the AI rather than keep waiting. */
   onPlayAi: () => void;
 }
@@ -53,6 +54,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
       <section class="panel panel-chrome queue-panel">
         <div class="queue-state" id="queue-state" role="status" aria-live="polite">Connecting…</div>
         <div class="queue-detail muted" id="queue-detail"></div>
+        <div class="queue-record muted" id="queue-record" hidden></div>
 
         <div class="queue-offer" id="queue-offer" hidden>
           <p class="queue-offer-text">
@@ -86,6 +88,23 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   let lobby: LobbySocket | null = null;
   let disposed = false;
 
+  /**
+   * Your record, from the server that adjudicated it.
+   *
+   * Fetched here rather than at boot: the privacy page's claim is that the game
+   * makes no network request until asked, and joining a queue is asking. Shown
+   * only when there is something to show — a player with no matches is told
+   * nothing rather than told `0-0`, which reads like an answer.
+   */
+  void fetchMyRecord().then((record) => {
+    if (disposed) return;
+    const line = describeRecord(record);
+    const el = root.querySelector<HTMLElement>("#queue-record");
+    if (!el || !line) return;
+    el.textContent = `Your online record: ${line}`;
+    el.hidden = false;
+  });
+
   const start = async (): Promise<void> => {
     if (!onlineAvailable()) return say("This build has no server configured.", "Nothing to connect to.");
     if (!currentAccount()) return callbacks.onNeedsSignIn();
@@ -118,7 +137,11 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
         onMatchFound: (found) => {
           audio.play("sfx.ui.confirm");
           say("Match found", "Loading the board…");
-          callbacks.onMatchFound({ matchId: found.matchId, seat: found.seat });
+          callbacks.onMatchFound({
+            matchId: found.matchId,
+            seat: found.seat,
+            opponentLeaderCardId: found.opponentLeaderCardId,
+          });
         },
         onRejected: (rejection) => {
           if (rejection.code === "buildMismatch") {
