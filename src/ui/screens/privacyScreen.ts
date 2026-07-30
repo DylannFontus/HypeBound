@@ -155,9 +155,24 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
         "This erases your collection, decks, progress and settings on this device. There is no cloud copy and no way to undo it.\n\nType DELETE to confirm."
       );
       if (typed !== "DELETE") return;
-      for (const key of Object.keys(localStorage).filter((entry) => entry.startsWith("hypebound:"))) {
-        localStorage.removeItem(key);
-      }
+      /**
+       * Both prefixes, and the asymmetry with `exportSave()` is deliberate.
+       *
+       * The save lives under `hypebound:`. A signed-in session lives under
+       * `hypebound-auth:`, deliberately outside that prefix so the export —
+       * which walks every `hypebound:` key into a downloadable file, and which
+       * this screen will print into the page — cannot put a bearer token in a
+       * text file the player might send to somebody.
+       *
+       * That is right for the export and wrong for this button, because this
+       * one says *everything on this device*. So the two operations differ on
+       * purpose: the export is "what this game knows about you", and the delete
+       * is "everything, including the credential".
+       */
+      const doomed = Object.keys(localStorage).filter(
+        (entry) => entry.startsWith("hypebound:") || entry.startsWith("hypebound-auth:")
+      );
+      for (const key of doomed) localStorage.removeItem(key);
       window.location.hash = "#lobby";
       window.location.reload();
     });
