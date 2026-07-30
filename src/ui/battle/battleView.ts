@@ -15,7 +15,6 @@ import type {
   CurrentId,
   MatchState,
   PlayerIntent,
-  PlayerState,
   PlayerView,
   Seat,
   TargetRef,
@@ -32,6 +31,22 @@ import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { createTargetingLayer, type TargetingLayer } from "./targeting";
 import { createVfx, type VfxLayer } from "./vfx";
 import { HOLD_MS, HOLD_TOLERANCE_PX } from "./gestures";
+/**
+ * One reconstruction of a `MatchState` from a `PlayerView`, not two.
+ *
+ * This file used to carry its own `buildStateProxy` — seventy lines that did
+ * the same job as `net/viewToState.ts` and did it slightly worse: it gave the
+ * opponent **empty** hidden zones where `viewToState` keeps count-preserving
+ * placeholders. That difference is not cosmetic. `topOfDeckMatches` reads
+ * `deck[0]`, which under the old proxy was `undefined`, and any effect
+ * predicate counting cards in the opponent's hand saw zero rather than the
+ * number the player can see on screen.
+ *
+ * `viewToState` is also the one that was checked: phase 2 compared it against
+ * the engine at ~48 positions across both seats with zero disagreements. The
+ * proxy had no test at all.
+ */
+import { viewToState } from "../../net/viewToState";
 
 export interface BattleViewCallbacks {
   onIntent: (intent: PlayerIntent) => void;
@@ -236,94 +251,11 @@ export class BattleView {
     }
   }
 
-  /**
-   * The engine's query helpers (checkPlayable, canAttack, previewAttack) take a
-   * MatchState, but the view only ever holds a redacted PlayerView. This builds
-   * a complete, correctly typed MatchState from that view.
-   *
-   * It must be a FULL MatchState, not a partial cast: `checkPlayable` and
-   * `canAttack` both bail out unless `phase === "main"`, so a missing field
-   * silently makes every card unplayable and every character unable to attack.
-   * Hidden enemy zones become empty arrays — nothing the UI queries reads them.
-   */
-  private buildStateProxy(view: PlayerView): MatchState {
-    const opponent: PlayerState = {
-      seat: view.opponent.seat,
-      leaderCardId: view.opponent.leaderCardId,
-      // carried, not defaulted: previewAttack reads it for the elemental bonus,
-      // and a rotated enemy Current would otherwise preview the wrong damage
-      leaderCurrent: view.opponent.leaderCurrent,
-      leaderHealth: view.opponent.leaderHealth,
-      leaderMaxHealth: view.opponent.leaderMaxHealth,
-      armor: view.opponent.armor,
-      statuses: [],
-      hype: view.opponent.hype,
-      hypeMax: view.opponent.hypeMax,
-      bonusHypeMax: 0,
-      hypeLockedNextTurn: 0,
-      tempHypeThisTurn: 0,
-      obsession: view.opponent.obsession,
-      fixationUsedThisTurn: false,
-      ultimateUsed: false,
-      supportObsessionGainedThisTurn: false,
-      // hidden zones: only their sizes are known, and the UI never reads contents
-      deck: [],
-      hand: [],
-      discard: view.opponent.discard,
-      board: view.opponent.board,
-      banished: [],
-      location: view.opponent.location,
-      reactions: [],
-      activeEvent: view.opponent.activeEvent,
-      fatigueCounter: 0,
-      cardsPlayedThisTurn: 0,
-      cardsPlayedLastTurn: 0,
-      currentsPlayedThisTurn: [],
-      hypeSpentThisTurn: 0,
-      confluenceUsedThisTurn: false,
-      pureCurrent: view.opponent.pureCurrent,
-      resonanceProgress: view.opponent.resonanceProgress,
-      resonanceActivated: false,
-      refractionCurrent: null,
-      afterpartyRepeatThisTurn: false,
-      counters: view.opponent.counters,
-      mulliganDone: true,
-      // the enemy leader's once/oncePerTurn bookkeeping is not in the view, and
-      // nothing the UI previews reads it
-      leaderFiredOnce: [],
-      leaderFiredThisTurn: [],
-    };
-
-    const players: [PlayerState, PlayerState] =
-      view.seat === 0 ? [view.you, opponent] : [opponent, view.you];
-
-    return {
-      schemaVersion: 1,
-      config: { seed: 0, decks: [{ name: "", leaderCardId: view.you.leaderCardId, cards: [] }, { name: "", leaderCardId: opponent.leaderCardId, cards: [] }] },
-      rngState: [1, 2, 3, 4],
-      turn: view.turn,
-      turnOfSeat: [0, 0],
-      activeSeat: view.activeSeat,
-      phase: view.phase,
-      players,
-      delayed: [],
-      comebacks: [],
-      aurasDisabledUntilTurn: view.aurasDisabledUntilTurn,
-      globalTurnCounter: view.globalTurnCounter,
-      winner: view.winner,
-      intentCount: 0,
-      nextInstanceId: 1,
-      // this proxy exists to preview effects against the visible board; wave
-      // progress decides what arrives later and nothing previewed reads it
-      wavesLanded: 0,
-    };
-  }
-
   /** Cached per sync — layout calls this once per hand card. */
   private stateProxy(): MatchState {
     if (!this.proxy) {
       if (!this.view) throw new Error("stateProxy called before the first sync");
-      this.proxy = this.buildStateProxy(this.view);
+      this.proxy = viewToState(this.view);
     }
     return this.proxy;
   }
