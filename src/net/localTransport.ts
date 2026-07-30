@@ -32,6 +32,7 @@ import type {
   Seat,
 } from "../engine/types";
 import { LocalMatch, type LocalMatchOptions } from "../game/localMatch";
+import { redactEvents } from "../engine/state";
 import {
   attackableBy,
   canActivateLocation,
@@ -105,6 +106,43 @@ function describeCharacter(c: { cardId: string; attack: number; health: number; 
   return `${c.cardId}/${c.attack}/${c.health}/${[...c.keywords].sort().join("+")}`;
 }
 
+/**
+ * The placeholder a hidden deck entry becomes on the wire (§5.2).
+ *
+ * `PlayerView.you` is the full `PlayerState`, which includes `deck` in exact
+ * order. That is correct when the local process is the authority and a leak the
+ * moment it is not: a seat may not read its own next draw.
+ */
+const HIDDEN_CARD_ID = "hidden";
+
+/**
+ * Replace the seat's own deck with count-preserving placeholders.
+ *
+ * Only `.length` is read anywhere in the battle UI — the HUD's deck chip and
+ * the mirror's spoken line — so nothing visible changes. That is the point: if
+ * something *had* been reading deck identities, this is where it would start
+ * failing.
+ *
+ * Not a mutation. `redact()` returns `you` as a live reference into the match
+ * state, so building a new object here is what keeps this from quietly emptying
+ * the real deck.
+ */
+export function sanitizeView(view: PlayerView): PlayerView {
+  return {
+    ...view,
+    you: {
+      ...view.you,
+      deck: view.you.deck.map((instance) => ({
+        instanceId: instance.instanceId,
+        cardId: HIDDEN_CARD_ID,
+        costDelta: 0,
+        addedKeywords: [],
+        removedKeywords: [],
+      })),
+    },
+  };
+}
+
 export class LocalTransport implements MatchTransport {
   private readonly match: LocalMatch;
   private seq = 0;
@@ -165,8 +203,22 @@ export class LocalTransport implements MatchTransport {
 
   // --- queries --------------------------------------------------------------
 
+  /**
+   * The redacted, **sanitized** view this seat is entitled to.
+   *
+   * Sanitized even offline, which is the whole point of §15 phase 2. Online,
+   * `you.deck` in exact order is a real leak — a modified client would know its
+   * next draw — so the wire replaces each entry with an opaque placeholder that
+   * keeps the count and nothing else (§5.2). Doing that here too means the UI is
+   * built against the information a networked client will actually have, and
+   * anything that quietly depended on knowing its own deck order breaks now, in
+   * a test, rather than later against a real opponent.
+   *
+   * `authoritativeState()` still holds the truth for the AI, the teaching
+   * runner and the target-enumeration helpers — all of which are local-only.
+   */
   view(): PlayerView {
-    return this.match.getView();
+    return sanitizeView(this.match.getView());
   }
 
   isBusy(): boolean {
@@ -285,7 +337,15 @@ export class LocalTransport implements MatchTransport {
     const batch: EventBatch = {
       seq: this.seq,
       cause,
-      events,
+      /**
+       * Redacted for the viewing seat, offline as well as on.
+       *
+       * The offline player has no more right to the AI's drawn cards than an
+       * online one has to a human opponent's, and running the same redaction in
+       * both builds means a presenter that had come to depend on omniscient
+       * events fails here — in the suite — instead of in a real match.
+       */
+      events: redactEvents(events, this.match.playerSeat),
       clocks: this.clocks(),
       viewHash: viewHash(view),
       // A turn boundary is where the online build sends a corrective snapshot

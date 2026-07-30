@@ -166,6 +166,118 @@ describe("viewHash", () => {
   });
 });
 
+describe("the view is sanitized, offline too", () => {
+  /**
+   * §5.2. `PlayerView.you` is the full `PlayerState`, deck order included —
+   * correct when the local process is the authority, a real leak when it is
+   * not, because a modified client would know its own next draw.
+   *
+   * Applied offline on purpose (§15 phase 2): the UI is then built against the
+   * information a networked client actually has, so anything depending on
+   * knowing its own deck breaks in a test rather than in a real match. It found
+   * two such places in the verify scripts immediately.
+   */
+  it("hides the seat's own deck order while keeping the count", async () => {
+    const transport = makeTransport();
+    await openMatch(transport);
+
+    const real = transport.authoritativeState().players[transport.seat].deck;
+    const shown = transport.view().you.deck;
+
+    expect(shown).toHaveLength(real.length);
+    expect(shown.length).toBeGreaterThan(0);
+    for (const instance of shown) expect(instance.cardId).toBe("hidden");
+    // instanceIds survive, so bookkeeping that tracks a specific card still works
+    expect(shown.map((c) => c.instanceId)).toEqual(real.map((c) => c.instanceId));
+  });
+
+  it("leaves the hand alone — it is yours and you may read it", async () => {
+    const transport = makeTransport();
+    await openMatch(transport);
+    const hand = transport.view().you.hand;
+    expect(hand.length).toBeGreaterThan(0);
+    for (const card of hand) expect(card.cardId).not.toBe("hidden");
+  });
+
+  it("does not mutate the real deck", async () => {
+    /**
+     * The trap this guards. `redact()` returns `you` as a live reference into
+     * the match state, so sanitizing in place would not hide the deck from the
+     * client — it would delete the deck from the game.
+     */
+    const transport = makeTransport();
+    await openMatch(transport);
+
+    const before = transport.authoritativeState().players[transport.seat].deck.map((c) => c.cardId);
+    transport.view();
+    transport.view();
+    const after = transport.authoritativeState().players[transport.seat].deck.map((c) => c.cardId);
+
+    expect(after).toEqual(before);
+    expect(after.some((id) => id === "hidden")).toBe(false);
+  });
+
+  it("still deals a playable match through the sanitized view", async () => {
+    // the end-to-end check: if sanitizing had broken the draw pipeline, the
+    // hand would stop refilling and this would run out of legal intents fast
+    const transport = makeTransport();
+    await openMatch(transport);
+    for (let i = 0; i < 5; i++) {
+      const result = await transport.submit({ type: "endTurn", seat: transport.seat });
+      expect(result.ok).toBe(true);
+    }
+    expect(transport.view().you.hand.length).toBeGreaterThan(0);
+  });
+});
+
+describe("batches reaching the UI are redacted", () => {
+  it("never names a card the AI drew", async () => {
+    /**
+     * The offline player has no more right to the AI's draws than an online
+     * player has to a human opponent's, and running one redaction path in both
+     * builds is what makes that true by construction rather than by the UI
+     * choosing not to draw it.
+     */
+    const transport = makeTransport();
+    const batches: EventBatch[] = [];
+    transport.onBatch((batch) => {
+      batches.push(batch);
+    });
+
+    await openMatch(transport);
+    for (let i = 0; i < 4; i++) await transport.submit({ type: "endTurn", seat: transport.seat });
+
+    const opponentDraws = batches
+      .flatMap((b) => b.events)
+      .filter((e) => e.e === "cardDrawn" && e.seat !== transport.seat);
+
+    expect(opponentDraws.length, "the AI never drew, so this proves nothing").toBeGreaterThan(0);
+    for (const event of opponentDraws) {
+      expect(event.e === "cardDrawn" && event.cardId).toBeNull();
+    }
+  });
+
+  it("still names the cards this seat drew", async () => {
+    const transport = makeTransport();
+    const batches: EventBatch[] = [];
+    transport.onBatch((batch) => {
+      batches.push(batch);
+    });
+
+    await openMatch(transport);
+    for (let i = 0; i < 4; i++) await transport.submit({ type: "endTurn", seat: transport.seat });
+
+    const myDraws = batches
+      .flatMap((b) => b.events)
+      .filter((e) => e.e === "cardDrawn" && e.seat === transport.seat);
+
+    expect(myDraws.length).toBeGreaterThan(0);
+    for (const event of myDraws) {
+      expect(event.e === "cardDrawn" && event.cardId).not.toBeNull();
+    }
+  });
+});
+
 describe("submit", () => {
   it("returns a canonical code, not just a message, when an intent is refused", async () => {
     const transport = makeTransport();

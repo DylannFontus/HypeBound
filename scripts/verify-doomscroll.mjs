@@ -155,7 +155,17 @@ await page.waitForFunction(() => document.querySelector(".end-turn-btn:not([disa
 const dealt = await page.evaluate((runDeck) => {
   const view = window.hypeboundBattle.view();
   const state = window.hypeboundBattle.state();
-  const mine = [...view.you.hand, ...view.you.deck].map((c) => c.cardId);
+  /**
+   * The deck comes from the authoritative state, not the view.
+   *
+   * The view's own deck is sanitized to opaque placeholders — a seat may not
+   * read its own draw order, online or off (§5.2) — so reading it here returns
+   * a list of "hidden" and this check quietly compares nothing. What is being
+   * asserted is a fact about how the match was DEALT, which is a question for
+   * the authority; `hypeboundBattle.state()` is the omniscient handle kept for
+   * exactly these single-player assertions.
+   */
+  const mine = [...view.you.hand, ...state.players[view.seat].deck].map((c) => c.cardId);
   const borrowed = mine.filter((id) => id === "token-borrowed-clout").length;
   // a Remastered copy is dealt under its own card id, which is legitimately not
   // the id the run deck records for it

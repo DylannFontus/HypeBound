@@ -412,16 +412,27 @@ else {
     const view = battle.view();
     const content = battle.content();
     /**
+     * The deck comes from the authoritative state, the hand from the view.
+     *
+     * The view's own deck is sanitized to opaque placeholders (§5.2), so every
+     * entry would report `cardId: "hidden"`, miss the token lookup below, and
+     * be counted as a real card. That happens to give the right total today
+     * because tokens reach the hand rather than the deck — a check that is
+     * correct by luck is one bad shuffle from being wrong.
+     */
+    const state = battle.state();
+    const deck = state.players[view.seat].deck;
+    /**
      * Tokens are excluded. Going second grants one Borrowed Clout into hand
      * after the mulligan, so a 30-card deck legitimately shows 31 — an earlier
      * version of this check counted it and blamed the draft.
      */
-    const real = [...view.you.deck, ...view.you.hand].filter(
+    const real = [...deck, ...view.you.hand].filter(
       (instance) => !content.cards[instance.cardId]?.token
     );
     return {
       leader: content.leaders[view.you.leaderCardId]?.name ?? "",
-      tokens: view.you.deck.length + view.you.hand.length - real.length,
+      tokens: deck.length + view.you.hand.length - real.length,
       deckPlusHand: real.length,
     };
   });
