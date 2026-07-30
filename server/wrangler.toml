@@ -49,10 +49,15 @@ new_sqlite_classes = ["MatchRoom", "CasualQueue"]
 # ---------------------------------------------------------------------------
 
 [vars]
-# Set to the project URL once the Supabase project exists (§10). Empty means
-# "no identity provider configured", and the server says so instead of pretending
-# a token is valid.
-SUPABASE_URL = ""
+# The Supabase project (§10). Not a secret and deliberately committed: the same
+# URL is in the client bundle, and token verification uses only the project's
+# **public** JWKS at /auth/v1/.well-known/jwks.json — this server holds no
+# Supabase credential of any kind.
+#
+# Confirmed serving one ES256 / P-256 key, which is what `auth/supabase.ts`
+# requires; an HS256 project is refused, because verifying HS256 needs the key
+# that mints tokens.
+SUPABASE_URL = "https://vnvaqwbnmawcnvhodbel.supabase.co"
 # Browser origins allowed to open a socket. GitHub Pages is the client's home;
 # localhost is for `npm run dev` against a real server.
 ALLOWED_ORIGINS = "https://dylannfontus.github.io,http://localhost:5173"
