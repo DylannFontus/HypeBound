@@ -78,7 +78,54 @@ for (const file of readdirSync(CARD_DIR).filter((f) => f.endsWith(".json"))) {
 
 const files = readdirSync(ART_DIR).filter((f) => /\.(png|webp|jpg)$/i.test(f));
 
-console.log(`\nHYPEBOUND art — ${files.length} image(s), ${cardIds.size} cards\n`);
+// ---------------------------------------------------------------------------
+// The declared assets — everything that is not card art
+// ---------------------------------------------------------------------------
+
+/**
+ * Card art binds by card id with no registration step. Everything else — the
+ * logo, the icons, the board backdrops — is a fixed small set the code refers
+ * to by name, so it is declared once in `data/asset-manifest.json` and read
+ * from here *and* from the loaders. Two lists would eventually disagree, and
+ * the disagreement would be silent: a file nothing asks for looks exactly like
+ * a file that is working.
+ */
+const PUBLIC_DIR = path.join(ROOT, "public");
+const MANIFEST = JSON.parse(readFileSync(path.join(ROOT, "data", "asset-manifest.json"), "utf8"));
+const ASSET_EXTENSIONS = ["png", "webp", "jpg"];
+
+function declaredAssets() {
+  const out = [];
+  const { brand, icons, boards } = MANIFEST;
+  for (const asset of brand.assets) {
+    out.push({ base: `${brand.dir}/${asset.id}`, w: asset.width, h: asset.height, group: "brand" });
+  }
+  for (const [group, ids] of Object.entries(icons.groups)) {
+    for (const id of ids) {
+      out.push({ base: `${icons.dir}/${group}/${id}`, w: icons.width, h: icons.height, group: `icons/${group}` });
+    }
+  }
+  for (const id of boards.assets) {
+    out.push({ base: `${boards.dir}/${id}`, w: boards.width, h: boards.height, group: "boards" });
+  }
+  return out;
+}
+
+/** The file on disk for a declared asset, whatever extension it arrived as. */
+function presentFile(base) {
+  for (const extension of ASSET_EXTENSIONS) {
+    if (existsSync(path.join(PUBLIC_DIR, `${base}.${extension}`))) return `${base}.${extension}`;
+  }
+  return null;
+}
+
+const declared = declaredAssets();
+const declaredBases = new Set(declared.map((asset) => asset.base));
+const presentAssets = declared
+  .map((asset) => ({ ...asset, file: presentFile(asset.base) }))
+  .filter((asset) => asset.file !== null);
+
+console.log(`\nHYPEBOUND assets — ${files.length} card image(s), ${presentAssets.length}/${declared.length} declared asset(s)\n`);
 
 // ---------------------------------------------------------------------------
 // 1. Does each file belong to a card?
@@ -155,9 +202,92 @@ try {
     for (const b of broken) fail(`${b.name} did not decode — it would render as a placeholder, silently`);
     for (const w of wrong) fail(`${w.name} decoded at ${w.w}x${w.h}, not ${CARD_W}x${CARD_H}`);
     if (broken.length === 0 && wrong.length === 0) ok(`all ${results.length} decode at ${CARD_W}x${CARD_H}`);
+
+    // -----------------------------------------------------------------------
+    console.log("\n4. The declared assets that have arrived");
+
+    if (presentAssets.length === 0) {
+      ok("none yet — the game runs on procedural icons and a flat backdrop until they do");
+    } else {
+      const assetResults = await page.evaluate(
+        (items) =>
+          Promise.all(
+            items.map(
+              (item) =>
+                new Promise((resolve) => {
+                  const image = new Image();
+                  image.onload = () => resolve({ ...item, ok: true, w: image.naturalWidth, h: image.naturalHeight });
+                  image.onerror = () => resolve({ ...item, ok: false, w: 0, h: 0 });
+                  image.src = item.file;
+                })
+            )
+          ),
+        presentAssets.map((asset) => ({ file: asset.file, expectW: asset.w, expectH: asset.h, group: asset.group }))
+      );
+
+      let good = 0;
+      for (const result of assetResults) {
+        if (!result.ok) {
+          fail(`${result.file} did not decode — it would fall back to procedural art, silently`);
+        } else if (result.w !== result.expectW || result.h !== result.expectH) {
+          /**
+           * Size is enforced here and not merely reported. An icon a few pixels
+           * off does not look broken, it looks *slightly* wrong — a hairline of
+           * misalignment in a row of four currencies — and that is the kind of
+           * defect that survives for months because nobody can point at it.
+           */
+          fail(`${result.file} is ${result.w}x${result.h}, expected ${result.expectW}x${result.expectH}`);
+        } else {
+          good++;
+        }
+      }
+      if (good === assetResults.length) ok(`all ${good} decode at their declared size`);
+    }
   }
 } finally {
   await browser.close();
+}
+
+// ---------------------------------------------------------------------------
+// 5. Nothing sitting in an asset folder that nothing will ever ask for
+// ---------------------------------------------------------------------------
+
+console.log("\n5. Every file in the asset folders is one the game asks for");
+
+/**
+ * The check that matters most while a batch is being generated.
+ *
+ * These bind by exact filename, so `back-stage-token.png` or `crest-neon-idols.png`
+ * is not a broken asset — it is an *absent* one, sitting in the right folder,
+ * looking finished. Nothing errors, the procedural fallback draws instead, and
+ * the mistake is a typo nobody will look for. Card art has had this check from
+ * the start and it is the same reasoning.
+ */
+function walkFiles(dir, prefix = "") {
+  if (!existsSync(dir)) return [];
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) out.push(...walkFiles(path.join(dir, entry.name), rel));
+    else if (/\.(png|webp|jpg)$/i.test(entry.name)) out.push(rel);
+  }
+  return out;
+}
+
+const assetRoots = [MANIFEST.brand.dir, MANIFEST.icons.dir, MANIFEST.boards.dir];
+const strays = [];
+for (const root of assetRoots) {
+  for (const file of walkFiles(path.join(PUBLIC_DIR, root), root)) {
+    if (!declaredBases.has(file.replace(/\.[a-z]+$/i, ""))) strays.push(file);
+  }
+}
+
+if (strays.length === 0) {
+  ok("no file is sitting in an asset folder unclaimed");
+} else {
+  for (const stray of strays) {
+    fail(`${stray} is not in data/asset-manifest.json — the game will never load it (a typo, or a new asset to declare)`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -216,5 +346,26 @@ if (remaining.size === 0) {
   if (left.length > 12) console.log(`   … and ${left.length - 12} more`);
 }
 
-console.log(failures === 0 ? "\nPASS — every image binds to a card and paints." : `\nFAIL — ${failures} problem(s)`);
+// ---------------------------------------------------------------------------
+// Declared-asset coverage, by group
+// ---------------------------------------------------------------------------
+
+const byGroup = new Map();
+for (const asset of declared) {
+  const entry = byGroup.get(asset.group) ?? { have: 0, want: 0, missing: [] };
+  entry.want++;
+  if (presentFile(asset.base)) entry.have++;
+  else entry.missing.push(asset.base.split("/").pop());
+  byGroup.set(asset.group, entry);
+}
+
+console.log("\nDeclared assets (docs/ASSET-BRIEF.md):");
+for (const [group, entry] of [...byGroup].sort()) {
+  const line = `   ${group.padEnd(20)} ${String(entry.have).padStart(3)}/${entry.want}`;
+  console.log(entry.have === entry.want ? `${line}  complete` : `${line}  missing: ${entry.missing.join(", ")}`);
+}
+
+console.log(
+  failures === 0 ? "\nPASS — every image binds to something the game asks for, and paints." : `\nFAIL — ${failures} problem(s)`
+);
 process.exit(failures === 0 ? 0 : 1);

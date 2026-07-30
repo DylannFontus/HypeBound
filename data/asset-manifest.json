@@ -1,0 +1,97 @@
+{
+  "_readme": [
+    "Every hand-made asset the game knows how to use, other than card art.",
+    "",
+    "Card art is deliberately NOT here: it binds by card id with no registration",
+    "step, and listing 296 filenames would be a second copy of data/cards to keep",
+    "in sync. Everything below is different — a fixed, small set the code refers",
+    "to by name, so naming it once and reading it from both the loader and the",
+    "verifier is what stops those two disagreeing.",
+    "",
+    "A missing file is NOT an error. Every one of these degrades: icons fall back",
+    "to the procedural drawing the game has always used, boards fall back to the",
+    "flat clear colour, the logo falls back to the inline SVG. `npm run",
+    "verify:assets` reports coverage and only fails on a file that is present and",
+    "wrong — wrong size, wrong format, or one a browser cannot decode.",
+    "",
+    "Sizes are exact and enforced. An icon that is 500x512 is a bug that shows up",
+    "as a hairline misalignment nobody can find later."
+  ],
+
+  "brand": {
+    "dir": "assets/brand",
+    "assets": [
+      { "id": "hb-mark-master", "width": 2048, "height": 2048, "note": "the HB monogram badge; every favicon and the .exe icon are downscales of this" },
+      { "id": "hb-wordmark", "width": 3072, "height": 1024, "note": "the word HYPEBOUND, for the main menu" }
+    ]
+  },
+
+  "icons": {
+    "dir": "assets/icons",
+    "width": 512,
+    "height": 512,
+    "groups": {
+      "currency": ["clout", "shards", "glimmer", "backstage-token"],
+      "current": ["cinder", "tide", "root", "gale", "pulse", "halo", "veil", "prism"],
+      "crest": [
+        "neon-idols",
+        "gothic-royalty",
+        "viral-influencers",
+        "corporate-creators",
+        "digital-demons",
+        "cosplay-champions",
+        "afterparty-crew",
+        "touch-grass-order",
+        "algorithm-syndicate",
+        "meme-collective",
+        "neutral"
+      ],
+      "confluence": [
+        "steamveil",
+        "bloom",
+        "sandstorm",
+        "tempest",
+        "starflare",
+        "blackflame",
+        "sanctuary",
+        "eclipse",
+        "refraction"
+      ],
+      "ui": [
+        "merch-drop",
+        "merch-drop-open",
+        "mastery",
+        "hype-wave",
+        "mission-daily",
+        "mission-weekly",
+        "achievement",
+        "streak"
+      ]
+    }
+  },
+
+  "boards": {
+    "dir": "assets/boards",
+    "width": 3840,
+    "height": 2160,
+    "_note": [
+      "One per faction, plus `default` for anything unfactioned and `boss` for",
+      "boss encounters. Chosen by the OPPONENT's faction, because the backdrop is",
+      "the place you have been dragged to, not the one you brought."
+    ],
+    "assets": [
+      "default",
+      "neon-idols",
+      "gothic-royalty",
+      "viral-influencers",
+      "corporate-creators",
+      "digital-demons",
+      "cosplay-champions",
+      "afterparty-crew",
+      "touch-grass-order",
+      "algorithm-syndicate",
+      "meme-collective",
+      "boss"
+    ]
+  }
+}
