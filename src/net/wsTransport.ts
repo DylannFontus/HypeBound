@@ -410,8 +410,20 @@ export class WsTransport implements MatchTransport {
         return;
       }
       case "presence":
-        if (frame.seat !== this.currentSeat && frame.status === "disconnected") {
+        /**
+         * Only the opponent's presence changes this client's status — its own
+         * connection is something it can observe directly and more accurately.
+         *
+         * The `connected` branch is not symmetry for its own sake: without it
+         * the status stuck on `opponentDisconnected` for the rest of the match,
+         * so a player who dropped and came back left the other one staring at a
+         * "waiting for them" banner through a game that had already resumed.
+         */
+        if (frame.seat === this.currentSeat) return;
+        if (frame.status === "disconnected") {
           this.setStatus({ kind: "opponentDisconnected", graceRemainingMs: frame.graceRemainingMs });
+        } else if (this.status.kind === "opponentDisconnected") {
+          this.setStatus({ kind: "live", rttMs: 0 });
         }
         return;
       case "ended":

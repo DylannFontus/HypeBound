@@ -1083,3 +1083,25 @@
   backdrop-filter: blur(14px);
   opacity: 1;
 }
+
+/* ---------------------------------------------------------------------------
+   Connection banner — §8.2's "the wait is never a mystery".
+   Sits above the board, out of the way of the hand and the end overlay.
+   --------------------------------------------------------------------------- */
+.board-connection-banner {
+  position: absolute;
+  top: var(--sp-4);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid var(--line);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+.board-connection-banner[hidden] { display: none; }
+.board-connection-banner[data-tone="waiting"] { border-color: var(--accent-gold); }
+.board-connection-banner[data-tone="warning"] { border-color: var(--warning); }

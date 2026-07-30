@@ -149,6 +149,67 @@ try {
     }
   }
 
+  console.log("\n5b. A disconnect is visible to the other player, with a countdown");
+  /**
+   * Navigating away is a real disconnect, and `setOffline` is not.
+   *
+   * Playwright's offline emulation stops new requests but leaves an
+   * established WebSocket open, so the server never saw a close and B was
+   * correctly told nothing. Leaving the screen disposes the transport, which
+   * closes the socket — the same path as shutting a tab.
+   */
+  const matchHash = await a.page.evaluate(() => location.hash);
+  await a.page.goto(`${ORIGIN}/#play`, { waitUntil: "networkidle" });
+
+  const banner = await b.page
+    .waitForFunction(() => {
+      const el = document.querySelector("#board-connection-banner");
+      return el && !el.hasAttribute("hidden") ? el.textContent : null;
+    }, { timeout: 20000 })
+    .then((handle) => handle.jsonValue())
+    .catch(() => null);
+
+  const bannerShown = Boolean(banner && /lost connection/i.test(String(banner)));
+  if (bannerShown) ok(`B is told: "${String(banner).trim()}"`);
+  else fail(`B's banner read ${JSON.stringify(banner)}`);
+  // §8.2: "always sees the remaining grace countdown so the wait is never a mystery"
+  if (banner && /[0-9]+s to reconnect/.test(String(banner))) ok("and the wait is a number, not a mystery");
+  else fail("no countdown in the banner");
+
+  await a.page.goto(`${ORIGIN}/${matchHash}`, { waitUntil: "networkidle" });
+  await a.page.waitForSelector(".battle-board-host", { timeout: 30000 });
+  /**
+   * The board host exists from the constructor; the view does not exist until
+   * `connect()` resolves, and `WsTransport.view()` throws until then rather
+   * than inventing an empty board. Waiting for the view is waiting for the
+   * thing that actually matters.
+   */
+  await a.page.waitForFunction(
+    () => {
+      try {
+        return Boolean(window.hypeboundBattle?.view());
+      } catch {
+        return false;
+      }
+    },
+    { timeout: 30000 }
+  );
+
+  if (!bannerShown) {
+    // Without this the check below passes on a banner that never appeared,
+    // which is how the first version of this step reported a working feature.
+    fail("cannot test the banner clearing, because it never appeared");
+  } else {
+    const cleared = await b.page
+      .waitForFunction(() => document.querySelector("#board-connection-banner")?.hasAttribute("hidden") === true, {
+        timeout: 30000,
+      })
+      .then(() => true)
+      .catch(() => false);
+    if (cleared) ok("and it clears when they come back");
+    else fail("the banner stayed up after the opponent reconnected");
+  }
+
   const cloutBefore = await b.page.evaluate(() => {
     const raw = localStorage.getItem("hypebound:profile");
     return raw ? JSON.parse(raw).data?.clout ?? null : null;

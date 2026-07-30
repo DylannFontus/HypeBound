@@ -15,7 +15,7 @@ import type {
   TargetRef,
 } from "../../engine/types";
 import { LocalTransport } from "../../net/localTransport";
-import { isYourTurn, type MatchTransport } from "../../net/transport";
+import { isYourTurn, type MatchTransport, type TransportStatus } from "../../net/transport";
 import { viewToState } from "../../net/viewToState";
 /**
  * Still imported directly because these enumerate *targets*, and they take a
@@ -227,6 +227,11 @@ export class BattleScreen {
   private endSequenceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly mirror: BoardMirror;
   private readonly modeBanner: HTMLElement;
+  /** Connection state, for a match where the connection can fail. */
+  private readonly connectionBanner: HTMLElement;
+  private stopStatus: (() => void) | null = null;
+  private graceTicker: ReturnType<typeof setInterval> | null = null;
+  private graceDeadlineMs: number | null = null;
   private keyboard: KeyboardState = initialKeyboardState();
 
   constructor(private readonly options: BattleScreenOptions) {
@@ -355,6 +360,30 @@ export class BattleScreen {
     this.modeBanner.id = "board-mode-banner";
     this.modeBanner.hidden = true;
     this.root.appendChild(this.modeBanner);
+
+    /**
+     * The connection banner, and why the battle screen only now grew one.
+     *
+     * Offline there is nothing to say: `LocalTransport` is permanently live at
+     * 0 ms and the status stream has exactly one value. Online it has six, and
+     * two of them mean the board has stopped for a reason the player cannot see
+     * — their own connection, or the opponent's.
+     *
+     * The server already sent all of it. `presence` frames with a grace
+     * countdown were going out and being turned into a `TransportStatus` that
+     * nothing subscribed to, so the honest countdown §8.2 insists on reached
+     * the client and stopped there. A game that silently pauses is the failure
+     * that rule exists to prevent, and it was happening one layer above the
+     * rule.
+     */
+    this.connectionBanner = document.createElement("div");
+    this.connectionBanner.className = "board-connection-banner";
+    this.connectionBanner.id = "board-connection-banner";
+    this.connectionBanner.setAttribute("role", "status");
+    this.connectionBanner.setAttribute("aria-live", "polite");
+    this.connectionBanner.hidden = true;
+    this.root.appendChild(this.connectionBanner);
+    this.stopStatus = this.match.onStatus((status) => this.showConnection(status));
 
     this.root.tabIndex = 0;
     this.root.addEventListener("keydown", (event) => this.onKey(event));
@@ -1473,7 +1502,79 @@ export class BattleScreen {
     overlay.appendChild(panel);
   }
 
+  /**
+   * Say what the connection is doing, and count the grace down.
+   *
+   * The countdown ticks locally from the deadline the server sent, because the
+   * server only sends `presence` when something *changes* — sending one a
+   * second would be a frame per second per match to animate a number the client
+   * can subtract for itself. The server still decides: when the hold expires it
+   * ends the match, whatever this number says.
+   */
+  private showConnection(status: TransportStatus): void {
+    this.clearGraceTicker();
+
+    const render = (): void => {
+      const remaining = this.graceDeadlineMs === null ? null : Math.max(0, this.graceDeadlineMs - Date.now());
+      const seconds = remaining === null ? null : Math.ceil(remaining / 1000);
+      switch (status.kind) {
+        case "opponentDisconnected":
+          this.connectionBanner.textContent =
+            seconds !== null && seconds > 0
+              ? `Your opponent lost connection — ${seconds}s to reconnect`
+              : "Your opponent lost connection";
+          this.connectionBanner.dataset.tone = "waiting";
+          this.connectionBanner.hidden = false;
+          return;
+        case "disconnected":
+          this.connectionBanner.textContent = "Reconnecting…";
+          this.connectionBanner.dataset.tone = "warning";
+          this.connectionBanner.hidden = false;
+          return;
+        case "connecting":
+          this.connectionBanner.textContent = "Connecting…";
+          this.connectionBanner.dataset.tone = "waiting";
+          this.connectionBanner.hidden = false;
+          return;
+        case "unstable":
+          this.connectionBanner.textContent = "Connection unstable";
+          this.connectionBanner.dataset.tone = "warning";
+          this.connectionBanner.hidden = false;
+          return;
+        case "closed":
+          // Not shown once the match is over: "disconnected" over a victory
+          // screen reads as though the result might not have counted.
+          this.connectionBanner.hidden = this.ended;
+          this.connectionBanner.textContent = `Disconnected — ${status.reason}`;
+          this.connectionBanner.dataset.tone = "warning";
+          return;
+        case "live":
+          this.connectionBanner.hidden = true;
+          return;
+      }
+    };
+
+    if (status.kind === "opponentDisconnected" || status.kind === "disconnected") {
+      const grace = status.graceRemainingMs;
+      this.graceDeadlineMs = grace > 0 ? Date.now() + grace : null;
+      if (this.graceDeadlineMs !== null) this.graceTicker = setInterval(render, 1000);
+    } else {
+      this.graceDeadlineMs = null;
+    }
+    render();
+  }
+
+  private clearGraceTicker(): void {
+    if (this.graceTicker !== null) clearInterval(this.graceTicker);
+    this.graceTicker = null;
+  }
+
   dispose(): void {
+    // An interval and a listener both outlive the DOM unless somebody stops
+    // them, and this screen is mounted and unmounted repeatedly.
+    this.clearGraceTicker();
+    this.stopStatus?.();
+    this.stopStatus = null;
     this.mirror.dispose();
     this.hud.dispose();
     this.handBar.dispose();
