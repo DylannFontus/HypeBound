@@ -294,6 +294,8 @@ Reactions) are never redacted.
 |---|---|---|
 | `cardDrawn` | `cardId → null` (the type already allows it) | Hand is private. `instanceId` stays so both clients can animate the same card back. |
 | `cardAddedToHand` | `cardId → null`; `source` kept | Viral copies, steals and Comeback returns must not leak. Keeping `source` preserves the correct VFX. |
+| `comebackReturned` | **dropped** when `mode: "hand"`; passes through when `mode: "play"` | Added when this table was implemented — see §5.1.1. `cardId` is not nullable, so the identity *is* the payload and there is nothing to blank. A `play` return lands on the public board. |
+| `keywordTriggered` | **dropped** when `keyword: "comeback"` | Same leak, same fix. The other six emission sites name a card that is already public — the card just played, or a character on the board. |
 | `reactionSet` | passes through unchanged | It carries no `cardId` by design. |
 | `reactionTriggered` | passes through **unchanged** | A Reaction flips face-up when it fires; revealing it is correct. |
 | `costModified` | passes through | Carries `instanceId` + `delta` only; no identity. |
@@ -304,6 +306,41 @@ Reactions) are never redacted.
 | `chooseOneResolved`, `randomResolved` | pass through | Both players are entitled to see what the card resolved into. |
 | `matchStarted`, `mulliganDone`, `turnStarted`, `turnEnded`, `hypeChanged`, `obsessionChanged`, `fixationUsed`, `confluenceActivated`, `resonance*`, `trigger*`, `matchEnded` | pass through | All public per canon. |
 | **Spectator stream** | Built from the *spectated seat's* redaction, never omniscient | Canon-adjacent rule from `../design/09-game-modes.md` §20: spectating reveals nothing the spectated player cannot see. |
+
+### 5.1.1 What implementing the table found
+
+The two `comebackReturned` / `keywordTriggered` rows above are not in the
+original design. They were added when `redactEvents()` was written, because
+following the table exactly still leaked.
+
+A `mode: "hand"` Comeback emits **three** events naming the same card:
+
+```
+cardAddedToHand   { seat, instanceId, cardId, source: "comeback" }   ← the table's case
+comebackReturned  { seat, cardId, mode: "hand" }                      ← was not listed
+keywordTriggered  { seat, instanceId: null, cardId, keyword }         ← was not listed
+```
+
+Blanking the first of three hides nothing: the redacted event is followed
+immediately by two more that print the name. The table's own rationale for
+`cardAddedToHand` — *"Comeback returns must not leak"* — was therefore stating a
+goal the table did not achieve.
+
+Both extras are **dropped** for the non-owner rather than blanked, because in
+each the identity is the whole payload. Nothing is lost: the redacted
+`cardAddedToHand` still carries `source: "comeback"`, which is what the
+presenter animates from.
+
+**`keywordTriggered` gained a `seat`.** It had none, which meant it could not be
+attributed to a player, which meant it could not be redacted at all. That is a
+defect independent of Comeback — every other player-scoped event carries a seat
+— and it is the kind of thing only discovered by implementing redaction rather
+than specifying it.
+
+**The guarantee is a type, not a test.** `tests/redaction.test.ts` classifies
+every event as public or private in a `Record<EngineEvent["e"], …>`, so adding a
+variant to the union stops the file compiling until somebody classifies it — all
+66 kinds, whether or not any test provokes one.
 
 ### 5.2 Sanitizing the seat's own view **[DECISION]**
 
@@ -1203,11 +1240,11 @@ Every log line carries `matchId`, `roomId`, `seat`, `seq` — enough to pull the
 above `src/net/` — the driver, the HUD, the presenter, the 3D board — is written
 once.
 
-| Phase | Work | Ships when | Player-visible change |
+| Phase | Work | Status | Player-visible change |
 |---|---|---|---|
 | **0 — today** | `LocalMatch` (`src/game/localMatch.ts`) owns the authoritative state, runs the AI inline, records the `MatchRecord`. | done | Offline modes |
-| **1 — extract the seam** | Add `src/net/transport.ts` (interface) and `src/net/localTransport.ts` wrapping `LocalMatch`: adapt `submit(): Promise<string \| null>` to `SubmitResult`, add `seq` counters, `MatchClocks` from a local timer, and `snapshot` from `redact()`. Driver talks only to `MatchTransport`. | before any server work | None |
-| **2 — network-shape the local build** | Add `redactEvents()` (§5) in the engine and the `viewReducer` in `src/net/`. `LocalTransport` now emits **redacted** batches and sanitized views to the UI even offline, and enforces seat ownership on `submit`. Add `src/net/protocol.ts` with zod schemas (unused by the local path, but validated in tests). | before any server work | None — but any hidden-info leak in the UI surfaces immediately, offline, in tests |
+| **1 — extract the seam** | Add `src/net/transport.ts` (interface) and `src/net/localTransport.ts` wrapping `LocalMatch`: adapt `submit(): Promise<string \| null>` to `SubmitResult`, add `seq` counters, `MatchClocks` from a local timer, and `snapshot` from `redact()`. Driver talks only to `MatchTransport`. | **done** | None |
+| **2 — network-shape the local build** | Add `redactEvents()` (§5) in the engine and the `viewReducer` in `src/net/`. `LocalTransport` now emits **redacted** batches and sanitized views to the UI even offline, and enforces seat ownership on `submit`. Add `src/net/protocol.ts` with zod schemas (unused by the local path, but validated in tests). | **in progress** — `redactEvents()` and the sanitized view are done (and found a leak, §5.1.1, and two verify scripts reading deck identities); `viewReducer` and `protocol.ts` outstanding | None — but any hidden-info leak in the UI surfaces immediately, offline, in tests |
 | **3 — the server package** | New top-level workspace `server/` importing `../src/engine` **verbatim** (no fork, no re-implementation): `gateway/`, `room/`, `matchmaking/`, `services/`. Room = `MatchState` + clock + journal + fan-out. | first online milestone | None |
 | **4 — `WsTransport`** | `src/net/wsTransport.ts` implements the same interface over §7. Feature flag `net.online` picks the transport at match start. | first online milestone | Casual queue goes live; other online tiles still "Coming Online" |
 | **5 — services** | Matchmaking (§9), identity (§10), cloud saves (§12), results/ladder, spectator + replay services (§13). | staged | Ranked, friend battles, tournaments, spectate flip from "Coming Online" per the game-modes ship-status table |
