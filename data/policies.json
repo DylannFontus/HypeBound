@@ -13,31 +13,32 @@
     "   dependency must appear in `attributions`, and every attribution must name a",
     "   real dependency. Adding a package without attributing it fails `npm test`.",
     "",
-    "The privacy claims here are about THIS build. It takes no payments, has no",
-    "server, and makes no network request that is not a file it shipped with —",
-    "`verify:fairness` proves that last one by watching the browser rather than by",
-    "believing this file."
+    "The privacy claims here are about THIS build. It takes no payments and ships no",
+    "analytics. It is no longer offline-only: signing in talks to Supabase, and queuing",
+    "talks to one Cloudflare Worker. Neither happens unless a player asks for it — the",
+    "game makes no network request at boot, which is the property `verify:fairness`",
+    "checks by watching the browser rather than by believing this file."
   ],
-
   "privacy": {
-    "version": "1.0",
-    "effectiveDate": "2026-07-06T00:00:00.000Z",
+    "version": "1.1",
+    "effectiveDate": "2026-07-30T00:00:00.000Z",
     "summary": [
-      "This build collects nothing, sends nothing, and has nowhere to send it to. There is no account, no server, no analytics and no advertising identifier.",
-      "Everything the game knows about you is in your browser's local storage on this device: your collection, your decks, your match history, your settings and your progress. You can read all of it — the export button below writes it out as JSON — and you can delete all of it in one action.",
-      "Clearing your browser data for this site deletes the save. There is no cloud copy, so there is also no way for anyone, including us, to recover it."
+      "Playing other people needs an account, and that is the only thing this game asks you for: an email address and a password. Both go to Supabase, the service that hosts logins for this game. There is still no analytics, no advertising identifier and no payment processor.",
+      "Everything else stays in your browser's local storage on this device: your collection, your decks, your match history, your settings and your progress. The export button below writes all of it out as JSON, and the delete button clears it in one action. Neither button touches your account — nothing on this page can delete that.",
+      "Clearing your browser data for this site deletes the save. There is still no cloud save, so nobody, including us, can restore it — and signing in on another device gives you an account, not your collection. The account is the exception to “on this device”: it lives at Supabase, so clearing this browser does not remove it."
     ],
     "categories": [
       {
         "name": "Account",
-        "collected": false,
-        "detail": "There is no account. No email address, no username on a server, no login of any kind. The display name you choose is stored on this device and never leaves it."
+        "collected": true,
+        "detail": "Signing in creates an account at Supabase: the email address you register and a hash of your password, which nothing here can read back. The address is stored UNVERIFIED — confirmation emails are switched off so signing up is instant, and nothing checks that the address belongs to you. No mail is ever sent to it. This game's own match server never receives your password and never stores your email: it reads a user id out of your sign-in token — a random identifier, not your address — and stores only that, with your queue ticket and your match. The display name you choose is still local and never sent. The name of the deck you queue with is sent, because the deck itself goes to the server to be checked.",
+        "where": "your account at Supabase (email address, password hash); this game's server holds only the user id"
       },
       {
         "name": "Gameplay",
         "collected": true,
-        "detail": "Matches, decks, collection, progression and settings, stored locally so the game can continue where you left off. Nothing is transmitted.",
-        "where": "localStorage, under keys beginning hypebound:"
+        "detail": "Matches, decks, collection, progression and settings, stored locally so the game can continue where you left off. Offline play transmits nothing. Queuing for an online match sends the one deck you are queuing with, so the server can check it is legal, and that copy is deleted when you are paired or when you leave the queue. An online match itself is held by the server while it is being played, because the server is the one deciding the rules.",
+        "where": "localStorage, under keys beginning hypebound:; a queued deck and a live match, on the match server"
       },
       {
         "name": "Telemetry and analytics",
@@ -57,22 +58,21 @@
       }
     ],
     "children": [
-      "The game is not directed at children under 13 and no age is collected, because no personal data is collected at all.",
-      "The parental controls the design describes — spending caps, guardian PINs, playtime reports — belong to the online build, where there is something to control. This build has no purchasing and no communication features, which is the strongest version of those controls available offline."
+      "The game is not directed at children under 13. Signing up asks for an email address and a password and does not ask for an age, so nothing here verifies how old anyone is.",
+      "The parental controls the design describes — spending caps, guardian PINs, playtime reports — do not exist. There is nothing to spend money on in this build, which removes the part that matters most, and the rest is unbuilt rather than switched off."
     ],
     "requests": [
-      "There is no data controller to write to, because there is no collected data to request. Everything is on your device and the export button hands you all of it.",
-      "When the online build arrives, this page gains a real contact route, a real retention schedule, and a real deletion process — and this paragraph goes away."
+      "The save is yours to take or destroy without asking anyone: the export button hands you all of it and the delete button erases it, both instantly and both on this device.",
+      "The account is the part this page cannot act on. There is no contact route, no retention schedule and no deletion process for it yet — which is a real gap and is written here rather than left for you to discover. Until there is one, an account can be abandoned but not deleted."
     ]
   },
-
   "legal": {
     "documents": [
       {
         "id": "terms",
         "title": "Terms of Service",
         "status": "not-written",
-        "note": "No terms have been drafted, and shipping placeholder legalese would be worse than shipping nothing: it reads as binding and nobody wrote it. This build is unreleased, non-commercial, takes no payments and creates no account, so there is currently no service to set terms for. Terms are required before any distribution."
+        "note": "This build takes no payments and sells nothing, but it now creates accounts, so the earlier reason for shipping without Terms no longer holds. Terms and an EULA are owed and unwritten. They are required before any distribution beyond testing, and this line exists so that is a decision somebody makes rather than one that happens by default."
       },
       {
         "id": "eula",
@@ -104,23 +104,57 @@
       }
     ],
     "attributions": [
-      { "package": "three", "license": "MIT", "use": "the WebGL renderer behind the battle board" },
-      { "package": "zod", "license": "MIT", "use": "schema validation for every data file the game loads" },
-      { "package": "@types/node", "license": "MIT", "use": "type definitions for the Node APIs the test suite reads the repo with" },
-      { "package": "@types/three", "license": "MIT", "use": "type definitions for three" },
-      { "package": "playwright-core", "license": "Apache-2.0", "use": "drives the browser verification scripts" },
-      { "package": "typescript", "license": "Apache-2.0", "use": "the language and its type checker" },
-      { "package": "vite", "license": "MIT", "use": "the dev server and production bundler" },
-      { "package": "vitest", "license": "MIT", "use": "the unit test runner" }
+      {
+        "package": "three",
+        "license": "MIT",
+        "use": "the WebGL renderer behind the battle board"
+      },
+      {
+        "package": "zod",
+        "license": "MIT",
+        "use": "schema validation for every data file the game loads"
+      },
+      {
+        "package": "@types/node",
+        "license": "MIT",
+        "use": "type definitions for the Node APIs the test suite reads the repo with"
+      },
+      {
+        "package": "@types/three",
+        "license": "MIT",
+        "use": "type definitions for three"
+      },
+      {
+        "package": "playwright-core",
+        "license": "Apache-2.0",
+        "use": "drives the browser verification scripts"
+      },
+      {
+        "package": "typescript",
+        "license": "Apache-2.0",
+        "use": "the language and its type checker"
+      },
+      {
+        "package": "vite",
+        "license": "MIT",
+        "use": "the dev server and production bundler"
+      },
+      {
+        "package": "vitest",
+        "license": "MIT",
+        "use": "the unit test runner"
+      }
     ]
   },
-
   "support": {
     "faq": [
       {
         "id": "where-is-my-save",
         "question": "Where is my save, and can I lose it?",
-        "tags": ["save", "data"],
+        "tags": [
+          "save",
+          "data"
+        ],
         "answer": [
           "In this browser's local storage, on this device only. There is no cloud copy in the offline build.",
           "Clearing site data, using a private window, or switching browser or device all mean a different save. The Privacy screen has an export button that writes the whole thing out as JSON, which is the only backup that currently exists."
@@ -129,7 +163,10 @@
       {
         "id": "no-purchases",
         "question": "How do I buy Clout or Glimmer?",
-        "tags": ["purchases", "money"],
+        "tags": [
+          "purchases",
+          "money"
+        ],
         "answer": [
           "You cannot. This build takes no payments at all — there is no store, no payment processor and no real-money currency.",
           "Clout is earned by playing. Glimmer, the premium currency, is earned too: the Hype Wave pays it out, which is what makes the Backstage Pass something a free player reaches on their own."
@@ -138,7 +175,11 @@
       {
         "id": "odds",
         "question": "Are the odds really what the game says they are?",
-        "tags": ["odds", "fairness", "purchases"],
+        "tags": [
+          "odds",
+          "fairness",
+          "purchases"
+        ],
         "answer": [
           "Yes, and the build is arranged so that they cannot quietly stop being. The disclosure page and the roller read the same numbers out of the same file, and a test asserts the two tables are identical rather than merely similar.",
           "A published rate also cannot change without a patch note: every release carries a snapshot of the economy it shipped with, and the newest snapshot has to equal the shipped one or the tests fail."
@@ -147,7 +188,10 @@
       {
         "id": "rules-question",
         "question": "I have a rules question about a card",
-        "tags": ["rules", "cards"],
+        "tags": [
+          "rules",
+          "cards"
+        ],
         "answer": [
           "Every card's full text is on its detail view in the collection, including the reminder text that shorter frames leave off.",
           "The Currents, the Confluences and every keyword have their own reference pages reachable from the collection's filter bar."
@@ -156,7 +200,10 @@
       {
         "id": "report-bug",
         "question": "How do I report a bug?",
-        "tags": ["bug", "contact"],
+        "tags": [
+          "bug",
+          "contact"
+        ],
         "answer": [
           "Use the diagnostic export below. It gathers the build version, your browser's own description of itself, a hash of the loaded data, and the seed of your last match — which is usually enough to replay the exact game that went wrong.",
           "You are shown the whole file before anything happens to it. It contains no name, no save data and nothing that identifies you."
@@ -164,17 +211,24 @@
       },
       {
         "id": "offline",
-        "question": "Why can I not play against other people?",
-        "tags": ["online", "multiplayer"],
+        "question": "Can I play against other people?",
+        "tags": [
+          "online",
+          "multiplayer"
+        ],
         "answer": [
-          "There is no server yet. Ranked play, casual queues, tournaments, friends, clubs, spectating and leaderboards all need one, and none of them are faked in the meantime — every screen that would need a server says so instead of showing an empty version of itself.",
+          "Casual matches work: sign in, pick a deck, and join the queue. It pairs you with another player, and after four minutes of finding nobody it offers you a match against the AI instead — an offer, never a bot presented as a person. The queue shows the real number of people in it, which for a new game is usually one.",
+          "Ranked play, tournaments, friends, clubs, spectating and leaderboards all still need work that does not exist, and none of them are faked in the meantime — every screen that would need one says so instead of showing an empty version of itself.",
           "Everything that measures you against yourself works offline: the statistics dashboard, match history with full replays, Mastery, the Bias Board and achievements."
         ]
       },
       {
         "id": "self-exclusion",
         "question": "I want to limit how much I play",
-        "tags": ["wellbeing", "spending"],
+        "tags": [
+          "wellbeing",
+          "spending"
+        ],
         "answer": [
           "Nothing in this game punishes you for leaving. There are no streaks, no lose-it-if-you-miss-it rewards, and no daily window you have to catch — missions bank for three days and the Weekly Restock banks for four weeks.",
           "There is nothing to spend money on, so there is nothing to cap. Session reminders and spending controls arrive with the online build, where they will have something to act on."

@@ -26,6 +26,7 @@ import {
   recordRemixWin,
   recordMatch,
   recordTourWin,
+  activeDeck,
 } from "./save/profile";
 import { loanerDeckFor, tourOpponentDeck } from "./game/progression/grandTour";
 import { tutorialConfig } from "./game/progression/data";
@@ -38,6 +39,12 @@ import { createStarterScreen } from "./ui/screens/starterScreen";
 import { createCollectionScreen } from "./ui/screens/collectionScreen";
 import { createDeckBuilderScreen } from "./ui/screens/deckBuilderScreen";
 import { createDeckSlotsScreen } from "./ui/screens/deckSlotsScreen";
+import { createSignInScreen } from "./ui/screens/signInScreen";
+import { createQueueScreen } from "./ui/screens/queueScreen";
+import { accessToken, currentAccount } from "./auth/account";
+import { matchSocketUrl } from "./config";
+import { WsTransport, browserSockets } from "./net/wsTransport";
+import { contentHash } from "./engine/content";
 import { createEventsScreen } from "./ui/screens/eventsScreen";
 import { createRemixScreen } from "./ui/screens/remixScreen";
 import { createCustomScreen } from "./ui/screens/customScreen";
@@ -310,8 +317,74 @@ function boot(): void {
       onStartBoss: (tier) => shell.navigate("boss", { tier }),
       onBack: () => shell.navigate("lobby"),
       onDeckBuilder: () => shell.navigate("decks"),
+      onStartCasual: () => shell.navigate(currentAccount() ? "queue" : "signin"),
     })
   );
+
+  /**
+   * Sign-in and the casual queue.
+   *
+   * Both exist only because the service behind them does — architecture
+   * contract §7. `config.ts` is the switch: blank its `serverUrl` and the
+   * casual tile goes back to being an explainer, and these routes become
+   * unreachable rather than broken.
+   */
+  shell.register("signin", () =>
+    createSignInScreen({
+      onBack: () => shell.navigate("play"),
+      // Straight into the queue: signing in is not a destination, it is the
+      // thing that was in the way of the one the player asked for.
+      onSignedIn: () => shell.navigate("queue"),
+    })
+  );
+
+  shell.register("queue", () =>
+    createQueueScreen(content, activeDeck(), {
+      onBack: () => shell.navigate("play"),
+      onNeedsSignIn: () => shell.navigate("signin"),
+      onNeedsDeck: () => shell.navigate("decks"),
+      onPlayAi: () => shell.navigate("play"),
+      onMatchFound: ({ matchId, seat }) => shell.navigate("online", { match: matchId, seat: String(seat) }),
+    })
+  );
+
+  /**
+   * An online match: the same battle screen, a different authority.
+   *
+   * Async because the socket URL carries a freshly refreshed access token, and
+   * `ScreenFactory` allows a promise for exactly this. The known cost is
+   * `shell.ts`'s `navigating` guard, which drops a hashchange arriving during
+   * the await — a second navigation in the ~50 ms this takes.
+   */
+  shell.register("online", async () => {
+    const matchId = new URLSearchParams(location.hash.split("?")[1] ?? "").get("match") ?? "";
+    const token = await accessToken();
+    if (!matchId || !token) {
+      shell.navigate(token ? "play" : "signin");
+      return { root: document.createElement("div") };
+    }
+
+    const deck = activeDeck() ?? playableDeck(content, selectableLeaders(content)[0]?.id ?? "");
+    const screen = new BattleScreen({
+      content,
+      playerDeck: deck,
+      transport: new WsTransport({
+        url: matchSocketUrl(matchId, token),
+        content,
+        connect: browserSockets(),
+        contentHash: contentHash(content),
+      }),
+      endActions: { primary: "Queue again", secondary: "Back to modes" },
+      /**
+       * No `onSettle`. Results, rewards and rating are the server's to write
+       * (§12, §13) and none of that exists yet — banking Clout from a match
+       * this client did not adjudicate would be paying out on an outcome it
+       * cannot verify.
+       */
+      onExit: (result) => shell.navigate(result.action === "again" ? "queue" : "play"),
+    });
+    return { root: screen.root, dispose: () => screen.dispose() };
+  });
 
   shell.register("collection", () =>
     createCollectionScreen(content, {

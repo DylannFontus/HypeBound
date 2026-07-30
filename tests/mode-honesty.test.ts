@@ -97,11 +97,23 @@ describe("every mode that needs a server explains itself", () => {
     }
   });
 
-  it("admits the server is not deployed rather than implying it is broken", () => {
-    // The specific dishonesty this replaces. "Needs server" reads as a fault
-    // report; the truth is that it is written, tested and not deployed.
-    expect(code).toContain("not deployed anywhere yet");
+  it("says there is nothing to connect to, rather than implying a fault", () => {
+    /**
+     * "Needs server" read as a fault report. The truth is that the server is
+     * written and tested and this *build* has none configured — which is a
+     * statement that stays true whether or not one is deployed somewhere,
+     * because `config.ts` is what decides whether this tile is live at all.
+     */
+    expect(code).toContain("no server configured");
     expect(code, "the old fault-report wording is still rendered").not.toContain("Needs server");
+  });
+
+  it("only shows the explainer when there is genuinely nothing to connect to", () => {
+    // The gate is config, not a hardcoded status. Blanking `serverUrl` in
+    // `config.ts` must be all it takes to turn the tile back into an explainer,
+    // or architecture contract §7's rule has no mechanism behind it.
+    expect(code).toContain("onlineAvailable()");
+    expect(code).toMatch(/mode\.id === "casual" && onlineReady/);
   });
 });
 

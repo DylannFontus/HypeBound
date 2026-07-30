@@ -3617,3 +3617,66 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 .handoff-panel { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-5); text-align: center; max-width: 30rem; }
 .handoff-panel .title { margin: 0; font-size: var(--fs-xl, 2rem); }
 .handoff-panel .btn { margin-top: var(--sp-2); }
+
+/* ---------------------------------------------------------------------------
+   Sign-in and the casual queue.
+
+   Both are text-first on purpose: the sign-in screen's job is as much to say
+   what an account is for as to collect one, and the queue screen's job is to
+   show a real number rather than an indeterminate spinner.
+   --------------------------------------------------------------------------- */
+
+.signin-body,
+.queue-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  max-width: 720px;
+  margin: 0 auto;
+  overflow-y: auto;
+}
+
+.signin-panel,
+.queue-panel { padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3); }
+.signin-note,
+.queue-note { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); }
+.signin-note p,
+.queue-note p { font-size: var(--fs-sm); line-height: 1.55; }
+.signin-lead { line-height: 1.55; }
+
+.signin-form { display: flex; flex-direction: column; gap: var(--sp-3); }
+.signin-field { display: flex; flex-direction: column; gap: var(--sp-1); }
+.signin-field span { font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
+.signin-field input {
+  padding: var(--sp-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.28);
+  color: inherit;
+  font: inherit;
+}
+/* The focus ring is the same one `verify:a11y` measures elsewhere; an input
+   that lost it would be the only focusable thing on screen without one. */
+.signin-field input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.signin-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+
+/* Announced through `role="status"`, so it must also be visible. */
+.signin-status { font-size: var(--fs-sm); line-height: 1.4; }
+.signin-status[data-tone="error"] { color: var(--warning); }
+.signin-status[data-tone="info"] { color: var(--text-faint); }
+
+.queue-state { font-family: var(--font-display); font-size: var(--fs-xl); }
+.queue-detail { font-size: var(--fs-sm); }
+.queue-offer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent-gold);
+  background: rgba(0, 0, 0, 0.22);
+}
+.queue-offer[hidden] { display: none; }
+.queue-offer-text { font-size: var(--fs-sm); line-height: 1.55; }

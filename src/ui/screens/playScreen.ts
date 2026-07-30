@@ -7,6 +7,7 @@ import type { AiDifficulty, ContentIndex } from "../../engine/types";
 import type { Screen } from "../shell";
 import { AI_DIFFICULTY_BLURB, AI_DIFFICULTY_LABEL, AI_DIFFICULTY_ORDER } from "../../ai/profiles";
 import { activeDeck, getProfile, tourView } from "../../save/profile";
+import { onlineAvailable } from "../../config";
 import { tourProgress } from "../../game/progression/grandTour";
 import { audio } from "../../audio/audio";
 import { BOSS_TIERS, bossForWeek, clearKey } from "../../game/weeklyBoss";
@@ -29,6 +30,12 @@ export interface PlayCallbacks {
   onStartTour: () => void;
   onBack: () => void;
   onDeckBuilder: () => void;
+  /**
+   * Casual is the one online mode with a service behind it. The screen does not
+   * decide whether that service exists — `onlineAvailable()` does — so the tile
+   * falls back to its explainer when it does not.
+   */
+  onStartCasual: () => void;
 }
 
 interface ModeCard {
@@ -67,7 +74,7 @@ const MODES: ModeCard[] = [
     icon: "◇",
     explainer: [
       "Casual pairs you with another player for an unranked match: no divisions, no placements, nothing to lose. It widens who it will consider the longer you wait, and after four minutes it offers you a match against the AI instead — an offer, not a swap, and never a bot pretending to be a person.",
-      "The match server that runs it is written and tested, but it is not deployed anywhere yet, so there is nothing to connect to. Rather than show you a queue that spins for ever, this tile says so.",
+      "The match server that runs it is written and tested, but this build has no server configured, so there is nothing to connect to. Rather than show you a queue that spins for ever, this tile says so.",
     ],
   },
   {
@@ -181,6 +188,12 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
     root.querySelector<HTMLButtonElement>("#online-cancel")?.focus();
   };
 
+  /**
+   * Read once. Whether the online modes are reachable is a build-time fact, and
+   * asking per tile would invite two tiles disagreeing.
+   */
+  const onlineReady = onlineAvailable();
+
   const runInProgress = activeRun();
   const gauntletInProgress = activeGauntlet();
   const tour = tourProgress(content, tourView());
@@ -188,6 +201,7 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
   for (const mode of MODES) {
     const card = document.createElement("button");
     card.className = `mode-card mode-${mode.status}`;
+    if (mode.status === "online" && !(mode.id === "casual" && onlineReady)) card.classList.add("mode-locked");
     card.type = "button";
     const status =
       mode.id === "roguelike" && runInProgress
@@ -204,10 +218,12 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
           : mode.status === "available"
             ? "Ready"
             : mode.status === "online"
-              ? // The exact words the design and both tech documents use. "Needs
-                // server" was this screen's own invention and read like a fault
-                // report rather than a roadmap.
-                "Coming online"
+              ? mode.id === "casual" && onlineReady
+                ? "Ready"
+                : // The exact words the design and both tech documents use. "Needs
+                  // server" was this screen's own invention and read like a fault
+                  // report rather than a roadmap.
+                  "Coming online"
               : "In development";
     card.innerHTML = `
       <div class="mode-icon">${mode.icon}</div>
@@ -291,6 +307,22 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
       card.addEventListener("click", () => {
         audio.play("sfx.ui.click");
         callbacks.onStartTutorial();
+      });
+    } else if (mode.id === "casual" && onlineReady) {
+      /**
+       * Live, because the server it needs is deployed and answering. The tile
+       * keeps its explainer for the build where that is not true: architecture
+       * contract §7 forbids an online entry that cannot work, and blanking
+       * `serverUrl` in `config.ts` is what turns this back into one.
+       */
+      card.classList.remove("mode-locked");
+      card.addEventListener("click", () => {
+        audio.play("sfx.ui.click");
+        if (!deck) {
+          callbacks.onDeckBuilder();
+          return;
+        }
+        callbacks.onStartCasual();
       });
     } else if (mode.status === "online" && mode.explainer) {
       /**
