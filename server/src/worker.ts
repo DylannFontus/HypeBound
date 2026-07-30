@@ -52,7 +52,10 @@ export default {
       const identified = await identify(request, url, env);
       if ("response" in identified) return cors(identified.response, origin, env);
       const stub = env.PLAYER_RECORD.get(env.PLAYER_RECORD.idFromName(identified.userId));
-      return cors(await stub.fetch(new Request("https://player/record")), origin, env);
+      // `DELETE` erases it; anything else reads it. Same id, same token, same
+      // impossibility of naming somebody else's.
+      const method = request.method === "DELETE" ? "DELETE" : "GET";
+      return cors(await stub.fetch(new Request("https://player/record", { method })), origin, env);
     }
 
     /**
@@ -191,7 +194,7 @@ function preflight(origin: string | null, env: Env): Response {
     status: 204,
     headers: {
       "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
       // `authorization`, or the preflight for any authenticated `fetch` is
       // refused before the request is ever made. The browser does not tell the
       // page why in any detail, so this failed as an opaque "Failed to fetch".

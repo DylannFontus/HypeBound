@@ -53,6 +53,32 @@ export async function fetchMyRecord(config: OnlineConfig = ONLINE): Promise<Play
   }
 }
 
+/**
+ * Erase everything the server holds about this account.
+ *
+ * Returns false rather than throwing when the server cannot be reached, so the
+ * caller can say "nothing was deleted" instead of implying success. A deletion
+ * that silently failed is the worst possible outcome for the one action on the
+ * page a player might genuinely depend on.
+ *
+ * Deletes the **record**, not the login. Removing a Supabase user needs the
+ * admin API and a service-role key, which this server does not hold and which
+ * putting anywhere reachable would undo the reason it does not.
+ */
+export async function deleteMyServerData(config: OnlineConfig = ONLINE): Promise<boolean> {
+  const token = await accessToken(config);
+  if (!token) return false;
+  try {
+    const response = await fetch(`${config.serverUrl.replace(/\/+$/, "")}/me/record`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** "3–1" or "3–1–1", and never a bare zero for someone who has played nothing. */
 export function describeRecord(record: PlayerRecordView | null): string | null {
   if (!record || record.played === 0) return null;

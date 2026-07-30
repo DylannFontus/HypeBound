@@ -14,6 +14,8 @@
  */
 
 import type { Screen } from "../shell";
+import { currentAccount, signOut } from "../../auth/account";
+import { deleteMyServerData } from "../../net/playerRecord";
 import { policiesData } from "../../game/policies";
 import { audio } from "../../audio/audio";
 
@@ -105,7 +107,16 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
             <button class="btn btn-primary" id="privacy-export">Export my data</button>
             <button class="btn btn-ghost" id="privacy-show">Show it here</button>
             <button class="btn btn-ghost" id="privacy-delete">Delete everything on this device</button>
+            <button class="btn btn-ghost" id="privacy-delete-online" hidden>Delete my online data</button>
           </div>
+          <p class="muted" id="privacy-online-note" hidden>
+            Your online data is the match results this game's server recorded: wins, losses and the
+            leaders involved. Deleting it erases all of that and signs you out.
+            <strong>It does not delete your login</strong>, which lives at Supabase rather than here —
+            this game holds no credential that could remove it, deliberately, and there is no button
+            on this page that can. An account can currently be abandoned but not deleted, and that is
+            a real gap rather than an oversight.
+          </p>
           <pre class="policy-dump" id="privacy-dump" hidden></pre>
         </section>
 
@@ -175,6 +186,39 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
       for (const key of doomed) localStorage.removeItem(key);
       window.location.hash = "#lobby";
       window.location.reload();
+    });
+
+    /**
+     * Deleting what the *server* holds — shown only when there is an account.
+     *
+     * A signed-out player has no online data, and a button offering to delete
+     * nothing is a button that suggests something is being kept.
+     */
+    const online = root.querySelector<HTMLElement>("#privacy-delete-online");
+    const onlineNote = root.querySelector<HTMLElement>("#privacy-online-note");
+    if (currentAccount()) {
+      online?.removeAttribute("hidden");
+      onlineNote?.removeAttribute("hidden");
+    }
+
+    online?.addEventListener("click", () => {
+      void (async () => {
+        // The same word as the local delete, for the same reason: no undo, so
+        // the friction is the feature.
+        const typed = window.prompt(
+          "This erases the match results this game's server recorded for your account, and signs you out. It does not delete the account itself.\n\nType DELETE to confirm."
+        );
+        if (typed !== "DELETE") return;
+        const gone = await deleteMyServerData();
+        await signOut();
+        window.alert(
+          gone
+            ? "Deleted. The results this game's server held are gone, and you are signed out. Your login still exists at Supabase — nothing here can remove it."
+            : "Could not reach the server, so nothing was deleted. You have been signed out on this device; try again when you are back online."
+        );
+        window.location.hash = "#lobby";
+        window.location.reload();
+      })();
     });
   };
 

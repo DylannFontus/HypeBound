@@ -35,6 +35,23 @@ export class PlayerRecord extends DurableObject<Env> {
       return Response.json({ ok: true, played: next.played });
     }
 
+    if (request.method === "DELETE") {
+      /**
+       * Erase everything this game's server holds about the account.
+       *
+       * `deleteAll()` rather than writing `EMPTY_RECORD`: a zeroed row is still
+       * a row, and "we kept a record of you with the numbers set to nought" is
+       * not what a deletion request means.
+       *
+       * It does **not** delete the login itself, which lives at Supabase and
+       * needs an admin credential this server deliberately does not hold. The
+       * caller is responsible for saying so rather than implying otherwise —
+       * see the privacy screen.
+       */
+      await this.ctx.storage.deleteAll();
+      return Response.json({ ok: true, deleted: stored.played });
+    }
+
     return Response.json(publicView(stored));
   }
 }
