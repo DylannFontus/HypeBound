@@ -1093,6 +1093,19 @@ export function runOp(ctx: EffectContext, op: EffectOp): void {
         if (!holder) continue;
         const instance = applyStatus(holder, op.status, op.amount, op.durationTurns, ctx.sourceCardId);
         if (instance) emit(ctx, { e: "statusApplied", target: ref, status: structuredClone(instance) });
+        /**
+         * Armor on a leader is a scalar, not a status instance, so `applyStatus`
+         * returns null for it and the line above emits nothing. Without this the
+         * gain is silent and a view-based client never learns about it.
+         */
+        else if (op.status === "armor" && ref.kind === "leader") {
+          emit(ctx, {
+            e: "armorChanged",
+            seat: ref.seat,
+            armor: ctx.state.players[ref.seat].armor,
+            delta: op.amount ?? 0,
+          });
+        }
         const positive = content.statuses[op.status]?.polarity === "positive";
         if (positive) fireSupportTriggers(ctx, ref);
       }

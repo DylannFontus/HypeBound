@@ -105,6 +105,10 @@ const EVENT_CLASSIFICATION: Record<EngineEvent["e"], { visibility: "public" | "p
   attackDeclared: { visibility: "public", why: "attacks are declared against public bodies" },
   damageDealt: { visibility: "public", why: "damage lands on public bodies" },
   healed: { visibility: "public", why: "healing lands on public bodies" },
+  armorChanged: {
+    visibility: "public",
+    why: "RedactedOpponent.armor is published and the HUD draws it for both seats, so the change is owed to both",
+  },
   statusApplied: { visibility: "public", why: "statuses are shown on public bodies" },
   statusRemoved: { visibility: "public", why: "statuses are shown on public bodies" },
   statusTriggered: { visibility: "public", why: "statuses are shown on public bodies" },

@@ -947,6 +947,23 @@ export type EngineEvent =
       absorbedByArmor: number;
       source: { cardId: string; instanceId?: string } | { confluence: ConfluenceId } | { fatigue: true };
     }
+  /**
+   * A leader's Armor changed.
+   *
+   * Armor on a leader is a scalar on `PlayerState`, not an entry in the status
+   * list (`statuses.ts` — `applyStatus` short-circuits and returns `null` for
+   * it), so granting it emitted **nothing at all**. Losses were inferable from
+   * `damageDealt.absorbedByArmor`; gains were invisible.
+   *
+   * That is fine while the UI reads state directly and fatal once it reads a
+   * view: `RedactedOpponent.armor` is public, the HUD draws it for both seats,
+   * and armor is granted mid-combat — exactly when a stale value corrupts the
+   * lethal maths a player is reading off the screen.
+   *
+   * `armor` is the resulting total, `delta` what was added, so a client can both
+   * set the value and animate the change.
+   */
+  | { e: "armorChanged"; seat: Seat; armor: number; delta: number }
   | { e: "healed"; target: TargetRef; amount: number; blocked: boolean }
   | { e: "statusApplied"; target: TargetRef; status: StatusInstance }
   | { e: "statusRemoved"; target: TargetRef; status: StatusId }
