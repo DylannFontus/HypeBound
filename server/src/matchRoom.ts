@@ -155,6 +155,10 @@ export class MatchRoom extends DurableObject<Env> {
     const now = this.clock.now();
     this.send(server, protocol.welcome(seat, identity.sessionId, makeResumeToken(), now, identity.role));
 
+    // The seat is occupied again. Tells the opponent, and hands back whatever
+    // Buffer Shield the pause did not use.
+    await this.commit(protocol.room, protocol.setConnected(seat, true, now), false);
+
     void url; // reserved for the spectator path (§13.3)
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -187,12 +191,36 @@ export class MatchRoom extends DurableObject<Env> {
   }
 
   override async webSocketClose(ws: WebSocket): Promise<void> {
+    await this.socketGone(ws);
+  }
+
+  override async webSocketError(ws: WebSocket): Promise<void> {
+    // An errored socket is a gone socket. Without this the seat stays "present"
+    // until the seat hold expires, and the opponent is told nothing at all.
+    await this.socketGone(ws);
+  }
+
+  /**
+   * A seat's socket has gone. Starts §8.2's grace window.
+   *
+   * Only if it was the *last* one: a resume opens the new socket before the old
+   * one closes, and treating that overlap as a disconnect would flicker the
+   * opponent's portrait and spend Buffer Shield on a player who never left.
+   */
+  private async socketGone(ws: WebSocket): Promise<void> {
     const identity = ws.deserializeAttachment() as SocketIdentity | null;
     if (!identity) return;
-    // §8.2's grace window is phase 4 work; until it exists, a dropped socket
-    // must not silently forfeit a match, so nothing happens here beyond the
-    // socket closing. The turn clock keeps running and will end the match on
-    // its own through the AFK path, which is the honest behaviour.
+
+    const remaining = this.ctx
+      .getWebSockets(`seat:${identity.seat}`)
+      .filter((socket) => socket !== ws && socket.readyState === WebSocket.READY_STATE_OPEN);
+    if (remaining.length > 0) return;
+
+    const protocol = await this.load();
+    const now = this.clock.now();
+    await this.commit(protocol.room, protocol.setConnected(identity.seat, false, now), false);
+    // The alarm is what eventually enforces the 90 s hold, so it must be armed
+    // even in a room where nobody is going to send another frame.
     await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
   }
 

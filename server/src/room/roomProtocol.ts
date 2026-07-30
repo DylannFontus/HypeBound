@@ -124,6 +124,11 @@ export class RoomProtocol {
     }
   }
 
+  /** A socket for a seat arrived or went away (§8.2). */
+  setConnected(seat: Seat, connected: boolean, nowMs: number): Outgoing[] {
+    return this.envelope(this.room.setConnected(seat, connected, nowMs), nowMs);
+  }
+
   /** Advance the clock; returns whatever the expiry caused (usually nothing). */
   tick(nowMs: number): Outgoing[] {
     return this.envelope(this.room.tick(nowMs), nowMs);

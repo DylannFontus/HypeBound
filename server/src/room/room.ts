@@ -92,6 +92,19 @@ export type RoomFrame =
   | { t: "snapshot"; snapshot: MatchSnapshot }
   | { t: "clock"; clocks: MatchClocks }
   | {
+      t: "presence";
+      seat: Seat;
+      /**
+       * Three values, against `TransportStatus`'s six, and lossy on purpose
+       * (§7.7 C7): an opponent is entitled to know that you are not there, not
+       * to a readout of your network.
+       */
+      status: "connected" | "unstable" | "disconnected";
+      /** How long the seat is still held. Never a mystery, per §8.2. */
+      graceRemainingMs: number;
+      spectators: number;
+    }
+  | {
       t: "ended";
       winner: Seat | "draw";
       reason: "leaderDefeated" | "concede" | "finale" | "draw";
@@ -112,6 +125,24 @@ export interface RoomTimer {
   readonly ropeMs: number;
   /** §4.4: three consecutive rope turns with no intent at all ⇒ auto-concede. */
   readonly idleRopeTurnsToConcede: number;
+  /**
+   * §8.2's two tiers. 60 s is how long a *session* survives; 90 s is how long a
+   * *seat* survives. They are different objects and both hold at once — the
+   * first decides whether a client may resume its old session, the second
+   * decides whether the match is still theirs to come back to.
+   *
+   * Only the second is enforced here, because a room does not care which
+   * session a socket belongs to: a seat is occupied or it is not.
+   */
+  readonly seatHoldMs: number;
+  /**
+   * The Buffer Shield (game-modes §7.10): if a player drops during **their own**
+   * turn, their clock pauses for up to this long, once per match.
+   *
+   * Once per match rather than per disconnect, because otherwise dropping is a
+   * way to buy thinking time, repeatedly, on purpose.
+   */
+  readonly bufferShieldMs: number;
 }
 
 export interface RoomOptions {
@@ -135,7 +166,13 @@ const SEATS: readonly Seat[] = [0, 1];
  * these are the fallback for a content index that somehow lacks them, and match
  * canon §2 (75 s + 15 s rope).
  */
-const DEFAULT_TIMER: RoomTimer = { turnMs: 75_000, ropeMs: 15_000, idleRopeTurnsToConcede: 3 };
+const DEFAULT_TIMER: RoomTimer = {
+  turnMs: 75_000,
+  ropeMs: 15_000,
+  idleRopeTurnsToConcede: 3,
+  seatHoldMs: 90_000,
+  bufferShieldMs: 45_000,
+};
 
 export class Room {
   readonly matchId: string;
@@ -156,6 +193,21 @@ export class Room {
   private readonly actedThisTurn: boolean[] = [false, false];
   private readonly idleRopeTurns: number[] = [0, 0];
   private endedAnnounced = false;
+
+  /** When each seat's socket went away, or null while it is present. */
+  private readonly disconnectedAtMs: (number | null)[] = [null, null];
+  /** Buffer Shield already spent, per seat, for the whole match. */
+  private readonly shieldUsedMs: number[] = [0, 0];
+  /**
+   * The clock is stopped, and when it stopped.
+   *
+   * Held as an instant rather than a boolean so `elapsed()` can freeze at it —
+   * a paused clock that still reads `now` is not paused, it is merely not
+   * being looked at.
+   */
+  private pausedAtMs: number | null = null;
+  /** Paused time already credited back to the *current* turn. */
+  private pausedMsThisTurn = 0;
 
   constructor(content: ContentIndex, options: RoomOptions, nowMs: number) {
     this.content = content;
@@ -213,6 +265,14 @@ export class Room {
     room.idleRopeTurns[0] = saved.idleRopeTurns[0] ?? 0;
     room.idleRopeTurns[1] = saved.idleRopeTurns[1] ?? 0;
     room.endedAnnounced = saved.endedAnnounced;
+    // `?? null` and `?? 0`: a save written before the grace window existed has
+    // none of these, and a rebuilt room must read that as "everybody is here".
+    room.disconnectedAtMs[0] = saved.disconnectedAtMs?.[0] ?? null;
+    room.disconnectedAtMs[1] = saved.disconnectedAtMs?.[1] ?? null;
+    room.shieldUsedMs[0] = saved.shieldUsedMs?.[0] ?? 0;
+    room.shieldUsedMs[1] = saved.shieldUsedMs?.[1] ?? 0;
+    room.pausedAtMs = saved.pausedAtMs ?? null;
+    room.pausedMsThisTurn = saved.pausedMsThisTurn ?? 0;
     return room;
   }
 
@@ -225,6 +285,10 @@ export class Room {
       actedThisTurn: [...this.actedThisTurn],
       idleRopeTurns: [...this.idleRopeTurns],
       endedAnnounced: this.endedAnnounced,
+      disconnectedAtMs: [...this.disconnectedAtMs],
+      shieldUsedMs: [...this.shieldUsedMs],
+      pausedAtMs: this.pausedAtMs,
+      pausedMsThisTurn: this.pausedMsThisTurn,
     };
   }
 
@@ -257,6 +321,26 @@ export class Room {
     return this.state;
   }
 
+  /**
+   * How much of the current turn has been spent, with paused time removed.
+   *
+   * While paused, the clock reads the instant it stopped — not `now` minus a
+   * total, because that total is only known once it restarts. A paused clock
+   * that still consults `now` is not paused, it is merely not being looked at,
+   * and the bug that produces is a turn that expires while a player is
+   * reconnecting.
+   */
+  private elapsedThisTurn(nowMs: number): number {
+    const stopped = this.pausedAtMs ?? nowMs;
+    return Math.max(0, stopped - this.turnStartedAtMs - this.pausedMsThisTurn);
+  }
+
+  /** Buffer Shield left for a seat, in ms. Zero once spent. */
+  private shieldRemaining(seat: Seat, nowMs: number): number {
+    const spent = (this.shieldUsedMs[seat] ?? 0) + (this.pausedAtMs !== null && this.state.activeSeat === seat ? nowMs - this.pausedAtMs : 0);
+    return Math.max(0, this.timer.bufferShieldMs - spent);
+  }
+
   clocks(nowMs: number): MatchClocks {
     // A turn boundary can arrive through an intent, a timer, or a scripted
     // effect, so the reset is detected here rather than trusted to a caller
@@ -264,8 +348,10 @@ export class Room {
     if (this.state.activeSeat !== this.clockedSeat) {
       this.clockedSeat = this.state.activeSeat;
       this.turnStartedAtMs = nowMs;
+      this.pausedMsThisTurn = 0;
+      if (this.pausedAtMs !== null) this.pausedAtMs = nowMs;
     }
-    const elapsed = Math.max(0, nowMs - this.turnStartedAtMs);
+    const elapsed = this.elapsedThisTurn(nowMs);
     return {
       activeSeat: this.state.activeSeat,
       turnMsRemaining: Math.max(0, this.timer.turnMs - elapsed),
@@ -331,6 +417,26 @@ export class Room {
    */
   tick(nowMs: number): Addressed[] {
     if (this.state.winner !== null) return [];
+
+    // The shield can run out while nothing else is happening, so it is checked
+    // on the tick rather than only when a socket comes back.
+    this.syncShield(nowMs);
+
+    /**
+     * §8.2's third tier: at 90 s the seat is no longer theirs.
+     *
+     * A real `concede` intent, journaled like any other, for the same reason
+     * the rope's `endTurn` is — the engine has one way for a match to end early
+     * and every route goes through it, so replays and results cannot disagree
+     * about what happened.
+     */
+    for (const seat of SEATS) {
+      const since = this.disconnectedAtMs[seat] ?? null;
+      if (since !== null && nowMs - since >= this.timer.seatHoldMs) {
+        return this.apply({ type: "concede", seat }, { kind: "system", seat }, null, nowMs);
+      }
+    }
+
     const clocks = this.clocks(nowMs);
     if (clocks.turnMsRemaining > 0 || clocks.ropeMsRemaining > 0) return [];
 
@@ -356,6 +462,90 @@ export class Room {
     }
 
     return this.apply({ type: "endTurn", seat }, { kind: "timer", seat }, null, nowMs);
+  }
+
+  // --- presence and the grace window (§8.2) ----------------------------------
+
+  /**
+   * A socket arrived or went away.
+   *
+   * Returns the presence frames the opponent is owed. §8.2: they see only
+   * "connection unstable" and the remaining grace, never any network detail —
+   * and they *always* see the countdown, so the wait is never a mystery.
+   */
+  setConnected(seat: Seat, connected: boolean, nowMs: number): Addressed[] {
+    if (this.state.winner !== null) return [];
+    const wasConnected = this.disconnectedAtMs[seat] === null;
+    if (wasConnected === connected) return [];
+
+    if (connected) {
+      this.disconnectedAtMs[seat] = null;
+      this.resumeClock(nowMs);
+    } else {
+      this.disconnectedAtMs[seat] = nowMs;
+      /**
+       * The Buffer Shield only applies to your *own* turn. Dropping on the
+       * opponent's turn pauses nothing — there is no clock of yours running to
+       * protect, and pausing theirs would turn your disconnect into a weapon.
+       */
+      if (this.state.activeSeat === seat && this.shieldRemaining(seat, nowMs) > 0) {
+        this.pausedAtMs = nowMs;
+      }
+    }
+    return this.presenceFrames(nowMs);
+  }
+
+  /** Is a seat currently held open for somebody who is not here? */
+  isDisconnected(seat: Seat): boolean {
+    return this.disconnectedAtMs[seat] !== null;
+  }
+
+  private presenceFrames(nowMs: number): Addressed[] {
+    return SEATS.flatMap((about) => {
+      const since = this.disconnectedAtMs[about] ?? null;
+      const status = since === null ? ("connected" as const) : ("disconnected" as const);
+      const graceRemainingMs = since === null ? 0 : Math.max(0, this.timer.seatHoldMs - (nowMs - since));
+      // Sent to both seats. The absent one is not listening, and a frame that
+      // has to work out who is worth telling is a frame that can get it wrong.
+      return SEATS.map((to) => ({
+        seat: to,
+        frame: { t: "presence" as const, seat: about, status, graceRemainingMs, spectators: 0 },
+      }));
+    });
+  }
+
+  /**
+   * Bank what the pause used and start the clock again — **capped at the
+   * shield**.
+   *
+   * The cap is the whole mechanism, and leaving it out is not a small error:
+   * without it, crediting the real elapsed pause hands back every second the
+   * player was away. A hundred-second absence returned a hundred seconds of
+   * turn, which makes the 45 s limit decorative and disconnecting strictly
+   * better than thinking.
+   *
+   * So the pause is treated as having *ended* the moment the shield ran out,
+   * whatever the socket did afterwards.
+   */
+  private resumeClock(nowMs: number): void {
+    if (this.pausedAtMs === null) return;
+    const seat = this.state.activeSeat;
+    const spent = this.shieldUsedMs[seat] ?? 0;
+    const allowed = Math.min(Math.max(0, nowMs - this.pausedAtMs), Math.max(0, this.timer.bufferShieldMs - spent));
+    this.shieldUsedMs[seat] = spent + allowed;
+    this.pausedMsThisTurn += allowed;
+    this.pausedAtMs = null;
+  }
+
+  /**
+   * End the pause if the shield has run out, even though the player is still
+   * away. 45 s is the whole of it; after that their clock runs and the ordinary
+   * rope decides the turn.
+   */
+  private syncShield(nowMs: number): void {
+    if (this.pausedAtMs === null) return;
+    if (this.shieldRemaining(this.state.activeSeat, nowMs) > 0) return;
+    this.resumeClock(nowMs);
   }
 
   /**
@@ -422,6 +612,11 @@ export class Room {
       this.turnStartedAtMs = nowMs;
       this.clockedSeat = this.state.activeSeat;
       this.actedThisTurn[this.state.activeSeat] = false;
+      // Paused time is credited to a turn, so it does not carry into the next
+      // one. The shield *is* per match and deliberately does not reset.
+      this.pausedMsThisTurn = 0;
+      if (this.pausedAtMs !== null) this.pausedAtMs = nowMs;
+      this.syncShield(nowMs);
     }
 
     const seq = ++this.seqCounter;
@@ -543,6 +738,17 @@ export interface RoomSave {
   readonly actedThisTurn: boolean[];
   readonly idleRopeTurns: number[];
   readonly endedAnnounced: boolean;
+  /**
+   * The grace window, which must survive eviction or it is not a window.
+   *
+   * A Durable Object is evicted while players think, so a disconnect timer held
+   * only in a field would restart every time the object woke — and a seat hold
+   * that never expires is the same as no seat hold.
+   */
+  readonly disconnectedAtMs: (number | null)[];
+  readonly shieldUsedMs: number[];
+  readonly pausedAtMs: number | null;
+  readonly pausedMsThisTurn: number;
 }
 
 function resolveTimer(content: ContentIndex, overrides?: Partial<RoomTimer>): RoomTimer {
@@ -551,5 +757,7 @@ function resolveTimer(content: ContentIndex, overrides?: Partial<RoomTimer>): Ro
     turnMs: overrides?.turnMs ?? (timer?.turnSeconds !== undefined ? timer.turnSeconds * 1000 : DEFAULT_TIMER.turnMs),
     ropeMs: overrides?.ropeMs ?? (timer?.ropeSeconds !== undefined ? timer.ropeSeconds * 1000 : DEFAULT_TIMER.ropeMs),
     idleRopeTurnsToConcede: overrides?.idleRopeTurnsToConcede ?? DEFAULT_TIMER.idleRopeTurnsToConcede,
+    seatHoldMs: overrides?.seatHoldMs ?? DEFAULT_TIMER.seatHoldMs,
+    bufferShieldMs: overrides?.bufferShieldMs ?? DEFAULT_TIMER.bufferShieldMs,
   };
 }

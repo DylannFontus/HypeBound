@@ -449,3 +449,167 @@ describe("the monotonic clock (§7.7 C10)", () => {
     expect(clock.now()).toBe(50_000);
   });
 });
+
+describe("the disconnect grace window (§8.2)", () => {
+  const ready = (room: Room): void => {
+    room.submit(0, 1, { type: "mulligan", seat: 0, replaceInstanceIds: [] }, T0);
+    room.submit(1, 1, { type: "mulligan", seat: 1, replaceInstanceIds: [] }, T0);
+  };
+
+  it("tells the opponent, with a countdown rather than a mystery", () => {
+    const room = makeRoom();
+    ready(room);
+    const out = room.setConnected(0, false, T0 + 1_000);
+
+    // Both seats are told about seat 0; the absent one is not listening, and a
+    // frame that works out who is worth telling is one that can get it wrong.
+    const seen = framesFor(out, 1, "presence");
+    expect(seen).toHaveLength(2);
+    const aboutZero = seen.find((f) => f.seat === 0)!;
+    expect(aboutZero.status).toBe("disconnected");
+    expect(aboutZero.graceRemainingMs).toBe(room.timer.seatHoldMs);
+    // §8.2: "never any network detail" — three values, not six.
+    expect(["connected", "unstable", "disconnected"]).toContain(aboutZero.status);
+  });
+
+  it("counts the grace down, and says so", () => {
+    const room = makeRoom();
+    ready(room);
+    room.setConnected(0, false, T0);
+    const later = room.setConnected(0, true, T0 + 30_000);
+    expect(framesFor(later, 1, "presence").find((f) => f.seat === 0)?.status).toBe("connected");
+
+    room.setConnected(0, false, T0 + 40_000);
+    const out = room.tick(T0 + 60_000);
+    void out;
+    const again = room.setConnected(0, true, T0 + 60_000);
+    expect(framesFor(again, 1, "presence").find((f) => f.seat === 0)?.status).toBe("connected");
+  });
+
+  it("says nothing when nothing changed", () => {
+    // Two close events for one socket, or a connect for a seat already here.
+    const room = makeRoom();
+    ready(room);
+    expect(room.setConnected(0, true, T0)).toEqual([]);
+    room.setConnected(0, false, T0);
+    expect(room.setConnected(0, false, T0 + 5_000)).toEqual([]);
+  });
+});
+
+describe("the Buffer Shield (game-modes §7.10)", () => {
+  const ready = (room: Room): Seat => {
+    room.submit(0, 1, { type: "mulligan", seat: 0, replaceInstanceIds: [] }, T0);
+    room.submit(1, 1, { type: "mulligan", seat: 1, replaceInstanceIds: [] }, T0);
+    return room.activeSeat;
+  };
+
+  it("pauses the clock when the active player drops", () => {
+    const room = makeRoom();
+    const active = ready(room);
+    const before = room.clocks(T0 + 10_000).turnMsRemaining;
+
+    room.setConnected(active, false, T0 + 10_000);
+    // Twenty seconds pass with nobody there. The clock must not have moved.
+    expect(room.clocks(T0 + 30_000).turnMsRemaining).toBe(before);
+  });
+
+  it("gives the time back on reconnect, not the whole turn", () => {
+    const room = makeRoom();
+    const active = ready(room);
+    room.setConnected(active, false, T0 + 10_000);
+    room.setConnected(active, true, T0 + 30_000);
+
+    // 10 s were played, 20 s were paused. At T0+40s, 20 s should be spent.
+    expect(room.clocks(T0 + 40_000).turnMsRemaining).toBe(room.timer.turnMs - 20_000);
+  });
+
+  it("does not pause when the player who dropped is not on the clock", () => {
+    /**
+     * Otherwise dropping is a weapon: you could stop your opponent's turn timer
+     * by pulling your own cable.
+     */
+    const room = makeRoom();
+    const active = ready(room);
+    const idle = (active === 0 ? 1 : 0) as Seat;
+
+    room.setConnected(idle, false, T0 + 5_000);
+    expect(room.clocks(T0 + 25_000).turnMsRemaining).toBe(room.timer.turnMs - 25_000);
+  });
+
+  it("runs out after 45 seconds and lets the clock go", () => {
+    const room = makeRoom();
+    const active = ready(room);
+    room.setConnected(active, false, T0 + 1_000);
+
+    // 100 s away, but only 45 s of it is shielded.
+    room.tick(T0 + 101_000);
+    const spentUnshielded = 101_000 - room.timer.bufferShieldMs;
+    expect(room.clocks(T0 + 101_000).turnMsRemaining).toBe(Math.max(0, room.timer.turnMs - spentUnshielded));
+  });
+
+  it("is once per match, not once per disconnect", () => {
+    /**
+     * The reason it is banked rather than reset: otherwise a player buys 45
+     * seconds of thinking time every time they close their laptop lid, as often
+     * as they like.
+     */
+    const room = makeRoom();
+    const active = ready(room);
+
+    room.setConnected(active, false, T0 + 1_000);
+    room.setConnected(active, true, T0 + 41_000); // spends 40 s of the 45
+    room.setConnected(active, false, T0 + 42_000);
+    room.tick(T0 + 60_000);
+
+    // Only 5 s of shield was left, so the clock resumed at T0+47s.
+    const paused = 40_000 + 5_000;
+    expect(room.clocks(T0 + 60_000).turnMsRemaining).toBe(room.timer.turnMs - (60_000 - 1_000 - paused) - 1_000);
+  });
+});
+
+describe("the seat hold (§8.2, third tier)", () => {
+  it("concedes the seat after 90 seconds away, and not before", () => {
+    const room = makeRoom();
+    room.submit(0, 1, { type: "mulligan", seat: 0, replaceInstanceIds: [] }, T0);
+    room.submit(1, 1, { type: "mulligan", seat: 1, replaceInstanceIds: [] }, T0);
+    const gone = (room.activeSeat === 0 ? 1 : 0) as Seat;
+
+    room.setConnected(gone, false, T0);
+    expect(room.tick(T0 + 89_000), "conceded early").toEqual([]);
+    expect(room.winner).toBeNull();
+
+    const out = room.tick(T0 + 90_000);
+    expect(room.winner).toBe(gone === 0 ? 1 : 0);
+    // A real intent, journaled, so a replay plays the forfeit too.
+    expect(room.journal.intents.at(-1)).toEqual({ type: "concede", seat: gone });
+    expect(out.filter((a) => a.frame.t === "ended")).toHaveLength(2);
+  });
+
+  it("does not concede a player who came back", () => {
+    const room = makeRoom();
+    room.submit(0, 1, { type: "mulligan", seat: 0, replaceInstanceIds: [] }, T0);
+    room.submit(1, 1, { type: "mulligan", seat: 1, replaceInstanceIds: [] }, T0);
+
+    room.setConnected(1, false, T0);
+    room.setConnected(1, true, T0 + 80_000);
+    room.tick(T0 + 200_000);
+    expect(room.journal.intents.every((i) => i.type !== "concede")).toBe(true);
+  });
+
+  it("survives a rebuild, or the hold is not a hold at all", () => {
+    /**
+     * A Durable Object is evicted while players think. A disconnect timer kept
+     * only in a field would restart on every wake, and a seat hold that never
+     * expires is the same as no seat hold.
+     */
+    const room = makeRoom();
+    room.submit(0, 1, { type: "mulligan", seat: 0, replaceInstanceIds: [] }, T0);
+    room.submit(1, 1, { type: "mulligan", seat: 1, replaceInstanceIds: [] }, T0);
+    room.setConnected(1, false, T0);
+
+    const restored = Room.restore(content, JSON.parse(JSON.stringify(room.save())) as RoomSave);
+    expect(restored.isDisconnected(1)).toBe(true);
+    restored.tick(T0 + 90_000);
+    expect(restored.winner, "the seat hold restarted on wake").toBe(0);
+  });
+});
