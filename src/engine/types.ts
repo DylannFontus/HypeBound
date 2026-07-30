@@ -955,7 +955,18 @@ export type EngineEvent =
   | { e: "statsSet"; target: TargetRef; attack: number; health: number }
   | { e: "keywordAdded"; target: TargetRef; keyword: KeywordId }
   | { e: "keywordRemoved"; target: TargetRef; keyword: KeywordId }
-  | { e: "keywordTriggered"; instanceId: string | null; cardId: string; keyword: KeywordId } // viral copy made, rushwind bonus, etc.
+  /**
+   * A keyword fired. `viral` copy made, `rushwind` bonus, `comeback` return, etc.
+   *
+   * `seat` is who it fired for. It was added when per-seat event redaction was
+   * built (`redactEvents`, see `docs/tech/03-multiplayer-architecture.md` §5):
+   * every other player-scoped event carries a seat, and without one this event
+   * cannot be attributed — which means it cannot be redacted. Six of the seven
+   * emission sites name a card that is already public, but the `comeback` one
+   * names a card entering a private hand, and there was no way to tell those
+   * apart from the event alone.
+   */
+  | { e: "keywordTriggered"; seat: Seat; instanceId: string | null; cardId: string; keyword: KeywordId }
   | { e: "characterDefeated"; instance: CharacterInstance; killerCardId: string | null }
   | { e: "characterReturnedToHand"; seat: Seat; instanceId: string; cardId: string }
   | { e: "characterBanished"; instanceId: string; cardId: string; returnsOnTurn: number | null }

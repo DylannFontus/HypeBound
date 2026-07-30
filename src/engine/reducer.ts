@@ -340,7 +340,7 @@ function returnComebacks(ctx: EffectContext, seat: Seat): void {
       addCardToHand(ctx, seat, entry.cardId, "comeback");
     }
     ctx.events.push({ e: "comebackReturned", seat, cardId: entry.cardId, mode: entry.mode });
-    ctx.events.push({ e: "keywordTriggered", instanceId: null, cardId: entry.cardId, keyword: "comeback" });
+    ctx.events.push({ e: "keywordTriggered", seat, instanceId: null, cardId: entry.cardId, keyword: "comeback" });
   }
 }
 
@@ -611,7 +611,7 @@ function applyPlayCard(
 
   // --- Rushwind -------------------------------------------------------------
   if (card.keywords.includes("rushwind") && isNotFirstCard) {
-    events.push({ e: "keywordTriggered", instanceId, cardId: card.id, keyword: "rushwind" });
+    events.push({ e: "keywordTriggered", seat, instanceId, cardId: card.id, keyword: "rushwind" });
     for (const effect of card.effects.filter((e) => e.trigger === "rushwind")) {
       const child: EffectContext = { ...ctx, chosenTargets: [...targets], choices: [] };
       runEffect(child, effect);
@@ -622,7 +622,7 @@ function applyPlayCard(
   if (card.keywords.includes("viral") && !instance.viralCopy) {
     const discount = -1;
     addCardToHand(ctx, seat, card.id, "viral", discount);
-    events.push({ e: "keywordTriggered", instanceId, cardId: card.id, keyword: "viral" });
+    events.push({ e: "keywordTriggered", seat, instanceId, cardId: card.id, keyword: "viral" });
   }
 
   // --- Overload -------------------------------------------------------------

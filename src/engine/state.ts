@@ -9,6 +9,7 @@ import type {
   CharacterInstance,
   ContentIndex,
   DeckList,
+  EngineEvent,
   EquipmentCardDef,
   LeaderCardDef,
   MatchConfig,
@@ -437,6 +438,98 @@ export function redact(state: MatchState, seat: Seat): PlayerView {
     aurasDisabledUntilTurn: state.aurasDisabledUntilTurn,
     winner: state.winner,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Event redaction
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip facts a seat is not entitled to see from an event batch.
+ * `docs/tech/03-multiplayer-architecture.md` §5.
+ *
+ * `redact()` above does this for state. Events need the same treatment and for
+ * the same reason: online, a batch is broadcast to both players, and anything
+ * left in it is something the opponent's client receives. There is no second
+ * chance to hide it — a client that is *sent* a card identity has it, whatever
+ * the UI chooses to draw.
+ *
+ * It lives in the engine because hidden information is a rule, not a transport
+ * detail, and because the engine imports nothing outside itself so this is
+ * unit-testable with the rest of the rules.
+ *
+ * ## The rule
+ *
+ * **A card identity in a private zone is visible only to its owner.** Public
+ * zones — the board, the discard, the location, the event banner, a Reaction
+ * that has flipped face-up — are never redacted, because both players watched
+ * those happen.
+ *
+ * Almost every event passes through untouched. `tests/redaction.test.ts` holds
+ * the classification of all of them, and fails when a new event type appears
+ * that nobody has classified — which is the actual defence here. This function
+ * is only the four cases where the answer is "no".
+ */
+export function redactEvents(events: readonly EngineEvent[], viewer: Seat): EngineEvent[] {
+  const out: EngineEvent[] = [];
+
+  for (const event of events) {
+    switch (event.e) {
+      /**
+       * The hand is private. `instanceId` stays so both clients animate the
+       * same card back travelling to the same place; only the identity goes.
+       * The type has allowed `cardId: null` since it was written.
+       */
+      case "cardDrawn":
+        out.push(event.seat === viewer ? event : { ...event, cardId: null });
+        break;
+
+      /**
+       * Viral copies, steals and Comeback returns must not leak. `source` is
+       * kept deliberately — it is what picks the right VFX, and it reveals a
+       * category rather than a card.
+       */
+      case "cardAddedToHand":
+        out.push(event.seat === viewer ? event : { ...event, cardId: null });
+        break;
+
+      /**
+       * **Dropped, not blanked** — and this one is not in §5's table.
+       *
+       * A `mode: "hand"` comeback puts a named card into a private hand, and
+       * `comebackReturned.cardId` is not nullable: the identity *is* the
+       * payload, so there is nothing to blank. Dropping it costs the opponent
+       * nothing they are entitled to, because the redacted `cardAddedToHand`
+       * that accompanies it still carries `source: "comeback"` and that is what
+       * drives the animation.
+       *
+       * `mode: "play"` is untouched: the card arrives on the board, in public,
+       * and `characterSummoned` announces it anyway.
+       */
+      case "comebackReturned":
+        if (event.seat === viewer || event.mode === "play") out.push(event);
+        break;
+
+      /**
+       * Same leak, same fix. Six of the seven emission sites name a card that
+       * is already public — the card just played, or a character standing on
+       * the board. The `comeback` one names the card going to hand, and it fired
+       * immediately after `comebackReturned`, so redacting only that one would
+       * have hidden the name and then printed it on the next line.
+       *
+       * This event had no `seat` until redaction was built; it was added
+       * precisely because an unattributable event cannot be redacted.
+       */
+      case "keywordTriggered":
+        if (event.seat === viewer || event.keyword !== "comeback") out.push(event);
+        break;
+
+      default:
+        out.push(event);
+    }
+  }
+
+  return out;
 }
 
 /** Deep clone used at every intent boundary (structuredClone keeps it JSON-safe). */

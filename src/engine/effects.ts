@@ -515,7 +515,7 @@ export function fireSupportTriggers(ctx: EffectContext, ref: TargetRef): void {
     holder.attack += 1;
     holder.maxHealth += 1;
     holder.health += 1;
-    emit(ctx, { e: "keywordTriggered", instanceId: holder.instanceId, cardId: holder.cardId, keyword: "parasocial" });
+    emit(ctx, { e: "keywordTriggered", seat: holder.controller, instanceId: holder.instanceId, cardId: holder.cardId, keyword: "parasocial" });
     emit(ctx, { e: "buffApplied", target: ref, attack: 1, health: 1 });
     changeObsession(ctx, ctx.seat, 1, "parasocial");
   }
@@ -567,7 +567,7 @@ export function summonCharacter(
   emit(ctx, { e: "characterSummoned", seat, instance: structuredClone(character), fromCardPlay });
 
   if (character.keywords.includes("raid")) {
-    emit(ctx, { e: "keywordTriggered", instanceId: character.instanceId, cardId, keyword: "raid" });
+    emit(ctx, { e: "keywordTriggered", seat, instanceId: character.instanceId, cardId, keyword: "raid" });
   }
   return character;
 }
@@ -1151,7 +1151,9 @@ export function runOp(ctx: EffectContext, op: EffectOp): void {
           emit(ctx, { e: "equipmentDestroyed", characterInstanceId: character.instanceId, cardId: character.equipment.cardId });
         }
         emit(ctx, { e: "characterBanished", instanceId: character.instanceId, cardId: character.cardId, returnsOnTurn });
-        emit(ctx, { e: "keywordTriggered", instanceId: character.instanceId, cardId: ctx.sourceCardId, keyword: "touch-grass" });
+        // the source card's keyword, so the source's controller — not the
+        // controller of the character being banished by it
+        emit(ctx, { e: "keywordTriggered", seat: ctx.seat, instanceId: character.instanceId, cardId: ctx.sourceCardId, keyword: "touch-grass" });
       });
       break;
     }
@@ -1209,7 +1211,7 @@ export function runOp(ctx: EffectContext, op: EffectOp): void {
       const player = state.players[ctx.seat];
       player.hypeLockedNextTurn += op.amount;
       emit(ctx, { e: "hypeLocked", seat: ctx.seat, amount: op.amount });
-      emit(ctx, { e: "keywordTriggered", instanceId: null, cardId: ctx.sourceCardId, keyword: "overload" });
+      emit(ctx, { e: "keywordTriggered", seat: ctx.seat, instanceId: null, cardId: ctx.sourceCardId, keyword: "overload" });
       break;
     }
 
