@@ -28,6 +28,26 @@ const images = new Map<string, HTMLImageElement>();
 const states = new Map<string, AssetState>();
 const listeners = new Set<(base: string) => void>();
 
+/**
+ * Callers of `awaitAsset` waiting on a base path, settled on **either**
+ * outcome.
+ *
+ * The first version only notified on success and gave `awaitAsset` a two-second
+ * backstop for the rest. That is wrong in the common case rather than the rare
+ * one: a board whose faction has no art yet fails both extensions in about a
+ * millisecond and then made the caller wait the full two seconds to be told so.
+ * The board arrived two and a half seconds into the match, which looked like a
+ * slow network and was actually a timer.
+ */
+const waiters = new Map<string, Array<(image: HTMLImageElement | null) => void>>();
+
+function settle(base: string, image: HTMLImageElement | null): void {
+  const pending = waiters.get(base);
+  if (!pending) return;
+  waiters.delete(base);
+  for (const resolve of pending) resolve(image);
+}
+
 /** Notified whenever an asset finishes loading, with the base path that arrived. */
 export function onAssetLoaded(listener: (base: string) => void): () => void {
   listeners.add(listener);
@@ -37,6 +57,7 @@ export function onAssetLoaded(listener: (base: string) => void): () => void {
 function tryLoad(base: string, extensions: readonly string[], index = 0): void {
   if (index >= extensions.length) {
     states.set(base, "missing");
+    settle(base, null);
     return;
   }
   const image = new Image();
@@ -44,6 +65,7 @@ function tryLoad(base: string, extensions: readonly string[], index = 0): void {
   image.onload = () => {
     images.set(base, image);
     states.set(base, "loaded");
+    settle(base, image);
     for (const listener of listeners) listener(base);
   };
   image.onerror = () => tryLoad(base, extensions, index + 1);
@@ -91,22 +113,17 @@ export function awaitAsset(base: string, extensions: readonly string[] = ["png"]
   if (immediate) return Promise.resolve(immediate);
   if (states.get(base) === "missing") return Promise.resolve(null);
 
+  /**
+   * No timeout. `tryLoad` settles on success *and* on running out of
+   * extensions, so both outcomes arrive as fast as the browser can report them
+   * and there is no arbitrary duration to be wrong about. `getAsset` above has
+   * already started the load, so registering here cannot miss it — this all
+   * runs on one thread and the callbacks are asynchronous.
+   */
   return new Promise((resolve) => {
-    const off = onAssetLoaded((arrived) => {
-      if (arrived !== base) return;
-      off();
-      resolve(images.get(base) ?? null);
-    });
-    /**
-     * A file that will never arrive fires no event, so the wait has to end by
-     * itself. Two seconds is well past a local read and a cached fetch, and the
-     * cost of being wrong is only that the backdrop fades in late rather than
-     * being there at the start.
-     */
-    setTimeout(() => {
-      off();
-      resolve(images.get(base) ?? null);
-    }, 2000);
+    const pending = waiters.get(base) ?? [];
+    pending.push(resolve);
+    waiters.set(base, pending);
   });
 }
 
@@ -114,4 +131,5 @@ export function awaitAsset(base: string, extensions: readonly string[] = ["png"]
 export function resetAssetCache(): void {
   images.clear();
   states.clear();
+  for (const [base] of waiters) settle(base, null);
 }

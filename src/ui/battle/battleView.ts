@@ -24,6 +24,7 @@ import { canAttack, legalAttackTargets, previewAttack } from "../../engine/comba
 import { boardOf } from "../../engine/state";
 import { totalAttack } from "../../engine/effects";
 import { createBattleScene, BOARD, type BattleSceneHandles, type QualityTier } from "./scene";
+import { resolveBoardImage } from "../art/boards";
 import { createBoard, type BoardHandles } from "./board";
 import { CardObject } from "./cardMesh";
 import { LeaderObject } from "./leaderMesh";
@@ -103,6 +104,8 @@ export class BattleView {
   private disposed = false;
   /** suspended while the presenter is animating so layout does not fight it */
   private layoutLocked = false;
+  /** The backdrop is chosen once, on the first sync, from the opponent. */
+  private backdropApplied = false;
 
   constructor(
     private readonly container: HTMLElement,
@@ -128,9 +131,39 @@ export class BattleView {
   sync(view: PlayerView): void {
     this.view = view;
     this.proxy = null; // rebuilt lazily from the new view
+    this.applyBackdrop();
     if (this.layoutLocked) return;
     this.syncBoard();
     this.layout();
+  }
+
+  /**
+   * Choose the board, once, from who you are playing.
+   *
+   * Resolved on the first sync rather than in the constructor because that is
+   * the first moment the opponent is known — and it is still early enough that
+   * the picture arrives during the mulligan rather than over the first turn.
+   *
+   * Everything about this degrades. An unknown faction falls back to the
+   * default board, a default board that does not exist resolves to null, and
+   * null is the flat void the game has always used. There is no state in which
+   * a missing file produces anything other than the original look.
+   */
+  private applyBackdrop(): void {
+    if (this.backdropApplied || !this.view) return;
+    this.backdropApplied = true;
+
+    const leaderCardId = this.view.opponent.leaderCardId;
+    const faction = this.content.leaders[leaderCardId]?.faction;
+    // Boss leaders are identified by id. The encounter data does not carry a
+    // "this is a boss" flag the view can see, and the naming has been
+    // consistent across every boss in the set.
+    const isBoss = leaderCardId.startsWith("boss-");
+
+    void resolveBoardImage(faction, isBoss).then((image) => {
+      // The match can end while a 4K image decodes.
+      if (!this.disposed) this.scene.setBackdrop(image);
+    });
   }
 
   /**

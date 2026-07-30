@@ -112,9 +112,38 @@ export interface BattleSceneHandles {
   resize: () => void;
   dispose: () => void;
   setQuality: (tier: QualityTier) => void;
+  /** Show a board backdrop behind the scene, or null for the flat void. */
+  setBackdrop: (image: HTMLImageElement | null) => void;
   /** screen-space projection helper for anchoring DOM overlays to 3D objects */
   project: (position: THREE.Vector3) => { x: number; y: number };
   raycastFromPointer: (clientX: number, clientY: number, objects: THREE.Object3D[]) => THREE.Intersection[];
+}
+
+/**
+ * A texture-sized copy of a backdrop.
+ *
+ * The masters are 3840x2160, which is about 33 MB of video memory once uploaded
+ * as RGBA — for a still image that sits behind fog and never moves. Halving the
+ * long edge quarters that to roughly 8 MB and is indistinguishable at any
+ * viewport this game runs at, because the backdrop is never shown at 1:1.
+ *
+ * Returns the original when it is already small enough, so a hand-made 1080p
+ * board is used as-is rather than pointlessly re-encoded.
+ */
+const MAX_BACKDROP_WIDTH = 1920;
+
+function shrinkForTexture(image: HTMLImageElement): HTMLImageElement | HTMLCanvasElement {
+  if (image.naturalWidth <= MAX_BACKDROP_WIDTH) return image;
+  const scale = MAX_BACKDROP_WIDTH / image.naturalWidth;
+  const canvas = document.createElement("canvas");
+  canvas.width = MAX_BACKDROP_WIDTH;
+  canvas.height = Math.round(image.naturalHeight * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return image;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas;
 }
 
 export function createBattleScene(container: HTMLElement, tier: QualityTier = detectQuality()): BattleSceneHandles {
@@ -135,6 +164,7 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
   renderer.domElement.style.width = "100%";
   renderer.domElement.style.height = "100%";
   renderer.domElement.style.touchAction = "none";
+
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -156,6 +186,106 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
   const camera = new THREE.OrthographicCamera(-10, 10, 6.7, -6.7, 0.1, 140);
   camera.position.set(0, 24, 4.4);
   camera.lookAt(0, 0, 0);
+
+  // --- board backdrop -------------------------------------------------------
+  /**
+   * The backdrop is a quad parented to the camera, **not** a DOM layer behind
+   * the canvas.
+   *
+   * The DOM version is the obvious design and it does not work here. It needs a
+   * transparent canvas, and this renderer draws through an `EffectComposer` for
+   * bloom: the composer renders into its own targets and writes them to the
+   * screen, so `setClearColor(…, 0)` on the renderer never reaches the output
+   * and the canvas stays opaque. Measured, not assumed — with the host element
+   * painted bright red behind a supposedly transparent canvas, the pixels came
+   * back pure black.
+   *
+   * Inside the scene there is nothing to negotiate with. It composites where
+   * everything else does, the composer processes it like any other geometry,
+   * and the canvas stays fully opaque exactly as it always was.
+   *
+   * Parented to the camera so it needs no world-space maths: it sits at a fixed
+   * distance in front of the lens and is scaled to the frustum, which under an
+   * orthographic projection is a constant. `scene.add(camera)` is required for
+   * a camera's children to be traversed at all.
+   */
+  scene.add(camera);
+
+  let backdropMesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null = null;
+
+  /**
+   * Scale the quad to the frustum and crop the texture like CSS `cover`.
+   *
+   * Letterboxing would be the alternative and it is wrong for a backdrop —
+   * bars at the edge of a game board read as a broken layout, not as a choice.
+   * The brief tells the artist the outer 12% may be cropped; this is what crops
+   * it.
+   */
+  function fitBackdrop(): void {
+    if (!backdropMesh) return;
+    const viewWidth = (camera.right - camera.left) / camera.zoom;
+    const viewHeight = (camera.top - camera.bottom) / camera.zoom;
+    backdropMesh.scale.set(viewWidth, viewHeight, 1);
+
+    const texture = backdropMesh.material.map;
+    const source = texture?.image as { width?: number; height?: number } | undefined;
+    if (!texture || !source?.width || !source.height) return;
+
+    const imageAspect = source.width / source.height;
+    const viewAspect = viewWidth / viewHeight;
+    if (viewAspect > imageAspect) {
+      const shown = imageAspect / viewAspect;
+      texture.repeat.set(1, shown);
+      texture.offset.set(0, (1 - shown) / 2);
+    } else {
+      const shown = viewAspect / imageAspect;
+      texture.repeat.set(shown, 1);
+      texture.offset.set((1 - shown) / 2, 0);
+    }
+  }
+
+  function clearBackdrop(): void {
+    if (!backdropMesh) return;
+    camera.remove(backdropMesh);
+    backdropMesh.geometry.dispose();
+    backdropMesh.material.map?.dispose();
+    backdropMesh.material.dispose();
+    backdropMesh = null;
+  }
+
+  /**
+   * Show a backdrop, or go back to the flat void.
+   *
+   * Null restores exactly the original look, which is what every board without
+   * a picture gets.
+   */
+  function setBackdrop(image: HTMLImageElement | null): void {
+    clearBackdrop();
+    if (!image) return;
+
+    const texture = new THREE.Texture(shrinkForTexture(image));
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+
+    backdropMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({
+        map: texture,
+        // Behind everything, and taking no part in depth.
+        depthTest: false,
+        depthWrite: false,
+        // Fog would drag the whole picture toward the fog colour, which is the
+        // flat void this exists to replace.
+        fog: false,
+      })
+    );
+    backdropMesh.renderOrder = -1;
+    // Far enough forward to be inside the near plane, far enough back that
+    // nothing in the scene can intersect it.
+    backdropMesh.position.set(0, 0, -60);
+    camera.add(backdropMesh);
+    fitBackdrop();
+  }
 
   // --- lighting -------------------------------------------------------------
   const ambient = new THREE.AmbientLight(0x8878c8, 1.5);
@@ -260,6 +390,7 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
     const needed = (BOARD.width + 1.6) / 2;
     camera.zoom = halfWidth < needed ? halfWidth / needed : 1;
     camera.updateProjectionMatrix();
+    fitBackdrop();
   }
   resize();
 
@@ -313,6 +444,7 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
     composer?.dispose?.();
     renderer.dispose();
     renderer.domElement.remove();
+    clearBackdrop();
     scene.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (mesh.geometry) mesh.geometry.dispose();
@@ -337,6 +469,7 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
     resize,
     dispose,
     setQuality,
+    setBackdrop,
     project,
     raycastFromPointer,
   } as BattleSceneHandles;
