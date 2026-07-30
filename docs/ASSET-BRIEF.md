@@ -11,26 +11,92 @@ Written 30 July 2026, against 110/296 cards painted and four factions complete.
 
 ### 0.1 What is wired up, and what is not
 
-This matters more than anything else in the document. **Two of these categories
-work the moment you drop a file in. The rest need code that does not exist yet.**
-If you generate 60 icons today, most of them will sit in a folder doing nothing
-until I write the loaders.
+This matters more than anything else in the document. **Everything below is now
+drop-in.** A file placed at the right path with the right name is used by the
+game with no code change and no deploy — and a file that is missing, misspelled
+or the wrong size never breaks anything, it just falls back to what the game
+drew before.
+
+That was not true when this brief was written. The wiring pass is done.
 
 | Category | Wired? | What happens when you add a file |
 |---|---|---|
-| **Card art** | **Yes** | Picked up automatically. `public/assets/art/<card-id>.png`, and `npm run verify:art` checks it. |
-| **Music and ambience** | **Yes** | Drop the file in `public/assets/audio/`, point the slot at it in `data/audio-manifest.json`. No code change — the manifest is designed for exactly this. |
-| Logo / favicon | No | The tab icon is an inline SVG in `index.html`. Replacing it is a small edit I need to make. |
-| Currency icons | No | Currently Unicode glyphs — `◈` Clout, `✦` Shards, `✧` Glimmer, `◊` Backstage Tokens — inside `<span class="currency-icon">`. Swapping to images needs a CSS/markup change. |
-| Current icons | No | Drawn procedurally in `src/ui/cardRenderer/icons.ts`, straight onto the card canvas. |
-| Faction crests | No | Also procedural — a ringed monogram, distinguished by petal count. |
-| Confluence icons | No | Procedural. |
-| **Battle board backgrounds** | No | The 3D scene renders on a flat clear colour (`#05030b`) with exponential fog. There is no backdrop layer at all yet. |
+| **Card art** | **Yes** | Picked up automatically. . |
+| **Logo / favicon** | **Yes** |  points at real icons. Regenerate the sizes and the  from the master with 
+HYPEBOUND brand icons — from a 2048x2048 master
 
-**Suggested order, so nothing waits on me:** the logo and the music first — the
-music is genuinely zero-code, and the logo is a ten-minute edit. Then boards,
-then icons. Tell me when you start on boards and I will have the backdrop layer
-ready before the files land.
+   favicon-16.png           16px      713 bytes   browser tab
+   favicon-32.png           32px     1690 bytes   browser tab, retina
+   favicon-48.png           48px     3176 bytes   the .ico, and Windows
+   apple-touch-icon.png    180px    26516 bytes   iOS home screen
+   icon-192.png            192px    29233 bytes   Android and PWA
+   icon-512.png            512px   171161 bytes   PWA splash
+   favicon.ico            16/32/48px     5633 bytes   legacy, and the .exe icon later
+
+Done. Re-run this whenever the master changes.. |
+| **Wordmark** | **Yes** | Centred in the lobby header; hidden below 900px and when absent. |
+| **Currency icons** | **Yes** | The glyph () stays in the markup holding its space and the picture is painted over it. No screen changed. |
+| **Current icons and faction crests** | **Yes** | Drawn on every card, preferring the file and falling back to the procedural shape. |
+| **Battle board backgrounds** | **Yes** | Drawn as a quad inside the 3D scene, chosen by the opponent'''s faction, falling back to  and then to the flat void. |
+| **Music, ambience and sfx** | **Yes** | All 59 slots in  already name a file. Dropping one in at that path starts playing it. |
+| Confluence and interface icons | Loaded, **nowhere to show them** | They pass every check and the loader has them — but the game has no Confluence panel and no mission-icon slots yet. Early, not wasted. |
+
+**One caveat that matters:** ten audio slots are wired to filenames but no code
+path plays them. They are listed in §5.1, and I would rather you skip them than
+spend generations on silence.
+
+**
+> hypebound@0.1.0 verify:assets
+> node scripts/verify-art.mjs
+
+
+HYPEBOUND assets — 115 card image(s), 54/54 declared asset(s)
+
+1. Every image is addressed to a card that exists
+   ok: no image is named after a card that is not there
+
+2. Full-bleed at the canonical size
+   ok: 115 PNG(s) at 512x680
+
+3. A browser decodes every one of them
+   FAIL: no dev server on http://localhost:5173 — start one with `npm run dev`
+
+6. Every file in the asset folders is one the game asks for
+   ok: no file is sitting in an asset folder unclaimed
+
+7. Every audio file is one a slot points at
+   ok: 15/17 pointed slot(s) have a file; 0 file(s) on disk, all reachable
+
+Coverage: 115/296 cards painted (38.9%). The rest use procedural art.
+Complete: corporate-creators, gothic-royalty, neon-idols, viral-influencers
+
+Closest to finished: digital-demons, 18 left
+   demon-clause-thirteen          legendary  Clause Thirteen, the Fine Print
+   demon-legion-of-open-tabs      epic       Legion of Open Tabs
+   demon-meltdown                 epic       Meltdown
+   demon-forced-reformat          epic       Forced Reformat
+   demon-doomscroll-fiend         rare       Doomscroll Fiend
+   demon-fan-curve-gremlin        rare       Fan-Curve Gremlin
+   demon-render-farm-wraith       rare       Render Farm Wraith
+   demon-eula-notary              rare       EULA Notary
+   demon-small-print              rare       Small Print
+   demon-rig-that-screams         rare       The Rig That Screams
+   demon-terms-of-service-update  rare       Terms of Service Update
+   demon-thermal-imp              common     Thermal Imp
+   … and 6 more
+
+Declared assets (docs/ASSET-BRIEF.md):
+   boards                12/12  complete
+   brand                  2/2  complete
+   icons/confluence       9/9  complete
+   icons/crest           11/11  complete
+   icons/currency         4/4  complete
+   icons/current          8/8  complete
+   icons/ui               8/8  complete
+
+FAIL — 1 problem(s)** checks all of it — declared-versus-present, exact
+sizes, a real browser decode, that a present interface icon is actually in use,
+and that no audio file sits unreachable by any slot.
 
 ### 0.2 The house style
 
@@ -385,45 +451,228 @@ pulse will fight the track on top of it.
 
 ---
 
-## 5. What I build once the files exist
+## 5. Sound effects — 42 one-shots
 
-For honesty, and so you know what is waiting on me rather than on you:
+`data/audio-manifest.json` declares 42 sfx slots, every one silent. Same wiring
+as the music: drop a file in, point the slot at it, no code change.
 
-1. **Logo** — swap the inline SVG in `index.html` for real icon links; generate
-   the six downscales and the `.ico` from your master; add the wordmark to the
-   main menu. *Small.*
-2. **Audio** — point the 17 manifest slots at the files. *Trivial; the system
-   was built for it.*
-3. **Icon loader** — a shared loader in the style of `artLoader.ts`, plus
-   swapping the four currency glyphs for images and switching the card renderer
-   from procedural currents and crests to loaded ones, keeping the procedural
-   versions as the fallback so a missing file degrades instead of breaking.
-   *Medium — the card renderer is the delicate part.*
-4. **Board backdrops** — a backdrop layer behind the 3D scene, board selection
-   by the opponent's faction, and preloading so it does not pop in mid-match.
-   *Medium.*
-5. **`verify:art` extension** — teach it about icons, boards and audio, so the
-   same "does it bind, is it the right size, does a browser decode it" check
-   covers these too. Right now it only knows about card art, and a mis-sized
-   board would ship silently. *Small, and worth doing first.*
+### 5.1 Seven of these are unreachable — and so are three of the music tracks
+
+Auditing the call sites for this section turned up slots that **nothing in the
+game plays**. A file dropped into one of them sits there in silence, and nothing
+reports it. Generate these last, or skip them until I have wired them:
+
+| Slot | Why nothing plays it |
+|---|---|
+| `sfx.ui.navigate` | No screen uses it; navigation plays `sfx.ui.click`. |
+| `sfx.card.burn` | Nothing burns a card in the presenter yet. |
+| `sfx.card.set` | Face-down sets are not animated separately. |
+| `sfx.status.expire` | The presenter announces `status.apply` but never expiry. |
+| `sfx.turn.warning` | The turn rope has no audio hook. |
+| `sfx.pack.open` | The Merch Drops screen plays no audio at all. |
+| `sfx.pack.rareReveal` | Same screen, same reason. |
+
+**Correction to §4.** `music.packOpening`, `ambient.menu` and `ambient.battle`
+are in exactly the same position — declared, listed in this brief, and played by
+nothing. The other 14 music tracks are reachable and worth making now. I should
+have checked that before writing §4 rather than after.
+
+Wiring all ten is small, and I can do it whenever you want. I would rather say
+so than let you spend generations on silence.
+
+### 5.2 Format
+
+- **WAV, 16-bit, 44.1 kHz.** Not MP3, for a reason specific to short sounds:
+  MP3 encoders prepend a few milliseconds of padding to every file, and on a
+  60 ms click that padding is audible as lag. WAV has none. At these lengths the
+  files are tens of kilobytes and they load on demand, so the size argument that
+  favours MP3 for music does not apply.
+- **Mono for the interface group, stereo for everything else.** UI sounds should
+  feel like they come from the interface, not from somewhere in the room.
+- **Folder:** `public/assets/audio/sfx/<group>/<name>.wav`
+- Normalise peaks to about **−3 dBFS**, then pull the interface group down
+  roughly **6 dB** relative to combat. A click as loud as a spell is a click that
+  makes people mute the game.
+
+### 5.3 Getting one-shots out of a music model
+
+Stable Audio 3 Medium is built for music and it shows. It is genuinely good at
+the textural half of this list — whooshes, impacts, risers, elemental bursts —
+and it will fight you on short dry transients, where it wants to add reverb, a
+tail, and sometimes a key.
+
+What works:
+
+- **Ask for more than you need, then trim.** Generate 3–4 seconds and cut to the
+  transient. Asking for 60 ms directly gives you 60 ms of nothing.
+- **End every prompt with this.** It is the single biggest quality lever:
+  *"Dry close-mic one-shot, no reverb, no echo, no music, no melody, no rhythm,
+  no loop, silence after the sound."*
+- **Fade the last 20 ms to zero.** Generated audio rarely ends on a true zero
+  crossing, and the click that causes is worse than the sound itself.
+- **Do not fight it over the eight interface sounds.** If `sfx.ui.click` will not
+  come out clean in a few attempts, leave it. The game already synthesises 28
+  accessibility cues in code (`data/audio-cues.json`, rendered by
+  `src/audio/cues.ts`), and a synthesised tick is honestly the better tool for a
+  60 ms interface sound. Those cues are a **separate** system that stays either
+  way — they are not a fallback for these slots and do not fill them.
+
+### 5.4 Interface — 8
+
+Small, dry, synthetic. These play more often than everything else combined, so
+err quiet and err short.
+
+| Slot | File | Length | Prompt |
+|---|---|---|---|
+| `sfx.ui.click` | `sfx/ui/click.wav` | 60 ms | A single short dry synthetic UI click. A tight pitched tick with a glassy body and no tail, like a small hard button. |
+| `sfx.ui.hover` | `sfx/ui/hover.wav` | 40 ms | A very short airy UI blip, higher and much quieter than a click. One soft sine tick with a breath of filtered noise. |
+| `sfx.ui.back` | `sfx/ui/back.wav` | 90 ms | A short descending two-tone UI blip, a small downward interval, soft and rounded. |
+| `sfx.ui.error` | `sfx/ui/error.wav` | 120 ms | A short dull refusal buzz. A low detuned double-tick, flat and blunt — discouraging without being harsh or alarming. |
+| `sfx.ui.navigate` ⚠ | `sfx/ui/navigate.wav` | 90 ms | A short lateral swish, a tiny filtered noise sweep resolving into a soft tick. |
+| `sfx.ui.toggle` | `sfx/ui/toggle.wav` | 80 ms | A small mechanical switch. A crisp two-part snap — on, then settle. |
+| `sfx.ui.confirm` | `sfx/ui/confirm.wav` | 220 ms | A short bright rising two-note chime, clean and affirmative, with a small bell timbre. |
+| `sfx.ui.reward` | `sfx/ui/reward.wav` | 700 ms | A sparkling ascending arpeggio of small bell tones with a light shimmering decay. Generous and pleased. |
+
+### 5.5 Cards — 11
+
+| Slot | File | Length | Prompt |
+|---|---|---|---|
+| `sfx.card.draw` | `sfx/card/draw.wav` | 250 ms | A single playing card sliding off the top of a deck. A short paper friction sweep ending in a soft snap. |
+| `sfx.card.burn` ⚠ | `sfx/card/burn.wav` | 500 ms | A card catching fire. A quick paper crumple with a small flame whoosh and a brief ember crackle. |
+| `sfx.card.set` ⚠ | `sfx/card/set.wav` | 180 ms | A card placed face-down on a table. A soft muted slap on felt, close and dry. |
+
+**Playing a card, by Current.** Eight sounds, one per element, each the moment of
+commitment. They should be siblings: same length, same weight, different
+material.
+
+| Slot | File | Length | Prompt |
+|---|---|---|---|
+| `sfx.card.play.cinder` | `sfx/card/play-cinder.wav` | 600 ms | A burst of flame igniting. A fast whoosh opening into a crackling ember tail. |
+| `sfx.card.play.tide` | `sfx/card/play-tide.wav` | 650 ms | A wave breaking. A rush of water into a splash, with a draining pull behind it. |
+| `sfx.card.play.root` | `sfx/card/play-root.wav` | 600 ms | Wood and earth. A deep creaking growth, soil shifting, and a vine snapping taut. |
+| `sfx.card.play.gale` | `sfx/card/play-gale.wav` | 550 ms | A sharp gust of wind passing quickly. A filtered air whoosh with a thin whistle at its peak. |
+| `sfx.card.play.pulse` | `sfx/card/play-pulse.wav` | 500 ms | An electric discharge. A crackling arc with a bright zap and a short buzzing tail. |
+| `sfx.card.play.halo` | `sfx/card/play-halo.wav` | 700 ms | A shaft of light opening. A bright swelling shimmer with a soft wordless choral bloom. |
+| `sfx.card.play.veil` | `sfx/card/play-veil.wav` | 650 ms | Shadow gathering. A low reversed whisper swelling into a muffled thud that eats the air. |
+| `sfx.card.play.prism` | `sfx/card/play-prism.wav` | 600 ms | Crystal refraction. A glass chime splitting into several pitched shards that scatter apart. |
+
+### 5.6 Combat — 3
+
+| Slot | File | Length | Prompt |
+|---|---|---|---|
+| `sfx.combat.attack` | `sfx/combat/attack.wav` | 300 ms | A committed swing. A fast whoosh with a metallic edge and no impact at the end — the hit is a separate sound. |
+| `sfx.combat.impact` | `sfx/combat/impact.wav` | 350 ms | A heavy landed hit. A thick percussive thud with a crunchy transient and a tight low body. |
+| `sfx.combat.defeat` | `sfx/combat/defeat.wav` | 800 ms | A character breaking apart. A crumbling collapse falling away into a low descending thud. |
+
+### 5.7 Statuses — 2
+
+| Slot | File | Length | Prompt |
+|---|---|---|---|
+| `sfx.status.apply` | `sfx/status/apply.wav` | 300 ms | A condition latching on. A short metallic clasp with a small magical shimmer over it. |
+| `sfx.status.expire` ⚠ | `sfx/status/expire.wav` | 400 ms | A condition lifting. A soft reversed shimmer releasing and fading away. |
+
+### 5.8 Confluences — 9
+
+The biggest sounds in the game: two Currents combining. Longer and wider than
+anything else here, and each should audibly contain **both** of its parents.
+
+| Slot | File | Length | Prompt |
+|---|---|---|---|
+| `sfx.confluence.steamveil` | `sfx/confluence/steamveil.wav` | 1.2 s | Fire meeting water. A violent hiss of steam erupting, then softening into a broad concealing veil of vapour. |
+| `sfx.confluence.bloom` | `sfx/confluence/bloom.wav` | 1.1 s | Water and growth. A wet surge blossoming open into rising bell chimes and unfurling leaves. |
+| `sfx.confluence.sandstorm` | `sfx/confluence/sandstorm.wav` | 1.3 s | Earth and wind. A driving abrasive roar of grit and torn leaves sweeping past. Harsh and dry. |
+| `sfx.confluence.tempest` | `sfx/confluence/tempest.wav` | 1.2 s | Wind and lightning. A rising gust cracked open by a sharp thunderclap, with a rolling tail. |
+| `sfx.confluence.starflare` | `sfx/confluence/starflare.wav` | 1.2 s | Energy and fire. A charging electrical whine collapsing inward, then a bright explosive flare outward. |
+| `sfx.confluence.blackflame` | `sfx/confluence/blackflame.wav` | 1.2 s | Fire and shadow. An inverted whoosh — a flame that pulls sound inward and swallows it rather than roaring. |
+| `sfx.confluence.sanctuary` | `sfx/confluence/sanctuary.wav` | 1.3 s | Growth and light. A warm ascending pad closing into a protective bell, like a dome sealing over. |
+| `sfx.confluence.eclipse` | `sfx/confluence/eclipse.wav` | 1.4 s | Light and shadow. A bright ringing tone collapsing into a hollow drone as everything is smothered. |
+| `sfx.confluence.refraction` | `sfx/confluence/refraction.wav` | 1.1 s | A prism splitting a beam. One pure tone fanning out into many pitches at once, glassy and bright. |
+
+### 5.9 Match flow — 7
+
+| Slot | File | Length | Prompt |
+|---|---|---|---|
+| `sfx.resonance` | `sfx/match/resonance.wav` | 800 ms | Two forces aligning. A pure ringing tone with a slow beating harmonic swell as they lock together. |
+| `sfx.obsession.gain` | `sfx/match/obsession-gain.wav` | 250 ms | A meter ticking upward. A short bright pitched pip with a small pressure swell behind it. |
+| `sfx.obsession.full` | `sfx/match/obsession-full.wav` | 1.2 s | A meter reaching maximum. A rising charge resolving into a resonant bell with a low boom underneath. |
+| `sfx.turn.start` | `sfx/match/turn-start.wav` | 500 ms | Your turn beginning. A clean two-note rising chime over a soft low impact. Attentive, not celebratory. |
+| `sfx.turn.warning` ⚠ | `sfx/match/turn-warning.wav` | 1.5 s | Time running out. An urgent repeating tick, tightening and rising in tension. Seamless loop. |
+| `sfx.victory` | `sfx/match/victory.wav` | 1.5 s | A triumphant sting. Bright brass and a bell hit together, with a shimmering decay. |
+| `sfx.defeat` | `sfx/match/defeat.wav` | 1.5 s | A deflating sting. A descending detuned tone falling into a dull thud. Disappointed, not tragic. |
+
+### 5.10 Packs — 2
+
+| Slot | File | Length | Prompt |
+|---|---|---|---|
+| `sfx.pack.open` ⚠ | `sfx/pack/open.wav` | 700 ms | Foil tearing open. A crisp plastic rip releasing into a bright sparkle. |
+| `sfx.pack.rareReveal` ⚠ | `sfx/pack/rare-reveal.wav` | 1.8 s | Something rare revealing itself. A rising charge into a radiant bell chime with a long shimmering tail. A reward, not a jumpscare. |
 
 ---
 
-## 6. Summary of counts
+## 6. What is wired, and what is not
 
-| Category | Count | Size | Folder |
+Updated 30 July 2026, after a wiring pass. Everything in the first list works
+today — drop a file in the right place with the right name and the game uses it
+with no code change and no deploy.
+
+**Done, and drop-in from here:**
+
+1. **Card art** — always was. `public/assets/art/<card-id>.png`.
+2. **The logo.** `index.html` points at real icons. Regenerate every size from
+   the master with `node scripts/make-brand-icons.mjs`, which also builds the
+   `.ico` that will become the `.exe` icon.
+3. **The wordmark**, centred in the lobby header, hidden below 900px and hidden
+   entirely when the file is absent.
+4. **Currency icons.** The glyph stays in the markup holding its space and the
+   picture is painted over it; no screen changed, and with no file the glyph is
+   simply what you see.
+5. **Currents and faction crests on cards.** Painted if present, the procedural
+   drawing if not. Warmed at boot so they are decoded before any card renders.
+6. **Board backdrops**, chosen by the opponent's faction, falling back to
+   `default` and then to the flat void.
+7. **Music and sfx**, through `data/audio-manifest.json`. All 17 music slots and
+   all 42 sfx slots point at their filenames already, so a file appearing at that
+   path starts playing. A slot pointing at a file that does not exist logs one
+   line and stays silent — that is the designed behaviour, not a warning to fix.
+8. **`npm run verify:assets`** covers all of it: declared-versus-present, exact
+   sizes, a browser decode of every image, a check that a present interface icon
+   is genuinely in use, and a check that no audio file sits in the folder
+   unreachable by any slot.
+
+**Still on me:**
+
+1. **Ten unreachable slots** — the seven sfx in §5.1 plus `music.packOpening`,
+   `ambient.menu` and `ambient.battle`. Declared and wired to filenames, but no
+   code path plays them. Small work; say the word.
+2. **Confluence and interface icons have nowhere to appear.** All 17 exist, pass
+   every check, and are loaded — but the game has no Confluence panel and no
+   mission-icon slots to put them in. They are not wasted, they are early.
+3. **A Merch Drops opening sequence.** Three of the unreachable slots
+   (`sfx.pack.open`, `sfx.pack.rareReveal`, `music.packOpening`) all wait on the
+   same thing: that screen currently plays no audio at all.
+
+---
+
+## 7. Summary of counts
+
+| Category | Count | Format | Folder |
 |---|---|---|---|
-| Logo master + wordmark | 2 | 2048² / 3072×1024 | `public/assets/brand/` |
-| Currency icons | 4 | 512² | `public/assets/icons/currency/` |
-| Current icons | 8 | 512² | `public/assets/icons/current/` |
-| Faction crests | 11 | 512² | `public/assets/icons/crest/` |
-| Confluence icons | 9 | 512² | `public/assets/icons/confluence/` |
-| UI icons | 8 | 512² | `public/assets/icons/ui/` |
-| Board backgrounds | 12 | 3840×2160 | `public/assets/boards/` |
+| Logo master + wordmark | 2 | 2048² / 3072×1024 PNG | `public/assets/brand/` |
+| Currency icons | 4 | 512² PNG | `public/assets/icons/currency/` |
+| Current icons | 8 | 512² PNG | `public/assets/icons/current/` |
+| Faction crests | 11 | 512² PNG | `public/assets/icons/crest/` |
+| Confluence icons | 9 | 512² PNG | `public/assets/icons/confluence/` |
+| Interface icons | 8 | 512² PNG | `public/assets/icons/ui/` |
+| Board backgrounds | 12 | 3840×2160 PNG → WebP | `public/assets/boards/` |
 | Music and ambience | 17 | MP3 192 kbps | `public/assets/audio/music/`, `/ambient/` |
-| **Total** | **71** | | |
+| Sound effects | 42 | WAV 16-bit 44.1 kHz | `public/assets/audio/sfx/` |
+| **Total** | **113** | | |
 
-Remaining card art, for reference: **186 of 296** unpainted, six factions
-outstanding — Neutral (19), Meme Collective (33), Touch-Grass Order (33),
-Algorithm Syndicate (32), Afterparty Crew (23), Cosplay Champions (23), Digital
-Demons (18 of 23 left).
+**Arrived so far: 42 of 113** — the two brand assets and all 40 icons. Still to
+make: 12 boards, 17 music tracks, 42 sound effects.
+
+Remaining card art, for reference: **181 of 296** unpainted. Complete: Neon
+Idols, Gothic Royalty, Viral Influencers, Corporate Creators. Outstanding —
+Meme Collective (33), Touch-Grass Order (33), Algorithm Syndicate (32),
+Afterparty Crew (23), Cosplay Champions (23), Neutral (19), Digital Demons (18
+of 23 left).

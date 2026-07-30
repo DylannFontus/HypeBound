@@ -298,13 +298,13 @@ console.log("\n6. Every file in the asset folders is one the game asks for");
  * the mistake is a typo nobody will look for. Card art has had this check from
  * the start and it is the same reasoning.
  */
-function walkFiles(dir, prefix = "") {
+function walkFiles(dir, prefix = "", pattern = /[.](png|webp|jpg)$/i) {
   if (!existsSync(dir)) return [];
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) out.push(...walkFiles(path.join(dir, entry.name), rel));
-    else if (/\.(png|webp|jpg)$/i.test(entry.name)) out.push(rel);
+    if (entry.isDirectory()) out.push(...walkFiles(path.join(dir, entry.name), rel, pattern));
+    else if (pattern.test(entry.name)) out.push(rel);
   }
   return out;
 }
@@ -348,7 +348,7 @@ for (const [slot, rel] of Object.entries(audioSlots)) {
 }
 
 const audioOnDisk = existsSync(AUDIO_DIR)
-  ? walkFiles(AUDIO_DIR).filter((f) => /\.(mp3|ogg|wav|m4a)$/i.test(f))
+  ? walkFiles(AUDIO_DIR, "", /\.(mp3|ogg|wav|m4a)$/i)
   : [];
 
 const unreachable = audioOnDisk.filter((file) => !wanted.has(file));
