@@ -2552,7 +2552,7 @@ disagreeing about when rating uncertainty widens the band.
 | 2 — network-shaping | **done** — and it found four engine defects, a redaction leak, and fourteen conflicts in the wire spec |
 | 3 — the `server/` package | **done** — gateway, room and identity. Found two fatal Vite-isms in the engine, four more design conflicts, and a seventh field no event carries |
 | 4 — `WsTransport` + casual queue | **transport, conformance suite and queue done**; sign-in and the mode-screen wiring remain |
-| 5 — cloud saves, results, ladder | not started |
+| 5 — cloud saves, results, ladder | **cloud saves and results done**, deployed and proven with two browsers against the live project; ladder not started. Building §12 found three places the spec described a save layer that was never built — the section split, the server-authoritative economy, and the device name — all recorded at the head of §12 rather than quietly worked around |
 
 Nothing is deployed to Cloudflare yet, and that is a step that needs an account
 rather than more code. `server/README.md` is the runbook; `.github/workflows/server.yml`

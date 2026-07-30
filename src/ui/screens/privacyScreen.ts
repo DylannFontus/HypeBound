@@ -6,8 +6,11 @@
  * - *Export my data* writes out every `hypebound:` key in local storage, which
  *   is genuinely everything the game knows about you. It is the strongest form
  *   the claim "we hold nothing else" can take: here is all of it.
- * - *Delete local data* is a typed confirmation, because it cannot be undone —
- *   there is no cloud copy to restore from, and the page says so before asking.
+ * - *Delete local data* is a typed confirmation, because it usually cannot be
+ *   undone. Since cloud saves, "usually" is doing real work: signed out there
+ *   is nothing to restore from, and signed in the account's copy comes back on
+ *   the next sign-in. The prompt says which of the two applies rather than
+ *   picking the reassuring one.
  * - *Analytics opt-out* is **not here.** There is no analytics SDK in the build,
  *   and a switch that turns off something that does not exist implies the
  *   something exists. The data table says so in the row where it would sit.
@@ -110,13 +113,13 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
             <button class="btn btn-ghost" id="privacy-delete-online" hidden>Delete my account</button>
           </div>
           <p class="muted" id="privacy-online-note" hidden>
-            This erases the match results this game's server recorded — wins, losses and the leaders
-            involved — <strong>and then deletes the account itself</strong>, email address and all.
-            It cannot be undone and there is nobody to ask to reverse it.
+            This erases everything this game's server holds for you — the match results it recorded,
+            and the uploaded copy of your save — <strong>and then deletes the account itself</strong>,
+            email address and all. It cannot be undone and there is nobody to ask to reverse it.
           </p>
           <p class="muted" id="privacy-online-note-2" hidden>
-            Your save stays where it is: the collection, decks and progress on this device are not
-            part of the account and are not touched. Use the button above for those.
+            The save <em>on this device</em> is not touched: your collection, decks and progress stay
+            in this browser and the game keeps working offline. Use the button above to clear those.
           </p>
           <pre class="policy-dump" id="privacy-dump" hidden></pre>
         </section>
@@ -163,8 +166,20 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
      * the button does, not a generic "yes".
      */
     root.querySelector("#privacy-delete")?.addEventListener("click", () => {
+      /**
+       * What this warning says depends on whether there is a cloud copy, and
+       * getting that backwards is the difference between a warning and a lie.
+       *
+       * Signed out it is final. Signed in it is not — the uploaded copy comes
+       * back on the next sign-in, which is a *reassurance* to somebody clearing
+       * a shared computer and a *trap* for somebody trying to start over. Both
+       * need telling, so both are told.
+       */
+      const signedIn = currentAccount() !== null;
       const typed = window.prompt(
-        "This erases your collection, decks, progress and settings on this device. There is no cloud copy and no way to undo it.\n\nType DELETE to confirm."
+        signedIn
+          ? "This erases your collection, decks, progress and settings in this browser, and signs you out.\n\nIt does NOT delete the copy in your account: signing in again will bring it back. To erase that copy too, use “Delete my account”.\n\nType DELETE to confirm."
+          : "This erases your collection, decks, progress and settings on this device. There is no cloud copy and no way to undo it.\n\nType DELETE to confirm."
       );
       if (typed !== "DELETE") return;
       /**
@@ -208,7 +223,7 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
         // The same word as the local delete, for the same reason: no undo, so
         // the friction is the feature.
         const typed = window.prompt(
-          "This deletes your account and every match result recorded against it. It cannot be undone. Your save on this device is not affected.\n\nType DELETE to confirm."
+          "This deletes your account, every match result recorded against it, and the copy of your save held on the server. It cannot be undone.\n\nThe save on this device is not affected — the game keeps working offline.\n\nType DELETE to confirm."
         );
         if (typed !== "DELETE") return;
         /**
@@ -223,8 +238,8 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
         window.alert(
           account.ok
             ? recordGone
-              ? "Deleted. Your account is gone and so are the match results recorded against it."
-              : "Your account is deleted, but the match results could not be reached and may still be held. Sign-in will no longer work; contact is not yet possible, which is a gap this page admits to."
+              ? "Deleted. Your account is gone, and so are the match results and the uploaded save held against it."
+              : "Your account is deleted, but this game's server could not be reached, so the match results and the uploaded save may still be held. Sign-in will no longer work; contact is not yet possible, which is a gap this page admits to."
             : `Nothing was deleted: ${account.message}`
         );
         window.location.hash = "#lobby";

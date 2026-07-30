@@ -1101,6 +1101,49 @@ disagreement can be reproduced offline via `replay()` + `stateHash()`.
 
 ## 12. Cloud saves
 
+> **Shipped, with three deliberate departures from what follows.** `src/save/cloudSync.ts`,
+> `src/save/cloudSaves.ts`, `src/net/saveClient.ts` and `server/src/saveStore.ts`. The rest of
+> §12 is kept as written because the reasoning is still good; these are the places the code
+> does something else, and why.
+>
+> **1. The sections are the five stores that exist.** §12.2 lists `profile`, `settings`,
+> `collection`, `decks`, `progression` and `history` at keys like `hb.collection`. That split
+> was never built. The save layer has five stores under `hypebound:` — `profile`, `settings`,
+> `story`, `gauntlet`, `doomscroll` — and collection, decks, progression and history all live
+> *inside* `profile`. Building the specced split would have meant refactoring the game's most
+> load-bearing store as a side effect of adding sync. **Known cost:** §12.2's last-writer-wins
+> *per deck id* is not possible, so two devices editing different decks is a whole-profile
+> conflict rather than two survivors.
+>
+> **2. Nothing is server-authoritative, because the server does not run the economy.** §12.2
+> marks `collection` and `progression` "Server wins; the local copy is a cache", which presumes
+> pack rolls, crafting and XP execute server-side. They are all client-side and offline.
+> Implementing "server wins" would have meant the first sync replacing a real collection with
+> an empty one. The client authors every section; the server stores opaque bytes and never
+> parses one. When the economy does move server-side, this is the paragraph to revisit.
+>
+> **3. No `deviceId` or `deviceName`.** §12.1 carries both so the selection screen can say
+> "Chrome on Windows". The privacy page states that what the browser reports about itself is
+> read into memory and never sent, and a device name is that being sent. It is also the wrong
+> thing to show: the screen downloads the cloud copy and compares **contents** — level, clout,
+> cards, decks, matches — which is what somebody choosing between two saves actually needs.
+>
+> Two things §12 asks for that are implemented as written and load-bearing: `revision` and
+> `updatedAt` are server-assigned because client clocks are untrusted, and every write carries
+> `If-Match`. A write without it is refused with `428` rather than treated as an overwrite —
+> that refusal is the whole safety property, since a client that does not say what it expects
+> to replace cannot be told it was wrong.
+>
+> Not built: `POST /v1/saves/adopt` (the choice is applied client-side by pushing or pulling
+> every section, so there is no separate endpoint), the 30-day server-side archive of the
+> losing side, batch migrations, and §12.5's offline claim queue. The local copy about to be
+> replaced *is* archived, on the device, under `hypebound:cloud-archive:<section>` — so it
+> survives in the privacy page's export.
+>
+> Routes are `/me/saves` and `/me/saves/{section}`, not §12.3's `/v1/saves`, matching the
+> existing `/me/record`. `/me/` is where this server puts things whose subject is fixed by the
+> token rather than named by the request.
+
 ### 12.1 Envelope: identical to local, plus metadata
 
 Architecture contract §7 defines the local format as a versioned envelope
@@ -1446,7 +1489,7 @@ once.
 | **2 — network-shape the local build** | Add `redactEvents()` (§5) in the engine and the `viewReducer` in `src/net/`. `LocalTransport` now emits **redacted** batches and sanitized views to the UI even offline, and enforces seat ownership on `submit`. Add `src/net/protocol.ts` with zod schemas (unused by the local path, but validated in tests). | **done** — and it earned its place in the order: it found a redaction leak (§5.1.1), three unwireable events (§5.1.2), six fields no event carries (§5.3), fourteen conflicts in §7 (§7.7) and a determinism hole in the engine (§2.1) | None — but any hidden-info leak in the UI surfaces immediately, offline, in tests |
 | **3 — the server package** | New top-level workspace `server/` importing `../src/engine` **verbatim** (no fork, no re-implementation). Room = `MatchState` + clock + journal + fan-out. | **done** — gateway, room and identity built; matchmaking deferred to phase 4 where it belongs. Found four more §4/§7 conflicts (§7.7 C15–C18), a seventh field no event carries (§5.3), and two `import.meta.glob` calls that would have dealt matches from an empty card pool | None |
 | **4 — `WsTransport`** | `src/net/wsTransport.ts` implements the same interface over §7. Feature flag `net.online` picks the transport at match start. | **transport, conformance suite and casual queue done**; sign-in and the flag remain. Found three defects the offline build could not have had a test for, and four §9 conflicts (§9.6 C19–C22) | Nothing yet — the queue exists but nothing is deployed |
-| **5 — services** | Matchmaking (§9), identity (§10), cloud saves (§12), results/ladder, spectator + replay services (§13). | staged | Ranked, friend battles, tournaments, spectate flip from "Coming Online" per the game-modes ship-status table |
+| **5 — services** | Matchmaking (§9), identity (§10), cloud saves (§12), results/ladder, spectator + replay services (§13). | **matchmaking, identity, results and cloud saves done**; ladder and spectating remain. §12 shipped with three departures, recorded at the head of that section — the specced section split does not exist, nothing is server-authoritative while the economy is client-side, and there is no device name | Ranked, friend battles, tournaments, spectate flip from "Coming Online" per the game-modes ship-status table |
 
 **Sequencing rules (binding).**
 

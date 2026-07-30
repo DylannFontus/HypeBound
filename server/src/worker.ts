@@ -19,6 +19,7 @@ import type { Env } from "./env";
 export { MatchRoom } from "./matchRoom";
 export { CasualQueue } from "./casualQueue";
 export { PlayerRecord } from "./playerRecord";
+export { SaveStore } from "./saveStore";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -56,6 +57,48 @@ export default {
       // impossibility of naming somebody else's.
       const method = request.method === "DELETE" ? "DELETE" : "GET";
       return cors(await stub.fetch(new Request("https://player/record", { method })), origin, env);
+    }
+
+    /**
+     * Cloud saves (§12). Your own, and only your own, for the same reason
+     * `/me/record` is: the account comes out of the verified token, so no
+     * request can name a save that is not the caller's.
+     *
+     * The path is `/me/saves` rather than §12.3's `/v1/saves` to match the
+     * route that already exists here. `/me/` is not decoration — it is where
+     * this server puts things whose subject is fixed by the token, and putting
+     * saves anywhere else would make that convention decorative.
+     */
+    if (url.pathname === "/me/saves" || url.pathname.startsWith("/me/saves/")) {
+      const identified = await identify(request, url, env);
+      if ("response" in identified) return cors(identified.response, origin, env);
+
+      const stub = env.SAVE_STORE.get(env.SAVE_STORE.idFromName(identified.userId));
+      const section = url.pathname.slice("/me/saves".length);
+
+      if (section === "" || section === "/") {
+        const method = request.method === "DELETE" ? "DELETE" : "GET";
+        const inner = method === "DELETE" ? "https://saves/all" : "https://saves/manifest";
+        return cors(await stub.fetch(new Request(inner, { method })), origin, env);
+      }
+
+      /**
+       * The body and `If-Match` are forwarded rather than reconstructed.
+       *
+       * `If-Match` is the entire concurrency control, so a gateway that dropped
+       * it would turn every write into a blind overwrite — and the object would
+       * refuse with 428 rather than corrupt anything, which is the right
+       * failure but an obscure one to debug. Copying it explicitly is cheaper
+       * than remembering why every push fails.
+       */
+      const forwarded = new Request(`https://saves/section${section}`, {
+        method: request.method,
+        headers: request.headers.has("If-Match")
+          ? { "If-Match": request.headers.get("If-Match")!, "content-type": "application/json" }
+          : { "content-type": "application/json" },
+        body: request.method === "PUT" ? await request.text() : undefined,
+      });
+      return cors(await stub.fetch(forwarded), origin, env);
     }
 
     /**
@@ -194,11 +237,19 @@ function preflight(origin: string | null, env: Env): Response {
     status: 204,
     headers: {
       "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      // `PUT` for save writes. Omitting a method here fails only in a browser:
+      // every server-side test calls the object directly and never sees a
+      // preflight, so this list is one of the few things here that cannot be
+      // proven by the unit suite.
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
       // `authorization`, or the preflight for any authenticated `fetch` is
       // refused before the request is ever made. The browser does not tell the
       // page why in any detail, so this failed as an opaque "Failed to fetch".
-      "Access-Control-Allow-Headers": "authorization, content-type",
+      //
+      // `if-match` for the same reason, and it would fail the same way: the
+      // header is the whole of the save concurrency control, and a preflight
+      // that does not list it makes every push an opaque network error.
+      "Access-Control-Allow-Headers": "authorization, content-type, if-match",
       "Access-Control-Max-Age": "86400",
       Vary: "Origin",
     },

@@ -41,6 +41,9 @@ import { createDeckBuilderScreen } from "./ui/screens/deckBuilderScreen";
 import { createDeckSlotsScreen } from "./ui/screens/deckSlotsScreen";
 import { createSignInScreen } from "./ui/screens/signInScreen";
 import { createQueueScreen } from "./ui/screens/queueScreen";
+import { createCloudSaveScreen } from "./ui/screens/cloudSaveScreen";
+import { planSync, startAutoSync, syncNow } from "./save/cloudSaves";
+import { SaveClient } from "./net/saveClient";
 import { accessToken, currentAccount } from "./auth/account";
 import { matchSocketUrl } from "./config";
 import { WsTransport, browserSockets } from "./net/wsTransport";
@@ -332,9 +335,48 @@ function boot(): void {
   shell.register("signin", () =>
     createSignInScreen({
       onBack: () => shell.navigate("play"),
-      // Straight into the queue: signing in is not a destination, it is the
-      // thing that was in the way of the one the player asked for.
-      onSignedIn: () => shell.navigate("queue"),
+      onSignedIn: () => void afterSignIn(),
+    })
+  );
+
+  /**
+   * Where signing in leads.
+   *
+   * Usually straight to the queue — signing in is not a destination, it is the
+   * thing that was in the way of the one the player asked for. The exception is
+   * a save that cannot be reconciled without a person, and that exception has
+   * to be checked *before* navigating, because the alternative is a queue
+   * screen that silently replaces a collection while somebody waits for a
+   * match.
+   *
+   * A failure to reach the save service is not a reason to block sign-in. The
+   * player wanted to play someone; the sync will be retried on the next boot.
+   */
+  async function afterSignIn(): Promise<void> {
+    const account = currentAccount();
+    if (!account) {
+      shell.navigate("play");
+      return;
+    }
+
+    const plan = await planSync(new SaveClient(), account.userId);
+    if (!("error" in plan) && (plan.needsChoice || plan.conflicts.length > 0)) {
+      shell.navigate("cloudsave");
+      return;
+    }
+
+    void syncNow();
+    startAutoSync();
+    shell.navigate("queue");
+  }
+
+  shell.register("cloudsave", () =>
+    createCloudSaveScreen({
+      onBack: () => shell.navigate("play"),
+      onResolved: () => {
+        startAutoSync();
+        shell.navigate("queue");
+      },
     })
   );
 
@@ -1268,6 +1310,23 @@ function boot(): void {
   }
 
   void shell.start();
+
+  /**
+   * Sync the save, if and only if somebody is signed in.
+   *
+   * The guard is the point. A signed-out boot makes no request at all, which is
+   * what `scripts/verify-fairness.mjs` asserts by recording every request the
+   * page makes — and what the privacy page claims when it says offline play
+   * transmits nothing. Signing in is the moment that claim changes, and it is
+   * the moment this starts.
+   *
+   * Deliberately not awaited. A save that is a few seconds stale is normal; a
+   * lobby that will not render until a server answers is not.
+   */
+  if (currentAccount()) {
+    void syncNow();
+    startAutoSync();
+  }
 
   // Debug handle. `renderCard` is genuinely useful while adding art: open the
   // console and run `hypebound.previewCard("idols-lumi-starcall")` to see any

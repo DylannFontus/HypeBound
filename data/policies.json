@@ -20,25 +20,26 @@
     "checks by watching the browser rather than by believing this file."
   ],
   "privacy": {
-    "version": "1.1",
+    "version": "1.2",
     "effectiveDate": "2026-07-30T00:00:00.000Z",
     "summary": [
       "Playing other people needs an account, and that is the only thing this game asks you for: an email address and a password. Both go to Supabase, the service that hosts logins for this game. There is still no analytics, no advertising identifier and no payment processor.",
-      "Everything else stays in your browser's local storage on this device: your collection, your decks, your match history, your settings and your progress. The export button below writes all of it out as JSON, and the delete button clears it in one action. Neither button touches your account — nothing on this page can delete that.",
-      "Clearing your browser data for this site deletes the save. There is still no cloud save, so nobody, including us, can restore it — and signing in on another device gives you an account, not your collection. The account is the exception to “on this device”: it lives at Supabase, so clearing this browser does not remove it."
+      "Signed out, everything stays in your browser on this device and nothing is transmitted. Signed in, your save is also uploaded to this game’s own server so it follows you between devices: your collection, your decks and their names, your display name, your progress, your settings and your match history. Version 1.1 of this page said there was no cloud save. There is one now, and this paragraph is what replaced that sentence.",
+      "The uploaded copy is not encrypted against the server holding it. It travels over HTTPS and sits on Cloudflare’s storage, but whoever runs the server can read it, so a deck name is not a private place to write something. It is never sold, never shared, and never read for any purpose beyond handing it back to you.",
+      "Clearing your browser data for this site deletes the local save. Signed in, the copy in your account survives that and comes back the next time you sign in — which is the point of it, and also means the delete button below is no longer the whole story. The buttons say which copy they reach."
     ],
     "categories": [
       {
         "name": "Account",
         "collected": true,
-        "detail": "Signing in creates an account at Supabase: the email address you register and a hash of your password, which nothing here can read back. The address is stored UNVERIFIED — confirmation emails are switched off so signing up is instant, and nothing checks that the address belongs to you. No mail is ever sent to it. This game's own match server never receives your password and never stores your email: it reads a user id out of your sign-in token — a random identifier, not your address — and stores only that, with your queue ticket and your match. The display name you choose is still local and never sent. The name of the deck you queue with is sent, because the deck itself goes to the server to be checked.",
+        "detail": "Signing in creates an account at Supabase: the email address you register and a hash of your password, which nothing here can read back. The address is stored UNVERIFIED — confirmation emails are switched off so signing up is instant, and nothing checks that the address belongs to you. No mail is ever sent to it. This game's own match server never receives your password and never stores your email: it reads a user id out of your sign-in token — a random identifier, not your address — and stores only that, with your queue ticket and your match. The display name you choose is part of your save, so signing in uploads it along with the rest — it is not sent to Supabase, and it is not attached to your address anywhere the server can see. The name of the deck you queue with is sent, because the deck itself goes to the server to be checked.",
         "where": "your account at Supabase (email address, password hash); this game's server holds only the user id"
       },
       {
         "name": "Gameplay",
         "collected": true,
-        "detail": "Matches, decks, collection, progression and settings, stored locally so the game can continue where you left off. Offline play transmits nothing. Queuing for an online match sends the one deck you are queuing with, so the server can check it is legal, and that copy is deleted when you are paired or when you leave the queue. An online match itself is held by the server while it is being played, because the server is the one deciding the rules.",
-        "where": "localStorage, under keys beginning hypebound:; a queued deck and a live match, on the match server"
+        "detail": "Matches, decks, collection, progression and settings. Signed out, all of it is local and offline play transmits nothing. Signed in, the same data is also uploaded to this game’s own server as an opaque blob per store — the server never parses it, but it holds it and can read it. Queuing for an online match sends the one deck you are queuing with, so the server can check it is legal, and that copy is deleted when you are paired or when you leave the queue. An online match itself is held by the server while it is being played, because the server is the one deciding the rules.",
+        "where": "localStorage, under keys beginning hypebound:; signed in, a copy of each store on this game’s server; a queued deck and a live match, on the match server"
       },
       {
         "name": "Telemetry and analytics",
@@ -62,9 +63,9 @@
       "The parental controls the design describes — spending caps, guardian PINs, playtime reports — do not exist. There is nothing to spend money on in this build, which removes the part that matters most, and the rest is unbuilt rather than switched off."
     ],
     "requests": [
-      "The save is yours to take or destroy without asking anyone: the export button hands you all of it and the delete button erases it, both instantly and both on this device.",
-      "The account can be deleted from the same page, in one action, without contacting anybody — the email address, the password and every match result recorded against it. It cannot be undone, and it does not touch the save on your device.",
-      "There is still no contact route, and no retention schedule written down. Nothing is kept that the delete button does not reach, which is why there has been nothing to schedule; if that stops being true this section has to change before the thing that changes it ships."
+      "The save is yours to take or destroy without asking anyone: the export button hands you all of it, including any copy kept aside when a cloud save replaced a local one, and the delete button erases everything on this device.",
+      "The account can be deleted from the same page, in one action, without contacting anybody — the email address, the password, every match result recorded against it, and the uploaded save. It cannot be undone, and it does not touch the save on your device.",
+      "There is still no contact route, and no retention schedule written down. Nothing is kept that the delete buttons do not reach, which is why there has been nothing to schedule; if that stops being true this section has to change before the thing that changes it ships."
     ]
   },
   "legal": {

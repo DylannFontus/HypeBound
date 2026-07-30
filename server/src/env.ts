@@ -1,6 +1,7 @@
 import type { MatchRoom } from "./matchRoom";
 import type { CasualQueue } from "./casualQueue";
 import type { PlayerRecord } from "./playerRecord";
+import type { SaveStore } from "./saveStore";
 
 /**
  * The bindings declared in `wrangler.toml`, plus the secrets that are not.
@@ -16,6 +17,8 @@ export interface Env {
   CASUAL_QUEUE: DurableObjectNamespace<CasualQueue>;
   /** One per account, holding results the server adjudicated. */
   PLAYER_RECORD: DurableObjectNamespace<PlayerRecord>;
+  /** One per account, holding that account's save as opaque bytes (§12). */
+  SAVE_STORE: DurableObjectNamespace<SaveStore>;
   /** Supabase project URL, e.g. `https://abcdefgh.supabase.co`. Empty means no identity provider. */
   SUPABASE_URL: string;
   /** Comma-separated browser origins allowed to open a socket. */

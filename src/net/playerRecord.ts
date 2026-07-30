@@ -61,22 +61,40 @@ export async function fetchMyRecord(config: OnlineConfig = ONLINE): Promise<Play
  * that silently failed is the worst possible outcome for the one action on the
  * page a player might genuinely depend on.
  *
- * Deletes the **record**, not the login. Removing a Supabase user needs the
- * admin API and a service-role key, which this server does not hold and which
- * putting anywhere reachable would undo the reason it does not.
+ * Deletes the **record and the cloud save**, not the login. Removing a Supabase
+ * user needs the admin API and a service-role key, which this server does not
+ * hold and which putting anywhere reachable would undo the reason it does not.
+ *
+ * Both objects, because there are now two. The moment cloud saves shipped, a
+ * deletion that erased only match results stopped matching what the privacy
+ * page promises — and that page is the reason this function returns a boolean
+ * instead of throwing.
  */
 export async function deleteMyServerData(config: OnlineConfig = ONLINE): Promise<boolean> {
   const token = await accessToken(config);
   if (!token) return false;
-  try {
-    const response = await fetch(`${config.serverUrl.replace(/\/+$/, "")}/me/record`, {
-      method: "DELETE",
-      headers: { authorization: `Bearer ${token}` },
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
+
+  const base = config.serverUrl.replace(/\/+$/, "");
+  const headers = { authorization: `Bearer ${token}` };
+  const erase = async (path: string): Promise<boolean> => {
+    try {
+      return (await fetch(`${base}${path}`, { method: "DELETE", headers })).ok;
+    } catch {
+      return false;
+    }
+  };
+
+  /**
+   * `Promise.all`, not `await erase(a) && await erase(b)`.
+   *
+   * The second form short-circuits: if the record delete fails, the save delete
+   * never runs, and a player told "nothing was deleted" would have had one of
+   * the two erased anyway on a retry — or worse, told the truth about a failure
+   * while leaving the larger of the two objects untouched. Both are attempted,
+   * always, and the answer is whether both succeeded.
+   */
+  const [record, saves] = await Promise.all([erase("/me/record"), erase("/me/saves")]);
+  return record && saves;
 }
 
 /** "3–1" or "3–1–1", and never a bare zero for someone who has played nothing. */

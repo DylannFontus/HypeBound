@@ -45,6 +45,21 @@ const ENTRY_POINTS = ["server/src/shared/engine.ts", "server/src/worker.ts"];
 const ALLOWED_PREFIXES = ["server/src/", "src/engine/", "src/net/", "data/"];
 
 /**
+ * Individual files outside those directories, each with the reason.
+ *
+ * Deliberately per-file rather than another prefix. Adding `src/save/` would
+ * admit `storage.ts`, `profile.ts` and the rest of the client save layer —
+ * `storage.ts` alone touches `localStorage`, `window` and `document` — so the
+ * one shared file gets an exception and the directory stays banned.
+ *
+ * Same forty-character rule as the packages below, for the same reason.
+ */
+const ALLOWED_FILES: Record<string, string> = {
+  "src/save/cloudSync.ts":
+    "the save sections and the checksum are agreed between both ends; it is pure, with no storage layer, no DOM and no import.meta",
+};
+
+/**
  * Bare (non-relative) imports the worker bundle may contain, each with the
  * reason it is allowed.
  *
@@ -125,8 +140,22 @@ describe("the server's import graph", () => {
   });
 
   it("stays inside the engine, the wire protocol and the server itself", () => {
-    const strays = walk.files.map(asRepoPath).filter((path) => !ALLOWED_PREFIXES.some((p) => path.startsWith(p)));
+    const strays = walk.files
+      .map(asRepoPath)
+      .filter((path) => !ALLOWED_PREFIXES.some((p) => path.startsWith(p)) && !(path in ALLOWED_FILES));
     expect(strays, "the worker bundle reaches into client-only code").toEqual([]);
+  });
+
+  it("gives a real reason for every single-file exception, and uses all of them", () => {
+    for (const [path, reason] of Object.entries(ALLOWED_FILES)) {
+      expect(reason.length, `${path}: a one-word justification is not one`).toBeGreaterThan(40);
+      /**
+       * An exception nobody needs is an exception nobody notices going stale.
+       * If the server stops importing a file, the hole it was granted closes
+       * with it rather than sitting open for the next thing to fall through.
+       */
+      expect(walk.files.map(asRepoPath), `${path} is allowed and not imported`).toContain(path);
+    }
   });
 
   it("pulls in no package beyond the ones the worker is meant to ship", () => {

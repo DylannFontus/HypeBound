@@ -34,6 +34,10 @@ class_name = "CasualQueue"
 name = "PLAYER_RECORD"
 class_name = "PlayerRecord"
 
+[[durable_objects.bindings]]
+name = "SAVE_STORE"
+class_name = "SaveStore"
+
 [[migrations]]
 tag = "v1"
 # `new_sqlite_classes`, NOT `new_classes`. This is the line that decides whether
@@ -54,6 +58,16 @@ new_sqlite_classes = ["MatchRoom", "CasualQueue"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["PlayerRecord"]
+
+# v3 — cloud saves (§12). Its own tag for the same reason v2 got one: v2 is
+# already applied to the deployed worker, so appending SaveStore to it would
+# describe a migration the server considers spent, and the class would never be
+# created. `wrangler deploy --dry-run` catches this; it caught it for v2.
+#
+# Still `new_sqlite_classes`, still the line that keeps this free.
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["SaveStore"]
 
 # ---------------------------------------------------------------------------
 # Public configuration. Nothing secret lives here.

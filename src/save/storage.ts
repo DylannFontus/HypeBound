@@ -157,6 +157,24 @@ export class Store<T extends object> {
     return this.cache;
   }
 
+  /**
+   * A fresh copy of this store's defaults.
+   *
+   * Exposed for cloud saves, which need to tell "this browser has never been
+   * played on" from "this browser has a save". That distinction decides whether
+   * signing in silently downloads the account's save or stops to ask which copy
+   * to keep — and offering that choice to somebody whose local save is an empty
+   * collection is a trap with a polite label on it.
+   */
+  defaults(): T {
+    return this.options.defaults();
+  }
+
+  /** The envelope version this store writes. */
+  version(): number {
+    return this.options.version;
+  }
+
   set(patch: Partial<T>): T {
     this.cache = { ...this.cache, ...patch };
     this.scheduleWrite();

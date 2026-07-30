@@ -12,15 +12,21 @@
  * - **The address is never confirmed.** Email confirmation is off, so signing
  *   up is instant — and nothing checks that the address is yours. Saying so is
  *   the difference between a design decision and a quiet one.
- * - **An account buys exactly one thing**: playing other people. It carries no
- *   collection, no decks and no progress, because there is no cloud save. A
- *   player who expects their collection to follow them to another device would
- *   be disappointed by silence.
+ * - **An account now carries your save**, and that is a thing being sent
+ *   somewhere rather than a feature being granted. Until cloud saves shipped
+ *   this screen said the opposite, in as many words, and the sentence was true
+ *   when it was written. What replaced it says what is uploaded, that it is
+ *   readable by whoever runs the server, and where the button to delete it is.
+ *
+ * The second point is the reason this screen is edited whenever the online
+ * surface changes: it is the last thing a player reads before deciding, so a
+ * stale promise here is worse than no promise anywhere.
  */
 
 import type { Screen } from "../shell";
 import { audio } from "../../audio/audio";
 import { currentAccount, signIn, signOut, signUp } from "../../auth/account";
+import { forgetCloudLink, stopAutoSync } from "../../save/cloudSaves";
 import { ONLINE, onlineAvailable } from "../../config";
 
 export interface SignInCallbacks {
@@ -50,9 +56,22 @@ export function createSignInScreen(callbacks: SignInCallbacks): Screen {
       <section class="panel panel-chrome signin-note">
         <h3 class="profile-section-title">What an account is, and is not</h3>
         <p class="muted">
-          It exists so two people can be matched with each other. That is all it does.
-          Your collection, decks, progress and settings stay on this device — there is no
-          cloud save, so signing in somewhere else gives you an account, not your cards.
+          It does two things: it lets two people be matched with each other, and it carries
+          your save. Signing in on another device gives you your collection, your decks and
+          your progress — that did not used to be true, and this page used to say so.
+        </p>
+        <p class="muted">
+          <strong>What gets uploaded.</strong> Your collection, your decks and their names,
+          your display name, your progress, your settings and your match history. It goes to
+          this game's own server. It travels over HTTPS, but it is <strong>not</strong>
+          encrypted against the server itself — whoever runs that server can read it, so a
+          deck name is not a private place to write something. The privacy page has a button
+          that deletes all of it, and deleting your account deletes it too.
+        </p>
+        <p class="muted">
+          The first time this device and your account both have a save, you are asked which
+          to keep. Nothing is merged and nothing is guessed, and the copy being replaced on
+          this device is kept in the export on the privacy page.
         </p>
         <p class="muted">
           Your email and password go to Supabase, the service that hosts logins for this
@@ -143,6 +162,19 @@ export function createSignInScreen(callbacks: SignInCallbacks): Screen {
   root.querySelector("#signin-signout")?.addEventListener("click", () => {
     void (async () => {
       audio.play("sfx.ui.click");
+      /**
+       * Stop syncing and forget the agreement before clearing the session.
+       *
+       * The link file records which revision of each section this device last
+       * agreed with the server, *for a particular account*. Left behind, the
+       * next person to sign in on this browser would start with somebody else's
+       * revisions — and a revision that matches by coincidence is a silent
+       * overwrite waiting to happen. `forgetCloudLink` also stands in for
+       * `signOut()` doing it itself, which it cannot: the save layer imports
+       * the auth layer, so the auth layer cannot import the save layer back.
+       */
+      stopAutoSync();
+      forgetCloudLink();
       await signOut();
       callbacks.onBack();
     })();
