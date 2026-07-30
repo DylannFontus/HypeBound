@@ -282,8 +282,28 @@ export class LocalMatch {
     if (this.busy) return;
     this.busy = true;
     try {
-      // mulligan phase
-      while (this.state.phase === "mulligan" && !this.state.players[this.aiSeat].mulliganDone) {
+      /**
+       * Mulligan phase — but only *after* the player has taken theirs.
+       *
+       * The AI's mulligan is a response to the player's, not something that
+       * happens on its own. The ordering is load-bearing rather than cosmetic:
+       * a mulligan draws replacements and reshuffles from the match RNG, so
+       * whoever goes first changes every card either side sees afterwards. Same
+       * seed, different game.
+       *
+       * Without this guard the ordering depended on whether anything happened
+       * to call `start()` before the player acted — which nothing did, until
+       * the battle screen began calling `connect()` unconditionally so that a
+       * networked transport would actually open its socket. That is a
+       * reasonable thing for a screen to do, and it silently reordered every
+       * offline match; `verify-ui` caught it as a game that stopped finishing
+       * in the turns it used to.
+       */
+      while (
+        this.state.phase === "mulligan" &&
+        this.state.players[this.playerSeat].mulliganDone &&
+        !this.state.players[this.aiSeat].mulliganDone
+      ) {
         const decision = chooseIntent(this.state, this.content, this.aiSeat, this.aiProfile);
         if (!decision) break;
         if (!(await this.applyAiIntent(decision.intent))) break;

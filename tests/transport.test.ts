@@ -352,10 +352,6 @@ describe("legality", () => {
    * that the field ever moved.
    */
   it("agrees with the engine at every step of a real match, having seen each answer vary", async () => {
-    const transport = makeTransport();
-    await transport.connect();
-    await transport.submit({ type: "mulligan", seat: transport.seat, replaceInstanceIds: [] });
-
     const seen = {
       samples: 0,
       fixationTrue: 0,
@@ -366,7 +362,7 @@ describe("legality", () => {
       noPlayables: 0,
     };
 
-    const compare = (): void => {
+    const compare = (transport: LocalTransport): void => {
       const state = transport.authoritativeState();
       const view = transport.view();
       const seat = view.seat;
@@ -400,23 +396,43 @@ describe("legality", () => {
       else seen.noPlayables += 1;
     };
 
-    // Drive our own seat with real legal intents so the board actually
-    // develops — the AI plays the other seat by itself. Deterministic pick, so
-    // a failure here is reproducible rather than a coin flip.
+    /**
+     * Drive our own seat with real legal intents so the board actually
+     * develops — the AI plays the other seat by itself. Deterministic picks, so
+     * a failure here is reproducible rather than a coin flip.
+     *
+     * **Several matches, not one.** This used to be a single seeded game, and
+     * the coverage assertions below were satisfied by how *that particular*
+     * game happened to unfold. Reordering the opening mulligan — for an
+     * unrelated and correct reason — turned it into a short match that reached
+     * nine positions instead of sixteen, and the test failed for a reason that
+     * had nothing to do with what it checks.
+     *
+     * That was the test being one lucky seed away from vacuous, not the change
+     * being wrong. Accumulating across matches is what makes "each answer was
+     * seen both ways" a property of the *comparison* rather than of an opening
+     * hand.
+     */
     const rng = seedRng(0x51ee7);
-    for (let step = 0; step < 220; step++) {
-      if (transport.view().winner !== null) break;
-      compare();
-      if (!isYourTurn(transport.view())) break;
+    for (const seed of [24601, 12345, 777, 5150]) {
+      const transport = makeTransport({ seed });
+      await transport.connect();
+      await transport.submit({ type: "mulligan", seat: transport.seat, replaceInstanceIds: [] });
 
-      const legal = enumerateLegalIntents(transport.authoritativeState(), content, transport.seat);
-      if (legal.length === 0) break;
-      // bias away from endTurn so turns build a board instead of skipping past one
-      const doing = legal.filter((i) => i.type !== "endTurn");
-      const pool = doing.length > 0 && nextInt(rng, 100) < 80 ? doing : legal;
-      const intent = pool[nextInt(rng, pool.length)]!;
-      const result = await transport.submit(intent);
-      expect(result.ok).toBe(true);
+      for (let step = 0; step < 220; step++) {
+        if (transport.view().winner !== null) break;
+        compare(transport);
+        if (!isYourTurn(transport.view())) break;
+
+        const legal = enumerateLegalIntents(transport.authoritativeState(), content, transport.seat);
+        if (legal.length === 0) break;
+        // bias away from endTurn so turns build a board instead of skipping past one
+        const doing = legal.filter((i) => i.type !== "endTurn");
+        const pool = doing.length > 0 && nextInt(rng, 100) < 80 ? doing : legal;
+        const intent = pool[nextInt(rng, pool.length)]!;
+        const result = await transport.submit(intent);
+        expect(result.ok).toBe(true);
+      }
     }
 
     // The proof that the comparisons above were comparing something.

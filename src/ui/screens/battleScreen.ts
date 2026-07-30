@@ -15,7 +15,8 @@ import type {
   TargetRef,
 } from "../../engine/types";
 import { LocalTransport } from "../../net/localTransport";
-import { isYourTurn } from "../../net/transport";
+import { isYourTurn, type MatchTransport } from "../../net/transport";
+import { viewToState } from "../../net/viewToState";
 /**
  * Still imported directly because these enumerate *targets*, and they take a
  * `MatchState` — see `matchState()` for why that is the remaining seam. The
@@ -85,8 +86,20 @@ export interface MatchSettlement {
 export interface BattleScreenOptions {
   content: ContentIndex;
   playerDeck: DeckList;
-  aiDeck: DeckList;
-  difficulty: AiDifficulty;
+  /**
+   * An already-connected-or-connectable transport, for a match this screen is
+   * not the authority over. Supply this and the screen builds nothing; omit it
+   * and it makes its own `LocalTransport` from `aiDeck` and `difficulty`.
+   *
+   * `aiDeck` and `difficulty` are therefore optional, and required in practice
+   * by the runtime check in the constructor rather than by the type. A
+   * discriminated union would have the compiler enforce it, at the cost of
+   * restructuring all nine existing call sites to prove something none of them
+   * gets wrong.
+   */
+  transport?: MatchTransport;
+  aiDeck?: DeckList;
+  difficulty?: AiDifficulty;
   seed?: number;
   /**
    * Bank the match, and hand back what it paid so the result screen can say so.
@@ -109,7 +122,16 @@ export interface BattleScreenOptions {
   }) => MatchSettlement | null;
   onExit: (result: {
     winner: "player" | "ai" | "draw" | "quit";
-    record: MatchRecord;
+    /**
+     * Null for an online match, and typed that way rather than omitted.
+     *
+     * A client cannot assemble a `MatchRecord`: it holds neither the seed nor
+     * either decklist, by design, because both would tell it what it is about
+     * to draw. None of the nine `onExit` handlers reads this field — every
+     * `result.record` in `main.ts` is inside an `onSettle` — so widening it
+     * costs nothing and stops the exit buttons from silently doing nothing.
+     */
+    record: MatchRecord | null;
     /**
      * The player's leader health at the final event of the match.
      *
@@ -176,14 +198,19 @@ export class BattleScreen {
   /**
    * The match, reached only through `MatchTransport`.
    *
-   * Typed as the concrete `LocalTransport` rather than the interface for the
-   * two escape hatches it adds — `authoritativeState()` for the teaching-stage
-   * runner and the debug handle, and `setGate()` — both of which are local-only
-   * by nature. Every *other* call in this file goes through the interface, so
-   * the day a `WsTransport` exists the compiler will name exactly the lines
-   * that do not survive it.
+   * Typed as the interface. It used to be the concrete `LocalTransport`, on the
+   * reasoning that "the day a `WsTransport` exists the compiler will name
+   * exactly the lines that do not survive it" — which worked: the compiler
+   * named them, and they were `authoritativeState()` (now gone, see
+   * `matchState()`) and the debug handle below.
+   *
+   * `local` is the one remaining narrowing, held once rather than cast at each
+   * use, so every place that needs an offline-only capability is visible as a
+   * null check instead of hidden inside a cast.
    */
-  private readonly match: LocalTransport;
+  private readonly match: MatchTransport;
+  /** Non-null only for an offline match. The escape hatches, in one place. */
+  private readonly local: LocalTransport | null;
   private readonly view: BattleView;
   private readonly handBar: HandBar;
   private readonly hud: BattleHud;
@@ -192,6 +219,8 @@ export class BattleScreen {
   private readonly boardHost: HTMLElement;
   private overlay: HTMLElement | null = null;
   private ended = false;
+  /** False until `connect()` resolves. `refresh()` must not read a view before then. */
+  private connected = false;
   private readonly coach: CoachOverlay | null;
   private readonly runner: StageRunner | null;
   private endSequenceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -226,29 +255,20 @@ export class BattleScreen {
         })
       : null;
 
-    const seed = options.seed ?? (stage ? stage.seed : Math.floor(Math.random() * 0x7fffffff));
-    this.match = new LocalTransport({
-      content: options.content,
-      playerDeck: options.playerDeck,
-      aiDeck: options.aiDeck,
-      aiProfile: getAiProfile(options.difficulty),
-      seed,
-      playerSeat: 0,
-      ...(stage?.firstSeat !== undefined
-        ? { firstSeat: stage.firstSeat }
-        : options.firstSeat !== undefined
-          ? { firstSeat: options.firstSeat }
-          : {}),
-      ...(stage?.scenario ?? options.scenario ? { scenario: (stage?.scenario ?? options.scenario)! } : {}),
-      ...(options.balanceOverrides ? { balanceOverrides: options.balanceOverrides } : {}),
-      ...(options.cardOverrides ? { cardOverrides: options.cardOverrides } : {}),
-      ...(options.cardVariants ? { cardVariants: options.cardVariants } : {}),
-      ...(stage?.opponent.kind === "idle" ? { opponent: "idle" as const } : {}),
-      ...(options.hotseat ? { opponent: "human" as const } : {}),
-      // read the runner lazily: it is built above, but the gate must also follow
-      // the runner as it advances between beats
-      ...(this.runner ? { gate: (intent: PlayerIntent) => this.runner!.gateFor()(intent) } : {}),
-    });
+    /**
+     * Bring your own transport, or the screen makes an offline one.
+     *
+     * Injection is optional rather than mandatory, which deviates from the
+     * advice this change was based on ("move construction out to main.ts's nine
+     * route factories"). Two reasons. Nine call sites would each gain twenty
+     * lines of `LocalTransport` options for no behavioural gain — and the gate
+     * closure reads `this.runner`, which is built *inside* this constructor, so
+     * a caller physically cannot supply it. Moving construction out would have
+     * silently dropped the tutorial and puzzle gating.
+     */
+    const supplied = options.transport ?? null;
+    this.local = supplied ? null : this.buildLocalTransport(options, stage);
+    this.match = supplied ?? this.local!;
 
     /**
      * Render from the RESOLVED content, not the raw index.
@@ -366,7 +386,7 @@ export class BattleScreen {
        * hand really is hidden, for one — so it is deliberately the omniscient
        * view and deliberately not reachable through `MatchTransport`.
        */
-      state: () => this.match.authoritativeState(),
+      state: () => this.local?.authoritativeState() ?? null,
       view: () => this.match.view(),
       /**
        * The match's RESOLVED content — the rulebook this match is actually being
@@ -401,7 +421,17 @@ export class BattleScreen {
       },
     };
 
-    this.start();
+    /**
+     * `start()` is async now, and its rejection is handled rather than dropped.
+     *
+     * Offline it resolves on the same tick. Online it is a real connect, and a
+     * connect that fails — bad token, room gone, server down — must say so on
+     * the screen instead of leaving a black board and an unhandled rejection in
+     * the console.
+     */
+    void this.start().catch((error: unknown) => {
+      this.hud.toast(error instanceof Error ? error.message : "could not join the match", "error");
+    });
     // the key handler lives on the root, so it needs focus to hear anything
     queueMicrotask(() => this.root.focus());
   }
@@ -410,16 +440,32 @@ export class BattleScreen {
   // Lifecycle
   // -------------------------------------------------------------------------
 
-  private start(): void {
+  /**
+   * Connect first, then draw.
+   *
+   * This used to call `refresh()` — which reads `view()` — before connecting,
+   * and only connected at all on the scripted-stage branch. Offline that worked
+   * by accident: `LocalTransport` has a view the moment it is constructed.
+   * Online it is two failures at once, because `WsTransport.view()` throws
+   * before `connect()` resolves and the ordinary match path never connected, so
+   * the socket would simply never have opened.
+   *
+   * `connect()` is idempotent-shaped on both implementations and is now
+   * unconditional, which also means the mulligan is opened from what the room
+   * says the phase is rather than from what the caller assumed it would be.
+   */
+  private async start(): Promise<void> {
     const factionMusic = `music.battle.${this.options.playerDeck.leaderCardId.split("-")[0] ?? "default"}`;
     audio.playMusic(factionMusic);
+
+    await this.match.connect();
+    this.connected = true;
     this.refresh();
-    // A scripted stage deals its own opening; only a real match mulligans.
-    if (this.options.stage?.scenario?.mulligan === "none") {
-      void this.match.connect().then(() => this.refresh());
-    } else {
-      this.openMulligan();
-    }
+
+    // A scripted stage deals its own opening; only a real match mulligans. The
+    // phase is read from the view rather than from `stage.scenario`, because
+    // online the room is the one that decides whether there is a mulligan.
+    if (this.match.view().phase === "mulligan") this.openMulligan();
   }
 
   /**
@@ -437,6 +483,15 @@ export class BattleScreen {
   }
 
   private refresh(): void {
+    /**
+     * Nothing to draw until there is a view to draw from.
+     *
+     * `WsTransport.view()` throws before `connect()` resolves — deliberately,
+     * because the alternative is inventing an empty board and rendering it as
+     * though it were the game. Offline this is never false by the time anything
+     * calls `refresh()`; online it is false for exactly one round trip.
+     */
+    if (!this.connected) return;
     /**
      * Hotseat's whole safety property lives on this line.
      *
@@ -686,9 +741,62 @@ export class BattleScreen {
    * It was previously typed `never`, which let it be passed anywhere without an
    * import. Naming the real type instead means the compiler will list these
    * call sites the day the helpers change.
+   *
+   * **Rebuilt from the view, not read from the match.** This used to call
+   * `LocalTransport.authoritativeState()`, which was the single biggest
+   * obstacle to this screen ever hosting an online match — nine call sites, and
+   * a networked client has no authoritative state to give. Phase 2 built
+   * `viewToState` for exactly this and checked it against the engine at ~48
+   * positions across both seats with **zero disagreements**, using these same
+   * helpers.
+   *
+   * It is now used offline as well, deliberately, rather than branching. A path
+   * only the online build takes is a path only the online build tests, and this
+   * one decides what the player is allowed to click.
    */
+  /**
+   * Build the offline transport this screen owns when nobody supplied one.
+   *
+   * A method rather than an inline literal so the "you must pass one or the
+   * other" invariant is checked in one place and the compiler can narrow
+   * `aiDeck` and `difficulty` from the throw, instead of being told to trust a
+   * pair of non-null assertions.
+   */
+  private buildLocalTransport(options: BattleScreenOptions, stage: StageDef | undefined): LocalTransport {
+    const { aiDeck, difficulty } = options;
+    if (!aiDeck || !difficulty) {
+      throw new Error(
+        "BattleScreen needs either `transport` (an online match) or `aiDeck` + `difficulty` (an offline one); it was given neither."
+      );
+    }
+    const seed = options.seed ?? (stage ? stage.seed : Math.floor(Math.random() * 0x7fffffff));
+
+    return new LocalTransport({
+      content: options.content,
+      playerDeck: options.playerDeck,
+      aiDeck,
+      aiProfile: getAiProfile(difficulty),
+      seed,
+      playerSeat: 0,
+      ...(stage?.firstSeat !== undefined
+        ? { firstSeat: stage.firstSeat }
+        : options.firstSeat !== undefined
+          ? { firstSeat: options.firstSeat }
+          : {}),
+      ...(stage?.scenario ?? options.scenario ? { scenario: (stage?.scenario ?? options.scenario)! } : {}),
+      ...(options.balanceOverrides ? { balanceOverrides: options.balanceOverrides } : {}),
+      ...(options.cardOverrides ? { cardOverrides: options.cardOverrides } : {}),
+      ...(options.cardVariants ? { cardVariants: options.cardVariants } : {}),
+      ...(stage?.opponent.kind === "idle" ? { opponent: "idle" as const } : {}),
+      ...(options.hotseat ? { opponent: "human" as const } : {}),
+      // read the runner lazily: it is built by the constructor before this
+      // method is called, and the gate must follow it as it advances between beats
+      ...(this.runner ? { gate: (intent: PlayerIntent) => this.runner!.gateFor()(intent) } : {}),
+    });
+  }
+
   private matchState(): MatchState {
-    return this.match.authoritativeState();
+    return viewToState(this.match.view());
   }
 
   private checkEnd(): void {
@@ -1323,7 +1431,14 @@ export class BattleScreen {
     }
 
     const exit = (action: "again" | "menu"): void => {
-      if (!record) return;
+      /**
+       * No `if (!record) return;` here any more.
+       *
+       * It made both end-overlay buttons silent no-ops for any transport that
+       * cannot produce a `MatchRecord` — which is every online one — trapping
+       * the player on the victory screen with no way back to the lobby. `record`
+       * is nullable on `onExit` now, and no handler reads it.
+       */
       this.options.onExit({
         winner: outcome,
         record,
@@ -1371,6 +1486,17 @@ export class BattleScreen {
     // end sequence would start victory music over whatever screen came next
     if (this.endSequenceTimer !== null) clearTimeout(this.endSequenceTimer);
     this.dismissOverlay();
+    /**
+     * Close the transport.
+     *
+     * Offline this detaches `LocalMatch.onEvents` and releases the whole match
+     * object graph; without it, leaving and re-entering a battle accumulated
+     * one per visit. Online it is the difference between leaving a match and
+     * leaving a socket behind — `WsTransport`'s heartbeat re-arms itself and its
+     * reconnect backoff keeps firing `open()` against a match the player has
+     * already walked away from. Idempotent on both.
+     */
+    this.match.close("left the battle");
     audio.stopMusic();
     this.root.remove();
   }
