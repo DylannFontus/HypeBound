@@ -302,9 +302,9 @@ export function createBannerScreen(content: ContentIndex, callbacks: BannerCallb
         <h1 class="title">Headliner</h1>
         <div class="mastery-wallet">
           <div class="currency"><span class="currency-icon clout">◈</span><span class="currency-value">${profile.clout.toLocaleString()}</span></div>
-          <div class="currency"><span class="currency-icon">✦</span><span class="currency-value">${profile.shards.toLocaleString()}</span></div>
+          <div class="currency"><span class="currency-icon shards">✦</span><span class="currency-value">${profile.shards.toLocaleString()}</span></div>
           <div class="currency"><span class="currency-icon glimmer">✧</span><span class="currency-value">${(profile.glimmer ?? 0).toLocaleString()}</span></div>
-          <div class="currency"><span class="currency-icon token">◊</span><span class="currency-value" id="banner-tokens">${backstageTokens()}</span></div>
+          <div class="currency"><span class="currency-icon backstage-token">◊</span><span class="currency-value" id="banner-tokens">${backstageTokens()}</span></div>
         </div>
       </header>
 

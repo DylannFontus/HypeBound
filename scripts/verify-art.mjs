@@ -243,16 +243,51 @@ try {
       }
       if (good === assetResults.length) ok(`all ${good} decode at their declared size`);
     }
+
+    // -----------------------------------------------------------------------
+    console.log("\n5. The interface icons are actually wired to the interface");
+
+    /**
+     * A file that decodes is not the same as a file that is used.
+     *
+     * The currency and interface icons are swapped in by `installIconStyles()`,
+     * which sets a class and a custom property on the root element for each one
+     * it finds. If that never ran — or ran before the file existed, or looked in
+     * the wrong folder — the game keeps drawing the Unicode glyph and looks
+     * completely normal. Nothing errors. This is the only check that can tell
+     * "there is no icon yet" apart from "there is an icon and it is being
+     * ignored".
+     */
+    const htmlGroups = ["currency", "ui"];
+    const expectWired = [];
+    for (const group of htmlGroups) {
+      for (const id of MANIFEST.icons.groups[group] ?? []) {
+        if (presentFile(`${MANIFEST.icons.dir}/${group}/${id}`)) expectWired.push({ group, id });
+      }
+    }
+
+    if (expectWired.length === 0) {
+      ok("no interface icons present yet, so nothing to wire");
+    } else {
+      await page.goto(ORIGIN, { waitUntil: "networkidle" }).catch(() => null);
+      await page.waitForTimeout(1200);
+      const installed = await page.evaluate(() => [...document.documentElement.classList].filter((c) => c.startsWith("has-icon-")));
+      const notWired = expectWired.filter(({ group, id }) => !installed.includes(`has-icon-${group}-${id}`));
+      for (const { group, id } of notWired) {
+        fail(`${group}/${id}.png exists but the interface never picked it up — the glyph is still showing`);
+      }
+      if (notWired.length === 0) ok(`all ${expectWired.length} present interface icon(s) are in use`);
+    }
   }
 } finally {
   await browser.close();
 }
 
 // ---------------------------------------------------------------------------
-// 5. Nothing sitting in an asset folder that nothing will ever ask for
+// 6. Nothing sitting in an asset folder that nothing will ever ask for
 // ---------------------------------------------------------------------------
 
-console.log("\n5. Every file in the asset folders is one the game asks for");
+console.log("\n6. Every file in the asset folders is one the game asks for");
 
 /**
  * The check that matters most while a batch is being generated.

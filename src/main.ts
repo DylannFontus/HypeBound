@@ -42,6 +42,7 @@ import { createDeckSlotsScreen } from "./ui/screens/deckSlotsScreen";
 import { createSignInScreen } from "./ui/screens/signInScreen";
 import { createQueueScreen } from "./ui/screens/queueScreen";
 import { createCloudSaveScreen } from "./ui/screens/cloudSaveScreen";
+import { installIconStyles } from "./ui/art/iconAssets";
 import { planSync, startAutoSync, syncNow } from "./save/cloudSaves";
 import { SaveClient } from "./net/saveClient";
 import { accessToken, currentAccount } from "./auth/account";
@@ -150,6 +151,12 @@ function showFatalError(error: unknown): void {
 function boot(): void {
   applySettings();
   watchOrientation();
+  /**
+   * Probe the interface icons. Fire-and-forget: each one that exists exposes
+   * itself to CSS, each one that does not leaves the glyph in place, and
+   * nothing waits for either outcome.
+   */
+  installIconStyles();
 
   let content: ContentIndex;
   try {

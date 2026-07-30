@@ -120,6 +120,8 @@ export function createLobbyScreen(content: ContentIndex, callbacks: LobbyCallbac
         </div>
       </button>
 
+      <div class="lobby-wordmark" role="img" aria-label="HYPEBOUND"></div>
+
       <div class="lobby-currencies">
         <div class="currency" title="Clout — earned by playing">
           <span class="currency-icon clout">◈</span><span class="currency-value">${profile.clout.toLocaleString()}</span>

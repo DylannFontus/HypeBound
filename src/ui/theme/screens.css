@@ -152,9 +152,87 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-sm);
 }
+/**
+ * The wordmark in the lobby header.
+ *
+ * Absolutely positioned so it is centred on the header rather than being a
+ * third item in a two-item flex row — dropping it into the flow would push the
+ * identity block and the currencies apart and change a layout that already
+ * works at every width.
+ *
+ * `display: none` until `has-brand-wordmark` says the file exists, and hidden
+ * again below 900px where the header is tight and the game's name is the least
+ * useful thing competing for the space.
+ */
+.lobby-wordmark {
+  display: none;
+}
+html.has-brand-wordmark .lobby-wordmark {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(21vw, 260px);
+  height: 34px;
+  background-image: var(--brand-wordmark);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  opacity: 0.92;
+  pointer-events: none;
+}
+@media (max-width: 900px) {
+  html.has-brand-wordmark .lobby-wordmark {
+    display: none;
+  }
+}
+
 .currency-icon { font-size: var(--fs-md); }
 .currency-icon.clout { color: var(--accent-cool); }
 .currency-icon.shards { color: var(--accent-gold); }
+
+/**
+ * Real currency icons, when they exist.
+ *
+ * The glyph stays in the markup and keeps holding the space; `color:
+ * transparent` hides it and the picture is painted behind, at the same size.
+ * So a screen needs no change, there is nothing to re-render when a file
+ * finishes loading, and with no file at all these rules simply never match —
+ * which is the game exactly as it shipped.
+ *
+ * The class and the url are both set by `installIconStyles()` in
+ * `src/ui/art/iconAssets.ts`. The url has to come from JavaScript because
+ * `base: "./"` means a `url()` written here would resolve against this
+ * stylesheet rather than the page, and break wherever the game is not served
+ * from a root.
+ */
+.currency-icon {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+html.has-icon-currency-clout .currency-icon.clout {
+  color: transparent;
+  background-image: var(--icon-currency-clout);
+}
+html.has-icon-currency-shards .currency-icon.shards {
+  color: transparent;
+  background-image: var(--icon-currency-shards);
+}
+html.has-icon-currency-glimmer .currency-icon.glimmer {
+  color: transparent;
+  background-image: var(--icon-currency-glimmer);
+}
+html.has-icon-currency-backstage-token .currency-icon.backstage-token {
+  color: transparent;
+  background-image: var(--icon-currency-backstage-token);
+}
 
 .lobby-body {
   position: relative;
@@ -2693,7 +2771,7 @@ button.story-card:not(:disabled):hover {
    Headliner Banners (07 §4) and Stream Check-In (08 §11)
    ------------------------------------------------------------------------ */
 
-.currency-icon.token { color: #ffd27f; }
+.currency-icon.backstage-token { color: #ffd27f; }
 
 .banner-body {
   flex: 1 1 auto;

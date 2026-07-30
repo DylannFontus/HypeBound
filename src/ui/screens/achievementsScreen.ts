@@ -144,7 +144,7 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
         <h1 class="title">Achievements</h1>
         <div class="mastery-wallet">
           <div class="currency"><span class="currency-icon clout">◈</span><span class="currency-value">${profile.clout.toLocaleString()}</span></div>
-          <div class="currency"><span class="currency-icon">✦</span><span class="currency-value">${profile.shards.toLocaleString()}</span></div>
+          <div class="currency"><span class="currency-icon shards">✦</span><span class="currency-value">${profile.shards.toLocaleString()}</span></div>
         </div>
       </header>
 
