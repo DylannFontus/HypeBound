@@ -36,6 +36,11 @@ jobs:
           node-version: 20
           cache: npm
 
+      # Turns Pages on for the repository if it is not already, and reports the
+      # base URL. Without it the first run of this workflow fails with "Pages
+      # is not enabled" and has to be fixed by hand in Settings.
+      - uses: actions/configure-pages@v5
+
       - run: npm ci
 
       # Runs before the build so a broken rule fails the job for the honest
