@@ -379,9 +379,22 @@ export class LocalTransport implements MatchTransport {
     return {
       seq: this.seq,
       view: this.view(),
-      // Offline the seat legitimately holds its own deck, so nothing has been
-      // hidden from it and there is nothing to re-reveal. Phase 2 sanitizes
-      // `you.deck` here (§5.2) and this list stops being empty.
+      /**
+       * Empty, and correctly so — but not for the reason this comment used to
+       * give.
+       *
+       * §5.2 has the worker re-populate deck entries a seat has *legitimately
+       * learned*, naming the Algorithm Syndicate's scry. In this engine scry
+       * never reveals anything to a player: `{ op: "scry" }` resolves entirely
+       * inside the reducer, either bottoming a card or reordering the top, and
+       * no UI ever shows the peeked cards. `deckScryed` carries a count and
+       * nothing else for exactly that reason.
+       *
+       * So there is nothing to give back, and the earlier note here — that
+       * phase 2 would make this list non-empty — was predicting a feature the
+       * rules do not have. The field stays because a future reveal effect would
+       * need it, and because the wire shape should not change when one lands.
+       */
       revealedDeckInstanceIds: [],
       clocks: this.clocks(),
       spectatorCount: 0,
