@@ -1453,7 +1453,9 @@ export function runOp(ctx: EffectContext, op: EffectOp): void {
       const chosen: CurrentId = op.intoCurrent ?? "prism";
       if (ctx.sourceCharacter) {
         ctx.sourceCharacter.current = chosen;
-        emit(ctx, { e: "refracted", instanceId: ctx.sourceCharacter.instanceId, intoCurrent: chosen });
+        // the character's controller, not ctx.seat: an effect can refract a
+        // body that is not its caster's
+        emit(ctx, { e: "refracted", seat: ctx.sourceCharacter.controller, instanceId: ctx.sourceCharacter.instanceId, intoCurrent: chosen });
         // Flow channel 4: exchanged
         fireFlow(ctx, refOf(ctx.sourceCharacter), ctx.sourceCharacter.controller);
       }

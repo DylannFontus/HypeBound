@@ -519,7 +519,7 @@ function applyPlayCard(
   let playedCurrent: CurrentId = card.current;
   if (card.keywords.includes("refract") && intent.refractChoice) {
     playedCurrent = intent.refractChoice;
-    events.push({ e: "refracted", instanceId, intoCurrent: playedCurrent });
+    events.push({ e: "refracted", seat, instanceId, intoCurrent: playedCurrent });
   }
   if (!player.currentsPlayedThisTurn.includes(playedCurrent)) {
     player.currentsPlayedThisTurn.push(playedCurrent);

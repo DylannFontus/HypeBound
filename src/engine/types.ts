@@ -1000,7 +1000,21 @@ export type EngineEvent =
   | { e: "confluenceActivated"; seat: Seat; confluence: ConfluenceId; currents: [CurrentId, CurrentId] }
   | { e: "resonanceAdvanced"; seat: Seat; progress: number; threshold: number }
   | { e: "resonanceActivated"; seat: Seat; current: CurrentId }
-  | { e: "refracted"; instanceId: string; intoCurrent: CurrentId }
+  /**
+   * A card or character was played into a different Current by Refract.
+   *
+   * `seat` is whose it was. Added for the same reason `keywordTriggered` gained
+   * one: without it the event is unattributable. At the `playCard` emission site
+   * the hand card is already gone from `hand` by the time this is pushed, so
+   * `instanceId` resolves to nothing in *either* player's view — leaving a
+   * viewer no way at all to tell whose Refract it was.
+   *
+   * That is not cosmetic. `currentsPlayedThisTurn` is what `availableConfluences`
+   * reads, so a client crediting the opponent's Refract to itself would offer a
+   * Confluence the room then refuses; and the chosen Current is what decides the
+   * elemental bonus on every attack against that body.
+   */
+  | { e: "refracted"; seat: Seat; instanceId: string; intoCurrent: CurrentId }
   | { e: "aurasDisabled"; untilTurn: number } // Eclipse
   | { e: "aurasReenabled" }
   | { e: "delayedScheduled"; seat: Seat; label: string; triggersOnTurn: number }

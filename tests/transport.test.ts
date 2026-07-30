@@ -217,6 +217,37 @@ describe("the view is sanitized, offline too", () => {
     expect(after.some((id) => id === "hidden")).toBe(false);
   });
 
+  it("hands back a copy, not a window into the live match", async () => {
+    /**
+     * `redact()` returns `you` as the live `PlayerState` and passes the
+     * opponent's board, discard, location and counters through by reference. A
+     * caller that wrote to any of them — a view reducer resetting
+     * `attacksUsedThisTurn`, say — would be writing to the match itself.
+     *
+     * Online this is impossible, because the view arrives as deserialized JSON.
+     * Without the clone the offline build would be the *less* safe of the two,
+     * which is the opposite of what running the online path offline is for.
+     */
+    const transport = makeTransport();
+    await openMatch(transport);
+
+    const view = transport.view();
+    const state = transport.authoritativeState();
+    const seat = transport.seat;
+
+    expect(view.you.hand).not.toBe(state.players[seat].hand);
+    expect(view.you.board).not.toBe(state.players[seat].board);
+    expect(view.opponent.board).not.toBe(state.players[seat === 0 ? 1 : 0].board);
+    expect(view.opponent.discard).not.toBe(state.players[seat === 0 ? 1 : 0].discard);
+
+    // and writing through it changes nothing that matters
+    const handBefore = state.players[seat].hand.length;
+    view.you.hand.length = 0;
+    view.you.leaderHealth = -999;
+    expect(transport.authoritativeState().players[seat].hand).toHaveLength(handBefore);
+    expect(transport.authoritativeState().players[seat].leaderHealth).toBeGreaterThan(0);
+  });
+
   it("still deals a playable match through the sanitized view", async () => {
     // the end-to-end check: if sanitizing had broken the draw pipeline, the
     // hand would stop refilling and this would run out of legal intents fast
