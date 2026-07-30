@@ -52,7 +52,20 @@ newest and the first new *gameplay* in seven blocks: draft a deck one pick at a
 time from the whole card pool, then ride it to 12 wins or 3 losses against an
 opponent that drafted its own deck through the same offers.
 
-What is *not* built is anything needing a server (casual, ranked, matchmaking,
+The game is also **deployed**: <https://dylannfontus.github.io/HypeBound/>
+builds and publishes on every push to `main`, behind the full test suite.
+
+**The online foundation has started.** The battle screen now talks to a
+`MatchTransport` rather than to `LocalMatch`, so the offline game is one
+implementation of the interface a `WsTransport` will implement rather than the
+only way to play; and per-seat event redaction runs in the offline build too, so
+hidden-information leaks surface in tests instead of in production against a
+real opponent. Implementing it immediately found one the design document had
+missed. The stack is settled -- GitHub Pages for the client, Cloudflare Durable
+Objects for authoritative rooms, Supabase Auth for accounts -- and all of it is
+free to run. See "Going online: the deployment, and the seam".
+
+What is *not* built is the server itself (casual, ranked, matchmaking,
 spectating, replay sharing, tournaments, friends, guilds), which is deliberately
 absent rather than faked. **Every mode in the brief that does not need one is
 now playable.**
@@ -70,7 +83,7 @@ were run together, ten failures were found and every one is fixed. Sections that
 were previously marked *"written but not yet run"* are covered by the figures
 below.
 
-**Test suite — 1,370 tests passing** (`npm test`)
+**Test suite — 1,404 tests passing** (`npm test`)
 - 9 data-validation tests: every card and data file parses, the Current
   advantage cycle is a closed loop, all 9 Confluences exist, every Current has a
   Perfect Resonance effect, faction/Current legality holds, stat budgets hold,
@@ -2141,6 +2154,172 @@ them already owned; build-around produces a named deck; then, on a full
 collection, the Compare label walks `Compare` → `Compare — saved` →
 `Compare (+1 −1)` and the diff shows both directions; and Test vs AI deals the
 30-card draft without touching a saved slot.
+
+---
+
+## Going online: the deployment, and the seam
+
+The game is live at **<https://dylannfontus.github.io/HypeBound/>**. Pushing to
+`main` builds it and publishes it; the workflow runs the full suite and the
+typecheck first, because everything past that point is a public URL.
+
+The stack is settled and it costs nothing:
+
+| Concern | Where it runs | Why |
+|---|---|---|
+| Client bundle | GitHub Pages | Content is bundled at build time and routing is hash-based, so a static host needs no configuration |
+| Authoritative rooms | Cloudflare Durable Objects | A DO *is* `03-multiplayer-architecture.md` §14.2's "one match = one room"; DO storage replaces the specced Redis journal |
+| Matchmaking, results | Cloudflare Workers | Same runtime, and the engine is pure TS with no Node APIs |
+| Accounts | Supabase Auth | Email+password, verification, reset, TOTP and OAuth already built. The Worker only *verifies* a JWT; it never issues one |
+
+Two constraints were established rather than assumed. **GitHub Pages cannot hold
+a socket, run code, or keep a secret**, so the client and the server are two
+deployments and no design avoids that. And **the repository must be public** —
+Pages from a private repo is a paid feature.
+
+One thing that did not go in the repository: `hearthstone_frames/`, 458 MB of
+frames pulled from a Hearthstone capture and referenced by no code. It is
+reference material for card framing, it is Blizzard's art, and a public repo is
+forever.
+
+### Phase 1 — the transport seam
+
+`docs/tech/03-multiplayer-architecture.md` §15 phase 1. The battle screen no
+longer knows what a `LocalMatch` is; it talks to a `MatchTransport`
+(`src/net/transport.ts`), and the offline game is one implementation of that
+interface (`src/net/localTransport.ts`) rather than the only way to play.
+
+The indirection is not the point. What it forces is: **a network client holds a
+`PlayerView`, never a `MatchState`**, so every question the screen answered by
+reading state had to be re-asked. Most were already answerable — the winner, the
+active seat, the turn number, both boards and the surviving leader health are
+all on the view. The UI was closer to view-shaped than it looked.
+
+Three were not:
+
+- **`legality()` moved onto the transport.** Same engine functions, same
+  answers; only the route differs, and only the transport knows which route it
+  is on. §6 already put `confluences()` there for that reason — this is the
+  existing idea applied consistently, not a new one.
+- **`submit()` returns a typed `SubmitResult`.** `RulesError` has carried a
+  canonical `code` since it was written and the driver kept only `.message`.
+  This recovers information that was being discarded.
+- **`finishRecord()` is nullable.** A networked client cannot build a
+  `MatchRecord`: `PlayerView` has no `MatchConfig`, so it knows neither the seed
+  nor either decklist. Typed nullable now, while it is a compiler error rather
+  than a crash.
+
+Hotseat became an optional capability (`transport.hotseat?`) instead of an
+options flag. It is the one mode that *cannot* have a network implementation —
+its premise is one device changing hands — so absence is the honest way to say
+so.
+
+Nothing in `LocalTransport` is stubbed. `seq` really counts batches gap-free,
+`clocks` are real remaining time from `balance.timer`, `viewHash` is real FNV-1a
+over the seat's view, and `status` is permanently `live` because an in-process
+match genuinely cannot be unstable.
+
+**A `never` was hiding a real type.** `matchState(): never` let a `MatchState` be
+passed anywhere without importing it, and the trick had spread into `HandBar`.
+Naming the real type is what turned the remaining debt into something countable:
+five engine helpers still take a `MatchState` to enumerate targets. None of them
+reads hidden information — board and leaders are public — they simply have a
+parameter type a client will not have.
+
+### Phase 2 — redaction, and the leak the design missed
+
+`redactEvents()` lives next to `redact()` in the engine (§5). State redaction
+existed; events needed it for a blunter reason. Online, a batch is broadcast to
+both players, so **anything left in it is something the opponent's client
+receives** — and a client that has been sent a card identity has it, whatever
+the UI chooses to draw.
+
+Following §5's table exactly would still have leaked. A `mode: "hand"` Comeback
+emits three events naming the same card:
+
+| Event | §5.1 said | Actually |
+|---|---|---|
+| `cardAddedToHand` | `cardId → null` | ✓ listed |
+| `comebackReturned` | — | **not in the table**, `cardId: string` |
+| `keywordTriggered` | — | **not in the table**, `cardId: string` |
+
+Blanking one of three hides nothing. Both extras are dropped for the non-owner
+rather than blanked, because in each the identity *is* the payload and there is
+no nullable field to empty. Nothing is lost — the redacted `cardAddedToHand`
+still carries `source: "comeback"`, which is what the presenter animates from.
+
+**`keywordTriggered` gained a `seat`.** It had none, so it could not be
+attributed, so it could not be redacted at all. That is a defect independent of
+Comeback: every other player-scoped event carries one.
+
+The guarantee is a type, not a test. `tests/redaction.test.ts` classifies every
+event in a `Record<EngineEvent["e"], …>`, so adding a variant stops the file
+compiling until somebody classifies it — all 66 kinds, whether or not a test
+provokes one. Verified by deleting an entry and watching `tsc` name it.
+
+### Redacting offline paid for itself the same afternoon
+
+`LocalTransport` emits redacted batches and a §5.2-sanitized view **even
+offline**, so the UI is built against the information a networked client will
+actually have. The seat's own `deck` becomes count-preserving placeholders,
+because a modified client must not be able to read its own next draw.
+
+It caught two verification scripts within minutes:
+
+- **`verify-doomscroll`** asserted that a fight is dealt from the run deck
+  rather than the collection — by reading deck ids from the view. It failed
+  loudly with ten `"hidden"`s.
+- **`verify-decks`** filtered deck+hand for tokens the same way, and **still
+  passed**. Tokens arrive in hand rather than in the deck, so the undefined
+  lookup never changed the total. It was right by luck and would have gone on
+  being right by luck.
+
+Both read the deck from the authoritative state now, which is what the
+omniscient debug handle is for and why phase 1 deliberately kept it off
+`MatchTransport`.
+
+The sanitizer builds a new object rather than editing in place: `redact()`
+returns `you` as a live reference into match state, so sanitizing in place would
+not have hidden the deck from the client — it would have deleted the deck from
+the game. There is a test for exactly that.
+
+### Two tests that were worth nothing until they were measured
+
+Both are the same mistake, found twice in one day, and neither showed up as a
+red test.
+
+The `legality()` oracle compares the transport's answer to the engine's, field
+by field. Its first version compared **one opening position** and passed happily
+with `canFixation` hardcoded to `false` — because on turn one it is false
+anyway, so the lie and the truth agreed. It now drives a developing match and
+asserts it saw each answer come out **both** ways.
+
+The redaction sweep played five full matches and checked that no comeback leaked
+— using two Neon Idols decks, which contain **no comeback cards at all**. Zero
+comeback events across all five matches; every comeback assertion passed without
+ever executing. It now uses the only two factions that have the keyword and
+counts what it exercised, so it fails if it ever stops testing what it claims.
+
+A comparison test that only ever observes one value is not testing a comparison.
+The fix in both cases was a coverage assertion, not a better assertion.
+
+### Where it stands
+
+| Phase | State |
+|---|---|
+| 0 — repo and Pages deploy | **done**, live |
+| 1 — the transport seam | **done** |
+| 2 — network-shaping | `redactEvents()` and the sanitized view **done**; `viewReducer` and `protocol.ts` outstanding |
+| 3 — the `server/` package | not started |
+| 4 — `WsTransport` + casual queue | not started |
+| 5 — cloud saves, results, ladder | not started |
+
+The honest caveat about the first online milestone, recorded here because it is
+a design consequence rather than a bug: **a public queue is mostly a waiting
+room at low population**. Every band-widening rule in §9.3 is about finding
+someone among many; none of them conjures a second player. §9's own answer —
+`mm.aiOfferAfterSeconds`, "offer *Play the AI instead*, never a fake human" — is
+therefore required from day one, not a polish item.
 
 ---
 
