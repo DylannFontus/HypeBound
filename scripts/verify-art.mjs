@@ -63,12 +63,14 @@ const fail = (m) => {
  * filenames is not simply the set of card ids — treating it as such would
  * report a deliberately shared painting as an orphan.
  */
+const cards = [];
 const cardIds = new Set();
 const artKeys = new Set();
 for (const file of readdirSync(CARD_DIR).filter((f) => f.endsWith(".json"))) {
   const parsed = JSON.parse(readFileSync(path.join(CARD_DIR, file), "utf8"));
   for (const card of Array.isArray(parsed) ? parsed : (parsed.cards ?? [])) {
     if (!card?.id) continue;
+    cards.push(card);
     cardIds.add(card.id);
     artKeys.add(card.art ?? card.id);
   }
@@ -167,9 +169,43 @@ try {
  * be playable and presentable with zero images present — so a coverage
  * threshold here would turn an unfinished art pass into a broken build.
  */
-const painted = [...artKeys].filter((key) => files.some((f) => f.replace(/\.[a-z]+$/i, "") === key)).length;
+const paintedKeys = new Set(files.map((f) => f.replace(/\.[a-z]+$/i, "")));
+const isPainted = (card) => paintedKeys.has(card.art ?? card.id);
+const painted = [...artKeys].filter((key) => paintedKeys.has(key)).length;
 const percent = ((painted / cardIds.size) * 100).toFixed(1);
 console.log(`\nCoverage: ${painted}/${cardIds.size} cards painted (${percent}%). The rest use procedural art.`);
+
+/**
+ * Which faction to finish next, and what is left in it.
+ *
+ * The art pass runs a faction at a time, and a half-painted faction is the one
+ * state that actually looks broken in play — a board where three cards are
+ * paintings and two are procedural reads as missing assets rather than as a
+ * style. So the useful question is never "how many are left" but "which
+ * faction is closest to whole", and that is what gets printed.
+ */
+const remaining = new Map();
+for (const card of cards) {
+  if (isPainted(card)) continue;
+  const faction = card.faction ?? "(none)";
+  if (!remaining.has(faction)) remaining.set(faction, []);
+  remaining.get(faction).push(card);
+}
+
+if (remaining.size === 0) {
+  console.log("Every card is painted.");
+} else {
+  const complete = [...new Set(cards.map((c) => c.faction ?? "(none)"))].filter((f) => !remaining.has(f));
+  if (complete.length) console.log(`Complete: ${complete.sort().join(", ")}`);
+
+  const [nextFaction, left] = [...remaining].sort((a, b) => a[1].length - b[1].length)[0];
+  const RARITY = { legendary: 0, epic: 1, rare: 2, common: 3 };
+  console.log(`\nClosest to finished: ${nextFaction}, ${left.length} left`);
+  for (const card of [...left].sort((a, b) => (RARITY[a.rarity] ?? 9) - (RARITY[b.rarity] ?? 9)).slice(0, 12)) {
+    console.log(`   ${(card.art ?? card.id).padEnd(34)}${(card.rarity ?? "?").padEnd(11)}${card.name ?? ""}`);
+  }
+  if (left.length > 12) console.log(`   … and ${left.length - 12} more`);
+}
 
 console.log(failures === 0 ? "\nPASS — every image binds to a card and paints." : `\nFAIL — ${failures} problem(s)`);
 process.exit(failures === 0 ? 0 : 1);
