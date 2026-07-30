@@ -72,6 +72,39 @@ clock, and a redaction pass.** There is no separate "netcode simulation", no
 server-only rules module, and no divergence risk beyond build mismatch (§10.4,
 §14.5).
 
+### 2.1 The corollary nobody had written down: a query must not mutate
+
+The table above says the RNG lives in `MatchState` and advances only through
+`applyIntent`. Half of that was true.
+
+`resolveTargets`' `select: "random"` branch calls
+`pickMany(ctx.state.rngState, …)`, and `nextU32` writes the RNG's four words back
+**in place**. `legalChooseTargets` — a pure query the UI calls to ask *"what
+could this target?"* — handed it the live state. So **asking a question advanced
+the authoritative RNG**, and `rngState` is precisely what `replay()` reproduces a
+match from: a hover would have desynced a replay from the match that recorded
+it, while that match was still being played.
+
+`auraModifiersFor` had it too, by a longer road — a conditional aura evaluates a
+condition, `evalCondition` can count a `TargetSpec`, and `totalAttack` →
+`attackableBy` → the battle screen's `refresh()` calls it constantly. That one
+would have fired on a redraw rather than a hover.
+
+Latent rather than live: every shipped leader ability and confluence target is
+`select: "choose"` (25 and 5, verified), and `cardTargetSpecs` admits nothing
+else. But `legalFixationTargets` forwards `ability.target` verbatim, so the
+distance between latent and live is one line of card data.
+
+Both now build their context from a state whose `rngState` is copied.
+`tests/query-purity.test.ts` hashes the **whole** state around every legality
+helper, so a query that starts mutating anything else fails there too — and a
+counter-test proves a real shuffle still rolls, because a fix that froze the RNG
+everywhere would be a subtler bug than the one it replaced.
+
+**The rule, stated so it can be pointed at:** anything the UI may call to decide
+what to draw takes a `MatchState` **read-only**. `applyIntent` is the only
+mutation path, and that includes the RNG.
+
 ---
 
 ## 3. Topology and trust boundaries
@@ -342,6 +375,30 @@ every event as public or private in a `Record<EngineEvent["e"], …>`, so adding
 variant to the union stops the file compiling until somebody classifies it — all
 66 kinds, whether or not any test provokes one.
 
+### 5.1.2 Three events the engine could not put on a wire
+
+Building §5 and the view reducer turned up three defects of one shape: **an
+event that cannot be attributed, or is never emitted at all.** None of them
+mattered while the UI read `MatchState` directly. All three become wrong
+pictures on a screen the moment it reads a `PlayerView` instead.
+
+| Event | What was wrong | Fix |
+|---|---|---|
+| `keywordTriggered` | No `seat`. Unattributable, therefore unredactable — see §5.1.1 | Added `seat` |
+| `refracted` | No `seat`. At the `playCard` site the hand card is spliced out *before* the event is pushed, so its `instanceId` resolves to nothing in **either** player's view and there was no way at all to tell whose Refract it was | Added `seat` |
+| Armor gain | **Emitted nothing.** Armor on a leader is a scalar on `PlayerState`, not a status instance, so `applyStatus` short-circuits and returns `null` and the `statusApplied` emit never fires | Added `armorChanged` |
+
+The Armor one is the sharpest. Losses were always inferable from
+`damageDealt.absorbedByArmor`; **gains were invisible**. `RedactedOpponent.armor`
+is published, the HUD draws it for both seats, and armor is granted mid-combat —
+exactly when a stale value corrupts the lethal arithmetic a player is reading off
+the screen.
+
+`refracted` is the subtlest. `currentsPlayedThisTurn` is what
+`availableConfluences` reads, so a client crediting the opponent's Refract to
+itself offers a Confluence the room then refuses; and the chosen Current decides
+the elemental bonus on every attack against that body.
+
 ### 5.2 Sanitizing the seat's own view **[DECISION]**
 
 `PlayerView.you` is the full `PlayerState`, which includes `deck: CardInstance[]`
@@ -365,6 +422,28 @@ The same rule applies to `you.reactions`: the owner sees its own face-down
 `cardId`s (it set them), the opponent already only receives `reactionCount`.
 
 ---
+
+### 5.3 Fields no event carries **[DECISION: accept, with the cost written down]**
+
+Six `PlayerState` fields change with **no event announcing them**. A view-based
+client cannot track them by any amount of care; only §4.6's turn-boundary
+snapshot repairs them. Found by replaying whole matches through the view reducer
+and diffing against the authoritative view after every batch
+(`tests/view-reducer.test.ts`), and listed here rather than left implicit,
+because this is what a future protocol revision must either emit or knowingly
+accept.
+
+| Field | Why no event | What it costs |
+|---|---|---|
+| `reactions[].cardId` | `reactionSet` carries no `cardId` **by design** (§5.1) so a face-down card stays face-down — with the side effect that even the *owner* cannot recover which card they set | Moderate: your own Reaction reads as unknown until the next snapshot |
+| `refractionCurrent` | The Refraction confluence arms it; `confluenceActivated` carries the confluence id, not the Current | Moderate: cannot show that the next card of that Current will trigger twice |
+| `supportObsessionGainedThisTurn` | `obsessionChanged` reports the new total, not which clause spent the once-per-turn allowance | Low: a preview may predict a second support gain the room refuses |
+| `afterpartyRepeatThisTurn` | Armed by a card effect that emits nothing naming the flag | Low: cannot warn that end-of-turn triggers will resolve twice |
+| `board[].firedThisTurn` (both sides) | Per-instance trigger bookkeeping written straight onto the instance | None: no client path reads it, and `viewHash` omits it |
+
+**Decision: accept for v1.** Every one is repaired within a turn by the
+snapshot, none is load-bearing for legality, and the two that matter are display
+hints rather than rules. Revisit if a mode ever shortens the snapshot cadence.
 
 ## 6. The transport contract
 
@@ -455,6 +534,12 @@ export interface MatchTransport {
 Transport: **WSS only** (TLS 1.3), `permessage-deflate` enabled, JSON payloads,
 subprotocol `hypebound.v1`. Binary/dictionary encoding is a future optimization
 behind the same envelope (§17).
+
+> **Implemented in [`../../src/net/protocol.ts`](../../src/net/protocol.ts).**
+> **This section as drafted cannot be built verbatim** — the envelope collides
+> with three of its own payloads. Fourteen conflicts were found writing the
+> schemas; every resolution is recorded in §7.7 and implemented there. Where
+> §7.7 and the tables below disagree, **§7.7 is what runs.**
 
 ### 7.1 Envelope
 
@@ -550,6 +635,38 @@ own rate limit, mute control and moderation hooks. This conflict is reported in
 | `hello` deadline | 5 s | close |
 
 ---
+
+### 7.7 Where this section disagrees with the code, and what was done
+
+Fourteen conflicts, found by writing
+[`../../src/net/protocol.ts`](../../src/net/protocol.ts) against §7 rather than
+by reading it. Each is resolved in that file at the point it applies; this table
+is the index. **These resolutions are binding** — the prose above is the draft
+they correct.
+
+| # | Conflict | Resolution |
+|---|---|---|
+| **C1** | **The flat envelope collides with three payloads.** §7.1 puts payload fields flat in `{ v, t, id?, ts }`, then §7.2 gives `intent { id }` and `ping { ts }`, and §7.4 gives `pong { ts, serverTs }`. All three collide. **The section cannot be implemented as written.** | Stay flat, drop the duplicates: `intent` uses the envelope's `id`, `ping` uses the envelope's `ts`, `pong` carries `clientTs`/`serverTs`. Nesting under a `p` key was the alternative; flat keeps frames readable in a network log |
+| **C2** | `hello.protocol` duplicates envelope `v`, with no stated precedence | Dropped. Two version fields that can disagree is worse than one, and a `v` mismatch already has a documented path |
+| **C3** | *"`ping` also carries the latest `ack`"* — with no field to carry one in | `ping` gained optional `ackSeq` and `viewHash`. §7.5's backpressure counter reads acks, so leaving this to an unwritten "send an ack first" convention would have made it silently load-bearing |
+| **C4** | `emote { emoteId }` does not match the client, which sends a free-text **phrase** from `emoteWheel()` | Wire carries a **cosmetic id**; the room resolves it against the sender's entitlements. Free text on that channel is chat, which drags in the moderation question §17.1 leaves open — and makes an unowned emote unsendable rather than merely unclicked |
+| **C5** | `welcome` ships `seq` and `clocks` twice — once at top level, once inside `snapshot` | Top-level pair dropped; the snapshot's are authoritative. Inside `batch`, the same duplication is pinned by a schema refinement: `batch.snapshot.seq === batch.seq` |
+| **C6** | **`welcome` cannot describe a spectator.** §10.2 mints spectator tokens with a `role` and `watchSeat`, §13.3 answers them with a `welcome`, and the payload has only `seat` | Added `role: "player" \| "spectator"`. Without it a spectator cannot tell *"I am seat 0"* from *"I am watching seat 0"* — which decides whether the UI draws an End Turn button |
+| **C7** | `presence.status` is 3 values against `TransportStatus`'s 6 kinds, with no mapping written | Kept at 3 on the wire (it is what the opponent is entitled to know) and documented as lossy on purpose: network detail is deliberately not shared |
+| **C8** | `ended { reason }` unenumerated | Pinned to `matchEnded`'s four exactly. There is no `"timeout"` or `"disconnect"`: §4.4 and §8.2 both inject a real `concede`, so they arrive as `"concede"`. A room inventing one would break the canonical type |
+| **C9** | **No frame carries the success half of `SubmitResult`.** §7.4 has `rejected` and nothing for success, so `WsTransport` would have to correlate against a batch by a rule §7 never states — and §4.3's idempotency promise ("answered with the original batch `seq`") describes a frame that does not exist | Added `accepted { id, seq }` |
+| **C10** | `MatchClocks.serverNowMs` is documented monotonic and implemented as `Date.now()`, which can step backwards | Recorded. The room must derive it from a monotonic source and offset once; the comment is the contract |
+| **C11** | `cause.seat` is required, but a `"system"` cause (match start, a scripted wave) has no seat, and `Seat` has no null member | `cause` became a discriminated union so the absence is expressible. `LocalTransport` was passing `activeSeat`, which reads like a fact and is not one |
+| **C12** | §7.5 says `seq` starts at 1; a snapshot taken before any batch legitimately reads 0 | `MatchSnapshot.seq` is `nonnegative`, and means *"current as of this batch"* — a different thing from a stream counter, now written down |
+| **C13** | §6's prose lists `sendEmote`/`onEmote`/`matchId` on `MatchTransport`; the implemented interface has none of them | Recorded as a known gap. Both emote frames are specified with nowhere to land above `src/net` until a transport grows the methods |
+| **C14** | `revealedDeckInstanceIds` is specified, wired, and always empty | Correct as-is, but not for the stated reason. This engine's scry never reveals anything to a *player* — `{ op: "scry" }` resolves inside the reducer and no UI shows the peeked cards — so there is nothing to give back. The field stays for a future reveal effect |
+
+**One defect the schemas had that §7 did not cause.** Zod ignores unknown keys by
+default. `{ type: "playCard", choice: 0 }` therefore validated by silently
+*dropping* the stray field — and `choice` (a number, on `activateConfluence`) and
+`choices` (an array, on `playCard`) differ by one letter, so that is a plausible
+client bug rather than an exotic attack, with a Choose One resolving the wrong
+half as the consequence. Every intent variant is `.strict()`.
 
 ## 8. Session lifecycle and reconnection
 
@@ -1244,7 +1361,7 @@ once.
 |---|---|---|---|
 | **0 — today** | `LocalMatch` (`src/game/localMatch.ts`) owns the authoritative state, runs the AI inline, records the `MatchRecord`. | done | Offline modes |
 | **1 — extract the seam** | Add `src/net/transport.ts` (interface) and `src/net/localTransport.ts` wrapping `LocalMatch`: adapt `submit(): Promise<string \| null>` to `SubmitResult`, add `seq` counters, `MatchClocks` from a local timer, and `snapshot` from `redact()`. Driver talks only to `MatchTransport`. | **done** | None |
-| **2 — network-shape the local build** | Add `redactEvents()` (§5) in the engine and the `viewReducer` in `src/net/`. `LocalTransport` now emits **redacted** batches and sanitized views to the UI even offline, and enforces seat ownership on `submit`. Add `src/net/protocol.ts` with zod schemas (unused by the local path, but validated in tests). | **in progress** — `redactEvents()` and the sanitized view are done (and found a leak, §5.1.1, and two verify scripts reading deck identities); `viewReducer` and `protocol.ts` outstanding | None — but any hidden-info leak in the UI surfaces immediately, offline, in tests |
+| **2 — network-shape the local build** | Add `redactEvents()` (§5) in the engine and the `viewReducer` in `src/net/`. `LocalTransport` now emits **redacted** batches and sanitized views to the UI even offline, and enforces seat ownership on `submit`. Add `src/net/protocol.ts` with zod schemas (unused by the local path, but validated in tests). | **done** — and it earned its place in the order: it found a redaction leak (§5.1.1), three unwireable events (§5.1.2), six fields no event carries (§5.3), fourteen conflicts in §7 (§7.7) and a determinism hole in the engine (§2.1) | None — but any hidden-info leak in the UI surfaces immediately, offline, in tests |
 | **3 — the server package** | New top-level workspace `server/` importing `../src/engine` **verbatim** (no fork, no re-implementation): `gateway/`, `room/`, `matchmaking/`, `services/`. Room = `MatchState` + clock + journal + fan-out. | first online milestone | None |
 | **4 — `WsTransport`** | `src/net/wsTransport.ts` implements the same interface over §7. Feature flag `net.online` picks the transport at match start. | first online milestone | Casual queue goes live; other online tiles still "Coming Online" |
 | **5 — services** | Matchmaking (§9), identity (§10), cloud saves (§12), results/ladder, spectator + replay services (§13). | staged | Ranked, friend battles, tournaments, spectate flip from "Coming Online" per the game-modes ship-status table |

@@ -53,7 +53,12 @@ src/
     evaluator.ts          # board scoring heuristics
     profiles.ts           # loads ai-profiles.json (beginner…boss)
   game/                   # client match orchestration: LocalMatchDriver (vs AI), seat handling, timers
-  net/                    # MatchTransport interface + LocalTransport impl; server stubs documented, NOT fake-implemented
+  net/                    # the seam the online build slots into. BUILT.
+    transport.ts          # MatchTransport, EventBatch, MatchSnapshot, MatchClocks, Legality
+    localTransport.ts     # wraps LocalMatch; emits REDACTED batches and a sanitized, cloned view even offline
+    viewReducer.ts        # EngineEvent[] -> PlayerView between snapshots; presentation only, never decides an outcome
+    viewToState.ts        # rebuild a MatchState-shaped object from a view so the legality helpers work unchanged
+    protocol.ts           # wire envelopes + zod schemas, validated on BOTH ends; unused by the local path
   save/                   # versioned localStorage persistence: profile, collection, decks, settings, progression
   audio/                  # AudioManager: channels (music/voice/ui/battle/ambient), manifest-driven, graceful missing-file fallback
   i18n/                   # t(key) + en.json; ALL user-facing strings go through i18n
@@ -88,6 +93,7 @@ applyIntent(state: MatchState, intent: PlayerIntent): { state: MatchState; event
 - **PlayerIntent** (player-initiated): `mulligan`, `playCard` (with slot/targets/choices), `attack`, `useFixation`, `activateLocation`, `activateConfluence`, `endTurn`, `concede`, `emote`.
 - **EngineEvent** (engine-emitted, the ONLY animation/UI feed): granular facts — `CardPlayed`, `CharacterSummoned`, `DamageDealt {amount, elementalBonus, targetId, sourceId}`, `Healed`, `StatusApplied/Removed/Triggered`, `KeywordTriggered`, `ConfluenceActivated`, `ResonanceAdvanced/Activated`, `ObsessionChanged`, `CardDrawn/Burned`, `FatigueDamage`, `CharacterDefeated`, `ComebackScheduled/Returned`, `TurnStarted/Ended`, `TriggerQueued/Resolved`, `MatchEnded`, etc. Events carry everything the UI needs; the UI must never re-derive rules outcomes.
 - **Determinism:** the ONLY randomness source is the seeded rng inside MatchState (`state.rngState` advances with use). `Math.random`/`Date` are banned in `src/engine` (lint/test enforced). Replay = `{ seed, deckLists, intents[] }` re-applied ⇒ identical final state (asserted in tests).
+- **Queries are read-only, and that includes the RNG.** Anything the UI may call to decide what to draw — `checkPlayable`, `attackableBy`, `legalChooseTargets`, `legalFixationTargets`, `canUseFixation`, `canActivateLocation`, `availableConfluences`, `predict` — takes a `MatchState` it must not write to. This used to be assumed rather than stated, and two of them were breaking it: `resolveTargets`' `select:"random"` branch advances `rngState` **in place**, and both `legalChooseTargets` and `auraModifiersFor` handed it the live state. Asking "what could this target?" therefore moved the RNG that `replay()` reproduces the match from — a hover, or in the aura case a redraw, would have desynced a replay from the match still being played. Enforced by `tests/query-purity.test.ts`, which hashes the whole state around every one of them.
 - **Hidden information:** full MatchState is authoritative; `redact(state, seat)` produces the per-player view (opponent hand/deck/facedown Reactions hidden). UI only ever sees redacted views — this keeps the local architecture server-shaped.
 - **predict(state, action)**: pure preview API returning damage/heal/lethal/confluence-availability annotations for the UI. Never mutates.
 
@@ -150,7 +156,7 @@ Shape sketch (canonical in types.ts):
 ## 7. Persistence & future server
 
 - `save/` wraps localStorage with a versioned envelope `{version, data}` + migration functions. Stores: profile, settings, collection, decks, progression, match history summaries.
-- Multiplayer is designed-for, not implemented: engine is already server-shaped (deterministic, intent/event, redacted views, replays). `net/MatchTransport` interface has `LocalTransport` (in-process vs AI) now; a future `WsTransport` + authoritative node server is specced in `docs/tech/03-multiplayer-architecture.md`. No fake online UI: modes that need a server are shown as "coming online" in the mode list, not stubbed with lies.
+- Multiplayer: **the client half is built, the server does not exist.** `net/MatchTransport` is the only way the battle screen reaches a match, and `LocalTransport` is one implementation of it rather than the only way to play. Per-seat event redaction, the §5.2 view sanitization, the view reducer and the wire schemas all run in the **offline** build, so a hidden-information leak surfaces in tests instead of in production against a real opponent — which it did, repeatedly (see `docs/tech/03-multiplayer-architecture.md` §5.1.1, §5.1.2, §5.3, §7.7, §2.1). A future `WsTransport` plus an authoritative room implements the same interface. No fake online UI: modes that need a server are shown as "coming online" in the mode list, not stubbed with lies.
 
 ## 8. Conventions
 

@@ -55,15 +55,17 @@ opponent that drafted its own deck through the same offers.
 The game is also **deployed**: <https://dylannfontus.github.io/HypeBound/>
 builds and publishes on every push to `main`, behind the full test suite.
 
-**The online foundation has started.** The battle screen now talks to a
-`MatchTransport` rather than to `LocalMatch`, so the offline game is one
-implementation of the interface a `WsTransport` will implement rather than the
-only way to play; and per-seat event redaction runs in the offline build too, so
-hidden-information leaks surface in tests instead of in production against a
-real opponent. Implementing it immediately found one the design document had
-missed. The stack is settled -- GitHub Pages for the client, Cloudflare Durable
-Objects for authoritative rooms, Supabase Auth for accounts -- and all of it is
-free to run. See "Going online: the deployment, and the seam".
+**The online foundation's client half is built.** The battle screen talks to a
+`MatchTransport`, so the offline game is one implementation of the interface a
+`WsTransport` will implement rather than the only way to play. Per-seat event
+redaction, deck sanitization, the view reducer and the wire schemas all run in
+the **offline** build, so hidden-information bugs surface in tests instead of in
+production against a real opponent — which they did, repeatedly. Doing it turned
+up four defects in the shipped engine, a leak the design document's own
+redaction table did not achieve, and fourteen places the wire spec could not be
+implemented as written. The stack is settled — GitHub Pages for the client,
+Cloudflare Durable Objects for authoritative rooms, Supabase Auth for accounts —
+and all of it is free to run. See "Going online: the deployment, and the seam".
 
 What is *not* built is the server itself (casual, ranked, matchmaking,
 spectating, replay sharing, tournaments, friends, guilds), which is deliberately
@@ -83,7 +85,7 @@ were run together, ten failures were found and every one is fixed. Sections that
 were previously marked *"written but not yet run"* are covered by the figures
 below.
 
-**Test suite — 1,404 tests passing** (`npm test`)
+**Test suite — 1,455 tests passing** (`npm test`)
 - 9 data-validation tests: every card and data file parses, the Current
   advantage cycle is a closed loop, all 9 Confluences exist, every Current has a
   Perfect Resonance effect, faction/Current legality holds, stat budgets hold,
@@ -2303,13 +2305,118 @@ counts what it exercised, so it fails if it ever stops testing what it claims.
 A comparison test that only ever observes one value is not testing a comparison.
 The fix in both cases was a coverage assertion, not a better assertion.
 
+### Phase 2 finished, and what it cost the engine
+
+`viewReducer.ts`, `protocol.ts` and `viewToState.ts` complete §15's phase 2. The
+plan puts this before any server code so that hidden-information bugs surface
+offline, in tests, rather than in production against a real opponent. It is
+worth recording how well that bet paid, because it is the argument for doing the
+same on the next phase.
+
+**Four defects in the shipped engine**, all found by writing client code against
+it, all of one shape — *an event that cannot be attributed, or is never emitted*:
+
+| Found | Consequence had it shipped |
+|---|---|
+| `keywordTriggered` had no `seat` | Unattributable ⇒ unredactable; the Comeback leak below could not be fixed without it |
+| `refracted` had no `seat` | A client crediting the opponent's Refract to itself offers a Confluence the room refuses, and draws the wrong elemental bonus on every attack against that body |
+| **Granting Armor emitted nothing at all** | Armor is granted mid-combat and drawn for both seats; a stale value corrupts the lethal arithmetic a player is reading off the screen |
+| **Queries advanced the authoritative RNG** | A UI *hover* — or, through the aura path, a *redraw* — desyncs a replay from the match that recorded it, while it is still being played |
+
+That last one is the worst of the four and had nothing to do with multiplayer.
+`resolveTargets`' random branch writes `rngState` in place, and
+`legalChooseTargets` handed it the live state. It was latent — every shipped
+leader ability and confluence target is `select: "choose"` — but one line of
+card data away from live, and the resulting failure is close to untraceable.
+`tests/query-purity.test.ts` now hashes the whole state around every legality
+helper, and the architecture contract says the rule out loud.
+
+**A leak the design document did not catch.** §5's redaction table says to blank
+`cardAddedToHand`, and a `mode: "hand"` Comeback emits *three* events naming the
+same card. Blanking one of three hides nothing — and the table's own stated goal
+was "Comeback returns must not leak."
+
+**Fourteen conflicts between §7 and reality**, including one that makes the
+section unbuildable as written (the flat envelope collides with three of its own
+payloads), a `welcome` frame that cannot describe a spectator, and no frame at
+all for the success half of `SubmitResult`. All resolved in §7.7.
+
+**Six fields no event carries.** Recorded in §5.3 with what each costs rather
+than discovered later: a Reaction's own `cardId`, `refractionCurrent`,
+`supportObsessionGainedThisTurn`, `afterpartyRepeatThisTurn` and
+`firedThisTurn`. Accepted for v1 because the turn-boundary snapshot repairs all
+of them and none is load-bearing for legality.
+
+### The oracles did the work, and the first version of each was worthless
+
+Three tests found essentially everything above, and all three were useless until
+they were measured rather than trusted.
+
+- **The legality oracle** compared the transport's answer to the engine's and
+  passed with `canFixation` hardcoded to `false` — because on turn one it is
+  false anyway. It compares across a developing match now and asserts it saw
+  each answer come out **both** ways.
+- **The redaction sweep** checked that no Comeback leaked, using two decks that
+  contain **no Comeback cards**. Zero comeback events across five full matches;
+  every assertion in it passed without executing. It uses the only two factions
+  with the keyword now, and counts what it exercised.
+- **The view-reducer oracle** replays whole matches and deep-compares the
+  reduced view against the authoritative one after *every batch*. It found
+  **ten** bugs in the reducer I had just written, each surfacing only once the
+  previous was fixed — including a `reactionSet` case that was a literal no-op
+  stub, and a transform that lost the slot the engine keeps, which would have
+  drawn the two players' boards in different orders.
+
+The pattern is the same every time: a test that only ever observes one value is
+not testing a comparison. The fix in each case was a **coverage assertion**, not
+a better assertion.
+
+And one rule that keeps earning its keep — every exemption and justification
+list requires a reason over 40 characters. It has now caught **four** of my own
+placeholders (`"seat only"`, `"the result"`, `"an amount"`, `"same as the
+friendly side"`).
+
+### Two hazards that were invisible offline
+
+**The view aliased the live match.** `redact()` returns `you` as *the* live
+`PlayerState`, and the opponent's board, discard, location and counters pass
+through by reference — so writing to the "view" wrote to the game. Online this
+is impossible, because the view arrives as deserialized JSON, which is a copy by
+construction. **The offline build was therefore the less safe of the two**, and
+a mutation bug would have been invisible where it was harmless and fatal where
+it was not. Measured before fixing: a full clone costs 0.062 ms.
+
+**Two verify scripts read deck identities from the view.** Applying §5.2's deck
+sanitization offline broke `verify-doomscroll` loudly — ten `"hidden"`s — and
+left `verify-decks` **passing**, because tokens arrive in hand rather than in
+the deck so its undefined lookup never changed the total. A check that is right
+by luck is one shuffle from being wrong, and it would have gone on passing.
+
+### What `viewToState` settles
+
+The five legality helpers all take a `MatchState`. Rather than thread a view
+through the effects DSL, a `MatchState`-shaped object is rebuilt *from* the
+view with opaque placeholders, and the existing helpers run unchanged. Checked
+against the engine at ~48 positions across both seats: **zero disagreements**.
+
+The result that made it safe: target resolution walks the two board arrays and
+never consults `spec.zone`, and a `TargetRef` can name only a board character or
+a leader — so a `TargetSpec` **structurally cannot reach anybody's hand**, and
+the placeholders are never dereferenced.
+
+Two limits are enforced rather than hoped about. `playableFromView` **throws**
+on any seat but the viewer's, because asking about the opponent returns
+`unknownInstance` — indistinguishable from a real refusal. And `canAttack`
+deliberately avoids `attackableBy`, which reaches `topOfDeckMatches`: the one
+place a sanitized placeholder genuinely is dereferenced.
+
 ### Where it stands
 
 | Phase | State |
 |---|---|
 | 0 — repo and Pages deploy | **done**, live |
 | 1 — the transport seam | **done** |
-| 2 — network-shaping | `redactEvents()` and the sanitized view **done**; `viewReducer` and `protocol.ts` outstanding |
+| 2 — network-shaping | **done** — and it found four engine defects, a redaction leak, and fourteen conflicts in the wire spec |
 | 3 — the `server/` package | not started |
 | 4 — `WsTransport` + casual queue | not started |
 | 5 — cloud saves, results, ladder | not started |
