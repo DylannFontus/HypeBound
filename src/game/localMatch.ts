@@ -20,6 +20,7 @@ import type {
   MatchState,
   PlayerIntent,
   PlayerView,
+  RulesErrorShape,
   Seat,
 } from "../engine/types";
 import { createMatch, redact } from "../engine/state";
@@ -188,6 +189,19 @@ export class LocalMatch {
     return true;
   }
 
+  /**
+   * Whether the other seat is a person at this same device.
+   *
+   * Exposed so `LocalTransport` can decide whether to offer `HotseatControls`
+   * at all. `setViewingSeat` and `awaitingHandoff` already refuse politely
+   * outside Hotseat, but "the method is there and always says no" is a worse
+   * contract than "the capability is absent", and it is the absence the battle
+   * screen actually wants to branch on.
+   */
+  isHotseat(): boolean {
+    return this.opponentKind === "human";
+  }
+
   /** True when the device is waiting to be passed to the other player. */
   awaitingHandoff(): boolean {
     return (
@@ -224,14 +238,27 @@ export class LocalMatch {
   // --- intents --------------------------------------------------------------
 
   /**
-   * Submit a player intent. Returns the RulesError message when the intent was
-   * rejected (the UI should have prevented it, but never crash on it).
+   * Submit a player intent. Returns a refusal when the intent was rejected (the
+   * UI should have prevented it, but never crash on it), or null on success.
+   *
+   * Returns the structured `RulesErrorShape` rather than a bare message string.
+   * `RulesError` has carried a canonical `code` since it was written and this
+   * method was keeping only `.message`, so the caller could show the refusal but
+   * never branch on it. Nothing new is computed here — information that was
+   * being discarded is now passed on, which is what `SubmitResult` in
+   * `src/net/transport.ts` needs in order to exist.
+   *
+   * The three non-engine refusals borrow the closest canonical codes: a wrong
+   * seat is `notYourTurn`, and both the busy guard and a teaching gate are
+   * `invalidIntent` — "the rules allow this, the situation does not".
    */
-  async submit(intent: PlayerIntent): Promise<string | null> {
-    if (this.busy) return "Please wait for the current action to finish.";
-    if (intent.seat !== this.playerSeat) return "Not your seat.";
+  async submit(intent: PlayerIntent): Promise<RulesErrorShape | null> {
+    if (this.busy) {
+      return { code: "invalidIntent", message: "Please wait for the current action to finish." };
+    }
+    if (intent.seat !== this.playerSeat) return { code: "notYourTurn", message: "Not your seat." };
     const refused = this.gate?.(intent);
-    if (refused) return refused;
+    if (refused) return { code: "invalidIntent", message: refused };
 
     try {
       this.busy = true;
@@ -240,7 +267,7 @@ export class LocalMatch {
       recordIntent(this.record, intent);
       await this.emit(result.events);
     } catch (error) {
-      if (error instanceof RulesError) return error.message;
+      if (error instanceof RulesError) return { code: error.code, message: error.message };
       throw error;
     } finally {
       this.busy = false;

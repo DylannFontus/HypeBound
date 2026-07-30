@@ -183,7 +183,7 @@ export class BattleHud {
   // Rendering
   // -------------------------------------------------------------------------
 
-  sync(view: PlayerView, confluences: ConfluenceAvailability[]): void {
+  sync(view: PlayerView, confluences: readonly ConfluenceAvailability[]): void {
     this.view = view;
     this.renderLeaderPlate(this.playerPlate, view, "player");
     this.renderLeaderPlate(this.enemyPlate, view, "enemy");
@@ -344,7 +344,7 @@ export class BattleHud {
     this.hypeRow.setAttribute("aria-label", `Hype ${hype} of ${hypeMax}`);
   }
 
-  private renderConfluences(confluences: ConfluenceAvailability[], yourTurn: boolean): void {
+  private renderConfluences(confluences: readonly ConfluenceAvailability[], yourTurn: boolean): void {
     const usable = confluences.filter((c) => c.available);
     this.confluenceBar.innerHTML = "";
     this.confluenceBar.classList.toggle("visible", usable.length > 0 && yourTurn);

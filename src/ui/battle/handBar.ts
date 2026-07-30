@@ -12,7 +12,7 @@
  * and hands the coordinates to BattleView, which owns all the rules decisions.
  */
 
-import type { CardDef, ContentIndex, PlayerView } from "../../engine/types";
+import type { CardDef, ContentIndex, MatchState, PlayerView } from "../../engine/types";
 import { checkPlayable } from "../../engine/intents";
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { CARD_H, CARD_W } from "../cardRenderer/palette";
@@ -41,7 +41,7 @@ export class HandBar {
   readonly root: HTMLElement;
   private entries: HandEntry[] = [];
   private view: PlayerView | null = null;
-  private proxy: (() => never) | null = null;
+  private proxy: (() => MatchState) | null = null;
   private dragging: { instanceId: string; ghost: HTMLElement; pointerId: number } | null = null;
 
   constructor(
@@ -54,8 +54,16 @@ export class HandBar {
     container.appendChild(this.root);
   }
 
-  /** `stateProxy` is owned by BattleView; the bar borrows it for playability. */
-  setStateProvider(provider: () => never): void {
+  /**
+   * `stateProxy` is owned by BattleView; the bar borrows it for playability.
+   *
+   * Typed `MatchState` rather than the `never` it used to be — `never` let the
+   * provider be passed without importing the type, at the cost of the compiler
+   * having no opinion about it. This is the same seam as `matchState()` in the
+   * battle screen: `checkPlayable` wants a state, a networked client will only
+   * have a view, and closing that gap is phase 2 (§15).
+   */
+  setStateProvider(provider: () => MatchState): void {
     this.proxy = provider;
   }
 

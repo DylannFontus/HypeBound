@@ -118,31 +118,19 @@ export interface BoardZone {
 /**
  * Everything the engine knows and this model must not re-decide.
  *
- * Supplied by the battle screen from `checkPlayable`, `attackableBy`,
- * `availableConfluences` and friends, so the keyboard path and the pointer path
- * are answering to the same rules.
+ * **Defined in [`../../net/transport.ts`](../../net/transport.ts), re-exported
+ * here.** It used to live in this file, computed by the battle screen from a
+ * full `MatchState`. It moved because the screen will not have a `MatchState`
+ * once the transport is a socket: a network client holds only a `PlayerView`,
+ * so "what may I do right now" becomes a question the transport answers, and
+ * the two implementations reach the engine's answer by different routes.
+ *
+ * Re-exported rather than relocated outright so the keyboard, the mirror and
+ * their tests keep importing it from where they always have.
  */
-export interface Legality {
-  /** hand instance ids that could be played right now */
-  playable: ReadonlySet<string>;
-  /** friendly character instance ids that could attack right now */
-  canAttack: ReadonlySet<string>;
-  confluences: readonly ConfluenceAvailability[];
-  canFixation: boolean;
-  canUltimate: boolean;
-  canActivateLocation: boolean;
-  yourTurn: boolean;
-}
-
-export const EMPTY_LEGALITY: Legality = {
-  playable: new Set(),
-  canAttack: new Set(),
-  confluences: [],
-  canFixation: false,
-  canUltimate: false,
-  canActivateLocation: false,
-  yourTurn: false,
-};
+import type { Legality } from "../../net/transport";
+export type { Legality };
+export { EMPTY_LEGALITY } from "../../net/transport";
 
 // ---------------------------------------------------------------------------
 // Naming

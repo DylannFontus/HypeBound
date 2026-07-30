@@ -10,13 +10,19 @@ import type {
   ContentIndex,
   DeckList,
   MatchRecord,
+  MatchState,
   PlayerIntent,
   TargetRef,
 } from "../../engine/types";
-import { LocalMatch } from "../../game/localMatch";
+import { LocalTransport } from "../../net/localTransport";
+import { isYourTurn } from "../../net/transport";
+/**
+ * Still imported directly because these enumerate *targets*, and they take a
+ * `MatchState` — see `matchState()` for why that is the remaining seam. The
+ * legality *summary* (`attackableBy`, `canActivateLocation`) moved to the
+ * transport and is no longer computed here.
+ */
 import {
-  attackableBy,
-  canActivateLocation,
   canUseFixation,
   checkPlayable,
   legalEquipTargets,
@@ -167,7 +173,17 @@ export interface BattleScreenOptions {
 
 export class BattleScreen {
   readonly root: HTMLElement;
-  private readonly match: LocalMatch;
+  /**
+   * The match, reached only through `MatchTransport`.
+   *
+   * Typed as the concrete `LocalTransport` rather than the interface for the
+   * two escape hatches it adds — `authoritativeState()` for the teaching-stage
+   * runner and the debug handle, and `setGate()` — both of which are local-only
+   * by nature. Every *other* call in this file goes through the interface, so
+   * the day a `WsTransport` exists the compiler will name exactly the lines
+   * that do not survive it.
+   */
+  private readonly match: LocalTransport;
   private readonly view: BattleView;
   private readonly handBar: HandBar;
   private readonly hud: BattleHud;
@@ -206,12 +222,12 @@ export class BattleScreen {
           complete: () => this.options.onStageComplete?.(),
           failed: () => this.options.onStageFailed?.(),
           cardIdOf: (instanceId) =>
-            this.match.getView().you.hand.find((c) => c.instanceId === instanceId)?.cardId ?? null,
+            this.match.view().you.hand.find((c) => c.instanceId === instanceId)?.cardId ?? null,
         })
       : null;
 
     const seed = options.seed ?? (stage ? stage.seed : Math.floor(Math.random() * 0x7fffffff));
-    this.match = new LocalMatch({
+    this.match = new LocalTransport({
       content: options.content,
       playerDeck: options.playerDeck,
       aiDeck: options.aiDeck,
@@ -322,11 +338,19 @@ export class BattleScreen {
     this.root.tabIndex = 0;
     this.root.addEventListener("keydown", (event) => this.onKey(event));
 
-    this.match.onEvents(async (events) => {
+    /**
+     * Present each batch as it lands.
+     *
+     * `await` inside this listener is load-bearing: the transport waits for it
+     * before letting the match move on, which is what stops the rival's turn
+     * from animating on top of yours. Online it is also the ack boundary — the
+     * batch is acknowledged once it has actually been shown.
+     */
+    this.match.onBatch(async (batch) => {
       // announced from the event stream, because "it was defeated" is not
       // visible in a snapshot of a board that no longer contains it
-      this.mirror.report(this.match.getView(), events);
-      await this.presenter.play(events, () => this.match.getView());
+      this.mirror.report(this.match.view(), batch.events);
+      await this.presenter.play(batch.events, () => this.match.view());
       this.refresh();
       this.checkEnd();
     });
@@ -336,8 +360,14 @@ export class BattleScreen {
 
     // debug/automation handle — read-only view of the live match
     (window as unknown as { hypeboundBattle?: unknown }).hypeboundBattle = {
-      state: () => this.match.getState(),
-      view: () => this.match.getView(),
+      /**
+       * The authoritative state, which only an offline match has. The verify
+       * scripts read it to assert things no player may see — that a redacted
+       * hand really is hidden, for one — so it is deliberately the omniscient
+       * view and deliberately not reachable through `MatchTransport`.
+       */
+      state: () => this.match.authoritativeState(),
+      view: () => this.match.view(),
       /**
        * The match's RESOLVED content — the rulebook this match is actually being
        * played with, including any patched or variant cards. Reading the loaded
@@ -386,7 +416,7 @@ export class BattleScreen {
     this.refresh();
     // A scripted stage deals its own opening; only a real match mulligans.
     if (this.options.stage?.scenario?.mulligan === "none") {
-      void this.match.start().then(() => this.refresh());
+      void this.match.connect().then(() => this.refresh());
     } else {
       this.openMulligan();
     }
@@ -395,30 +425,15 @@ export class BattleScreen {
   /**
    * What the engine says is legal right now.
    *
-   * Built here and passed into the keyboard model, so the two paths cannot
-   * disagree about the rules: `checkPlayable`, `attackableBy`, `canUseFixation`
-   * and `availableConfluences` are the same functions the pointer path calls,
-   * and the keyboard gets their answers rather than its own.
+   * Asked of the transport rather than computed here. The body used to live in
+   * this method, reading a full `MatchState`; it moved to `LocalTransport`
+   * unchanged, because a networked screen will have no state to read. The
+   * keyboard and pointer paths still get the same answer from the same engine
+   * functions — that property is the whole reason this exists — they are simply
+   * asking something that can still answer once the match is on a socket.
    */
   private legality(): Legality {
-    const view = this.match.getView();
-    const state = this.match.getState();
-    const yourTurn = this.match.isPlayerTurn();
-    if (!yourTurn) return { ...EMPTY_LEGALITY, confluences: this.match.confluences() };
-
-    const playable = new Set<string>();
-    for (const card of view.you.hand) {
-      if (checkPlayable(state, this.content, view.seat, card.instanceId).ok) playable.add(card.instanceId);
-    }
-    return {
-      playable,
-      canAttack: new Set(attackableBy(state, this.content, view.seat).map((c) => c.instanceId)),
-      confluences: this.match.confluences(),
-      canFixation: canUseFixation(state, this.content, view.seat, "fixation"),
-      canUltimate: canUseFixation(state, this.content, view.seat, "ultimate"),
-      canActivateLocation: canActivateLocation(state, this.content, view.seat),
-      yourTurn,
-    };
+    return this.match.legality();
   }
 
   private refresh(): void {
@@ -430,11 +445,11 @@ export class BattleScreen {
      * frame in which the next player's hand is on screen and no race between
      * rendering and covering. The cover comes down when they say they are ready.
      */
-    if (this.options.hotseat && this.match.awaitingHandoff() && !this.ended) {
+    if (this.match.hotseat?.awaitingHandoff() && !this.ended) {
       this.openHandoff();
       return;
     }
-    const view = this.match.getView();
+    const view = this.match.view();
     this.view.sync(view);
     this.handBar.sync(view);
     this.hud.sync(view, this.match.confluences());
@@ -442,7 +457,7 @@ export class BattleScreen {
 
     // A lesson has no clock — being timed while reading is the opposite of
     // teaching. Everything else keeps the normal turn timer.
-    if (this.match.isPlayerTurn() && !this.ended && !this.options.stage) {
+    if (isYourTurn(view) && !this.ended && !this.options.stage) {
       this.hud.startTimer(this.content.balance.timer.turnSeconds, () => void this.endTurn());
     } else {
       this.hud.stopTimer();
@@ -490,9 +505,9 @@ export class BattleScreen {
   private keyboardContext(): KeyboardContext {
     return {
       content: this.content,
-      view: this.match.getView(),
+      view: this.match.view(),
       legality: this.legality(),
-      attackTargets: () => legalAttackTargets(this.matchState(), this.match.getView().seat),
+      attackTargets: () => legalAttackTargets(this.matchState(), this.match.view().seat),
       animating: this.match.isBusy(),
     };
   }
@@ -521,7 +536,7 @@ export class BattleScreen {
   }
 
   private runKeyboardAction(action: KeyboardAction): void {
-    const view = this.match.getView();
+    const view = this.match.view();
     switch (action.kind) {
       case "playCard":
         // straight into the same flow the pointer opens, so targets and
@@ -577,7 +592,7 @@ export class BattleScreen {
   }
 
   private cardOfSlot(slot: BoardSlot): CardDef | null {
-    const view = this.match.getView();
+    const view = this.match.view();
     if (slot.ref.kind === "handCard") {
       const id = slot.ref.instanceId;
       const instance = view.you.hand.find((entry) => entry.instanceId === id);
@@ -616,14 +631,20 @@ export class BattleScreen {
   }
 
   private async submit(intent: PlayerIntent): Promise<void> {
-    const error = await this.match.submit(intent);
-    if (error) this.hud.toast(error, "error");
+    const result = await this.match.submit(intent);
+    /**
+     * The refusal now arrives with a canonical `code` alongside the message.
+     * The toast still shows the prose, because that is what a player can act
+     * on — but online the code is what distinguishes "you cannot do that" from
+     * "the connection lost your intent", and those must not read the same.
+     */
+    if (!result.ok) this.hud.toast(result.error.message, "error");
     this.refresh();
     this.checkEnd();
   }
 
   private async endTurn(): Promise<void> {
-    const view = this.match.getView();
+    const view = this.match.view();
     /**
      * No "are you sure?" during a lesson. The stage gate already decides whether
      * ending the turn is allowed, so the prompt is redundant — and worse, it
@@ -649,17 +670,34 @@ export class BattleScreen {
     await this.submit({ type: "endTurn", seat: view.seat });
   }
 
-  private matchState(): never {
-    return this.match.getState() as never;
+  /**
+   * The authoritative `MatchState` — **the last thing in this file that a
+   * networked build could not do.**
+   *
+   * Five engine helpers still take a `MatchState` to enumerate legal targets:
+   * `legalAttackTargets`, `legalFixationTargets`, `legalEquipTargets`,
+   * `legalChooseTargets` and `checkPlayable`. None of them actually *reads*
+   * hidden information — targets are characters, leaders and locations, all of
+   * them public — they simply have a parameter type a client will not have.
+   * Teaching them to answer from a `PlayerView` is phase 2's job (§15), and
+   * until then this method is where that debt is collected so it is countable
+   * rather than scattered.
+   *
+   * It was previously typed `never`, which let it be passed anywhere without an
+   * import. Naming the real type instead means the compiler will list these
+   * call sites the day the helpers change.
+   */
+  private matchState(): MatchState {
+    return this.match.authoritativeState();
   }
 
   private checkEnd(): void {
-    const state = this.match.getState();
-    if (state.winner === null || this.ended) return;
+    const view = this.match.view();
+    if (view.winner === null || this.ended) return;
     this.ended = true;
     this.hud.stopTimer();
-    const playerSeat = this.match.playerSeat;
-    const outcome = state.winner === "draw" ? "draw" : state.winner === playerSeat ? "player" : "ai";
+    const playerSeat = this.match.seat;
+    const outcome = view.winner === "draw" ? "draw" : view.winner === playerSeat ? "player" : "ai";
 
     /**
      * A teaching stage that ends in a win has not ended the *tutorial* — the
@@ -689,7 +727,7 @@ export class BattleScreen {
    */
   private openHandoff(): void {
     const names = this.options.hotseat?.seatNames ?? ["Player 1", "Player 2"];
-    const next = this.match.getState().activeSeat;
+    const next = this.match.view().activeSeat;
     const overlay = this.mountOverlay("handoff-overlay");
 
     const panel = document.createElement("div");
@@ -705,7 +743,7 @@ export class BattleScreen {
     ready.id = "handoff-ready";
     ready.textContent = "I am " + (names[next] ?? "ready");
     ready.addEventListener("click", () => {
-      this.match.setViewingSeat(next);
+      this.match.hotseat?.setViewingSeat(next);
       this.dismissOverlay();
       this.refresh();
     });
@@ -741,7 +779,7 @@ export class BattleScreen {
 
   /** Opening mulligan: click cards to mark them for replacement. */
   private openMulligan(): void {
-    const view = this.match.getView();
+    const view = this.match.view();
     const overlay = this.mountOverlay("mulligan-overlay");
     const selected = new Set<string>();
 
@@ -817,7 +855,7 @@ export class BattleScreen {
    * collects a target when the ability needs one.
    */
   private useLeaderAbility(kind: "fixation" | "ultimate"): void {
-    const view = this.match.getView();
+    const view = this.match.view();
     if (!canUseFixation(this.matchState(), this.content, view.seat, kind)) {
       this.hud.toast("You can't use that right now.", "error");
       return;
@@ -842,7 +880,7 @@ export class BattleScreen {
   }
 
   private openTargetFlow(instanceId: string, slot: number | undefined): void {
-    const view = this.match.getView();
+    const view = this.match.view();
     const playable = checkPlayable(this.matchState(), this.content, view.seat, instanceId);
     if (!playable.ok) {
       this.hud.toast("That card can't be played right now.", "error");
@@ -916,14 +954,20 @@ export class BattleScreen {
 
   private describeTarget(ref: TargetRef): string {
     if (ref.kind === "leader") {
-      const view = this.match.getView();
+      const view = this.match.view();
       const player = ref.seat === view.seat ? view.you : view.opponent;
       const leader = this.content.leaders[player.leaderCardId];
       return `${leader?.name ?? "Leader"} (${ref.seat === view.seat ? "yours" : "rival"})`;
     }
-    const state = this.match.getState();
-    for (const player of state.players) {
-      for (const character of player.board) {
+    /**
+     * Both boards, from the view rather than the state. Characters on a board
+     * are public to both players — that is what makes naming an opponent's
+     * character in a target prompt legitimate in the first place — so the
+     * redacted view carries everything this needs.
+     */
+    const view = this.match.view();
+    for (const board of [view.you.board, view.opponent.board]) {
+      for (const character of board) {
         if (character?.instanceId !== ref.instanceId) continue;
         const card = this.content.cards[character.cardId];
         return `${card?.name ?? "Character"} (${character.attack}/${character.health})`;
@@ -974,7 +1018,7 @@ export class BattleScreen {
   private openConfluence(availability: ConfluenceAvailability): void {
     const def = this.content.confluences[availability.confluence];
     if (!def) return;
-    const view = this.match.getView();
+    const view = this.match.view();
 
     const submitConfluence = (targets?: TargetRef[], choice?: number): void => {
       void this.submit({
@@ -1087,7 +1131,7 @@ export class BattleScreen {
   }
 
   private showLeaderDetail(seat: number): void {
-    const view = this.match.getView();
+    const view = this.match.view();
     const player = seat === view.seat ? view.you : view.opponent;
     const leader = this.content.leaders[player.leaderCardId];
     if (leader) this.showCardDetail(leader);
@@ -1129,7 +1173,7 @@ export class BattleScreen {
 
   private confirmConcede(): void {
     void this.confirm("Concede this match?", "Your rival takes the win.", "Concede", "Keep Playing").then((yes) => {
-      if (yes) void this.submit({ type: "concede", seat: this.match.playerSeat });
+      if (yes) void this.submit({ type: "concede", seat: this.match.seat });
     });
   }
 
@@ -1224,6 +1268,11 @@ export class BattleScreen {
     const overlay = this.mountOverlay(`end-overlay end-${outcome}`);
     audio.playMusic(outcome === "player" ? "music.victory" : "music.defeat");
 
+    // The final board, read once — the turn count and the surviving health both
+    // come from it, and re-reading between the two could not disagree today but
+    // would be a rich source of confusion if it ever could.
+    const finalView = this.match.view();
+
     const title = outcome === "player" ? "VICTORY" : outcome === "ai" ? "DEFEAT" : "DRAW";
     const subtitle =
       outcome === "player"
@@ -1237,7 +1286,24 @@ export class BattleScreen {
     panel.innerHTML = `
       <div class="end-title">${title}</div>
       <div class="end-sub">${subtitle}</div>
-      <div class="end-stats muted">Turns played: ${this.match.getState().turn}</div>`;
+      <div class="end-stats muted">Turns played: ${finalView.turn}</div>`;
+
+    /**
+     * The replay record and the final health, read once.
+     *
+     * `finishRecord()` is typed nullable because a *networked* client cannot
+     * build one — it never learns the seed or either decklist. This screen is
+     * the offline one and its transport is always the authority, so the record
+     * is always present; the fallback exists so that the reward path degrades
+     * to "pay nothing" rather than throwing if that ever stops being true.
+     *
+     * Online settlement will not come through here at all. Results are written
+     * by the room and pushed to the client (§12.5, "the client never reports
+     * outcomes"), which is why widening `onSettle` to accept a null record
+     * would be modelling a case that will never reach it.
+     */
+    const record = this.match.finishRecord();
+    const finalHealth = finalView.you.leaderHealth;
 
     /**
      * Bank it here, not on the way out, and print what it paid.
@@ -1246,23 +1312,25 @@ export class BattleScreen {
      * is the one bug in this area that would be worth more to a player than to
      * report.
      */
-    if (!this.settled) {
+    if (!this.settled && record) {
       this.settled = true;
       const paid = this.options.onSettle?.({
         winner: outcome,
-        record: this.match.finishRecord(),
-        playerLeaderHealth: this.match.getState().players[this.match.playerSeat].leaderHealth,
+        record,
+        playerLeaderHealth: finalHealth,
       });
       if (paid) panel.appendChild(this.rewardBlock(paid));
     }
 
-    const exit = (action: "again" | "menu"): void =>
+    const exit = (action: "again" | "menu"): void => {
+      if (!record) return;
       this.options.onExit({
         winner: outcome,
-        record: this.match.finishRecord(),
-        playerLeaderHealth: this.match.getState().players[this.match.playerSeat].leaderHealth,
+        record,
+        playerLeaderHealth: finalHealth,
         action,
       });
+    };
 
     const actions = document.createElement("div");
     actions.className = "row center end-actions";
