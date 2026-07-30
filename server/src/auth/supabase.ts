@@ -22,9 +22,27 @@
  * decide who is holding it.
  */
 
+/**
+ * Who is holding this token — a user id and nothing else.
+ *
+ * The token also carries an `email` claim, and an earlier version of this file
+ * read it into a field that **no caller ever used**. Removed rather than left
+ * available, for three reasons that compound:
+ *
+ * - `[observability] enabled = true` in `wrangler.toml`, so anything that ends
+ *   up in an error path can end up in a log. An address that is never extracted
+ *   cannot be logged by accident.
+ * - It lets the privacy page say "this game's own server never stores your
+ *   email" flatly, instead of a hedge about what it does with one it holds. A
+ *   sentence that needs a caveat usually means the code should change instead.
+ * - Nothing needed it. Collecting a piece of personal data on the grounds that
+ *   it arrived anyway is how a system ends up holding things it cannot justify.
+ *
+ * If a feature ever genuinely needs the address it is one line to restore —
+ * and at that point it deserves the argument.
+ */
 export interface Identity {
   readonly userId: string;
-  readonly email: string | null;
   readonly expiresAtMs: number;
 }
 
@@ -204,12 +222,7 @@ export async function verifySupabaseToken(token: string, supabaseUrl: string, no
   const subject = typeof payload.sub === "string" ? payload.sub : "";
   if (!subject) return { ok: false, reason: "token names no subject" };
 
-  return {
-    ok: true,
-    identity: {
-      userId: subject,
-      email: typeof payload.email === "string" ? payload.email : null,
-      expiresAtMs: exp * 1000,
-    },
-  };
+  // Note what is NOT read here: `payload.email` is present and deliberately
+  // ignored. See `Identity`.
+  return { ok: true, identity: { userId: subject, expiresAtMs: exp * 1000 } };
 }

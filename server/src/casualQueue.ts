@@ -98,12 +98,8 @@ export class CasualQueue extends DurableObject<Env> {
       case "lobbyPing":
         return this.send(ws, { t: "lobbyPong", v: PROTOCOL_VERSION, ts: now, clientTs: frame.ts, serverTs: now });
 
-      case "dequeue": {
-        const queue = await this.load();
-        queue.remove(identity.ticketId);
-        await this.persist(queue);
-        return;
-      }
+      case "dequeue":
+        return this.leave(identity.ticketId);
 
       case "enqueue": {
         const rejection = await this.enqueue(identity, frame, now);
@@ -122,8 +118,27 @@ export class CasualQueue extends DurableObject<Env> {
     // progress, and a ticket is not one.
     const identity = ws.deserializeAttachment() as SocketIdentity | null;
     if (!identity) return;
+    await this.leave(identity.ticketId);
+  }
+
+  /**
+   * Take a ticket out of the queue **and** delete the deck stored with it.
+   *
+   * One method rather than two lines at each call site, because the two lines
+   * had already drifted apart: the deck row was deleted only in `startMatch`,
+   * so the two ways of *not* being paired — pressing cancel, and closing the
+   * tab — both left a decklist in Durable Object storage with nothing left to
+   * reference it. Permanently, and including the deck's user-typed name.
+   *
+   * That is a privacy defect rather than a leak of disk: the deck was sent for
+   * validation, the validation is over, and there is no reason to still have
+   * it. Keeping removal in one place is what stops the third exit path from
+   * forgetting again.
+   */
+  private async leave(ticketId: string): Promise<void> {
     const queue = await this.load();
-    queue.remove(identity.ticketId);
+    queue.remove(ticketId);
+    await this.ctx.storage.delete(`deck:${ticketId}`);
     await this.persist(queue);
   }
 

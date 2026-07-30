@@ -108,8 +108,14 @@ describe("a token this server should accept", () => {
     expect(result.ok, result.ok ? "" : result.reason).toBe(true);
     if (!result.ok) return;
     expect(result.identity.userId).toBe("11111111-2222-3333-4444-555555555555");
-    expect(result.identity.email).toBe("player@example.com");
     expect(result.identity.expiresAtMs).toBeGreaterThan(NOW);
+    /**
+     * The token carries an `email` claim and the server deliberately does not
+     * read it — asserted, because "we never store your email" is a promise on
+     * the privacy page, and a promise nothing checks is a promise waiting to be
+     * broken by a convenient one-line addition.
+     */
+    expect(Object.keys(result.identity).sort()).toEqual(["expiresAtMs", "userId"]);
     // and it really did go and fetch the keys rather than passing on a guess
     expect(jwks.hits()).toBe(1);
   });
