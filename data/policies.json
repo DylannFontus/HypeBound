@@ -63,8 +63,8 @@
     ],
     "requests": [
       "The save is yours to take or destroy without asking anyone: the export button hands you all of it and the delete button erases it, both instantly and both on this device.",
-      "What this game's server recorded — your match results — can now be deleted from the same page, in one action, without contacting anybody. It erases the results and signs you out.",
-      "The account itself is the part that page still cannot act on. Deleting a login needs an administrative credential at Supabase, and this game deliberately holds none: the server verifies your sign-in against a public key and could not remove your account if it wanted to. So an account can be abandoned but not deleted, there is no contact route to ask through, and that is a real gap written down rather than left for you to discover."
+      "The account can be deleted from the same page, in one action, without contacting anybody — the email address, the password and every match result recorded against it. It cannot be undone, and it does not touch the save on your device.",
+      "There is still no contact route, and no retention schedule written down. Nothing is kept that the delete button does not reach, which is why there has been nothing to schedule; if that stops being true this section has to change before the thing that changes it ships."
     ]
   },
   "legal": {

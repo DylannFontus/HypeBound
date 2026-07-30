@@ -221,6 +221,51 @@ export async function signOut(config = ONLINE): Promise<void> {
 }
 
 /**
+ * Delete the account itself, permanently.
+ *
+ * Calls `public.delete_my_account()`, a `SECURITY DEFINER` function in the
+ * project's own database. The shape of it is the security argument: it takes
+ * **no parameter**, reads the caller's id from their JWT with `auth.uid()`, and
+ * is granted only to `authenticated`. So there is no request that names a
+ * victim, and the anon key that ships in this bundle is refused outright — a
+ * fact worth checking rather than assuming, and it was: `42501 permission
+ * denied`.
+ *
+ * This exists instead of the obvious alternative, which was giving the match
+ * server a Supabase service-role key so it could call the admin API. That key
+ * owns every table including the auth schema, and putting it in a Worker
+ * config would have traded a real property — this server holds no credential
+ * that could hurt you — for one button.
+ *
+ * The local session is cleared whatever the server says, because a user that
+ * no longer exists has no valid session either way.
+ */
+export async function deleteAccount(config = ONLINE): Promise<{ ok: boolean; message: string }> {
+  const token = await accessToken(config);
+  if (!token) return { ok: false, message: "You are not signed in." };
+
+  try {
+    const response = await fetch(`${config.supabaseUrl.replace(/\/+$/, "")}/rest/v1/rpc/delete_my_account`, {
+      method: "POST",
+      headers: {
+        apikey: config.supabaseAnonKey,
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: "{}",
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, message: body.message ?? `The account service refused (${response.status}).` };
+    }
+    store(null);
+    return { ok: true, message: "Account deleted." };
+  } catch {
+    return { ok: false, message: "Could not reach the account service, so nothing was deleted." };
+  }
+}
+
+/**
  * A token that will still be valid when it arrives, or null if signed out.
  *
  * Every online path goes through this rather than reading `accessToken`
