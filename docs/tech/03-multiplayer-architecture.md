@@ -927,6 +927,28 @@ sequenceDiagram
   (`{ type: "mulligan", seat, replaceInstanceIds }`), with its own 45 s clock;
   expiry submits an empty mulligan (keep all).
 
+### 9.6 What the queue does differently, and why **[BINDING over §9.1–9.5]**
+
+Built as [`../../server/src/queue/queue.ts`](../../server/src/queue/queue.ts),
+tested as `tests/queue.test.ts`.
+
+| # | Conflict | Resolution |
+|---|---|---|
+| **C19** | **§9.3's table and the bullet under it disagree about uncertainty widening.** The table adds `min(200, 1.5 × RD)` only in the 150–240 s row; the bullet says the effective band is `band + min(200, 1.5 × RD)` **at all times**, "so freshly placed and returning players (high RD) find games quickly" | The bullet wins. It states a *purpose*, and a high-RD player who waits 150 seconds before their uncertainty counts is not finding games quickly. Applied from the first second |
+| **C20** | **§9.4's score has a `latencyPenalty(rttEstimate)` and §9.3 relaxes by region.** Both presuppose the server chose where the match runs | Both are **absent**, not zeroed. A Durable Object lives near whoever created it and every player reaches their nearest edge regardless: there is no region to widen to and no RTT to score. A zeroed term reads like a value that happens to be small, rather than a dimension that does not exist |
+| **C21** | **§9.2's ticket carries a `rating` and `rd` there is nowhere to read from.** Ratings are written by the results pipeline, which is phase 5 | Every account is 1500 with **RD 350** — deliberately wide, not a placeholder. Given C19 that widens the band by the full +200 from the start, which is the correct behaviour for players the system genuinely knows nothing about. A confident default would make an empty queue *stricter* |
+| **C22** | §9.1 lists seven queues | One is built. A queue nobody is in is worse than no queue, so casual ships alone and the rest stay "Coming Online" per architecture contract §7 |
+
+**The 240-second row is the main feature, not the fallback.** §9.3 ends with
+casual offering *"Play the AI instead* (never a fake human)". At this game's
+population that is the expected outcome of most attempts to queue, so it is
+built into `LobbySocket`'s interface (`onAiOffer`) rather than left for a polish
+pass — along with the honest `searching` counts, because telling somebody that
+nobody else is queueing is a better experience than a spinner that cannot tell
+"searching" from "there is nobody here". Beyond 240 s the band goes unbounded,
+which is safe precisely *because* the offer has already been made: the player
+has been told the truth and chosen to keep waiting.
+
 ---
 
 ## 10. Authentication and authorization
@@ -1423,7 +1445,7 @@ once.
 | **1 — extract the seam** | Add `src/net/transport.ts` (interface) and `src/net/localTransport.ts` wrapping `LocalMatch`: adapt `submit(): Promise<string \| null>` to `SubmitResult`, add `seq` counters, `MatchClocks` from a local timer, and `snapshot` from `redact()`. Driver talks only to `MatchTransport`. | **done** | None |
 | **2 — network-shape the local build** | Add `redactEvents()` (§5) in the engine and the `viewReducer` in `src/net/`. `LocalTransport` now emits **redacted** batches and sanitized views to the UI even offline, and enforces seat ownership on `submit`. Add `src/net/protocol.ts` with zod schemas (unused by the local path, but validated in tests). | **done** — and it earned its place in the order: it found a redaction leak (§5.1.1), three unwireable events (§5.1.2), six fields no event carries (§5.3), fourteen conflicts in §7 (§7.7) and a determinism hole in the engine (§2.1) | None — but any hidden-info leak in the UI surfaces immediately, offline, in tests |
 | **3 — the server package** | New top-level workspace `server/` importing `../src/engine` **verbatim** (no fork, no re-implementation). Room = `MatchState` + clock + journal + fan-out. | **done** — gateway, room and identity built; matchmaking deferred to phase 4 where it belongs. Found four more §4/§7 conflicts (§7.7 C15–C18), a seventh field no event carries (§5.3), and two `import.meta.glob` calls that would have dealt matches from an empty card pool | None |
-| **4 — `WsTransport`** | `src/net/wsTransport.ts` implements the same interface over §7. Feature flag `net.online` picks the transport at match start. | first online milestone | Casual queue goes live; other online tiles still "Coming Online" |
+| **4 — `WsTransport`** | `src/net/wsTransport.ts` implements the same interface over §7. Feature flag `net.online` picks the transport at match start. | **transport, conformance suite and casual queue done**; sign-in and the flag remain. Found three defects the offline build could not have had a test for, and four §9 conflicts (§9.6 C19–C22) | Nothing yet — the queue exists but nothing is deployed |
 | **5 — services** | Matchmaking (§9), identity (§10), cloud saves (§12), results/ladder, spectator + replay services (§13). | staged | Ranked, friend battles, tournaments, spectate flip from "Coming Online" per the game-modes ship-status table |
 
 **Sequencing rules (binding).**
@@ -1452,7 +1474,7 @@ src/net/
   wsTransport.ts     # WebSocket implementation, resume/backoff/ack logic
   viewReducer.ts     # EngineEvent[] → PlayerView (presentation bookkeeping only)
   viewToState.ts     # answers legality from a view, using the engine's own helpers
-  lobbySocket.ts     # presence, queue, invites, matchFound
+  lobbySocket.ts     # the queue: enqueue, honest searching counts, the AI offer, matchFound
 src/save/
   cloudSync.ts       # CloudEnvelope, section sync, conflict → Cloud-save selection
 server/
@@ -1461,7 +1483,8 @@ server/
   src/matchRoom.ts   # the Durable Object: sockets, storage, alarms. Thin.
   src/room/          # room.ts (pure: state, journal, seq, redaction), clock.ts
   src/auth/          # supabase.ts — JWKS verification, no server-side secret
-  src/matchmaking/   # tickets, bands, pairing loop, placement
+  src/queue/         # queue.ts — tickets, bands, the pairing loop. Pure, so it is tested.
+  src/casualQueue.ts # the queue's Durable Object: one global shard, 1 Hz alarm
   src/services/      # saves, results, replays, moderation
   src/shared/        # engine.ts and wire.ts — the ONLY reaches back into ../src
 ```

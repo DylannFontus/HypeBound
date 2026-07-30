@@ -17,6 +17,7 @@ import { verifySupabaseToken } from "./auth/supabase";
 import type { Env } from "./env";
 
 export { MatchRoom } from "./matchRoom";
+export { CasualQueue } from "./casualQueue";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -39,6 +40,25 @@ export default {
         origin,
         env
       );
+    }
+
+    /**
+     * The queue. One global shard — see `casualQueue.ts` for why sharding is a
+     * fix for a problem this game does not have.
+     */
+    if (url.pathname === "/queue/casual" || url.pathname === "/queue/casual/socket") {
+      const wantsSocket = request.headers.get("Upgrade") === "websocket";
+      if (wantsSocket && !isAllowedOrigin(origin, env)) {
+        return new Response("origin not allowed", { status: 403 });
+      }
+      const stub = env.CASUAL_QUEUE.get(env.CASUAL_QUEUE.idFromName("casual"));
+      if (!wantsSocket) return cors(await stub.fetch(new Request("https://queue/status")), origin, env);
+
+      const identified = await identify(request, url, env);
+      if ("response" in identified) return identified.response;
+      const forwarded = new Request("https://queue/socket", request);
+      forwarded.headers.set("X-Hypebound-User", identified.userId);
+      return stub.fetch(forwarded);
     }
 
     const match = /^\/match\/([A-Za-z0-9_-]{1,64})\/(socket|init)$/.exec(url.pathname);
@@ -68,33 +88,46 @@ export default {
       return new Response("origin not allowed", { status: 403 });
     }
 
-    /**
-     * The token arrives as a query parameter, which is not where a bearer token
-     * belongs. Browser `WebSocket` cannot set an `Authorization` header — there
-     * is no API for it — so the alternatives are this, a cookie, or a
-     * first-message `hello` that leaves the socket unauthenticated until it
-     * arrives. A query parameter is chosen and then *narrowed*: the token is a
-     * short-lived Supabase access token, the URL is https, and the room never
-     * logs it. It must not be a refresh token.
-     */
-    const token = url.searchParams.get("access_token") ?? "";
-    if (!token) return new Response("missing access_token", { status: 401 });
-
-    let verified;
-    try {
-      verified = await verifySupabaseToken(token, env.SUPABASE_URL, Date.now());
-    } catch (error) {
-      // The identity provider is unreachable. That is a 503 and not a 401: a
-      // player whose login is fine should not be told their login is not.
-      return new Response(`identity provider unavailable: ${String(error)}`, { status: 503 });
-    }
-    if (!verified.ok) return new Response(verified.reason, { status: 401 });
+    const identified = await identify(request, url, env);
+    if ("response" in identified) return identified.response;
 
     const forwarded = new Request(`https://room/socket`, request);
-    forwarded.headers.set("X-Hypebound-User", verified.identity.userId);
+    forwarded.headers.set("X-Hypebound-User", identified.userId);
     return stub.fetch(forwarded);
   },
 } satisfies ExportedHandler<Env>;
+
+/**
+ * Who is asking.
+ *
+ * The token arrives as a query parameter, which is not where a bearer token
+ * belongs. Browser `WebSocket` cannot set an `Authorization` header — there is
+ * no API for it — so the alternatives are this, a cookie, or a first-message
+ * `hello` that leaves the socket unauthenticated until it arrives. A query
+ * parameter is chosen and then *narrowed*: the token is a short-lived Supabase
+ * access token, the URL is https, and nothing logs it. It must not be a refresh
+ * token.
+ */
+async function identify(
+  request: Request,
+  url: URL,
+  env: Env
+): Promise<{ userId: string } | { response: Response }> {
+  void request;
+  const token = url.searchParams.get("access_token") ?? "";
+  if (!token) return { response: new Response("missing access_token", { status: 401 }) };
+
+  let verified;
+  try {
+    verified = await verifySupabaseToken(token, env.SUPABASE_URL, Date.now());
+  } catch (error) {
+    // The identity provider is unreachable. That is a 503 and not a 401: a
+    // player whose login is fine should not be told their login is not.
+    return { response: new Response(`identity provider unavailable: ${String(error)}`, { status: 503 }) };
+  }
+  if (!verified.ok) return { response: new Response(verified.reason, { status: 401 }) };
+  return { userId: verified.identity.userId };
+}
 
 function allowedOrigins(env: Env): string[] {
   return env.ALLOWED_ORIGINS.split(",")

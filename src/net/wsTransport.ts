@@ -190,6 +190,9 @@ export class WsTransport implements MatchTransport {
    */
   private queue: Promise<void> = Promise.resolve();
 
+  /** Frames written before `connect()` returned its socket. See `open()`. */
+  private outbox: string[] = [];
+
   constructor(options: WsTransportOptions) {
     this.options = options;
     this.content = options.content;
@@ -221,12 +224,31 @@ export class WsTransport implements MatchTransport {
 
   private open(): void {
     this.setStatus({ kind: "connecting" });
-    this.socket = this.options.connect(this.options.url, {
+    this.outbox = [];
+    /**
+     * `connect` may call `onOpen` **before it returns**.
+     *
+     * A browser `WebSocket` never does — the open event is always a later task —
+     * so this looks safe and is not: any synchronous socket makes `sendHello()`
+     * run while `this.socket` is still null, and the `hello` is silently
+     * dropped. The transport then waits for a `welcome` that will never come.
+     *
+     * Found by the lobby's test double, which opens synchronously because there
+     * is no reason for a fake not to. The loopback harness happens to defer
+     * `onOpen` to a microtask, which is exactly why it did not catch this — a
+     * test double that is realistic in every respect tests only the paths the
+     * real thing takes.
+     */
+    const socket = this.options.connect(this.options.url, {
       onOpen: () => this.sendHello(),
       onMessage: (text) => this.enqueue(() => this.receive(text)),
       onClose: (code, reason) => this.enqueue(() => this.handleClose(code, reason)),
       onError: (detail) => this.enqueue(() => this.handleClose(1006, detail)),
     });
+    this.socket = socket;
+    const buffered = this.outbox;
+    this.outbox = [];
+    for (const text of buffered) socket.send(text);
   }
 
   private sendHello(): void {
@@ -521,6 +543,7 @@ export class WsTransport implements MatchTransport {
 
   private handleClose(code: number, reason: string): void {
     this.socket = null;
+    this.outbox = [];
     this.cancelHeartbeat?.();
     if (this.closedByUs || this.matchOver) {
       this.setStatus({ kind: "closed", reason: this.matchOver ? "match ended" : reason });
@@ -577,7 +600,15 @@ export class WsTransport implements MatchTransport {
   }
 
   private send(frame: unknown): void {
-    this.socket?.send(JSON.stringify(frame));
+    const text = JSON.stringify(frame);
+    // Buffered only across the synchronous gap in `open()`; anything queued when
+    // a socket dies is dropped in `handleClose`, because re-sending a frame from
+    // the connection that failed is worse than not sending it.
+    if (!this.socket) {
+      this.outbox.push(text);
+      return;
+    }
+    this.socket.send(text);
   }
 }
 

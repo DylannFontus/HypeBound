@@ -554,3 +554,134 @@ export function parseClientFrame(
   }
   return { ok: true, frame: result.data };
 }
+
+// ---------------------------------------------------------------------------
+// Lobby protocol — §9's queue, on its own socket
+// ---------------------------------------------------------------------------
+
+/**
+ * The queue speaks a different language from a match, and gets a different
+ * socket.
+ *
+ * §7 is the *match* protocol: every frame in it presupposes a room, a seat and a
+ * sequence number, and none of the three exists while somebody is waiting to be
+ * paired. §15.1 already anticipated this with `lobbySocket.ts`; these are the
+ * frames it carries.
+ *
+ * They share the `{ v, ts }` envelope so that a version mismatch is one problem
+ * rather than two, and so a network log reads the same either side of a pairing.
+ */
+
+export const zDeckList = z
+  .object({
+    name: z.string().min(1).max(64),
+    leaderCardId: z.string().min(1).max(64),
+    // The cap is deliberately loose: canon's deck size is content, checked by
+    // `validateDeck` with the real rules. This only stops a 10 MB array from
+    // reaching the validator.
+    cards: z.array(z.string().min(1).max(64)).max(120),
+    cardBackId: z.string().max(64).optional(),
+    coverCardId: z.string().max(64).optional(),
+    editedAt: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+export const zLobbyEnqueue = z.object({
+  ...envelope,
+  t: z.literal("enqueue"),
+  queueId: z.literal("casual"),
+  deck: zDeckList,
+  /** §14.5 again: refused rather than widened, so it is checked before a ticket exists. */
+  build: z.string().min(1).max(64),
+  contentHash: z.string().min(1).max(64),
+});
+
+export const zLobbyDequeue = z.object({ ...envelope, t: z.literal("dequeue") });
+export const zLobbyPing = z.object({ ...envelope, t: z.literal("lobbyPing") });
+
+export const zLobbyClientEnvelope = z.discriminatedUnion("t", [zLobbyEnqueue, zLobbyDequeue, zLobbyPing]);
+export type LobbyClientEnvelope = z.infer<typeof zLobbyClientEnvelope>;
+
+export const zLobbyQueued = z.object({
+  ...envelope,
+  t: z.literal("queued"),
+  ticketId: z.string().min(1).max(64),
+  waiting: z.number().int().nonnegative(),
+});
+
+/**
+ * Honest queue statistics, sent on a cadence rather than only at the end.
+ *
+ * §9.3's last row promises ranked "honest queue statistics" and casual an AI
+ * offer. Casual gets both: `waiting` is the true number of people in the queue,
+ * which at this population is usually zero, and saying so is the difference
+ * between a game that is quiet and a game that appears broken.
+ */
+export const zLobbySearching = z.object({
+  ...envelope,
+  t: z.literal("searching"),
+  waitedMs: z.number().int().nonnegative(),
+  /** Current rating band, so the UI can say "looking wider" truthfully. */
+  band: z.number().nonnegative(),
+  waiting: z.number().int().nonnegative(),
+});
+
+/** §9.3: "offer *Play the AI instead* (never a fake human)". */
+export const zLobbyAiOffer = z.object({
+  ...envelope,
+  t: z.literal("aiOffer"),
+  waitedMs: z.number().int().nonnegative(),
+});
+
+export const zLobbyMatchFound = z.object({
+  ...envelope,
+  t: z.literal("matchFound"),
+  matchId: z.string().min(1).max(64),
+  seat: zSeat,
+  opponentLeaderCardId: z.string().min(1).max(64),
+});
+
+export const zLobbyRejected = z.object({
+  ...envelope,
+  t: z.literal("queueRejected"),
+  code: z.enum(["invalidDeck", "buildMismatch", "notAuthenticated", "alreadyQueued", "unavailable"]),
+  message: z.string().max(512),
+});
+
+export const zLobbyPong = z.object({
+  ...envelope,
+  t: z.literal("lobbyPong"),
+  clientTs: z.number().int().nonnegative(),
+  serverTs: z.number().int().nonnegative(),
+});
+
+export const zLobbyServerEnvelope = z.discriminatedUnion("t", [
+  zLobbyQueued,
+  zLobbySearching,
+  zLobbyAiOffer,
+  zLobbyMatchFound,
+  zLobbyRejected,
+  zLobbyPong,
+]);
+export type LobbyServerEnvelope = z.infer<typeof zLobbyServerEnvelope>;
+
+/** The lobby's half of `parseClientFrame`, with the same size-first discipline. */
+export function parseLobbyFrame(
+  raw: string
+): { ok: true; frame: LobbyClientEnvelope } | { ok: false; code: "tooLarge" | "malformed" | "schema"; detail: string } {
+  if (raw.length > WIRE_LIMITS.maxFrameBytes) {
+    return { ok: false, code: "tooLarge", detail: `${raw.length} bytes` };
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch (error) {
+    return { ok: false, code: "malformed", detail: error instanceof Error ? error.message : "unparseable" };
+  }
+  const result = zLobbyClientEnvelope.safeParse(json);
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    return { ok: false, code: "schema", detail: issue ? `${issue.path.join(".")}: ${issue.message}` : "invalid" };
+  }
+  return { ok: true, frame: result.data };
+}

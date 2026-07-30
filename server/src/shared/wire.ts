@@ -14,10 +14,16 @@ export {
   PROTOCOL_VERSION,
   WIRE_LIMITS,
   parseClientFrame,
+  parseLobbyFrame,
   zServerEnvelope,
 } from "../../../src/net/protocol";
 
-export type { ClientEnvelope, ServerEnvelope } from "../../../src/net/protocol";
+export type {
+  ClientEnvelope,
+  ServerEnvelope,
+  LobbyClientEnvelope,
+  LobbyServerEnvelope,
+} from "../../../src/net/protocol";
 
 export { sanitizeView, viewHash } from "../../../src/net/view";
 

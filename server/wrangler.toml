@@ -26,6 +26,10 @@ enabled = true
 name = "MATCH_ROOM"
 class_name = "MatchRoom"
 
+[[durable_objects.bindings]]
+name = "CASUAL_QUEUE"
+class_name = "CasualQueue"
+
 [[migrations]]
 tag = "v1"
 # `new_sqlite_classes`, NOT `new_classes`. This is the line that decides whether
@@ -34,7 +38,7 @@ tag = "v1"
 # interchangeable later — the storage backend of a class is fixed at the
 # migration that created it, so getting this wrong means a new class name and a
 # data migration rather than a config edit.
-new_sqlite_classes = ["MatchRoom"]
+new_sqlite_classes = ["MatchRoom", "CasualQueue"]
 
 # ---------------------------------------------------------------------------
 # Public configuration. Nothing secret lives here.

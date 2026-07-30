@@ -94,12 +94,16 @@ were run together, ten failures were found and every one is fixed. Sections that
 were previously marked *"written but not yet run"* are covered by the figures
 below.
 
-**Test suite — 1,514 tests passing** (`npm test`)
+**Test suite — 1,587 tests passing** (`npm test`)
 - 26 room tests: per-seat batches, sequence numbers, §4.3 idempotency, the
   turn clock and rope, AFK auto-concede, journal rebuild after hibernation,
   and a hash comparison proving the room changes no engine answer.
 - 13 auth tests: real ES256/RS256 signatures against a served JWKS, key
   rotation, tampered payloads, expiry, wrong-issuer, and the HS256 refusal.
+- 21 WsTransport tests: connect, per-seat batches, dedupe, resync on a hash
+  mismatch, and resume at every `seq`; 18 conformance tests running one script
+  against both transports; 22 queue tests covering the band schedule, scoring
+  and the AI offer; 12 lobby-socket tests.
 - 20 portability tests: the manifest still matches `data/cards` and
   `data/encounters`, card order is unchanged, and the worker's import graph
   reaches no client code, no package but zod, and no `import.meta`.
@@ -2496,6 +2500,49 @@ power to forge any player's identity.
 The whole worker, engine and card data included, bundles to **108.84 KiB
 gzipped** against a 3 MiB free-plan limit.
 
+### Phase 4: a client that speaks to it, and a queue that is honest
+
+`src/net/wsTransport.ts` implements the same `MatchTransport` over §7, and
+`src/net/lobbySocket.ts` speaks §9's queue. Sockets are injected, so
+`tests/helpers/loopback.ts` drives the whole transport against a real `Room`
+in-process — and the other end of that fake socket is `RoomProtocol`, the class
+the Durable Object calls, not a server written by the test.
+
+**§15's rule 4 is finally satisfiable**, and it earned its keep on the first
+run. The conformance suite runs one script against both transports, and found
+that `WsTransport` did not replay the current status to a late subscriber while
+`LocalTransport` always has. Any HUD subscribing after `connect()` would work
+against one and hang on a spinner against the other. Neither transport's own
+tests could ever have caught it: each was perfectly consistent with itself.
+
+**Resume is tested at every `seq`** — literally what the rule asks for. The same
+scripted opening is played seven times, dropping the socket after a different
+move each run, and every one must finish with a view hash identical to the
+uninterrupted run. Nothing offline has a connection to lose, so §8's entire
+reconnection path had no test that could exist before this.
+
+Two more defects, both invisible until something spoke the protocol back:
+
+- **The room's `ended` frame had no `matchId`**, which `zServerEnded` requires.
+  It went out, the client refused it, and the match ended with both players
+  still connected to a room that believed it had told them — caught by exactly
+  the end §7's "validated on **both** ends" exists to have.
+- **Both clients dropped their first frame against a synchronous socket.** A
+  browser `WebSocket` always fires `open` in a later task, so assigning
+  `this.socket` after `connect()` returns looks safe; a test double that opens
+  immediately makes `hello` and `enqueue` vanish. The loopback harness had
+  hidden it by deferring `onOpen` to a microtask — a double that is realistic in
+  every respect only tests the paths the real thing takes.
+
+**The queue tells the truth.** §9.3's last row — offer "Play the AI instead,
+never a fake human" after four minutes — is not a fallback at this game's
+population; it is the expected outcome of most attempts to queue. It is part of
+`LobbySocket`'s interface from the first commit, alongside honest `waiting`
+counts, because a spinner that cannot distinguish "searching" from "there is
+nobody here" is how a quiet game gets mistaken for a broken one. Four conflicts
+inside §9 are recorded in §9.6, including a table and the bullet beneath it
+disagreeing about when rating uncertainty widens the band.
+
 ### Where it stands
 
 | Phase | State |
@@ -2504,7 +2551,7 @@ gzipped** against a 3 MiB free-plan limit.
 | 1 — the transport seam | **done** |
 | 2 — network-shaping | **done** — and it found four engine defects, a redaction leak, and fourteen conflicts in the wire spec |
 | 3 — the `server/` package | **done** — gateway, room and identity. Found two fatal Vite-isms in the engine, four more design conflicts, and a seventh field no event carries |
-| 4 — `WsTransport` + casual queue | not started |
+| 4 — `WsTransport` + casual queue | **transport, conformance suite and queue done**; sign-in and the mode-screen wiring remain |
 | 5 — cloud saves, results, ladder | not started |
 
 Nothing is deployed to Cloudflare yet, and that is a step that needs an account

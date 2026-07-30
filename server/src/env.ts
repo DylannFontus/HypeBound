@@ -1,4 +1,5 @@
 import type { MatchRoom } from "./matchRoom";
+import type { CasualQueue } from "./casualQueue";
 
 /**
  * The bindings declared in `wrangler.toml`, plus the secrets that are not.
@@ -11,6 +12,7 @@ import type { MatchRoom } from "./matchRoom";
  */
 export interface Env {
   MATCH_ROOM: DurableObjectNamespace<MatchRoom>;
+  CASUAL_QUEUE: DurableObjectNamespace<CasualQueue>;
   /** Supabase project URL, e.g. `https://abcdefgh.supabase.co`. Empty means no identity provider. */
   SUPABASE_URL: string;
   /** Comma-separated browser origins allowed to open a socket. */
