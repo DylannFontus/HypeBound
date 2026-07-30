@@ -201,8 +201,17 @@ if (remaining.size === 0) {
   const [nextFaction, left] = [...remaining].sort((a, b) => a[1].length - b[1].length)[0];
   const RARITY = { legendary: 0, epic: 1, rare: 2, common: 3 };
   console.log(`\nClosest to finished: ${nextFaction}, ${left.length} left`);
-  for (const card of [...left].sort((a, b) => (RARITY[a.rarity] ?? 9) - (RARITY[b.rarity] ?? 9)).slice(0, 12)) {
-    console.log(`   ${(card.art ?? card.id).padEnd(34)}${(card.rarity ?? "?").padEnd(11)}${card.name ?? ""}`);
+  const shown = [...left].sort((a, b) => (RARITY[a.rarity] ?? 9) - (RARITY[b.rarity] ?? 9)).slice(0, 12);
+  /**
+   * Width from the longest id present, not a guess.
+   *
+   * A fixed 34 ran `corp-ambrose-kell-majority-shareholder` straight into the
+   * rarity beside it — and the ids are the column a person copies to name the
+   * next file, so the one that overflows is the one that matters most.
+   */
+  const width = Math.max(...shown.map((card) => (card.art ?? card.id).length)) + 2;
+  for (const card of shown) {
+    console.log(`   ${(card.art ?? card.id).padEnd(width)}${(card.rarity ?? "?").padEnd(11)}${card.name ?? ""}`);
   }
   if (left.length > 12) console.log(`   … and ${left.length - 12} more`);
 }
