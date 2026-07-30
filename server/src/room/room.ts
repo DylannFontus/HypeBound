@@ -91,7 +91,21 @@ export type RoomFrame =
     }
   | { t: "snapshot"; snapshot: MatchSnapshot }
   | { t: "clock"; clocks: MatchClocks }
-  | { t: "ended"; winner: Seat | "draw"; reason: "leaderDefeated" | "concede" | "finale" | "draw"; replayAvailable: boolean };
+  | {
+      t: "ended";
+      winner: Seat | "draw";
+      reason: "leaderDefeated" | "concede" | "finale" | "draw";
+      /**
+       * Required by `zServerEnded`, and omitted here until a client validated a
+       * real one. The frame went out without it, the client refused the frame,
+       * and the match ended with the players still connected to a room that
+       * thought it had told them — which is exactly the failure §7's
+       * "validated on BOTH ends" exists to catch, caught by the end that was
+       * supposed to catch it.
+       */
+      matchId: string;
+      replayAvailable: boolean;
+    };
 
 export interface RoomTimer {
   readonly turnMs: number;
@@ -469,7 +483,13 @@ export class Room {
 
     return SEATS.map((seat) => ({
       seat,
-      frame: { t: "ended" as const, winner: ended.winner, reason: ended.reason, replayAvailable: false },
+      frame: {
+        t: "ended" as const,
+        winner: ended.winner,
+        reason: ended.reason,
+        matchId: this.matchId,
+        replayAvailable: false,
+      },
     }));
   }
 

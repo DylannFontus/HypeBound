@@ -30,5 +30,19 @@
     "noEmit": true,
     "useDefineForClassFields": true
   },
-  "include": ["src", "../src/engine", "../src/net", "../data"]
+  "//include": [
+    "`../src/engine` is listed in full because the claim being checked is that the",
+    "*whole* engine is portable, not merely the parts the server happens to import",
+    "today. A file nobody imports yet is exactly where a `document.` survives.",
+    "",
+    "`../src/net` is deliberately NOT listed. It is only partly shared: `protocol.ts`,",
+    "`view.ts` and `transport.ts` are, and the compiler reaches them anyway by",
+    "following the imports in `src/shared/wire.ts`. `wsTransport.ts` and",
+    "`localTransport.ts` are client files — the first drives a browser `WebSocket`,",
+    "whose event-handler properties workerd's WebSocket does not have, and the second",
+    "imports the match driver and the AI. Blanket-including the directory compiled",
+    "both of them against the wrong platform and failed for a reason that was not a",
+    "bug in either."
+  ],
+  "include": ["src", "../src/engine", "../data"]
 }

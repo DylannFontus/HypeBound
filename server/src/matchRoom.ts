@@ -41,9 +41,10 @@
 
 import { DurableObject } from "cloudflare:workers";
 import { getContent, contentHash, type ContentIndex, type MatchConfig, type Seat } from "./shared/engine";
-import { PROTOCOL_VERSION, WIRE_LIMITS, parseClientFrame, type ServerEnvelope } from "./shared/wire";
+import { PROTOCOL_VERSION, type ServerEnvelope } from "./shared/wire";
 import { MonotonicClock } from "./room/clock";
-import { Room, type Addressed, type RoomFrame, type RoomSave } from "./room/room";
+import { Room, type RoomSave } from "./room/room";
+import { RoomProtocol, type Outgoing } from "./room/roomProtocol";
 import type { Env } from "./env";
 
 /** What a socket remembers about itself across a hibernation cycle. */
@@ -71,7 +72,7 @@ const ALARM_INTERVAL_MS = 1_000;
 
 export class MatchRoom extends DurableObject<Env> {
   private content: ContentIndex | null = null;
-  private room: Room | null = null;
+  private protocol: RoomProtocol | null = null;
   private readonly clock = new MonotonicClock();
 
   // --- entry points -----------------------------------------------------------
@@ -109,7 +110,7 @@ export class MatchRoom extends DurableObject<Env> {
       match: body.config,
     }, now);
 
-    this.room = room;
+    this.protocol = new RoomProtocol(room);
     await this.ctx.storage.put(STORAGE_SAVE, room.save());
     await this.ctx.storage.put(STORAGE_PLAYERS, body.players);
     await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
@@ -148,27 +149,9 @@ export class MatchRoom extends DurableObject<Env> {
     server.serializeAttachment(identity);
     this.ctx.acceptWebSocket(server, [`seat:${seat}`]);
 
-    const room = await this.load();
+    const protocol = await this.load();
     const now = this.clock.now();
-    this.send(server, {
-      t: "welcome",
-      v: PROTOCOL_VERSION,
-      ts: now,
-      sessionId: identity.sessionId,
-      resumeToken: makeResumeToken(),
-      seat,
-      role: identity.role,
-      matchId: room.matchId,
-      netConfig: {
-        heartbeatSeconds: 5,
-        resumeGraceSeconds: 60,
-        seatHoldSeconds: 90,
-        maxFrameBytes: WIRE_LIMITS.maxFrameBytes,
-        turnSeconds: Math.round(room.timer.turnMs / 1000),
-        ropeSeconds: Math.round(room.timer.ropeMs / 1000),
-      },
-      snapshot: room.snapshotFor(seat, now),
-    });
+    this.send(server, protocol.welcome(seat, identity.sessionId, makeResumeToken(), now, identity.role));
 
     void url; // reserved for the spectator path (§13.3)
     return new Response(null, { status: 101, webSocket: client });
@@ -181,56 +164,24 @@ export class MatchRoom extends DurableObject<Env> {
     if (!identity) return ws.close(1011, "no identity on this socket");
 
     if (typeof message !== "string") {
-      return this.fatal(ws, "rateLimited", "binary frames are not part of protocol v1");
+      // Protocol v1 is JSON text. A binary frame is not a client that speaks a
+      // dialect; it is a client that is not speaking this protocol.
+      this.send(ws, {
+        t: "fatal",
+        v: PROTOCOL_VERSION,
+        ts: this.clock.now(),
+        code: "rateLimited",
+        message: "binary frames are not part of protocol v1",
+      });
+      return ws.close(1008, "binary");
     }
 
-    const parsed = parseClientFrame(message);
-    if (!parsed.ok) {
-      return this.fatal(ws, parsed.code === "tooLarge" ? "streamOverflow" : "rateLimited", parsed.detail);
-    }
-
-    const frame = parsed.frame;
-    if (frame.v !== PROTOCOL_VERSION) {
-      return this.fatal(ws, "protocolVersion", `server speaks v${PROTOCOL_VERSION}`);
-    }
-
-    const room = await this.load();
+    const protocol = await this.load();
     const now = this.clock.now();
+    const { out, fatal } = protocol.handle(identity.seat, message, now);
 
-    switch (frame.t) {
-      case "ping":
-        return this.send(ws, { t: "pong", v: PROTOCOL_VERSION, ts: now, clientTs: frame.ts, serverTs: now });
-
-      case "resync":
-        return this.send(ws, {
-          t: "snapshot",
-          v: PROTOCOL_VERSION,
-          ts: now,
-          ...room.snapshotFor(identity.seat, now),
-        });
-
-      case "intent": {
-        const out = room.submit(identity.seat, frame.id, frame.intent, now);
-        await this.commit(room, out, now);
-        return;
-      }
-
-      case "leave": {
-        // §8.2: leaving the menu is not conceding; closing the tab starts the
-        // grace window rather than ending the match. Either way the room does
-        // not act on the *word* — it acts on the socket going away.
-        return;
-      }
-
-      case "ack":
-      case "hello":
-      case "emote":
-        // `hello` is answered by the upgrade itself; acks feed backpressure
-        // accounting that does not exist yet; emotes need the entitlement
-        // lookup of §7.3 C4. All three are accepted and ignored rather than
-        // refused, so a client implementing the full protocol is not punished.
-        return;
-    }
+    await this.commit(protocol.room, out, fatal);
+    if (fatal) ws.close(1008, "protocol");
   }
 
   override async webSocketClose(ws: WebSocket): Promise<void> {
@@ -247,12 +198,11 @@ export class MatchRoom extends DurableObject<Env> {
     const save = await this.ctx.storage.get<RoomSave>(STORAGE_SAVE);
     if (!save) return;
 
-    const room = await this.load();
-    const now = this.clock.now();
-    const out = room.tick(now);
-    if (out.length > 0) await this.commit(room, out, now);
+    const protocol = await this.load();
+    const out = protocol.tick(this.clock.now());
+    if (out.length > 0) await this.commit(protocol.room, out, false);
 
-    if (room.winner === null) {
+    if (protocol.room.winner === null) {
       await this.ctx.storage.setAlarm(Date.now() + ALARM_INTERVAL_MS);
     }
   }
@@ -264,13 +214,13 @@ export class MatchRoom extends DurableObject<Env> {
     return this.content;
   }
 
-  private async load(): Promise<Room> {
-    if (this.room) return this.room;
+  private async load(): Promise<RoomProtocol> {
+    if (this.protocol) return this.protocol;
     const save = await this.ctx.storage.get<RoomSave>(STORAGE_SAVE);
     if (!save) throw new Error("room asked to act before it was initialized");
     this.clock.observe(save.turnStartedAtMs);
-    this.room = Room.restore(this.getContentIndex(), save);
-    return this.room;
+    this.protocol = new RoomProtocol(Room.restore(this.getContentIndex(), save));
+    return this.protocol;
   }
 
   /**
@@ -280,12 +230,15 @@ export class MatchRoom extends DurableObject<Env> {
    * ordering is a rule from §4.3 — "a crash never loses a fact a client has
    * already seen" — and a rule that is only satisfied by an implicit platform
    * behaviour is one edit away from not being satisfied at all.
+   *
+   * A frame that is itself the report of a broken frame is not worth a storage
+   * write, and the room did not change to produce it — hence `skipSave`.
    */
-  private async commit(room: Room, out: Addressed[], nowMs: number): Promise<void> {
-    await this.ctx.storage.put(STORAGE_SAVE, room.save());
-    for (const addressed of out) {
-      for (const socket of this.ctx.getWebSockets(`seat:${addressed.seat}`)) {
-        this.send(socket, { ...envelopeFor(addressed.frame, nowMs) });
+  private async commit(room: Room, out: Outgoing[], skipSave: boolean): Promise<void> {
+    if (!skipSave) await this.ctx.storage.put(STORAGE_SAVE, room.save());
+    for (const { seat, frame } of out) {
+      for (const socket of this.ctx.getWebSockets(`seat:${seat}`)) {
+        this.send(socket, frame);
       }
     }
   }
@@ -293,21 +246,6 @@ export class MatchRoom extends DurableObject<Env> {
   private send(ws: WebSocket, frame: ServerEnvelope): void {
     ws.send(JSON.stringify(frame));
   }
-
-  private fatal(ws: WebSocket, code: FatalCode, message: string): void {
-    this.send(ws, { t: "fatal", v: PROTOCOL_VERSION, ts: this.clock.now(), code, message: message.slice(0, 512) });
-    ws.close(1008, code);
-  }
-}
-
-type FatalCode = Extract<ServerEnvelope, { t: "fatal" }>["code"];
-
-/** Put the envelope round a room frame. The room has no clock, so this is where `ts` comes from. */
-function envelopeFor(frame: RoomFrame, nowMs: number): ServerEnvelope {
-  if (frame.t === "snapshot") {
-    return { t: "snapshot", v: PROTOCOL_VERSION, ts: nowMs, ...frame.snapshot };
-  }
-  return { ...frame, v: PROTOCOL_VERSION, ts: nowMs } as ServerEnvelope;
 }
 
 /** 32 bytes base64url — 43 characters, which is what §7.5 and the schema expect. */
