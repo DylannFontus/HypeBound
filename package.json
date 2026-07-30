@@ -14,6 +14,7 @@
     "validate": "vitest run tests/data-validation.test.ts",
     "balance": "node scripts/balance.mjs",
     "verify:ui": "node scripts/verify-ui.mjs",
+    "verify:art": "node scripts/verify-art.mjs",
     "verify:tutorial": "node scripts/verify-tutorial.mjs",
     "verify:stages": "node scripts/verify-tutorial-stages.mjs",
     "verify:puzzles": "node scripts/verify-puzzles.mjs",
