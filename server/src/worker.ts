@@ -113,21 +113,30 @@ export default {
 /**
  * Who is asking.
  *
- * The token arrives as a query parameter, which is not where a bearer token
- * belongs. Browser `WebSocket` cannot set an `Authorization` header — there is
- * no API for it — so the alternatives are this, a cookie, or a first-message
- * `hello` that leaves the socket unauthenticated until it arrives. A query
- * parameter is chosen and then *narrowed*: the token is a short-lived Supabase
- * access token, the URL is https, and nothing logs it. It must not be a refresh
- * token.
+ * **`Authorization` first, query parameter second, and the order is the point.**
+ * A bearer token belongs in a header: headers stay out of referrers, browser
+ * history and most access logs, and a query parameter does not. Ordinary
+ * `fetch` calls therefore use the header and this reads it first.
+ *
+ * The query parameter exists for exactly one caller: a browser `WebSocket`,
+ * which has no API for setting a header at all. The alternatives there are a
+ * cookie or a first-message `hello` that leaves the socket unauthenticated
+ * until it arrives, and both are worse. So it is a narrow exception rather than
+ * the scheme — the token is short-lived, the URL is https, and nothing logs it.
+ * It must never be a refresh token.
+ *
+ * Reading only the query parameter was the original bug: `/me/record` is a
+ * plain `fetch` and sent the header, so it was refused with a 401 for a token
+ * that was sitting in the request.
  */
 async function identify(
   request: Request,
   url: URL,
   env: Env
 ): Promise<{ userId: string } | { response: Response }> {
-  void request;
-  const token = url.searchParams.get("access_token") ?? "";
+  const header = request.headers.get("Authorization") ?? "";
+  const bearer = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
+  const token = bearer || url.searchParams.get("access_token") || "";
   if (!token) return { response: new Response("missing access_token", { status: 401 }) };
 
   let verified;
@@ -155,12 +164,25 @@ function isAllowedOrigin(origin: string | null, env: Env): boolean {
   return allowedOrigins(env).includes(origin);
 }
 
+/**
+ * Attach CORS headers, on a copy.
+ *
+ * The copy is not defensive style — it is required. A `Response` that came back
+ * from `fetch()`, which is what a Durable Object stub returns, has **immutable
+ * headers**, so `headers.set()` on it does not attach anything. `/health` built
+ * its response with `Response.json()` and worked; `/me/record` proxies one from
+ * a stub and silently shipped no `Access-Control-Allow-Origin` at all.
+ *
+ * The browser then reports that as an opaque "Failed to fetch", with the actual
+ * cause visible only in the console — which is how this survived a passing
+ * server-side check and was caught by a real page instead.
+ */
 function cors(response: Response, origin: string | null, env: Env): Response {
-  if (origin !== null && isAllowedOrigin(origin, env)) {
-    response.headers.set("Access-Control-Allow-Origin", origin);
-    response.headers.set("Vary", "Origin");
-  }
-  return response;
+  if (origin === null || !isAllowedOrigin(origin, env)) return response;
+  const copy = new Response(response.body, response);
+  copy.headers.set("Access-Control-Allow-Origin", origin);
+  copy.headers.set("Vary", "Origin");
+  return copy;
 }
 
 function preflight(origin: string | null, env: Env): Response {
@@ -170,7 +192,10 @@ function preflight(origin: string | null, env: Env): Response {
     headers: {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "content-type",
+      // `authorization`, or the preflight for any authenticated `fetch` is
+      // refused before the request is ever made. The browser does not tell the
+      // page why in any detail, so this failed as an opaque "Failed to fetch".
+      "Access-Control-Allow-Headers": "authorization, content-type",
       "Access-Control-Max-Age": "86400",
       Vary: "Origin",
     },

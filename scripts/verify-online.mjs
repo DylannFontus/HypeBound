@@ -52,7 +52,7 @@ async function makePlayer(label, account) {
   const context = await browser.newContext({ viewport: { width: 1400, height: 860 } });
   const page = await context.newPage();
   const errors = [];
-  page.on("console", (m) => m.type() === "error" && errors.push(`${label}: ${m.text().slice(0, 160)}`));
+  page.on("console", (m) => m.type() === "error" && errors.push(`${label}: ${m.text().slice(0, 400)}`));
   page.on("pageerror", (e) => errors.push(`${label} pageerror: ${e.message.slice(0, 160)}`));
   return { label, account, context, page, errors };
 }
@@ -175,6 +175,46 @@ try {
   if (outcomes[0] !== outcomes[1]) ok("and they disagree about who won, which is correct");
   else fail(`both saw "${outcomes[0]}" — a concede has a winner and a loser`);
   void beforeB;
+
+  console.log("\n7. The server recorded the result, for both accounts");
+  /**
+   * Read from the page, so the request carries the real session and goes
+   * through the real CORS path. Reading it from node with a hand-made token
+   * would test a route nobody uses.
+   */
+  const records = await Promise.all(
+    [a, b].map(({ page }) =>
+      page.evaluate(async () => {
+        const { accessToken } = await import("/src/auth/account.ts");
+        const { ONLINE } = await import("/src/config.ts");
+        const token = await accessToken();
+        const response = await fetch(`${ONLINE.serverUrl}/me/record`, {
+          headers: { authorization: `Bearer ${token}` },
+        });
+        return { status: response.status, body: await response.json() };
+      })
+    )
+  );
+
+  for (const [i, { status, body }] of records.entries()) {
+    const who = i === 0 ? "A" : "B";
+    if (status !== 200) {
+      fail(`${who}: /me/record answered ${status}`);
+      continue;
+    }
+    if (body.played === 1) ok(`${who}: played 1`);
+    else fail(`${who}: played ${body.played}, expected 1`);
+    const expected = i === 0 ? "lost" : "won";
+    if (body[expected] === 1) ok(`${who}: ${expected} 1`);
+    else fail(`${who}: ${expected} is ${body[expected]}`);
+    if (body.recent?.[0]?.reason === "concede") ok(`${who}: reason recorded as concede`);
+    else fail(`${who}: reason was ${body.recent?.[0]?.reason}`);
+  }
+  if (records[0]?.body?.winRate === 0 && records[1]?.body?.winRate === 100) {
+    ok("win rates are 0% and 100%, from one match");
+  } else {
+    fail(`win rates: ${records[0]?.body?.winRate} and ${records[1]?.body?.winRate}`);
+  }
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error));
 } finally {
