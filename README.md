@@ -169,6 +169,47 @@ what actually runs.
 
 ---
 
+## Deployment
+
+### The client — GitHub Pages
+
+Pushing to `main` builds and publishes automatically
+([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)). The job runs
+the test suite and the typecheck first, because everything past that point is a
+public URL.
+
+Three properties of the build make static hosting work with no configuration:
+
+- **Content is bundled, not fetched.** Every card, encounter and balance number
+  is a build-time import ([`src/engine/content.ts`](src/engine/content.ts)), so
+  there are no runtime requests to get the paths wrong.
+- **Routing is hash-based.** Pages 404s on unknown deep paths, but `#gauntlet`
+  never reaches a server, so no SPA fallback or rewrite rule is needed.
+- **`base: "./"`.** Assets resolve relative to the document, so the bundle works
+  unchanged at a user page, a project page (`/hypebound/`) or a custom domain.
+
+One requirement worth stating plainly: **the repository must be public.** Pages
+from a private repository is a paid feature.
+
+### The server — separate, and not on Pages
+
+Pages serves static files. It cannot hold a WebSocket, run code, or keep a
+secret, so accounts and matchmaking necessarily live somewhere else:
+
+| Concern | Where it runs |
+|---|---|
+| Client bundle | GitHub Pages |
+| Authoritative match rooms | Cloudflare Durable Objects — one object *is* one room |
+| Matchmaking queue, results | Cloudflare Workers |
+| Accounts, sign-in, password reset | Supabase Auth; the Worker only verifies the JWT, it never issues one |
+
+The design this implements is
+[`docs/tech/03-multiplayer-architecture.md`](docs/tech/03-multiplayer-architecture.md).
+Until a service actually exists, the mode it powers is listed as *coming online*
+rather than stubbed — see the architecture contract §7.
+
+---
+
 ## Product principles (non-negotiable)
 
 - **No pay-to-win.** Every gameplay-affecting card is obtainable by playing.
