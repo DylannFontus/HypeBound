@@ -37,14 +37,50 @@ interface ModeCard {
   blurb: string;
   status: "available" | "online" | "planned";
   icon: string;
+  /**
+   * Required for `status: "online"`, and the reason this field exists.
+   *
+   * `../../docs/design/03-screens-and-navigation.md` §"Presentation rule for
+   * online features" asks for three things — "greyed entry + 'Coming online'
+   * tag + a one-paragraph honest explainer of the designed feature" — and then
+   * names the anti-pattern: "Never: fake queues, placeholder friends,
+   * empty-but-live-looking ladders, or **disabled buttons that pretend to be
+   * temporarily broken**".
+   *
+   * Two of the three were missing. Casual and Ranked were bare `disabled`
+   * buttons reading "Needs server", which is exactly the last item on that
+   * list: it reads as *this is broken right now*, when the truth is that the
+   * feature is designed, partly built, and honestly not finished.
+   */
+  explainer?: string[];
 }
 
 const MODES: ModeCard[] = [
   { id: "ai", name: "Practice vs AI", blurb: "Six difficulty tiers, offline, no timer pressure.", status: "available", icon: "◈" },
   { id: "tutorial", name: "Interactive Tutorial", blurb: "Learn Hype, combat, Currents and Confluences.", status: "available", icon: "◐" },
   { id: "tour", name: "The Grand Tour", blurb: "Win with a faction's loaner deck and keep it.", status: "available", icon: "✦" },
-  { id: "casual", name: "Casual Match", blurb: "Unranked matches against other players.", status: "online", icon: "◇" },
-  { id: "ranked", name: "Ranked Ladder", blurb: "Seasonal divisions, placements and rewards.", status: "online", icon: "★" },
+  {
+    id: "casual",
+    name: "Casual Match",
+    blurb: "Unranked matches against other players.",
+    status: "online",
+    icon: "◇",
+    explainer: [
+      "Casual pairs you with another player for an unranked match: no divisions, no placements, nothing to lose. It widens who it will consider the longer you wait, and after four minutes it offers you a match against the AI instead — an offer, not a swap, and never a bot pretending to be a person.",
+      "The match server that runs it is written and tested, but it is not deployed anywhere yet, so there is nothing to connect to. Rather than show you a queue that spins for ever, this tile says so.",
+    ],
+  },
+  {
+    id: "ranked",
+    name: "Ranked Ladder",
+    blurb: "Seasonal divisions, placements and rewards.",
+    status: "online",
+    icon: "★",
+    explainer: [
+      "Ranked is a seasonal ladder: ten placement matches to find your division, then climb, with rewards at each tier and a soft reset between seasons.",
+      "It needs everything Casual needs plus a rating that survives between matches, which means accounts and a results pipeline. Neither exists yet. Practice vs AI, the Gauntlet and the Doomscroll all measure you against something real in the meantime.",
+    ],
+  },
   {
     id: "draft",
     name: "The Gauntlet",
@@ -107,11 +143,43 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
         <div class="difficulty-list" id="difficulty-list"></div>
         <button class="btn btn-ghost" id="difficulty-cancel">Cancel</button>
       </div>
+    </div>
+
+    <div class="difficulty-backdrop" id="online-panel" hidden>
+      <div class="difficulty-panel panel panel-chrome">
+        <div class="eyebrow">Coming online</div>
+        <h2 class="title" id="online-name"></h2>
+        <div id="online-body"></div>
+        <button class="btn btn-ghost" id="online-cancel">Close</button>
+      </div>
     </div>`;
 
   const grid = root.querySelector("#mode-grid");
   const difficultyPanel = root.querySelector<HTMLElement>("#difficulty-panel");
   const difficultyList = root.querySelector("#difficulty-list");
+
+  // ---- the "coming online" explainer --------------------------------------
+  const onlinePanel = root.querySelector<HTMLElement>("#online-panel");
+  const onlineName = root.querySelector("#online-name");
+  const onlineBody = root.querySelector("#online-body");
+
+  const showOnline = (mode: ModeCard): void => {
+    if (!onlinePanel || !onlineName || !onlineBody) return;
+    onlineName.textContent = mode.name;
+    // textContent per paragraph, not innerHTML: this copy is authored above and
+    // is not user input, but a screen that only ever sets text cannot become
+    // the one that renders someone's deck name as markup later.
+    onlineBody.replaceChildren(
+      ...(mode.explainer ?? []).map((paragraph) => {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = paragraph;
+        return p;
+      })
+    );
+    onlinePanel.removeAttribute("hidden");
+    root.querySelector<HTMLButtonElement>("#online-cancel")?.focus();
+  };
 
   const runInProgress = activeRun();
   const gauntletInProgress = activeGauntlet();
@@ -136,7 +204,10 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
           : mode.status === "available"
             ? "Ready"
             : mode.status === "online"
-              ? "Needs server"
+              ? // The exact words the design and both tech documents use. "Needs
+                // server" was this screen's own invention and read like a fault
+                // report rather than a roadmap.
+                "Coming online"
               : "In development";
     card.innerHTML = `
       <div class="mode-icon">${mode.icon}</div>
@@ -221,6 +292,22 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
         audio.play("sfx.ui.click");
         callbacks.onStartTutorial();
       });
+    } else if (mode.status === "online" && mode.explainer) {
+      /**
+       * Greyed, but not disabled.
+       *
+       * A `disabled` button cannot be focused, cannot be reached by keyboard,
+       * and announces nothing to a screen reader beyond its own unavailability
+       * — so the explainer the design asks for would be unreachable by exactly
+       * the players most likely to need it. It stays a real button, styled as
+       * unavailable, and says what it will be when you press it.
+       */
+      card.classList.add("mode-locked");
+      card.setAttribute("aria-haspopup", "dialog");
+      card.addEventListener("click", () => {
+        audio.play("sfx.ui.click");
+        showOnline(mode);
+      });
     } else {
       card.disabled = true;
     }
@@ -275,6 +362,12 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
   difficultyPanel?.addEventListener("click", (event) => {
     if (event.target === difficultyPanel) closeDifficulty();
   });
+  const closeOnline = (): void => onlinePanel?.setAttribute("hidden", "");
+  root.querySelector("#online-cancel")?.addEventListener("click", closeOnline);
+  onlinePanel?.addEventListener("click", (event) => {
+    if (event.target === onlinePanel) closeOnline();
+  });
+
   root.querySelector("#play-back")?.addEventListener("click", () => callbacks.onBack());
 
   void profile;

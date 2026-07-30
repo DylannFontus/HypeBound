@@ -29,6 +29,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stripComments } from "./helpers/source";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
@@ -56,51 +57,6 @@ const ALLOWED_PACKAGES: Record<string, string> = {
   "cloudflare:workers":
     "a workerd built-in module, not a package: it provides the DurableObject base class and is resolved by the runtime, so it adds nothing to the bundle",
 };
-
-/**
- * Strip comments so prose about the hazard is not mistaken for the hazard.
- *
- * This is not optional: `src/engine/dataFiles.ts` exists specifically to explain
- * why `import.meta.glob` is gone, and says the words several times while doing
- * it. A naive search would fail on the file that fixed the problem.
- */
-function stripComments(source: string): string {
-  let out = "";
-  let i = 0;
-  while (i < source.length) {
-    const two = source.slice(i, i + 2);
-    if (two === "//") {
-      while (i < source.length && source[i] !== "\n") i++;
-      continue;
-    }
-    if (two === "/*") {
-      i += 2;
-      while (i < source.length && source.slice(i, i + 2) !== "*/") i++;
-      i += 2;
-      continue;
-    }
-    const char = source[i]!;
-    if (char === '"' || char === "'" || char === "`") {
-      out += char;
-      i++;
-      while (i < source.length && source[i] !== char) {
-        if (source[i] === "\\") {
-          out += source.slice(i, i + 2);
-          i += 2;
-          continue;
-        }
-        out += source[i];
-        i++;
-      }
-      out += char;
-      i++;
-      continue;
-    }
-    out += char;
-    i++;
-  }
-  return out;
-}
 
 const IMPORT_SPECIFIER = /(?:^|[\s;}])(?:import|export)\s+(?:[^'"]*?\sfrom\s+)?["']([^"']+)["']/g;
 
@@ -201,20 +157,7 @@ describe("the server's import graph", () => {
   });
 });
 
-describe("the comment stripper the checks above depend on", () => {
-  it("removes comments and keeps strings", () => {
-    // If this were broken the other way round, every check above would silently
-    // stop looking at real code.
-    expect(stripComments('a; // import.meta.glob\nb;')).toBe("a; \nb;");
-    expect(stripComments("a; /* import.meta.glob */ b;")).toBe("a;  b;");
-    expect(stripComments('const s = "import.meta.glob";')).toBe('const s = "import.meta.glob";');
-    expect(stripComments('const url = "https://x.dev/a"; c;')).toBe('const url = "https://x.dev/a"; c;');
-  });
-
-  it("still sees the hazard when it is real", () => {
-    expect(stripComments("const m = import.meta.glob('./*.json');")).toContain("import.meta");
-  });
-
+describe("the search the checks above depend on", () => {
   it("finds the imports it is asked to find", () => {
     const source = [
       'import a from "./a";',

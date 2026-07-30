@@ -280,6 +280,23 @@
 }
 .mode-card:disabled { opacity: 0.42; cursor: not-allowed; }
 
+/* Greyed, but usable — see the note on `ModeCard.explainer`.
+   `03-screens-and-navigation.md` asks for a greyed entry that still explains
+   itself, and forbids "disabled buttons that pretend to be temporarily broken".
+   So this dims the tile without `:disabled`, which would take it out of the tab
+   order and put the explanation out of reach of the people most likely to want
+   it. Dimmer than a live tile, brighter than a dead one. */
+.mode-card.mode-locked { opacity: 0.62; }
+.mode-card.mode-locked .mode-icon { filter: grayscale(0.7); }
+.mode-card.mode-locked:hover { opacity: 0.86; }
+/* Not `--success` (which marks a live mode) and not `--warning` (which would
+   read as a fault). Gold says "later", which is what this is. */
+.mode-locked .mode-status { color: var(--accent-gold); }
+
+/* Paragraphs inside the "coming online" explainer. */
+#online-body { display: flex; flex-direction: column; gap: var(--sp-2); text-align: left; max-width: 52ch; }
+#online-body p { font-size: var(--fs-sm); line-height: 1.5; }
+
 .mode-icon {
   width: 52px; height: 52px;
   display: grid; place-items: center;
