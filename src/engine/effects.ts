@@ -302,6 +302,32 @@ function holderOf(ctx: EffectContext, ref: TargetRef): Holder | null {
 }
 
 /** Legal `choose` targets for the UI and for intent validation. */
+/**
+ * A state that is safe to ask *questions* about.
+ *
+ * `resolveTargets`' `select: "random"` branch calls `pickMany(ctx.state.rngState, …)`,
+ * and `nextU32` writes the four words of the RNG back **in place**. That is
+ * correct while an effect is resolving — the roll is part of the match — and
+ * catastrophic in a query: the UI asking "what could this target?" would advance
+ * the authoritative RNG, and `MatchState.rngState` is what `replay()` reproduces
+ * a match from. A hover would desync the replay of a match still being played.
+ *
+ * Shallow, with only the RNG copied, because that is the only thing a query is
+ * able to write to. `tests/query-purity.test.ts` does not take that on trust: it
+ * hashes the whole state before and after every query helper.
+ *
+ * Today no shipped card reaches the random branch from a query — all 25 leader
+ * abilities and every confluence target are `select: "choose"`, and
+ * `cardTargetSpecs` admits nothing else. But `legalFixationTargets` forwards
+ * `ability.target` verbatim, so the distance between "latent" and "live" is one
+ * line of card data, and the failure it would produce (a replay that diverges
+ * from the match it recorded) is about the hardest kind there is to trace back
+ * to a mouse moving.
+ */
+function queryState(state: MatchState): MatchState {
+  return { ...state, rngState: [...state.rngState] as MatchState["rngState"] };
+}
+
 export function legalChooseTargets(
   state: MatchState,
   content: ContentIndex,
@@ -309,7 +335,7 @@ export function legalChooseTargets(
   spec: TargetSpec,
   sourceCharacter: CharacterInstance | null = null
 ): TargetRef[] {
-  const ctx = makeContext(state, content, seat, "", { sourceCharacter });
+  const ctx = makeContext(queryState(state), content, seat, "", { sourceCharacter });
   if (spec.select !== "choose") return resolveTargets(ctx, spec);
   const refs: TargetRef[] = candidateCharacters(ctx, spec).map(refOf);
   if (spec.zone === undefined || spec.zone === "board") {
@@ -1493,8 +1519,19 @@ export function auraModifiersFor(
   const result: AuraModifier = { attack: 0, health: 0, grantedKeywords: [] };
   if (state.aurasDisabledUntilTurn > state.globalTurnCounter) return result;
 
-  for (const source of collectTriggers(state, content, "aura")) {
-    const ctx = makeContext(state, content, source.controller, source.cardId, { sourceCharacter: source.character });
+  /**
+   * A query, and therefore RNG-safe — see `queryState`.
+   *
+   * This one is the less obvious of the two. A *conditional* aura evaluates its
+   * condition below, `evalCondition` can count a `TargetSpec`, and a spec with
+   * `select: "random"` would roll the dice. `totalAttack` calls this, and
+   * `attackableBy` calls that, and the battle screen calls *that* on every
+   * refresh — so the aura path is how a redraw would have advanced the match's
+   * RNG.
+   */
+  const querySafe = queryState(state);
+  for (const source of collectTriggers(querySafe, content, "aura")) {
+    const ctx = makeContext(querySafe, content, source.controller, source.cardId, { sourceCharacter: source.character });
 
     /**
      * A conditional aura applies only while its condition holds.
