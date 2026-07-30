@@ -121,7 +121,10 @@ public/assets/
 src/
   engine/              deterministic rules engine — pure TS, no DOM, no randomness
                        outside the seeded RNG. This is the source of truth.
-  ai/                  AI opponents (6 difficulty tiers), sees only redacted state
+  ai/                  AI opponents (6 difficulty tiers). Scores positions from
+                       public information only — enforced by tests/ai-hidden-info.test.ts,
+                       which records every field the evaluator reads off the
+                       opponent and fails if one is not in RedactedOpponent
   game/                match drivers (local vs AI today, network later)
   save/                versioned localStorage: profile, collection, decks, settings
   audio/               manifest-driven AudioManager
