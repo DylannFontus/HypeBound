@@ -1,0 +1,17 @@
+# Copy to `.dev.vars` (gitignored) for `wrangler dev`.
+#
+# There is deliberately no Supabase service-role key here, and there should
+# never be one. The server verifies tokens with the project's *public* JWKS, so
+# it needs no credential that could be used to mint an identity or read a table.
+# If a future feature seems to need the service key, that is the moment to ask
+# whether the client should be doing it against Supabase's own row-level
+# security instead.
+
+# Your Supabase project URL. Leave empty to run the server with no identity
+# provider — /health will say `identityConfigured: false` and sockets will be
+# refused, which is the honest behaviour rather than a permissive one.
+SUPABASE_URL=""
+
+# Guards POST /match/:id/init until the matchmaker (§9) exists to own it.
+# Generate one with: openssl rand -base64 32
+ADMIN_TOKEN=""

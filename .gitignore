@@ -14,7 +14,10 @@ scripts/screenshots/
 # code, and it is Blizzard's art — it must not end up in a public repository.
 hearthstone_frames/
 
-# Cloudflare Workers. `.dev.vars` holds local secrets (Supabase project ref,
-# service keys) and is the one file here that would be actively harmful to push.
+# Cloudflare Workers. `.dev.vars` holds local secrets — currently just the
+# ADMIN_TOKEN guarding match creation. Notably it does NOT hold a Supabase
+# service key: tokens are verified against the project's public JWKS, so the
+# server has no credential that could read a table or forge an identity.
+# `.dev.vars.example` is committed and documents both.
 .wrangler/
 .dev.vars

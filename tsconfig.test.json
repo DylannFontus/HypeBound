@@ -1,0 +1,21 @@
+{
+  "//": [
+    "Tests get Node's types; `src` does not.",
+    "",
+    "`tests/data-files.test.ts` and `tests/server-portability.test.ts` read the repo off",
+    "disk — that is the entire point of them, since they check that a written-down list",
+    "still matches a directory and that an import graph stays inside its boundary. Both",
+    "need `node:fs`.",
+    "",
+    "Adding `node` to the root `types` would have been one line, and would have quietly",
+    "given every client source file `process`, `Buffer` and `__dirname` — in a codebase",
+    "whose client ships to a browser and whose engine now also has to run on workerd,",
+    "where none of those exist. So the test program is separate and the strict one stays",
+    "strict. Both are run by `npm run typecheck`."
+  ],
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client", "node"]
+  },
+  "include": ["tests"]
+}

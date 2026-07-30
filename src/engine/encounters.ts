@@ -14,6 +14,7 @@
  */
 
 import { z } from "zod";
+import { ENCOUNTER_FILES } from "./dataFiles";
 import type { DeckList, PlayerView, PlayerIntent, Seat, EncounterSetup, SetupOp } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -371,18 +372,18 @@ export function parseEncounter(raw: unknown, knownCardIds: ReadonlySet<string>):
 /**
  * Every encounter file under data/encounters/, parsed and cross-checked.
  *
- * Auto-discovered exactly like card files, so dropping in a new puzzle pack or
- * story chapter needs no registration step. Parsed once and memoised; a bad
- * file throws with every problem listed rather than the first.
+ * Listed in `dataFiles.ts` exactly like card files, so dropping in a new puzzle
+ * pack or story chapter needs one line there — enforced by a test rather than by
+ * memory. Parsed once and memoised; a bad file throws with every problem listed
+ * rather than the first.
  */
 let encounterCache: Record<string, EncounterDef> | null = null;
 
 export function getEncounters(knownCardIds: ReadonlySet<string>): Record<string, EncounterDef> {
   if (encounterCache) return encounterCache;
-  const modules = import.meta.glob("../../data/encounters/*.json", { eager: true, import: "default" });
   const out: Record<string, EncounterDef> = {};
   const problems: string[] = [];
-  for (const [path, raw] of Object.entries(modules)) {
+  for (const { path, data: raw } of ENCOUNTER_FILES) {
     try {
       const encounter = parseEncounter(raw, knownCardIds);
       if (out[encounter.id]) problems.push(`${path}: duplicate encounter id ${encounter.id}`);

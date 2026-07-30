@@ -37,6 +37,7 @@
 import { z } from "zod";
 import { zConfluenceId, zCurrentId } from "../engine/validation";
 import type { PlayerIntent, TargetRef } from "../engine/types";
+import type { EventCause } from "./transport";
 
 export const PROTOCOL_VERSION = 1;
 
@@ -216,8 +217,13 @@ export const zMatchSnapshot = z.object({
  * wave landing — had to name a seat it does not have. `LocalTransport` passed
  * `activeSeat`, which reads like a fact and is not one. Splitting the union
  * makes the absence expressible instead of requiring a plausible lie.
+ *
+ * Annotated `z.ZodType<EventCause>` so the schema and `EventBatch.cause` cannot
+ * drift: this correction was first made here alone, and `transport.ts` went on
+ * declaring `seat` required for a while afterwards — which is precisely the
+ * failure this annotation makes impossible.
  */
-export const zEventCause = z.discriminatedUnion("kind", [
+export const zEventCause: z.ZodType<EventCause> = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("intent"), seat: zSeat, clientIntentId: z.number().int().positive().optional() }),
   z.object({ kind: z.literal("timer"), seat: zSeat }),
   z.object({ kind: z.literal("system"), seat: zSeat.optional() }),

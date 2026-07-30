@@ -29,7 +29,7 @@ import { createMatch, redact, redactEvents } from "../src/engine/state";
 import { applyIntent } from "../src/engine/reducer";
 import { enumerateLegalIntents } from "../src/engine/intents";
 import { nextInt, seedRng } from "../src/engine/rng";
-import { sanitizeView } from "../src/net/localTransport";
+import { sanitizeView } from "../src/net/view";
 import { applyEventsToView } from "../src/net/viewReducer";
 import type { EngineEvent, PlayerView, Seat } from "../src/engine/types";
 

@@ -440,10 +440,20 @@ accept.
 | `supportObsessionGainedThisTurn` | `obsessionChanged` reports the new total, not which clause spent the once-per-turn allowance | Low: a preview may predict a second support gain the room refuses |
 | `afterpartyRepeatThisTurn` | Armed by a card effect that emits nothing naming the flag | Low: cannot warn that end-of-turn triggers will resolve twice |
 | `board[].firedThisTurn` (both sides) | Per-instance trigger bookkeeping written straight onto the instance | None: no client path reads it, and `viewHash` omits it |
+| `hand`, after a mulligan | `mulliganDone` carries `kept` and `replaced` as **counts**; the replacement draw emits no `cardDrawn` and the returned cards emit nothing at all | High until the snapshot lands: a seat that swapped three cards has no idea what it swapped them for |
 
 **Decision: accept for v1.** Every one is repaired within a turn by the
 snapshot, none is load-bearing for legality, and the two that matter are display
 hints rather than rules. Revisit if a mode ever shortens the snapshot cadence.
+
+The last row was found in phase 3 and is the one that nearly slipped through,
+because it is repaired by a snapshot the room was not sending. §4.6 lists "match
+start" as a snapshot point and the room was testing for a **turn** boundary —
+but the mulligan ends without changing the active seat, so no snapshot was
+emitted and the correction arrived only when the `viewHash` mismatch forced a
+resync. Self-healing, bounded by one round trip, and wrong: every match that
+opened with a replacement would have paid for it. The room now snapshots on a
+phase change as well, which is what §4.6 meant.
 
 ## 6. The transport contract
 
@@ -667,6 +677,26 @@ default. `{ type: "playCard", choice: 0 }` therefore validated by silently
 `choices` (an array, on `playCard`) differ by one letter, so that is a plausible
 client bug rather than an exotic attack, with a Choose One resolving the wrong
 half as the consequence. Every intent variant is `.strict()`.
+
+### 7.8 Four more, found by building the room
+
+C1–C14 came from writing the *schemas* against §7. These came from writing the
+thing that produces the frames, and three of the four are about §4 rather than
+§7. Same status: **binding**, resolved in
+[`../../server/src/room/room.ts`](../../server/src/room/room.ts).
+
+| # | Conflict | Resolution |
+|---|---|---|
+| **C15** | **§4.3's idempotency rule cannot be implemented with the state it names.** It specifies `lastAppliedClientId[seat]` — one number — and then requires a re-sent intent be "answered with the original batch `seq`". One number can detect a duplicate; it cannot recover the answer that duplicate got | The room keeps the last `(id → answer)` **pair** per seat and replays it exactly. §4.3 also forbids pipelining, so the only re-send that can legitimately occur is of the most recent intent. An id *older* than that is refused with `invalidIntent` rather than answered with a fabricated `seq`, which would tell a client its move landed when the room has no idea whether it did |
+| **C16** | **The "reject a second in-flight intent" guard cannot fire.** §4.3 has the server refuse a concurrent second intent. A Durable Object serializes handlers on the input gate and `applyIntent` is synchronous, so by the time a second frame is read the first has already been answered | Not implemented, deliberately. The guard's purpose is supplied by the platform; writing it anyway means a branch no test can reach and no reviewer can check. Recorded here so its absence reads as a decision |
+| **C17** | **`EventBatch.cause` still required a `seat`.** C11 made the wire schema a discriminated union so a `"system"` cause need not name a seat, and `transport.ts` — the interface the schema describes — went on declaring `seat` required. The two disagreed for a whole phase | `EventCause` is now declared once in `transport.ts` and `zEventCause` is annotated `z.ZodType<EventCause>`, so drift is a compile error. This is the idiom the file already used for `PlayerIntent` and `TargetRef`; C11 simply did not reach for it |
+| **C18** | **"Match start" is a phase change, not a turn boundary.** §4.6 lists four snapshot points and the room checked for a change of active seat, which the mulligan does not cause | Snapshot on a phase change as well. See §5.3's last row for what was invisible without it |
+
+**And one thing §14 says that is true but not for us.** §14.2 specifies a Redis
+directory mapping `roomId` to a worker, with a 15-minute TTL and a heartbeat.
+Cloudflare routes to a Durable Object by id, so the directory, its TTL and its
+heartbeat are three pieces of infrastructure that do not need to exist. §14.8
+maps the rest.
 
 ## 8. Session lifecycle and reconnection
 
@@ -1349,6 +1379,36 @@ Every log line carries `matchId`, `roomId`, `seat`, `seq` — enough to pull the
 | Identity outage | New logins/match tokens | Live matches unaffected; existing access tokens valid up to 15 min |
 | Region loss | That region | Queue drains to the nearest region with a latency warning; matches in flight are lost and refunded (ranked: no rating change, per the draw/interrupted policy) |
 
+### 14.8 What this maps to on Cloudflare **[BINDING over §14.1–14.7]**
+
+§14 above describes a data centre: worker nodes sized in vCPU, a Redis directory,
+a Postgres primary, a drain window measured against a rolling deploy. All of it
+is sound and none of it is what got built, because the chosen backend is
+Cloudflare Workers + Durable Objects — picked for a game that must cost **zero
+pounds to run** while nobody is playing it, which a fleet of always-on nodes
+cannot do.
+
+The mapping is close enough that §14's *reasoning* survives intact. What changes
+is who provides each guarantee.
+
+| §14 says | On Cloudflare | Consequence |
+|---|---|---|
+| Room = object graph owned by one worker process (§14.2) | Room = one Durable Object, addressed by `idFromName(matchId)` | Identical, and the **Redis directory disappears** — routing by id is the platform's job |
+| Journal in Redis, appended before broadcast (§14.3) | `ctx.storage.put()` before send; the **output gate** already holds outbound messages until pending writes confirm | The durability rule is enforced by the platform. The code still writes first, because a rule satisfied only by an implicit behaviour is one edit from not being satisfied |
+| Intents strictly serialized per room (§4.3) | The **input gate**: no event is delivered while a storage operation is in flight | Free, and it is why C16's guard has no implementation |
+| Crash recovery = replay the journal (§14.3), target 5 s | Same code, but it runs on **every hibernation**, not every crash | A DO with only idle sockets is evicted while players think, so the recovery path executes constantly. It cannot rot unnoticed — which is a better property than the 5 s SLO it replaces |
+| 600 rooms per process, scale trigger at 70 % | No sizing decision exists | Rooms are created and destroyed by the platform; there is nothing to provision and nothing to alert on |
+| Rolling deploy with a 15-minute drain (§14.4) | Existing DOs keep running their current code; new ones get the new version | The drain is automatic. Build pinning (§14.5) still matters and still has to be checked at `hello` |
+| Postgres for accounts, ladder, collection | Supabase (Postgres) — reached by the **client**, not by this server | The match server holds no database credential at all. See §10's note on JWKS |
+| Redis outage ⇒ queues pause, rooms keep running (§14.7) | No Redis | One fewer failure mode; one more dependency on a single vendor, which is the trade |
+
+**Cost, stated plainly.** Everything above is inside the free plan. The single
+line that decides it is `new_sqlite_classes = ["MatchRoom"]` in
+`server/wrangler.toml`: SQLite-backed Durable Objects are free-plan eligible and
+the older key-value-backed ones are not. The storage backend of a class is fixed
+by the migration that creates it, so this is not a setting that can be corrected
+later — it would take a new class name and a data migration.
+
 ---
 
 ## 15. Migration path from `LocalTransport`
@@ -1362,7 +1422,7 @@ once.
 | **0 — today** | `LocalMatch` (`src/game/localMatch.ts`) owns the authoritative state, runs the AI inline, records the `MatchRecord`. | done | Offline modes |
 | **1 — extract the seam** | Add `src/net/transport.ts` (interface) and `src/net/localTransport.ts` wrapping `LocalMatch`: adapt `submit(): Promise<string \| null>` to `SubmitResult`, add `seq` counters, `MatchClocks` from a local timer, and `snapshot` from `redact()`. Driver talks only to `MatchTransport`. | **done** | None |
 | **2 — network-shape the local build** | Add `redactEvents()` (§5) in the engine and the `viewReducer` in `src/net/`. `LocalTransport` now emits **redacted** batches and sanitized views to the UI even offline, and enforces seat ownership on `submit`. Add `src/net/protocol.ts` with zod schemas (unused by the local path, but validated in tests). | **done** — and it earned its place in the order: it found a redaction leak (§5.1.1), three unwireable events (§5.1.2), six fields no event carries (§5.3), fourteen conflicts in §7 (§7.7) and a determinism hole in the engine (§2.1) | None — but any hidden-info leak in the UI surfaces immediately, offline, in tests |
-| **3 — the server package** | New top-level workspace `server/` importing `../src/engine` **verbatim** (no fork, no re-implementation): `gateway/`, `room/`, `matchmaking/`, `services/`. Room = `MatchState` + clock + journal + fan-out. | first online milestone | None |
+| **3 — the server package** | New top-level workspace `server/` importing `../src/engine` **verbatim** (no fork, no re-implementation). Room = `MatchState` + clock + journal + fan-out. | **done** — gateway, room and identity built; matchmaking deferred to phase 4 where it belongs. Found four more §4/§7 conflicts (§7.7 C15–C18), a seventh field no event carries (§5.3), and two `import.meta.glob` calls that would have dealt matches from an empty card pool | None |
 | **4 — `WsTransport`** | `src/net/wsTransport.ts` implements the same interface over §7. Feature flag `net.online` picks the transport at match start. | first online milestone | Casual queue goes live; other online tiles still "Coming Online" |
 | **5 — services** | Matchmaking (§9), identity (§10), cloud saves (§12), results/ladder, spectator + replay services (§13). | staged | Ranked, friend battles, tournaments, spectate flip from "Coming Online" per the game-modes ship-status table |
 
@@ -1385,20 +1445,33 @@ once.
 ```
 src/net/
   protocol.ts        # envelopes + zod schemas + PROTOCOL_VERSION (shared with server/)
-  transport.ts       # MatchTransport, EventBatch, MatchSnapshot, MatchClocks
+  transport.ts       # MatchTransport, EventBatch, EventCause, MatchSnapshot, MatchClocks
+  view.ts            # sanitizeView + viewHash — shared, because a second copy of a
+                     #   hash compared across two machines is a divergence bug
   localTransport.ts  # wraps LocalMatch (offline + AI)
   wsTransport.ts     # WebSocket implementation, resume/backoff/ack logic
   viewReducer.ts     # EngineEvent[] → PlayerView (presentation bookkeeping only)
+  viewToState.ts     # answers legality from a view, using the engine's own helpers
   lobbySocket.ts     # presence, queue, invites, matchFound
 src/save/
   cloudSync.ts       # CloudEnvelope, section sync, conflict → Cloud-save selection
 server/
-  src/gateway/       # ws termination, token verify, schema + rate limits, routing
-  src/room/          # room.ts, clock.ts, redaction.ts, journal.ts, spectators.ts
+  wrangler.toml      # bindings, and the new_sqlite_classes line that keeps it free
+  src/worker.ts      # the gateway: origin check, token verify, routing. Nothing else.
+  src/matchRoom.ts   # the Durable Object: sockets, storage, alarms. Thin.
+  src/room/          # room.ts (pure: state, journal, seq, redaction), clock.ts
+  src/auth/          # supabase.ts — JWKS verification, no server-side secret
   src/matchmaking/   # tickets, bands, pairing loop, placement
-  src/services/      # identity, saves, results, replays, moderation
-  src/shared/        # protocol re-export, token utils, telemetry
+  src/services/      # saves, results, replays, moderation
+  src/shared/        # engine.ts and wire.ts — the ONLY reaches back into ../src
 ```
+
+**The `gateway/` directory in the original plan is one file.** It was specified
+as a package because in §14's topology it is a separate, horizontally scaled
+process holding a session→room map in Redis. Here it is a Worker in front of a
+Durable Object, and the map is `idFromName(matchId)`. Splitting a hundred lines
+across four folders to match a diagram would be obeying the shape of the design
+rather than its reasoning.
 
 **[DECISION]** `server/` is a sibling workspace at the repo root rather than a
 folder under `src/`, so the Vite client build never sees server code, while the

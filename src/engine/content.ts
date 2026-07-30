@@ -1,9 +1,10 @@
 /**
  * Loads and validates every data/*.json file into a ContentIndex.
  *
- * Card files under data/cards/ are auto-discovered with import.meta.glob, so
- * adding a new faction file requires no code change. The loader is injectable
- * (buildContent) so tests can construct fixture content without touching disk.
+ * Card files under data/cards/ come from `dataFiles.ts`, which lists them
+ * explicitly so this module compiles outside Vite as well as inside it — the
+ * server imports this engine verbatim. The loader is injectable (buildContent)
+ * so tests can construct fixture content without touching disk.
  */
 
 import type {
@@ -35,6 +36,8 @@ import {
   zStatusDef,
 } from "./validation";
 
+import { CARD_FILES } from "./dataFiles";
+
 import currentsRaw from "../../data/currents.json";
 import factionsRaw from "../../data/factions.json";
 import confluencesRaw from "../../data/confluences.json";
@@ -47,12 +50,6 @@ export class ContentError extends Error {
     super(`Content validation failed:\n  - ${problems.join("\n  - ")}`);
     this.name = "ContentError";
   }
-}
-
-/** All card files under data/cards/, keyed by module path. */
-function loadCardModules(): Record<string, unknown> {
-  // eager glob: bundled by Vite, also works under Vitest's Vite pipeline
-  return import.meta.glob("../../data/cards/*.json", { eager: true, import: "default" });
 }
 
 function parseRecord<T>(
@@ -133,10 +130,12 @@ let cached: ContentIndex | null = null;
 /** The live game content, loaded from data/ and validated once. */
 export function getContent(): ContentIndex {
   if (cached) return cached;
-  const modules = loadCardModules();
-  const cardArrays = Object.entries(modules)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)) // stable order => deterministic ids
-    .map(([, value]) => value as CardDef[]);
+  // Sorted here rather than trusted to be written in order: card order decides
+  // `collectibleCards()`, which decides auto-built decks, so it must not depend
+  // on how someone typed out the manifest.
+  const cardArrays = [...CARD_FILES]
+    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+    .map((file) => file.data as CardDef[]);
   cached = buildContent({
     cardArrays,
     currents: currentsRaw,
@@ -152,6 +151,47 @@ export function getContent(): ContentIndex {
 /** Test hook: replace the cached content (pass null to reload from disk). */
 export function setContent(content: ContentIndex | null): void {
   cached = content;
+}
+
+/**
+ * A fingerprint of the whole content index, for build/content pinning.
+ *
+ * Multiplayer §14.5: a room is pinned to `(engineBuild, contentHash)` and a
+ * client on any other pair cannot join it, because "determinism across two
+ * machines is only meaningful for identical code and identical data". Something
+ * has to actually produce the number, and until now nothing did.
+ *
+ * Deliberately sensitive to **key order**, not just to values. Card insertion
+ * order decides `collectibleCards()`, which decides `autoBuildDeck()`, so two
+ * indexes holding the same cards in a different order deal different matches
+ * from the same seed — that is a mismatch, and a hash that canonicalised the
+ * ordering away would call it agreement. `JSON.stringify` preserves insertion
+ * order for non-numeric keys, and every id here is non-numeric.
+ *
+ * FNV-1a 32-bit, matching `stateHash()`: no dependency, and no pretence of being
+ * a security boundary. It is not one. It cannot be, because the client chooses
+ * what to send — the protection against a lying client is that the server
+ * simulates the match itself and refuses what its own content rejects. This
+ * detects *accidents*: a stale cache, a half-deployed build, a client that
+ * missed a content release.
+ */
+export function contentHash(content: ContentIndex): string {
+  const json = JSON.stringify([
+    content.cards,
+    content.leaders,
+    content.currents,
+    content.factions,
+    content.confluences,
+    content.statuses,
+    content.keywords,
+    content.balance,
+  ]);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < json.length; i++) {
+    hash ^= json.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
 }
 
 // ---------------------------------------------------------------------------

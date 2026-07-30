@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "validate": "vitest run tests/data-validation.test.ts",
     "balance": "node scripts/balance.mjs",
     "verify:ui": "node scripts/verify-ui.mjs",
@@ -52,6 +52,7 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
     "@types/three": "^0.170.0",
     "playwright-core": "^1.62.0",
     "typescript": "^5.7.0",

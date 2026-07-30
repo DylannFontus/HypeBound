@@ -102,6 +102,25 @@ export interface MatchSnapshot {
 }
 
 /**
+ * Why a batch happened.
+ *
+ * A discriminated union rather than a flat `{ kind; seat; clientIntentId? }`,
+ * because `Seat` has no null member and a `"system"` cause — match start, a
+ * scripted wave landing — has no seat to name. The flat form forced a plausible
+ * lie: `LocalTransport` was passing `activeSeat`, which reads like a fact.
+ *
+ * `zEventCause` in `protocol.ts` is declared as `z.ZodType<EventCause>`, so this
+ * type and the wire schema cannot drift apart without failing to compile. That
+ * is the same trick the file already uses for `PlayerIntent` and `TargetRef`,
+ * and it is the reason this correction is worth making in one place instead of
+ * two.
+ */
+export type EventCause =
+  | { kind: "intent"; seat: Seat; clientIntentId?: number }
+  | { kind: "timer"; seat: Seat }
+  | { kind: "system"; seat?: Seat };
+
+/**
  * One atomic, ordered group of engine facts.
  *
  * `cause` is what lets the presenter tell a played card from an expired rope:
@@ -110,7 +129,7 @@ export interface MatchSnapshot {
  */
 export interface EventBatch {
   seq: number;
-  cause: { kind: "intent" | "timer" | "system"; seat: Seat; clientIntentId?: number };
+  cause: EventCause;
   events: EngineEvent[];
   clocks: MatchClocks;
   /** FNV-1a over a canonicalized subset of the seat's view; drives resync (§4.6). */

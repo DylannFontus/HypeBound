@@ -1,0 +1,61 @@
+# Typecheck and bundle the match server.
+#
+# Separate from the Pages workflow on purpose. The client deploy must not wait
+# on — or be broken by — a ~90 MB wrangler install it has no use for, and the
+# server must not be able to rot just because nothing publishes it yet.
+#
+# There is no deploy step. Publishing a Worker needs a Cloudflare API token in
+# the repository secrets, and until an account exists to issue one, a workflow
+# that pretended to deploy would fail on every push for a reason that is not a
+# bug. When it is added, it goes here as a `deploy` job gated on this one.
+name: Server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "src/engine/**"
+      - "src/net/**"
+      - "data/**"
+      - ".github/workflows/server.yml"
+  pull_request:
+    paths:
+      - "server/**"
+      - "src/engine/**"
+      - "src/net/**"
+      - "data/**"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+        working-directory: server
+
+      # The portability guarantee, made by the compiler.
+      #
+      # `server/tsconfig.json` compiles `src/engine` and `src/net` a second time
+      # with no DOM in `lib`, so a rules file that grows a `window.` or an
+      # `import.meta.glob` fails here. That matters because the failure it
+      # replaces is silent: `import.meta.glob` evaluates to `undefined` on
+      # workerd rather than throwing, and the match is dealt from an empty card
+      # pool.
+      - name: Typecheck (server + shared engine, without DOM)
+        run: npm run typecheck
+        working-directory: server
+
+      # Proves the worker actually bundles under esbuild — which the typecheck
+      # does not, because they disagree about what a JSON import is.
+      - name: Bundle
+        run: npx wrangler deploy --dry-run --outdir=.wrangler/ci
+        working-directory: server

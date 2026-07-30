@@ -1,0 +1,58 @@
+# HYPEBOUND authoritative match server.
+#
+# Everything declared here is inside Cloudflare's free plan, and the two lines
+# that keep it there are marked below. If a change to this file would start
+# charging, it needs saying out loud before it lands.
+
+name = "hypebound"
+main = "src/worker.ts"
+compatibility_date = "2025-11-01"
+
+# Free: 100k requests/day and 10ms CPU per invocation on Workers, plus the
+# Durable Objects request allowance. A match is a long-lived socket rather than
+# a request per action, so the request count tracks *matches*, not *intents* —
+# which is the whole reason a DO is cheaper here than a polling API.
+
+[observability]
+enabled = true
+
+# ---------------------------------------------------------------------------
+# Durable Objects — one object per match. Multiplayer §14.2's "one match = one
+# room", except the room is addressed by Cloudflare instead of by a Redis
+# directory, and its storage replaces the specced Redis journal.
+# ---------------------------------------------------------------------------
+
+[[durable_objects.bindings]]
+name = "MATCH_ROOM"
+class_name = "MatchRoom"
+
+[[migrations]]
+tag = "v1"
+# `new_sqlite_classes`, NOT `new_classes`. This is the line that decides whether
+# the project costs money: SQLite-backed Durable Objects are available on the
+# free plan, and the older key-value-backed ones are not. They are also not
+# interchangeable later — the storage backend of a class is fixed at the
+# migration that created it, so getting this wrong means a new class name and a
+# data migration rather than a config edit.
+new_sqlite_classes = ["MatchRoom"]
+
+# ---------------------------------------------------------------------------
+# Public configuration. Nothing secret lives here.
+#
+# Verifying a Supabase JWT needs only the project's public JWKS, so the server
+# holds no Supabase key at all — there is no service-role secret to leak,
+# because there is nothing it would be used for. See `.dev.vars.example`.
+# ---------------------------------------------------------------------------
+
+[vars]
+# Set to the project URL once the Supabase project exists (§10). Empty means
+# "no identity provider configured", and the server says so instead of pretending
+# a token is valid.
+SUPABASE_URL = ""
+# Browser origins allowed to open a socket. GitHub Pages is the client's home;
+# localhost is for `npm run dev` against a real server.
+ALLOWED_ORIGINS = "https://dylannfontus.github.io,http://localhost:5173"
+# §10.4 build binding. Overridden at deploy time with the commit sha; "dev" is
+# what you get when a human runs `wrangler deploy` from a laptop, and saying so
+# is better than a version number nobody bumped.
+BUILD = "dev"

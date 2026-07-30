@@ -106,6 +106,7 @@
     "attributions": [
       { "package": "three", "license": "MIT", "use": "the WebGL renderer behind the battle board" },
       { "package": "zod", "license": "MIT", "use": "schema validation for every data file the game loads" },
+      { "package": "@types/node", "license": "MIT", "use": "type definitions for the Node APIs the test suite reads the repo with" },
       { "package": "@types/three", "license": "MIT", "use": "type definitions for three" },
       { "package": "playwright-core", "license": "Apache-2.0", "use": "drives the browser verification scripts" },
       { "package": "typescript", "license": "Apache-2.0", "use": "the language and its type checker" },

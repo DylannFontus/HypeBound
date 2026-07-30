@@ -22,7 +22,8 @@ import {
 } from "../src/engine/intents";
 import { nextInt, seedRng } from "../src/engine/rng";
 import { getAiProfile } from "../src/ai/profiles";
-import { LocalTransport, viewHash } from "../src/net/localTransport";
+import { LocalTransport } from "../src/net/localTransport";
+import { viewHash } from "../src/net/view";
 import { EMPTY_LEGALITY, isYourTurn, type EventBatch, type MatchTransport } from "../src/net/transport";
 import type { Seat } from "../src/engine/types";
 

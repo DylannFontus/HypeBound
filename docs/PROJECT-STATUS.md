@@ -55,22 +55,31 @@ opponent that drafted its own deck through the same offers.
 The game is also **deployed**: <https://dylannfontus.github.io/HypeBound/>
 builds and publishes on every push to `main`, behind the full test suite.
 
-**The online foundation's client half is built.** The battle screen talks to a
+**The online foundation is built on both sides.** The battle screen talks to a
 `MatchTransport`, so the offline game is one implementation of the interface a
 `WsTransport` will implement rather than the only way to play. Per-seat event
 redaction, deck sanitization, the view reducer and the wire schemas all run in
 the **offline** build, so hidden-information bugs surface in tests instead of in
-production against a real opponent — which they did, repeatedly. Doing it turned
-up four defects in the shipped engine, a leak the design document's own
-redaction table did not achieve, and fourteen places the wire spec could not be
-implemented as written. The stack is settled — GitHub Pages for the client,
-Cloudflare Durable Objects for authoritative rooms, Supabase Auth for accounts —
-and all of it is free to run. See "Going online: the deployment, and the seam".
+production against a real opponent — which they did, repeatedly. And `server/`
+now holds the other half: a Cloudflare Worker gateway, a Durable Object per
+match, Supabase token verification against a public JWKS, and an authoritative
+`Room` with no Cloudflare in it at all — which is why sequence numbers,
+idempotency, the turn clock, the AFK path and journal recovery are all tested in
+the ordinary suite rather than by playing.
 
-What is *not* built is the server itself (casual, ranked, matchmaking,
-spectating, replay sharing, tournaments, friends, guilds), which is deliberately
-absent rather than faked. **Every mode in the brief that does not need one is
-now playable.**
+Building it turned up four defects in the shipped engine, a leak the design
+document's own redaction table did not achieve, eighteen places the wire spec
+could not be implemented as written, and two `import.meta.glob` calls that would
+not have crashed on Cloudflare — they would have dealt every match from an empty
+card pool. The stack is settled and **all of it is free to run**: GitHub Pages
+for the client, Cloudflare Workers + SQLite-backed Durable Objects for rooms,
+Supabase Auth for accounts. See "Going online: the deployment, and the seam".
+
+What is *not* built is matchmaking and everything above it (casual queue,
+ranked, spectating, replay sharing, tournaments, friends, guilds), and nothing is
+deployed to Cloudflare yet — that step needs an account rather than more code.
+All of it is deliberately absent rather than faked. **Every mode in the brief
+that does not need a server is now playable.**
 
 ---
 
@@ -85,7 +94,15 @@ were run together, ten failures were found and every one is fixed. Sections that
 were previously marked *"written but not yet run"* are covered by the figures
 below.
 
-**Test suite — 1,455 tests passing** (`npm test`)
+**Test suite — 1,514 tests passing** (`npm test`)
+- 26 room tests: per-seat batches, sequence numbers, §4.3 idempotency, the
+  turn clock and rope, AFK auto-concede, journal rebuild after hibernation,
+  and a hash comparison proving the room changes no engine answer.
+- 13 auth tests: real ES256/RS256 signatures against a served JWKS, key
+  rotation, tampered payloads, expiry, wrong-issuer, and the HS256 refusal.
+- 20 portability tests: the manifest still matches `data/cards` and
+  `data/encounters`, card order is unchanged, and the worker's import graph
+  reaches no client code, no package but zod, and no `import.meta`.
 - 9 data-validation tests: every card and data file parses, the Current
   advantage cycle is a closed loop, all 9 Confluences exist, every Current has a
   Perfect Resonance effect, faction/Current legality holds, stat budgets hold,
@@ -2410,6 +2427,75 @@ on any seat but the viewer's, because asking about the opponent returns
 deliberately avoids `attackableBy`, which reaches `topOfDeckMatches`: the one
 place a sanitized placeholder genuinely is dereferenced.
 
+### Phase 3: the server exists, and the engine had to become portable first
+
+`server/` is a sibling workspace holding a Cloudflare Worker (the gateway) and a
+Durable Object (the room). It imports `../src/engine` **verbatim** — §15's first
+sequencing rule — which turned out to be a claim the engine could not yet
+support.
+
+**Two calls that would have dealt matches from an empty deck.** `content.ts` and
+`encounters.ts` found their data with `import.meta.glob`, which is a Vite
+feature, not a JavaScript one. On workerd it does not throw: it is a property
+access on an object that has no such property, so it evaluates to `undefined`
+and the game starts with **zero cards in it**. Both now read
+`src/engine/dataFiles.ts`, a written-down list — and the one virtue the glob had
+is replaced by `tests/data-files.test.ts`, which reads both directories off disk
+and fails if the list stops matching, pairs every path against the file it
+names, and re-derives the whole card order from disk to prove the move changed
+nothing. Card order is not cosmetic: `collectibleCards()` reads insertion order,
+`autoBuildDeck` reads that, so a different order is a different deck from the
+same seed.
+
+**The room has no Cloudflare in it.** `Room` takes the current time as an
+argument and *returns* frames instead of sending them, so sequence numbers,
+per-seat redaction, idempotency, the turn clock, the AFK auto-concede and
+journal recovery are all driven from `tests/room.test.ts` on a machine with no
+workerd on it. The Durable Object is a thin adapter over it. That split is the
+same bet phase 2 made about redaction, and it paid the same way — see below.
+
+**There is no broadcast, and there cannot be.** `redactEvents` produces a
+different event list per seat and the two `viewHash` values differ by
+construction, so every method returns frames individually addressed. "Send this
+to everyone" is not expressible, which is the point: the one thing that must
+never happen is a batch built for seat 0 reaching seat 1.
+
+**Four more conflicts with the design** (§7.7 C15–C18), three of them in §4
+rather than §7:
+
+- **§4.3's idempotency rule cannot be implemented with the state it names.** One
+  `lastAppliedClientId` per seat can detect a duplicate but cannot recover the
+  answer that duplicate got. The room keeps the last `(id → answer)` pair and
+  replays it; an older id is refused rather than answered with a fabricated
+  `seq`, which would tell a client its move landed when the room has no idea.
+- **The "second in-flight intent" guard cannot fire**, because a Durable Object
+  serializes handlers on the input gate. Not implemented, deliberately — the
+  alternative is a branch no test can reach.
+- **`EventBatch.cause` still required a `seat`** a whole phase after C11 made the
+  wire schema a union so that a `"system"` cause need not have one. Now declared
+  once and annotated `z.ZodType<EventCause>`, so drift is a compile error.
+- **"Match start" is a phase change, not a turn boundary** — see below.
+
+**A seventh field no event carries, and this one nearly slipped through.** A
+mulligan puts different cards in a seat's hand and emits *nothing naming any of
+them*: `mulliganDone` carries `kept` and `replaced` as counts. The repair is
+§4.6's match-start snapshot — which the room was not sending, because it tested
+for a change of active seat and the mulligan does not change one. The drift
+would still have healed, via the `viewHash` mismatch and a resync, at the cost
+of a wasted round trip at the start of every match that opened with a
+replacement. Bounded, self-correcting, and wrong.
+
+**No Supabase secret exists on the server.** Tokens are verified against the
+project's public JWKS, so there is no service-role key to leak and nothing a
+compromise of the Worker's config would let anyone do to the database. The one
+consequence worth knowing: a project still on legacy HS256 signing keys is
+**refused**, with a message naming the setting to change, because verifying
+HS256 needs the same secret that mints tokens — handing the match server the
+power to forge any player's identity.
+
+The whole worker, engine and card data included, bundles to **108.84 KiB
+gzipped** against a 3 MiB free-plan limit.
+
 ### Where it stands
 
 | Phase | State |
@@ -2417,9 +2503,15 @@ place a sanitized placeholder genuinely is dereferenced.
 | 0 — repo and Pages deploy | **done**, live |
 | 1 — the transport seam | **done** |
 | 2 — network-shaping | **done** — and it found four engine defects, a redaction leak, and fourteen conflicts in the wire spec |
-| 3 — the `server/` package | not started |
+| 3 — the `server/` package | **done** — gateway, room and identity. Found two fatal Vite-isms in the engine, four more design conflicts, and a seventh field no event carries |
 | 4 — `WsTransport` + casual queue | not started |
 | 5 — cloud saves, results, ladder | not started |
+
+Nothing is deployed to Cloudflare yet, and that is a step that needs an account
+rather than more code. `server/README.md` is the runbook; `.github/workflows/server.yml`
+typechecks and bundles the worker on every push but deliberately does not deploy
+it, because a deploy job with no API token would fail on every commit for a
+reason that is not a bug.
 
 The honest caveat about the first online milestone, recorded here because it is
 a design consequence rather than a bug: **a public queue is mostly a waiting

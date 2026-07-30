@@ -54,7 +54,8 @@ src/
     profiles.ts           # loads ai-profiles.json (beginner…boss)
   game/                   # client match orchestration: LocalMatchDriver (vs AI), seat handling, timers
   net/                    # the seam the online build slots into. BUILT.
-    transport.ts          # MatchTransport, EventBatch, MatchSnapshot, MatchClocks, Legality
+    transport.ts          # MatchTransport, EventBatch, EventCause, MatchSnapshot, MatchClocks, Legality
+    view.ts               # sanitizeView + viewHash. SHARED with server/ — one hash, because it is compared across two machines
     localTransport.ts     # wraps LocalMatch; emits REDACTED batches and a sanitized, cloned view even offline
     viewReducer.ts        # EngineEvent[] -> PlayerView between snapshots; presentation only, never decides an outcome
     viewToState.ts        # rebuild a MatchState-shaped object from a view so the legality helpers work unchanged
@@ -79,9 +80,17 @@ src/
       presenter.ts        # consumes EngineEvent[] → animation queue; THE only bridge engine→visuals
 tests/                    # vitest: engine rules, keywords, currents, confluences, cards, replay determinism, AI sanity
 docs/                     # design + tech docs
+server/                   # SIBLING workspace, not under src/. Cloudflare Workers + Durable Objects. BUILT.
+  src/worker.ts           # the gateway and the only trust boundary: origin, token, routing
+  src/matchRoom.ts        # the Durable Object: sockets, storage, alarms. No rules in it.
+  src/room/room.ts        # the authoritative room. No Cloudflare in it, so it is tested in tests/room.test.ts
+  src/auth/supabase.ts    # JWKS token verification — public key only, no server-side secret
+  src/shared/             # engine.ts + wire.ts: the ONLY two files that reach back into ../src
 ```
 
 **Import rules (enforced by review):** `engine` imports nothing outside itself (+zod). `ai` imports `engine` only. `ui` never imports `reducer` internals — it sends `PlayerIntent`s to a driver and consumes `EngineEvent`s. `data/` is never imported as TS modules — always loaded via `content.ts` (JSON import with validation is fine).
+
+**`src/engine` must compile outside Vite, and this is checked twice.** The server imports it verbatim and runs it on workerd, where `import.meta.glob` is not a build step but a property access that returns `undefined` — so a globbed card loader does not crash, it deals a match from an empty pool. Both globs are gone (`dataFiles.ts` lists the files; `tests/data-files.test.ts` fails if that list stops matching the directory). Enforced by `server/tsconfig.json`, which compiles the whole engine a second time with **no DOM in `lib`**, and by `tests/server-portability.test.ts`, which walks the real import graph from the worker and fails if it reaches `src/ui`, `src/game`, any package but zod, or any `import.meta` at all.
 
 ## 3. Engine model (deterministic core)
 

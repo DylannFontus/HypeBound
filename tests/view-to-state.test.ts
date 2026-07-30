@@ -29,7 +29,7 @@ import {
 import { legalAttackTargets } from "../src/engine/combat";
 import { availableConfluences } from "../src/engine/currents";
 import { nextInt, seedRng } from "../src/engine/rng";
-import { sanitizeView } from "../src/net/localTransport";
+import { sanitizeView } from "../src/net/view";
 import {
   attackTargetsFromView,
   equipTargetsFromView,

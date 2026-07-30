@@ -17,5 +17,5 @@
     "useDefineForClassFields": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "tests", "data"]
+  "include": ["src", "data"]
 }
