@@ -539,6 +539,22 @@ export class Room {
     return out;
   }
 
+  /**
+   * Both seats' presence as it stands, for a socket that has just arrived.
+   *
+   * `setConnected` deliberately says nothing when nothing changed, which is
+   * right for an event and wrong for a greeting: a first connection does not
+   * *change* that seat's presence, so it produced no frames — and a player
+   * joining a match whose opponent had already dropped was told nothing at all.
+   * They saw a board that would not move and no reason for it.
+   *
+   * This is the state, not the transition, and the delivery layer sends it once
+   * per socket.
+   */
+  presenceNow(nowMs: number): Addressed[] {
+    return this.presenceFrames(nowMs);
+  }
+
   /** Is a seat currently held open for somebody who is not here? */
   isDisconnected(seat: Seat): boolean {
     return this.disconnectedAtMs[seat] !== null;

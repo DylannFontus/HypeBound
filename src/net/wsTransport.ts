@@ -266,6 +266,19 @@ export class WsTransport implements MatchTransport {
   }
 
   close(reason = "client closed"): void {
+    /**
+     * Say so before hanging up.
+     *
+     * A transport-level close is what §8.2 describes, and it is not dependable
+     * enough on its own: a page being torn down does not always produce a close
+     * the server hears promptly, and the opponent then sits looking at a board
+     * that has stopped for no stated reason. One frame, sent while the socket
+     * is still open, removes the guesswork. The server treats it exactly as a
+     * drop — grace window, not concede.
+     */
+    if (this.socket && !this.matchOver) {
+      this.send({ v: PROTOCOL_VERSION, t: "leave", ts: this.now(), reason: reason === "closing" ? "closing" : "menu" });
+    }
     this.closedByUs = true;
     this.cancelReconnect?.();
     this.cancelHeartbeat?.();

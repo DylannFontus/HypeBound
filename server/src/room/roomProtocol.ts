@@ -107,11 +107,19 @@ export class RoomProtocol {
 
       case "leave":
         /**
-         * Not a concede. §8.2 makes leaving the menu and closing the tab both
-         * start the grace window rather than end the match, and the room reacts
-         * to the socket going away, not to the word.
+         * Not a concede — §8.2 makes leaving the menu and closing the tab both
+         * start the **grace window**, not end the match. So this does exactly
+         * what a dropped socket does, and no more.
+         *
+         * It used to do nothing at all, on the reasoning that the room should
+         * react to the socket going away rather than to the word. The word
+         * turned out to be the more reliable of the two: a browser tearing down
+         * a page does not always deliver a close the runtime reports promptly,
+         * and the opponent was intermittently never told. Acting on both is not
+         * redundant — `setConnected` ignores a repeat, so whichever arrives
+         * first wins and the second is free.
          */
-        return { out: [], fatal: false };
+        return { out: this.envelope(this.room.setConnected(seat, false, nowMs), nowMs), fatal: false };
 
       case "hello": {
         /**
@@ -136,6 +144,11 @@ export class RoomProtocol {
         // implementing the whole protocol is not punished for it.
         return { out: [], fatal: false };
     }
+  }
+
+  /** Presence as it stands, for a socket that has just arrived (§8.2). */
+  presenceNow(nowMs: number): Outgoing[] {
+    return this.envelope(this.room.presenceNow(nowMs), nowMs);
   }
 
   /** A socket for a seat arrived or went away (§8.2). */

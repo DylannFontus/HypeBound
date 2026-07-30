@@ -159,6 +159,18 @@ export class MatchRoom extends DurableObject<Env> {
     // Buffer Shield the pause did not use.
     await this.commit(protocol.room, protocol.setConnected(seat, true, now), false);
 
+    /**
+     * And tell *this* socket where everybody stands.
+     *
+     * `setConnected` reports a change, and a first connection is not one for
+     * the seat doing the connecting — so without this a player joining a match
+     * whose opponent had already dropped received no presence at all, and sat
+     * looking at a board that would not move.
+     */
+    for (const { seat: about, frame } of protocol.presenceNow(now)) {
+      if (about === seat) this.send(server, frame);
+    }
+
     void url; // reserved for the spectator path (§13.3)
     return new Response(null, { status: 101, webSocket: client });
   }
