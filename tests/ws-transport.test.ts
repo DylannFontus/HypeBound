@@ -314,6 +314,75 @@ describe("resume (§8, and the only path with no offline analogue)", () => {
     // real budget rather than thinned out: the whole point is *every* seq.
   }, 30_000);
 
+  it("replays what was missed, without playing it twice (§8.3)", async () => {
+    /**
+     * The reconnect is held rather than instant, and that is the whole setup.
+     *
+     * With a zero backoff the client is back before the test can make anything
+     * happen, so the first version of this asserted a replay of nothing and
+     * reported the feature broken. Capturing the scheduled reconnect and firing
+     * it by hand is what makes "while they were away" a real interval.
+     */
+    const timers: (() => void)[] = [];
+    const h = await connectBoth(606, {
+      reconnect: { maxAttempts: 4, baseDelayMs: 1, maxDelayMs: 1 },
+      schedule: (fn) => {
+        timers.push(fn);
+        return () => {
+          const at = timers.indexOf(fn);
+          if (at >= 0) timers.splice(at, 1);
+        };
+      },
+    });
+    await openingMulligans(h);
+
+    // The seat that leaves must be the one NOT on the clock, or there is nobody
+    // able to make the moves it is supposed to miss.
+    const away = (h.loop.room.activeSeat === 0 ? 1 : 0) as Seat;
+    h.loop.drop(away);
+    await settle(4);
+    expect(h.loop.connected(away), "the reconnect was not held").toBe(false);
+
+    const before = h.batches[away].length;
+    await play(h);
+    await play(h);
+    expect(h.batches[away].length, "a disconnected client received a live batch").toBe(before);
+
+    // Now let it back in.
+    timers.shift()?.();
+    await settle(16);
+    expect(h.loop.connected(away), "never reconnected").toBe(true);
+
+    const arrived = h.batches[away].slice(before);
+    const replayed = arrived.filter((b) => b.catchUp === true);
+    expect(replayed.length, "nothing was replayed, so the absence is invisible").toBeGreaterThan(0);
+    // and the view is the room's, not the room's applied twice
+    expect(viewHash(h.transports[away].view())).toBe(h.loop.room.viewHashFor(away));
+  });
+
+  it("does not resync on the hash of a moment that has passed", async () => {
+    // A catch-up batch carries the viewHash of when it happened. Comparing that
+    // to the present view reports drift that is not drift.
+    const timers: (() => void)[] = [];
+    const h = await connectBoth(707, {
+      reconnect: { maxAttempts: 4, baseDelayMs: 1, maxDelayMs: 1 },
+      schedule: (fn) => {
+        timers.push(fn);
+        return () => {};
+      },
+    });
+    await openingMulligans(h);
+    const away = (h.loop.room.activeSeat === 0 ? 1 : 0) as Seat;
+    h.loop.drop(away);
+    await settle(4);
+    await play(h);
+    timers.shift()?.();
+    await settle(16);
+
+    const resyncs = h.loop.received.filter((r) => r.seat === away && r.frame.t === "resync");
+    expect(resyncs, "a reconnect asked for a resync it did not need").toEqual([]);
+  });
+
   it("fails the in-flight intent rather than leaving the caller waiting", async () => {
     // The answer to that intent was on a socket that no longer exists. §4.3's
     // idempotency is what makes re-sending it after the resume safe.

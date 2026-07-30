@@ -113,13 +113,27 @@ export class RoomProtocol {
          */
         return { out: [], fatal: false };
 
-      case "hello":
+      case "hello": {
+        /**
+         * The `welcome` already went out on the upgrade, carrying the snapshot
+         * that makes this client correct. What `hello` adds is `lastAckSeq` —
+         * the only thing the server cannot know until the client says it — and
+         * therefore the only moment the backlog can be assembled.
+         *
+         * §8.3 has the welcome follow the hello. Keeping the welcome on the
+         * upgrade and answering the hello with the backlog gets the same two
+         * deliveries in the same order, without a handshake in which a socket
+         * is open and told nothing.
+         */
+        if (!frame.resume) return { out: [], fatal: false };
+        return { out: this.envelope(this.room.backlogFor(seat, frame.resume.lastAckSeq), nowMs), fatal: false };
+      }
+
       case "ack":
       case "emote":
-        // `hello` is answered by the upgrade; `ack` feeds backpressure
-        // accounting that does not exist yet; `emote` needs the entitlement
-        // lookup of C4. Accepted and ignored, so a client implementing the
-        // whole protocol is not punished for it.
+        // `ack` feeds backpressure accounting that does not exist yet; `emote`
+        // needs the entitlement lookup of C4. Accepted and ignored, so a client
+        // implementing the whole protocol is not punished for it.
         return { out: [], fatal: false };
     }
   }

@@ -468,10 +468,18 @@ export class WsTransport implements MatchTransport {
      * At-least-once delivery with dedupe by `seq` (§4.3). A resumed socket may
      * legitimately re-send a batch this client already applied, and applying it
      * twice would double every draw and every point of damage in it.
+     *
+     * `catchUp` is the exception, and the reason the flag exists: after a
+     * reconnect the server replays what was missed so the *animation* is not
+     * lost. Those seqs are all "already applied" — the resume snapshot includes
+     * them — so without the flag they are indistinguishable from duplicates and
+     * would be correctly dropped along with the thing they were sent for.
      */
-    if (frame.seq <= this.lastSeq) return;
+    const catchUp = frame.catchUp === true;
+    if (!catchUp && frame.seq <= this.lastSeq) return;
 
     const batch: EventBatch = {
+      ...(catchUp ? { catchUp: true } : {}),
       seq: frame.seq,
       cause: frame.cause,
       events: frame.events as EventBatch["events"],
@@ -490,22 +498,34 @@ export class WsTransport implements MatchTransport {
         : {}),
     };
 
-    if (this.currentView) {
+    /**
+     * A catch-up batch is shown, never applied.
+     *
+     * §4.6: events are the truth for animation, snapshots are the truth for
+     * state — and the snapshot this client resumed with already contains every
+     * one of these events. Applying them again would deal the same cards twice.
+     */
+    if (this.currentView && !catchUp) {
       this.currentView = applyEventsToView(this.currentView, batch.events, this.content);
     }
     // A snapshot in the batch outranks whatever the reducer just produced. §4.6:
     // events are the truth for animation, snapshots are the truth for state.
-    if (batch.snapshot) this.currentView = batch.snapshot.view;
-    this.lastSeq = frame.seq;
+    if (batch.snapshot && !catchUp) this.currentView = batch.snapshot.view;
+    if (!catchUp) this.lastSeq = frame.seq;
 
+    // A catch-up batch describes a moment in the past, so its hash is a hash of
+    // the past. Comparing it to the present view would report drift that is not
+    // drift and trigger a resync on every reconnect.
     const local = this.currentView ? viewHash(this.currentView) : null;
-    const agreed = local === frame.viewHash;
+    const agreed = catchUp || local === frame.viewHash;
 
     // Listeners run before the resync request, so the animation of what did
     // happen is not dropped on the floor by a correction.
     for (const listener of [...this.batchListeners]) await listener(batch);
 
-    this.send({ v: PROTOCOL_VERSION, t: "ack", ts: this.now(), seq: this.lastSeq, ...(local ? { viewHash: local } : {}) });
+    if (!catchUp) {
+      this.send({ v: PROTOCOL_VERSION, t: "ack", ts: this.now(), seq: this.lastSeq, ...(local ? { viewHash: local } : {}) });
+    }
 
     if (!agreed) {
       /**

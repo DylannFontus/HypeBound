@@ -82,6 +82,8 @@ export type RoomFrame =
   | { t: "rejected"; id: number; error: RulesErrorShape }
   | {
       t: "batch";
+      /** Set only on a replay after a reconnect (§8.3). Absent normally. */
+      catchUp?: boolean;
       seq: number;
       cause: EventCause;
       events: EngineEvent[];
@@ -162,6 +164,16 @@ interface LastAnswer {
 const SEATS: readonly Seat[] = [0, 1];
 
 /**
+ * How many batches to keep for a reconnecting client.
+ *
+ * Sized against the window it serves rather than against a round number: the
+ * seat hold is 90 s, and a busy turn produces a handful of batches, so a couple
+ * of dozen covers the absences this can actually be asked about. Anything older
+ * belongs to a player who has already been conceded.
+ */
+const BACKLOG_LIMIT = 24;
+
+/**
  * Timer defaults come from `balance.timer` when the room is built from content;
  * these are the fallback for a content index that somehow lacks them, and match
  * canon §2 (75 s + 15 s rope).
@@ -208,6 +220,20 @@ export class Room {
   private pausedAtMs: number | null = null;
   /** Paused time already credited back to the *current* turn. */
   private pausedMsThisTurn = 0;
+
+  /**
+   * Recent batches per seat, for §8.3's backlog. **In memory only.**
+   *
+   * Deliberately not in `RoomSave`. A batch is 0.3–3 KB and these are per seat,
+   * so persisting them would mean writing something like a hundred kilobytes to
+   * storage on every single intent — to protect an animation.
+   *
+   * The consequence is stated rather than hidden: after the object is evicted
+   * the backlog is gone, and a resume then gets what it gets today, which is a
+   * correct snapshot and no replay. Best-effort is the right shape for a thing
+   * whose absence costs nothing but fidelity.
+   */
+  private readonly backlog: RoomFrame[][] = [[], []];
 
   constructor(content: ContentIndex, options: RoomOptions, nowMs: number) {
     this.content = content;
@@ -495,6 +521,24 @@ export class Room {
     return this.presenceFrames(nowMs);
   }
 
+  /**
+   * The batches this seat missed, oldest first (§8.3).
+   *
+   * Marked `catchUp` so the client can tell them from duplicates — without the
+   * flag they are indistinguishable, both being a `seq` it has already applied,
+   * and the client would correctly drop them along with the animation.
+   */
+  backlogFor(seat: Seat, sinceSeq: number): Addressed[] {
+    const out: Addressed[] = [];
+    // A loop rather than filter+map, so the compiler narrows `frame` to the
+    // batch variant — `catchUp` exists on that one and on none of the others.
+    for (const frame of this.backlog[seat] ?? []) {
+      if (frame.t !== "batch" || frame.seq <= sinceSeq) continue;
+      out.push({ seat, frame: { ...frame, catchUp: true } });
+    }
+    return out;
+  }
+
   /** Is a seat currently held open for somebody who is not here? */
   isDisconnected(seat: Seat): boolean {
     return this.disconnectedAtMs[seat] !== null;
@@ -640,6 +684,9 @@ export class Room {
         ...(turnChanged || phaseChanged || this.state.winner !== null ? { snapshot: this.snapshotFor(seat, nowMs) } : {}),
       };
       out.push({ seat, frame });
+      const kept = this.backlog[seat]!;
+      kept.push(frame);
+      if (kept.length > BACKLOG_LIMIT) kept.shift();
     }
 
     if (clientIntentId !== null) {

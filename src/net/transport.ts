@@ -128,6 +128,13 @@ export type EventCause =
  * stay faithful, and `cause.kind: "timer"` is the only thing distinguishing it.
  */
 export interface EventBatch {
+  /**
+   * True for a batch replayed after a reconnect (§8.3).
+   *
+   * The presenter should show it instantly rather than at normal pacing, and
+   * the view must **not** apply it: the resume snapshot already includes it.
+   */
+  catchUp?: boolean;
   seq: number;
   cause: EventCause;
   events: EngineEvent[];

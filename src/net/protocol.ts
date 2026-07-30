@@ -230,6 +230,17 @@ export const zEventCause: z.ZodType<EventCause> = z.discriminatedUnion("kind", [
 ]);
 
 export const zEventBatch = z.object({
+  /**
+   * A batch the client has already applied, resent so the *animation* is not
+   * lost (§8.3). State is already correct from the resume snapshot; these exist
+   * only so a player who was away for forty seconds can see what happened
+   * rather than find the board rearranged.
+   *
+   * Optional and absent in the normal case, so an old client ignores it and a
+   * new one can tell a catch-up from a duplicate — which it otherwise cannot,
+   * both being "a seq I have already seen".
+   */
+  catchUp: z.boolean().optional(),
   seq: z.number().int().positive(),
   cause: zEventCause,
   events: z.array(z.unknown()).max(512),
