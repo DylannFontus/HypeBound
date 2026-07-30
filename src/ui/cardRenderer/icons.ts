@@ -8,6 +8,8 @@
  */
 
 import type { CurrentId, StatusId } from "../../engine/types";
+import { getAsset } from "../art/assetLoader";
+import { iconPath } from "../art/iconAssets";
 
 type IconFn = (ctx: CanvasRenderingContext2D) => void;
 
@@ -191,6 +193,21 @@ export function drawCurrentIcon(
   radius: number,
   color: string
 ): void {
+  /**
+   * A painted icon if one exists, the drawn one otherwise.
+   *
+   * Drawn **untinted**. The procedural version is a single-colour path that
+   * takes `color` from the frame, but the painted set was commissioned with a
+   * specified colour per Current and a brighter inner core (see
+   * `docs/ASSET-BRIEF.md` §2.2). Re-tinting it flat would throw that away and
+   * make eight hand-made icons look like the eight shapes they replaced.
+   */
+  const painted = getAsset(iconPath("current", current));
+  if (painted) {
+    ctx.drawImage(painted, cx - radius, cy - radius, radius * 2, radius * 2);
+    return;
+  }
+
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(radius, radius);
@@ -353,15 +370,29 @@ export function drawStatusIcon(
   ctx.restore();
 }
 
-/** Simple faction crest: a ringed monogram, distinct per faction by petal count. */
+/**
+ * The faction crest — painted if one exists, otherwise a ringed monogram
+ * distinguished by petal count.
+ *
+ * Takes the faction **id** as well as the index now. The index alone is enough
+ * to pick a petal count but cannot name a file, and the drawn fallback has to
+ * keep working for a faction whose crest has not been painted yet.
+ */
 export function drawFactionCrest(
   ctx: CanvasRenderingContext2D,
   factionIndex: number,
   cx: number,
   cy: number,
   radius: number,
-  color: string
+  color: string,
+  factionId?: string
 ): void {
+  const painted = factionId ? getAsset(iconPath("crest", factionId)) : null;
+  if (painted) {
+    ctx.drawImage(painted, cx - radius, cy - radius, radius * 2, radius * 2);
+    return;
+  }
+
   const petals = 3 + (factionIndex % 8);
   ctx.save();
   ctx.translate(cx, cy);

@@ -34,7 +34,7 @@
  */
 
 import manifest from "../../../data/asset-manifest.json";
-import { getAsset, onAssetLoaded } from "./assetLoader";
+import { getAsset, onAssetLoaded, preloadAssets } from "./assetLoader";
 
 const ICONS = manifest.icons as { dir: string; groups: Record<string, string[]> };
 const BOARDS = manifest.boards as { dir: string; assets: string[] };
@@ -121,6 +121,18 @@ export function installIconStyles(): void {
   for (const group of HTML_ICON_GROUPS) {
     for (const id of iconIds(group)) apply(group, id);
   }
+
+  /**
+   * Warm the icons the card renderer draws.
+   *
+   * Currents and crests are painted onto every card canvas, so if they arrive
+   * *after* a card is drawn each of those canvases needs repainting. Loading
+   * the nineteen of them at boot means that almost never happens — by the time
+   * any screen renders a card they are decoded and in the cache. The renderer
+   * still has a one-shot repaint for the first boot, where the race is real.
+   */
+  preloadAssets(iconIds("current").map((id) => iconPath("current", id)));
+  preloadAssets(iconIds("crest").map((id) => iconPath("crest", id)));
 
   /**
    * The wordmark, by the same mechanism.

@@ -12,6 +12,7 @@ import type { CardDef, CharacterCardDef, CurrentId, EquipmentCardDef, LeaderCard
 import { CARD_W, CARD_H, CURRENT_PALETTE, FACTION_COLOR, LAYOUT, RARITY_STYLE, hexToRgba, mix } from "./palette";
 import { traceFrame, roundedRect } from "./frameShapes";
 import { drawCurrentIcon, drawFactionCrest } from "./icons";
+import { onAssetLoaded } from "../art/assetLoader";
 import { drawHatch, patternsOn } from "./hatch";
 import { drawPlaceholderArt } from "./placeholderArt";
 import { getCardArt, onArtLoaded } from "../art/artLoader";
@@ -685,7 +686,15 @@ export function renderCard(
   // leaders are never played from hand, so they carry no Hype cost gem
   if (card.type !== "leader") drawCostGem(ctx, card.cost, current);
   drawCurrentBadge(ctx, current);
-  drawFactionCrest(ctx, FACTION_INDEX[card.faction] ?? 10, LAYOUT.crest.cx, LAYOUT.crest.cy, LAYOUT.crest.r, hexToRgba(FACTION_COLOR[card.faction] ?? "#8f8aa8", 0.92));
+  drawFactionCrest(
+    ctx,
+    FACTION_INDEX[card.faction] ?? 10,
+    LAYOUT.crest.cx,
+    LAYOUT.crest.cy,
+    LAYOUT.crest.r,
+    hexToRgba(FACTION_COLOR[card.faction] ?? "#8f8aa8", 0.92),
+    card.faction
+  );
   drawRarityGem(ctx, card);
 
   // stat chips — board cards read theirs at ~121px wide, so they enlarge
@@ -767,6 +776,23 @@ export function renderCardToCanvas(card: CardDef, width: number, options: Render
     if (cardId !== card.id) return;
     paint();
     unsubscribe();
+  });
+
+  /**
+   * The same treatment for the Current and crest icons.
+   *
+   * They are preloaded at boot, so this almost never fires — but "almost" is
+   * doing real work on a first visit, where a card can be drawn in the
+   * milliseconds before nineteen small PNGs finish decoding. Without it those
+   * cards keep the procedural shapes until something else forces a repaint,
+   * which on the collection screen may be never.
+   *
+   * One shot, then it lets go. A screen can hold hundreds of card canvases and
+   * each listener that outlived its canvas would be a leak.
+   */
+  const unsubscribeIcons = onAssetLoaded(() => {
+    paint();
+    unsubscribeIcons();
   });
 
   return canvas;
