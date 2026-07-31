@@ -62,6 +62,9 @@ export class LocalTransport implements MatchTransport {
   private closed = false;
 
   /** Wall clock at which the current seat's turn began; drives `clocks`. */
+  /** Offline there is no server, so the interface's expiry is the mechanism. */
+  readonly clockAuthority = "client" as const;
+
   private turnStartedAt = Date.now();
   private clockedSeat: Seat;
 

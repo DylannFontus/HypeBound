@@ -258,6 +258,22 @@ export interface MatchTransport {
    */
   readonly content: ContentIndex;
 
+  /**
+   * Whose clock may decide that a turn is over.
+   *
+   * `"server"` means this transport's owner injects the `endTurn` itself when
+   * time runs out, and the client must **not** — it renders the countdown and
+   * nothing more. `"client"` means there is nobody else to do it, so the
+   * interface's expiry callback is the mechanism.
+   *
+   * Stated rather than inferred, because the interesting case is invisible.
+   * Online the server pauses its clock during a disconnect grace window; a
+   * client running its own interval keeps counting through the pause and ends
+   * a turn the server still considers live. Nothing about the two transports'
+   * shapes reveals that difference, so it is declared.
+   */
+  readonly clockAuthority: "client" | "server";
+
   /** Join or rejoin; resolves with the authoritative starting snapshot. */
   connect(): Promise<MatchSnapshot>;
 

@@ -230,6 +230,27 @@ describe("the two differ only where they must", () => {
     }
   });
 
+  it("names who may decide a turn is over", async () => {
+    /**
+     * The property exists because the difference is otherwise invisible, and
+     * the cost of getting it wrong is a turn that ends while the server still
+     * considers it live.
+     *
+     * Offline there is nobody else, so the client owns expiry. Online the room
+     * injects its own `endTurn` on timeout — and pauses its clock while a
+     * disconnected player is inside the grace window, which a client interval
+     * would count straight through. Asserting both values rather than merely
+     * that the field exists: a third transport defaulting to "client" would
+     * satisfy a presence check and reintroduce exactly this bug.
+     */
+    for (const { name, make } of IMPLEMENTATIONS) {
+      const { transport } = await make();
+      const authority = transport.clockAuthority;
+      expect(["client", "server"], `${name} must declare one`).toContain(authority);
+      expect(authority, `${name}`).toBe(name.includes("Ws") || name.includes("loopback") ? "server" : "client");
+    }
+  });
+
   it("offers hotseat controls only where two people share a device", async () => {
     /**
      * `hotseat` is a question about the *match*, not about the class. A

@@ -16,6 +16,7 @@ import type {
   PlayerView,
   Seat,
 } from "../../engine/types";
+import type { MatchClocks } from "../../net/transport";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { getSettings } from "../../save/settings";
 import { audio } from "../../audio/audio";
@@ -73,7 +74,21 @@ export class BattleHud {
   private readonly toastLayer: HTMLElement;
 
   private timerHandle: number | null = null;
-  private timerRemaining = 0;
+  /**
+   * The last clocks the authority reported, and the local instant they landed.
+   *
+   * The countdown is interpolated from these two rather than counted down by
+   * this class. `receivedAt` is a *local* reading, so the elapsed time since it
+   * is measured against the same clock that produced it and no skew between the
+   * device and the server can enter the arithmetic. `serverNowMs` is
+   * deliberately not compared with `Date.now()` for exactly that reason.
+   */
+  private clocks: MatchClocks | null = null;
+  private clocksReceivedAt = 0;
+  /** Whole seconds last rendered, so cues fire once per second and not per frame. */
+  private lastWholeSecond = -1;
+  private ropeAnnounced = false;
+  private onExpire: (() => void) | null = null;
   private view: PlayerView | null = null;
 
   constructor(
@@ -429,39 +444,94 @@ export class BattleHud {
   // Turn timer
   // -------------------------------------------------------------------------
 
-  startTimer(seconds: number, onExpire: () => void): void {
-    this.stopTimer();
-    this.timerRemaining = seconds;
-    const rope = this.content.balance.timer.ropeSeconds;
+  /**
+   * Show the countdown the match authority is reporting.
+   *
+   * The HUD used to run its own `setInterval` seeded from `balance.timer`,
+   * which is right offline and wrong online in a way nothing on screen reveals.
+   * The room pauses its clock while a disconnected opponent is inside the grace
+   * window; an interval here counts through the pause, so the ring reached zero
+   * while the server still considered the turn live — and, because the client
+   * also owned expiry, it ended the turn on the strength of its own wrong
+   * number.
+   *
+   * Now the numbers come from `MatchClocks` and this only interpolates between
+   * updates. `onExpire` is supplied **only** by a caller whose transport says
+   * `clockAuthority === "client"`; online it is null and the room's injected
+   * `endTurn` arrives as an ordinary event.
+   */
+  setClock(clocks: MatchClocks | null, onExpire: (() => void) | null): void {
+    if (!clocks) {
+      this.stopTimer();
+      return;
+    }
 
-    const tick = (): void => {
-      this.timerRemaining -= 1;
-      const total = seconds;
-      const ratio = Math.max(0, this.timerRemaining / total);
-      this.timerRing.style.setProperty("--timer", String(ratio));
-      const inRope = this.timerRemaining <= rope;
-      this.timerRing.classList.toggle("rope", inRope);
-      this.timerLabel.textContent = inRope ? String(Math.max(0, this.timerRemaining)) : "";
+    const changedTurn = this.clocks?.activeSeat !== clocks.activeSeat;
+    this.clocks = clocks;
+    this.clocksReceivedAt = performance.now();
+    this.onExpire = onExpire;
+    if (changedTurn) {
+      this.ropeAnnounced = false;
+      this.lastWholeSecond = -1;
+    }
 
-      /**
-       * §11 rows 3 and 4 — the rope, and its last five ticks.
-       *
-       * The clock is the one thing on this board that takes something away from
-       * you without your doing anything, so it is the cue with the strongest
-       * claim to existing. It fires once on entering the rope and then once a
-       * second for the final five.
-       */
-      if (this.timerRemaining === rope) audio.cue("ropeStarted");
-      else if (inRope && this.timerRemaining > 0 && this.timerRemaining <= 5) audio.cue("ropeTick");
+    if (this.timerHandle === null) {
+      // Four times a second: the ring moves smoothly enough at this size and it
+      // is a quarter of the work of a frame loop for a thing that shows
+      // integers.
+      this.timerHandle = window.setInterval(() => this.paintClock(), 250);
+    }
+    this.paintClock();
+  }
 
-      if (this.timerRemaining <= 0) {
-        this.stopTimer();
-        onExpire();
-      }
-    };
+  private paintClock(): void {
+    const clocks = this.clocks;
+    if (!clocks) return;
 
-    this.timerRing.style.setProperty("--timer", "1");
-    this.timerHandle = window.setInterval(tick, 1000);
+    const since = performance.now() - this.clocksReceivedAt;
+    const turnLeft = Math.max(0, clocks.turnMsRemaining - since);
+    const ropeLeft = Math.max(0, clocks.ropeMsRemaining - since);
+    const inRope = turnLeft <= 0 && ropeLeft > 0;
+
+    /**
+     * The ring tracks the turn, then the rope. Two phases rather than one long
+     * bar, because the rope is a different promise: the turn is time you have,
+     * the rope is time you are being given back.
+     */
+    const turnMs = Math.max(1, this.content.balance.timer.turnSeconds * 1000);
+    const ropeMs = Math.max(1, this.content.balance.timer.ropeSeconds * 1000);
+    const ratio = inRope ? ropeLeft / ropeMs : turnLeft / turnMs;
+    this.timerRing.style.setProperty("--timer", String(Math.max(0, Math.min(1, ratio))));
+    this.timerRing.classList.toggle("rope", inRope);
+
+    const secondsLeft = Math.ceil((inRope ? ropeLeft : turnLeft) / 1000);
+    this.timerLabel.textContent = inRope ? String(Math.max(0, secondsLeft)) : "";
+
+    /**
+     * §11 rows 3 and 4 — the rope, and its last five ticks.
+     *
+     * The clock is the one thing on this board that takes something away from
+     * you without your doing anything, so it is the cue with the strongest
+     * claim to existing. Guarded on the whole second so interpolating four
+     * times a second does not fire it four times.
+     */
+    if (inRope && !this.ropeAnnounced) {
+      this.ropeAnnounced = true;
+      audio.cue("ropeStarted");
+      audio.play("sfx.turn.warning");
+    }
+    if (inRope && secondsLeft !== this.lastWholeSecond && secondsLeft > 0 && secondsLeft <= 5) {
+      audio.cue("ropeTick");
+    }
+    this.lastWholeSecond = secondsLeft;
+
+    if (turnLeft <= 0 && ropeLeft <= 0) {
+      const expire = this.onExpire;
+      this.stopTimer();
+      // Null online: the room injects its own `endTurn` and this side simply
+      // stops showing a countdown that has run out.
+      expire?.();
+    }
   }
 
   stopTimer(): void {
@@ -469,6 +539,10 @@ export class BattleHud {
       clearInterval(this.timerHandle);
       this.timerHandle = null;
     }
+    this.clocks = null;
+    this.onExpire = null;
+    this.ropeAnnounced = false;
+    this.lastWholeSecond = -1;
     this.timerRing.classList.remove("rope");
     this.timerLabel.textContent = "";
     this.timerRing.style.setProperty("--timer", "1");

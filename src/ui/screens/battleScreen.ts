@@ -15,7 +15,7 @@ import type {
   TargetRef,
 } from "../../engine/types";
 import { LocalTransport } from "../../net/localTransport";
-import { isYourTurn, type MatchTransport, type TransportStatus } from "../../net/transport";
+import { isYourTurn, type MatchClocks, type MatchTransport, type TransportStatus } from "../../net/transport";
 import { viewToState } from "../../net/viewToState";
 /**
  * Still imported directly because these enumerate *targets*, and they take a
@@ -222,6 +222,8 @@ export class BattleScreen {
   private ended = false;
   /** False until `connect()` resolves. `refresh()` must not read a view before then. */
   private connected = false;
+  /** The last clocks the authority reported; the HUD interpolates from them. */
+  private clocks: MatchClocks | null = null;
   private readonly coach: CoachOverlay | null;
   private readonly runner: StageRunner | null;
   private endSequenceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -397,6 +399,14 @@ export class BattleScreen {
      * batch is acknowledged once it has actually been shown.
      */
     this.match.onBatch(async (batch) => {
+      /**
+       * The clocks travel with every batch, so this is where they are kept.
+       *
+       * Cached rather than read on demand because there is nowhere to read them
+       * from — the transport reports them as part of what it delivers, and
+       * between deliveries the HUD interpolates.
+       */
+      this.clocks = batch.clocks;
       // announced from the event stream, because "it was defeated" is not
       // visible in a snapshot of a board that no longer contains it
       this.mirror.report(this.match.view(), batch.events);
@@ -502,7 +512,8 @@ export class BattleScreen {
     audio.playMusic(audio.hasSlot(factionSlot) ? factionSlot : "music.battle.default");
     audio.playAmbient("ambient.battle");
 
-    await this.match.connect();
+    const snapshot = await this.match.connect();
+    this.clocks = snapshot.clocks;
     this.connected = true;
     this.refresh();
 
@@ -557,7 +568,16 @@ export class BattleScreen {
     // A lesson has no clock — being timed while reading is the opposite of
     // teaching. Everything else keeps the normal turn timer.
     if (isYourTurn(view) && !this.ended && !this.options.stage) {
-      this.hud.startTimer(this.content.balance.timer.turnSeconds, () => void this.endTurn());
+      /**
+       * Expiry is passed only when this side owns the clock.
+       *
+       * Online the room injects its own `endTurn` on timeout and journals it;
+       * a second countdown here deciding the same thing would be a race, and a
+       * losing one — the room pauses its clock inside a disconnect grace window
+       * and this side has no way to know it should pause too.
+       */
+      const ownsExpiry = this.match.clockAuthority === "client";
+      this.hud.setClock(this.clocks, ownsExpiry ? () => void this.endTurn() : null);
     } else {
       this.hud.stopTimer();
     }

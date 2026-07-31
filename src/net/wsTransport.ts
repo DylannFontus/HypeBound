@@ -143,6 +143,18 @@ export class WsTransport implements MatchTransport {
   readonly content: ContentIndex;
 
   /**
+   * The room decides expiry, and the client must not.
+   *
+   * §4.4: on timeout the room injects a real `endTurn` and journals it like any
+   * other intent. A client that also ran a countdown to zero would be a second
+   * authority racing the first — and it would be wrong more often than latency
+   * alone suggests, because the room *pauses* its clock while a disconnected
+   * player is inside the grace window. An interval on this side counts straight
+   * through that pause and would end a turn the room still considers live.
+   */
+  readonly clockAuthority = "server" as const;
+
+  /**
    * Declared, not merely omitted.
    *
    * `MatchTransport.hotseat` is optional, so leaving it off would satisfy the
