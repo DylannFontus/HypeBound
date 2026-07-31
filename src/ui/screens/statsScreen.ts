@@ -139,7 +139,7 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
             <div><dt>Win rate</dt><dd>${pct(board.overall.winRate)}</dd></div>
             <div><dt>Record</dt><dd>${board.overall.won}–${board.overall.lost}${board.overall.drawn > 0 ? `–${board.overall.drawn}` : ""}</dd></div>
             <div><dt>Longest streak</dt><dd>${board.longestWinStreak}</dd></div>
-            <div><dt>Right now</dt><dd>${esc(streak)}</dd></div>
+            <div><dt><span class="ui-icon ui-icon-streak" aria-hidden="true">◆</span> Right now</dt><dd>${esc(streak)}</dd></div>
             <div><dt>Average length</dt><dd>${round1(board.averageTurns)} turns</dd></div>
           </dl>
           <p class="muted stats-sample">

@@ -190,7 +190,7 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
 
         <section class="missions-group">
           <div class="missions-group-head">
-            <h2 class="missions-group-title">Daily</h2>
+            <h2 class="missions-group-title"><span class="ui-icon ui-icon-mission-daily" aria-hidden="true">☀</span> Daily</h2>
             <span class="muted">New mission in ${untilReset(now, false)}</span>
           </div>
           <ul class="missions-list" id="missions-daily">${dailies.map(card).join("")}</ul>
@@ -238,7 +238,7 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
 
         <section class="missions-group">
           <div class="missions-group-head">
-            <h2 class="missions-group-title">Weekly</h2>
+            <h2 class="missions-group-title"><span class="ui-icon ui-icon-mission-weekly" aria-hidden="true">☾</span> Weekly</h2>
             <span class="muted">New missions in ${untilReset(now, true)}</span>
           </div>
           <ul class="missions-list" id="missions-weekly">${weeklies.map(card).join("")}</ul>

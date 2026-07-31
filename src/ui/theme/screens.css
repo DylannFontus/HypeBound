@@ -188,6 +188,57 @@ html.has-brand-wordmark .lobby-wordmark {
   }
 }
 
+/**
+ * Interface icons, by the same mechanism as the currencies above.
+ *
+ * The glyph stays in the markup and keeps holding the box; when a file exists
+ * the class turns the text transparent and paints the picture behind it. Size
+ * is deliberately *not* set here — every host (`.lobby-nav-icon`, a missions
+ * heading, a stat row) already sizes its own glyph, and overriding that would
+ * make eight icons the same size in eight places that are not.
+ */
+.ui-icon {
+  display: inline-block;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  min-width: 1em;
+  min-height: 1em;
+}
+
+html.has-icon-ui-merch-drop .ui-icon-merch-drop {
+  color: transparent;
+  background-image: var(--icon-ui-merch-drop);
+}
+html.has-icon-ui-merch-drop-open .ui-icon-merch-drop-open {
+  color: transparent;
+  background-image: var(--icon-ui-merch-drop-open);
+}
+html.has-icon-ui-mastery .ui-icon-mastery {
+  color: transparent;
+  background-image: var(--icon-ui-mastery);
+}
+html.has-icon-ui-hype-wave .ui-icon-hype-wave {
+  color: transparent;
+  background-image: var(--icon-ui-hype-wave);
+}
+html.has-icon-ui-mission-daily .ui-icon-mission-daily {
+  color: transparent;
+  background-image: var(--icon-ui-mission-daily);
+}
+html.has-icon-ui-mission-weekly .ui-icon-mission-weekly {
+  color: transparent;
+  background-image: var(--icon-ui-mission-weekly);
+}
+html.has-icon-ui-achievement .ui-icon-achievement {
+  color: transparent;
+  background-image: var(--icon-ui-achievement);
+}
+html.has-icon-ui-streak .ui-icon-streak {
+  color: transparent;
+  background-image: var(--icon-ui-streak);
+}
+
 .currency-icon { font-size: var(--fs-md); }
 .currency-icon.clout { color: var(--accent-cool); }
 .currency-icon.shards { color: var(--accent-gold); }

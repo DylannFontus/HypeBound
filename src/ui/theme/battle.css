@@ -421,6 +421,15 @@
 }
 
 .conf-symbols { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
+
+/* The painted emblem, sized to the pair of initials it replaces so the button
+   does not change width depending on whether the art exists. */
+.conf-emblem {
+  width: 55px;
+  height: 55px;
+  object-fit: contain;
+  display: block;
+}
 .conf-sym {
   width: 26px; height: 26px;
   display: grid; place-items: center;

@@ -175,7 +175,7 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
       overlay.hidden = false;
       overlay.innerHTML = `
         <div class="reveal-panel panel panel-chrome">
-          <div class="eyebrow">Drop opened</div>
+          <div class="eyebrow"><span class="ui-icon ui-icon-merch-drop-open" aria-hidden="true">◈</span> Drop opened</div>
           <div class="reveal-cards">
             ${drop.cards
               .map((entry, index) => {

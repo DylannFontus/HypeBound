@@ -166,22 +166,22 @@ export function createLobbyScreen(content: ContentIndex, callbacks: LobbyCallbac
             <span class="lobby-nav-icon">✎</span><span>Deck Builder</span>
           </button>
           <button class="btn lobby-nav-btn" id="lobby-shop">
-            <span class="lobby-nav-icon">◈</span><span>Merch Drops</span>
+            <span class="lobby-nav-icon ui-icon ui-icon-merch-drop">◈</span><span>Merch Drops</span>
           </button>
           <button class="btn lobby-nav-btn" id="lobby-missions">
-            <span class="lobby-nav-icon">☑</span><span>Missions</span>
+            <span class="lobby-nav-icon ui-icon ui-icon-mission-daily">☑</span><span>Missions</span>
             ${claimableCount > 0 ? `<span class="lobby-nav-badge">${claimableCount}</span>` : ""}
           </button>
           <button class="btn lobby-nav-btn" id="lobby-mastery">
-            <span class="lobby-nav-icon">★</span><span>Mastery</span>
+            <span class="lobby-nav-icon ui-icon ui-icon-mastery">★</span><span>Mastery</span>
             ${masteryCount > 0 ? `<span class="lobby-nav-badge">${masteryCount}</span>` : ""}
           </button>
           <button class="btn lobby-nav-btn" id="lobby-pass">
-            <span class="lobby-nav-icon">〜</span><span>Hype Wave</span>
+            <span class="lobby-nav-icon ui-icon ui-icon-hype-wave">〜</span><span>Hype Wave</span>
             ${passCount > 0 ? `<span class="lobby-nav-badge">${passCount}</span>` : ""}
           </button>
           <button class="btn lobby-nav-btn" id="lobby-achievements">
-            <span class="lobby-nav-icon">🏆</span><span>Achievements</span>
+            <span class="lobby-nav-icon ui-icon ui-icon-achievement">🏆</span><span>Achievements</span>
             ${achievementCount > 0 ? `<span class="lobby-nav-badge">${achievementCount}</span>` : ""}
           </button>
           <button class="btn lobby-nav-btn" id="lobby-events">

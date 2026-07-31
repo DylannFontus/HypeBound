@@ -133,6 +133,16 @@ export function installIconStyles(): void {
    */
   preloadAssets(iconIds("current").map((id) => iconPath("current", id)));
   preloadAssets(iconIds("crest").map((id) => iconPath("crest", id)));
+  /**
+   * Confluences too, for a sharper reason than the other two.
+   *
+   * A Confluence emblem is drawn the moment one becomes available, and that is
+   * a rare, loud moment in a match. Without warming them the first appearance
+   * renders the fallback initials and swaps to the emblem on the next sync —
+   * so the one time the player is most likely to look at it is the one time it
+   * would be wrong.
+   */
+  preloadAssets(iconIds("confluence").map((id) => iconPath("confluence", id)));
 
   /**
    * The wordmark, by the same mechanism.

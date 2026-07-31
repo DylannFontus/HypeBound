@@ -17,6 +17,8 @@ import type {
   Seat,
 } from "../../engine/types";
 import type { MatchClocks } from "../../net/transport";
+import { getAsset } from "../art/assetLoader";
+import { iconPath } from "../art/iconAssets";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { getSettings } from "../../save/settings";
 import { audio } from "../../audio/audio";
@@ -375,12 +377,30 @@ export class BattleHud {
       const button = el("button", "confluence-btn");
       button.style.setProperty("--c-a", paletteA.key);
       button.style.setProperty("--c-b", paletteB.key);
-      button.innerHTML = `
+
+      /**
+       * The painted Confluence emblem where one exists, the two parent initials
+       * where it does not.
+       *
+       * The letters are a recipe — GALE + PULSE — and the emblem is the result.
+       * Showing both would say the same thing twice in a space the width of a
+       * thumb, and the recipe survives anyway: the button is already a gradient
+       * between the two Current colours, the emblems were drawn from those same
+       * two colours, and the title attribute spells it out for anyone hovering
+       * or using a screen reader.
+       */
+      const emblem = getAsset(iconPath("confluence", availability.confluence));
+      const symbols = emblem
+        ? `<span class="conf-symbols"><img class="conf-emblem" src="${emblem.src}" alt="" /></span>`
+        : `
         <span class="conf-symbols">
           <span class="conf-sym" style="--c:${paletteA.key}">${paletteA.label[0]}</span>
           <span class="conf-plus">+</span>
           <span class="conf-sym" style="--c:${paletteB.key}">${paletteB.label[0]}</span>
-        </span>
+        </span>`;
+
+      button.innerHTML = `
+        ${symbols}
         <span class="conf-body">
           <span class="conf-name">${def.name}</span>
           <span class="conf-text">${def.text}</span>
