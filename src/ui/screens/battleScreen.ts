@@ -500,6 +500,7 @@ export class BattleScreen {
     const leader = this.options.content.leaders[this.options.playerDeck.leaderCardId];
     const factionSlot = `music.battle.${leader?.faction ?? ""}`;
     audio.playMusic(audio.hasSlot(factionSlot) ? factionSlot : "music.battle.default");
+    audio.playAmbient("ambient.battle");
 
     await this.match.connect();
     this.connected = true;

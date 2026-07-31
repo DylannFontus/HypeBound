@@ -222,6 +222,36 @@ export class BattlePresenter {
         break;
       }
 
+      /**
+       * A card lost because the hand was full.
+       *
+       * Worth a sound of its own: the card is gone and nothing else on screen
+       * says so as plainly as hearing it burn.
+       */
+      case "cardBurned": {
+        this.audio.play("sfx.card.burn");
+        await sleep(this.time(TIMING.quiet));
+        break;
+      }
+
+      /**
+       * A Reaction going face-down. Deliberately not the Current sound the
+       * other cards get — nothing has been cast yet, something has been *set*,
+       * and the two should not be confusable by ear.
+       */
+      case "reactionSet": {
+        this.audio.play("sfx.card.set");
+        this.view.sync(view);
+        await sleep(this.time(TIMING.quiet));
+        break;
+      }
+
+      case "statusRemoved": {
+        this.audio.play("sfx.status.expire");
+        await sleep(this.time(TIMING.quiet));
+        break;
+      }
+
       case "statusApplied": {
         const definition = this.content.statuses[event.status.id];
         const color = definition?.polarity === "positive" ? "#7dffb0" : "#ff6b8a";

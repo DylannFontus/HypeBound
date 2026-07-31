@@ -153,7 +153,12 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
   const buy = (): void => {
     const result = openMerchDrop(content);
     if (!result) return;
-    audio.play("sfx.ui.click");
+    /**
+     * The drop itself, not a button click. This is the one moment in the game
+     * that is purely a reward, and it was silent.
+     */
+    audio.play("sfx.pack.open");
+    audio.playMusic("music.packOpening");
     revealing = result;
     revealed = 0;
     render();
@@ -229,6 +234,15 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
 
     const step = (): void => {
       revealed += 1;
+      /**
+       * Sounded per card as it turns, and only for the ones worth sounding.
+       * A chime on every common would make the rare reveal mean nothing, which
+       * is the opposite of what the sound is for.
+       */
+      const turned = drop.cards[revealed - 1];
+      if (turned && (turned.rarity === "epic" || turned.rarity === "legendary")) {
+        audio.play("sfx.pack.rareReveal");
+      }
       paint();
       if (revealed < drop.cards.length) timer = setTimeout(step, getSettings().reducedMotion ? 0 : 260);
     };
@@ -241,6 +255,9 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
     timer = null;
     revealing = null;
     revealed = 0;
+    // Back to the shop's own soundscape; the opening theme belongs to the
+    // reveal and would otherwise keep playing over the store.
+    audio.playMusic("music.menu");
     render();
   };
 

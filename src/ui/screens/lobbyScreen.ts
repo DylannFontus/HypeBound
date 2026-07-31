@@ -287,6 +287,9 @@ export function createLobbyScreen(content: ContentIndex, callbacks: LobbyCallbac
   bind("lobby-profile", callbacks.onProfile);
 
   audio.playMusic("music.menu");
+  // The room tone under the theme. Independent of the music, so a screen
+  // change that swaps the track does not restart the bed.
+  audio.playAmbient("ambient.menu");
 
   return { root };
 }

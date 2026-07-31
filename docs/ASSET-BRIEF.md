@@ -456,29 +456,30 @@ pulse will fight the track on top of it.
 `data/audio-manifest.json` declares 42 sfx slots, every one silent. Same wiring
 as the music: drop a file in, point the slot at it, no code change.
 
-### 5.1 Seven of these are unreachable — and so are three of the music tracks
+### 5.1 One slot is still unreachable — the other nine are wired
 
-Auditing the call sites for this section turned up slots that **nothing in the
-game plays**. A file dropped into one of them sits there in silence, and nothing
-reports it. Generate these last, or skip them until I have wired them:
+When this section was first written, ten slots were declared and played by
+nothing. Nine have since been wired to the events that were already there:
 
-| Slot | Why nothing plays it |
+| Slot | What triggers it now |
 |---|---|
-| `sfx.ui.navigate` | No screen uses it; navigation plays `sfx.ui.click`. |
-| `sfx.card.burn` | Nothing burns a card in the presenter yet. |
-| `sfx.card.set` | Face-down sets are not animated separately. |
-| `sfx.status.expire` | The presenter announces `status.apply` but never expiry. |
-| `sfx.turn.warning` | The turn rope has no audio hook. |
-| `sfx.pack.open` | The Merch Drops screen plays no audio at all. |
-| `sfx.pack.rareReveal` | Same screen, same reason. |
+| `sfx.ui.navigate` | Stepping between cards with the arrows in the collection — the one genuinely lateral movement in the interface, which is what the sound was written for. |
+| `sfx.card.burn` | The engine's `cardBurned` event: a card lost because the hand was full. |
+| `sfx.card.set` | The engine's `reactionSet` event. Deliberately not the Current sound the other cards get — nothing has been cast, something has been *set*. |
+| `sfx.status.expire` | The engine's `statusRemoved` event. |
+| `sfx.pack.open` | Opening a Merch Drop. |
+| `sfx.pack.rareReveal` | A revealed card that is **epic or legendary**. Not rare, despite the name: every drop has a Rare floor, so a chime on rare would fire every time and mean nothing. |
+| `music.packOpening` | Plays for the length of the reveal, then hands back to the menu theme. |
+| `ambient.menu` | The lobby, under the menu theme. |
+| `ambient.battle` | A match, under the faction theme. |
 
-**Correction to §4.** `music.packOpening`, `ambient.menu` and `ambient.battle`
-are in exactly the same position — declared, listed in this brief, and played by
-nothing. The other 14 music tracks are reachable and worth making now. I should
-have checked that before writing §4 rather than after.
+All nine were reachable from events the engine had emitted all along — the
+presenter simply had no `case` for them.
 
-Wiring all ten is small, and I can do it whenever you want. I would rather say
-so than let you spend generations on silence.
+**Still unreachable: `sfx.turn.warning`.** It needs a visible turn clock, and
+there is none in the battle interface. That is a feature rather than a wiring
+job, so the file will sit unused until the clock exists. Worth making anyway if
+you are generating the set — it will be wanted — just know it is silent today.
 
 ### 5.2 Format — FLAC
 
@@ -552,7 +553,7 @@ err quiet and err short.
 | `sfx.ui.hover` | `sfx/ui/hover.flac` | 40 ms | A very short airy UI blip, higher and much quieter than a click. One soft sine tick with a breath of filtered noise. |
 | `sfx.ui.back` | `sfx/ui/back.flac` | 90 ms | A short descending two-tone UI blip, a small downward interval, soft and rounded. |
 | `sfx.ui.error` | `sfx/ui/error.flac` | 120 ms | A short dull refusal buzz. A low detuned double-tick, flat and blunt — discouraging without being harsh or alarming. |
-| `sfx.ui.navigate` ⚠ | `sfx/ui/navigate.flac` | 90 ms | A short lateral swish, a tiny filtered noise sweep resolving into a soft tick. |
+| `sfx.ui.navigate` | `sfx/ui/navigate.flac` | 90 ms | A short lateral swish, a tiny filtered noise sweep resolving into a soft tick. |
 | `sfx.ui.toggle` | `sfx/ui/toggle.flac` | 80 ms | A small mechanical switch. A crisp two-part snap — on, then settle. |
 | `sfx.ui.confirm` | `sfx/ui/confirm.flac` | 220 ms | A short bright rising two-note chime, clean and affirmative, with a small bell timbre. |
 | `sfx.ui.reward` | `sfx/ui/reward.flac` | 700 ms | A sparkling ascending arpeggio of small bell tones with a light shimmering decay. Generous and pleased. |
@@ -562,8 +563,8 @@ err quiet and err short.
 | Slot | File | Length | Prompt |
 |---|---|---|---|
 | `sfx.card.draw` | `sfx/card/draw.flac` | 250 ms | A single playing card sliding off the top of a deck. A short paper friction sweep ending in a soft snap. |
-| `sfx.card.burn` ⚠ | `sfx/card/burn.flac` | 500 ms | A card catching fire. A quick paper crumple with a small flame whoosh and a brief ember crackle. |
-| `sfx.card.set` ⚠ | `sfx/card/set.flac` | 180 ms | A card placed face-down on a table. A soft muted slap on felt, close and dry. |
+| `sfx.card.burn` | `sfx/card/burn.flac` | 500 ms | A card catching fire. A quick paper crumple with a small flame whoosh and a brief ember crackle. |
+| `sfx.card.set` | `sfx/card/set.flac` | 180 ms | A card placed face-down on a table. A soft muted slap on felt, close and dry. |
 
 **Playing a card, by Current.** Eight sounds, one per element, each the moment of
 commitment. They should be siblings: same length, same weight, different
@@ -593,7 +594,7 @@ material.
 | Slot | File | Length | Prompt |
 |---|---|---|---|
 | `sfx.status.apply` | `sfx/status/apply.flac` | 300 ms | A condition latching on. A short metallic clasp with a small magical shimmer over it. |
-| `sfx.status.expire` ⚠ | `sfx/status/expire.flac` | 400 ms | A condition lifting. A soft reversed shimmer releasing and fading away. |
+| `sfx.status.expire` | `sfx/status/expire.flac` | 400 ms | A condition lifting. A soft reversed shimmer releasing and fading away. |
 
 ### 5.8 Confluences — 9
 
@@ -628,8 +629,8 @@ anything else here, and each should audibly contain **both** of its parents.
 
 | Slot | File | Length | Prompt |
 |---|---|---|---|
-| `sfx.pack.open` ⚠ | `sfx/pack/open.flac` | 700 ms | Foil tearing open. A crisp plastic rip releasing into a bright sparkle. |
-| `sfx.pack.rareReveal` ⚠ | `sfx/pack/rare-reveal.flac` | 1.8 s | Something rare revealing itself. A rising charge into a radiant bell chime with a long shimmering tail. A reward, not a jumpscare. |
+| `sfx.pack.open` | `sfx/pack/open.flac` | 700 ms | Foil tearing open. A crisp plastic rip releasing into a bright sparkle. |
+| `sfx.pack.rareReveal` | `sfx/pack/rare-reveal.flac` | 1.8 s | Something rare revealing itself. A rising charge into a radiant bell chime with a long shimmering tail. A reward, not a jumpscare. |
 
 ---
 
@@ -659,21 +660,20 @@ with no code change and no deploy.
    path starts playing. A slot pointing at a file that does not exist logs one
    line and stays silent — that is the designed behaviour, not a warning to fix.
 8. **`npm run verify:assets`** covers all of it: declared-versus-present, exact
-   sizes, a browser decode of every image, a check that a present interface icon
-   is genuinely in use, and a check that no audio file sits in the folder
+   sizes, a browser decode of every image, `decodeAudioData` on every sound
+   through the same call the game makes, a length check that catches an
+   interface sound nobody trimmed, a check that a present interface icon is
+   genuinely in use, and a check that no audio file sits in the folder
    unreachable by any slot.
 
 **Still on me:**
 
-1. **Ten unreachable slots** — the seven sfx in §5.1 plus `music.packOpening`,
-   `ambient.menu` and `ambient.battle`. Declared and wired to filenames, but no
-   code path plays them. Small work; say the word.
+1. **One unreachable slot.** `sfx.turn.warning` needs a visible turn clock and
+   the battle interface has none. A feature, not a wiring job. The other nine
+   that were listed here are done — see §5.1.
 2. **Confluence and interface icons have nowhere to appear.** All 17 exist, pass
    every check, and are loaded — but the game has no Confluence panel and no
    mission-icon slots to put them in. They are not wasted, they are early.
-3. **A Merch Drops opening sequence.** Three of the unreachable slots
-   (`sfx.pack.open`, `sfx.pack.rareReveal`, `music.packOpening`) all wait on the
-   same thing: that screen currently plays no audio at all.
 
 ---
 

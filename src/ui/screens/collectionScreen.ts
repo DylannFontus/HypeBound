@@ -339,7 +339,13 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     const step = (delta: number): void => {
       const next = siblings[index + delta];
       if (!next) return;
-      audio.play("sfx.ui.click");
+      /**
+       * `navigate`, not `click`. Stepping through the filtered grid is the one
+       * genuinely lateral movement in the interface, and the sound was written
+       * for it — a short sideways swish rather than a button press. Everywhere
+       * else that a button changes screen, `click` is still right.
+       */
+      audio.play("sfx.ui.navigate");
       openDetail(next);
     };
     for (const [delta, glyph, label] of [

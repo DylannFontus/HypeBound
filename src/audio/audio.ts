@@ -55,6 +55,19 @@ export class AudioManager {
    * that was asked for two screens ago.
    */
   private pendingMusic: { slot: string; fadeSeconds: number } | null = null;
+
+  /**
+   * The ambience bed, which is a second loop running underneath the music.
+   *
+   * Its own source rather than a second use of the music one, because the two
+   * are independent: the battle theme changes at the start of a match while the
+   * room tone under it does not, and a screen can want one without the other.
+   * It has its own channel already — `ambient` — so the player's own volume
+   * settings separate them with no extra attenuation here.
+   */
+  private ambientSource: AudioBufferSourceNode | null = null;
+  private currentAmbientSlot: string | null = null;
+  private pendingAmbient: { slot: string; fadeSeconds: number } | null = null;
   private warned = new Set<string>();
   private unlocked = false;
 
@@ -84,10 +97,14 @@ export class AudioManager {
       this.unlocked = true;
       void this.context.resume();
 
-      // Whatever asked for music while we were silent gets it now.
+      // Whatever asked for music or ambience while we were silent gets it now.
       const pending = this.pendingMusic;
       this.pendingMusic = null;
       if (pending) this.playMusic(pending.slot, pending.fadeSeconds);
+
+      const pendingBed = this.pendingAmbient;
+      this.pendingAmbient = null;
+      if (pendingBed) this.playAmbient(pendingBed.slot, pendingBed.fadeSeconds);
     } catch {
       this.unlocked = false;
     }
@@ -206,6 +223,60 @@ export class AudioManager {
       this.musicSource = source;
       this.currentMusicSlot = slot;
     });
+  }
+
+  /**
+   * Start the ambience bed, or swap it.
+   *
+   * Fades slower than music by default. A bed is meant to be noticed only when
+   * it stops, so arriving over two and a half seconds keeps it from announcing
+   * itself the way a track change does.
+   */
+  playAmbient(slot: string, fadeSeconds = 2.5): void {
+    if (!this.context || !this.unlocked) {
+      this.pendingAmbient = { slot, fadeSeconds };
+      return;
+    }
+    if (this.currentAmbientSlot === slot) return;
+    const path = this.resolvePath(slot);
+    if (!path) {
+      this.stopAmbient(fadeSeconds);
+      return;
+    }
+
+    void this.load(slot).then((buffer) => {
+      if (!buffer || !this.context) return;
+      this.stopAmbient(fadeSeconds);
+
+      const source = this.context.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+
+      const gain = this.context.createGain();
+      gain.gain.setValueAtTime(0, this.context.currentTime);
+      gain.gain.linearRampToValueAtTime(1, this.context.currentTime + fadeSeconds);
+
+      const channel = this.channelGains.get("ambient");
+      if (!channel) return;
+      source.connect(gain).connect(channel);
+      source.start();
+
+      this.ambientSource = source;
+      this.currentAmbientSlot = slot;
+    });
+  }
+
+  stopAmbient(fadeSeconds = 1.5): void {
+    this.pendingAmbient = null;
+    const source = this.ambientSource;
+    if (!source || !this.context) return;
+    this.ambientSource = null;
+    this.currentAmbientSlot = null;
+    try {
+      source.stop(this.context.currentTime + fadeSeconds);
+    } catch {
+      /* already stopped */
+    }
   }
 
   stopMusic(fadeSeconds = 0.8): void {
