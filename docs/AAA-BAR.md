@@ -306,3 +306,36 @@ These override any aesthetic ambition:
 - **Nothing regresses.** The verify scripts and the 1,700-test suite are the
   contract. Pretty and broken is broken.
 - Every screen still has to work at 1280×720 and on a phone in landscape.
+
+---
+
+## 10. What is deliberately out of scope
+
+Judging these is a wasted review, and "fixing" them does damage.
+
+### Card art coverage
+
+The card paintings are hand-authored and **in progress** — roughly 120 of 296 at
+the time of writing. That number is the artist's schedule, not a quality signal.
+
+- **Never score art coverage.** A collection grid full of placeholders is
+  evidence that art is being made, and nothing else.
+- **Never generate, synthesise or fabricate card art** — not procedurally, not as
+  a temporary fill, not for a demo, not to make a screenshot look better in a
+  review. Art arrives one way: a PNG dropped into
+  `public/assets/art/<card-id>.png`. Nothing else may write into that space.
+- **Do not quietly downweight the placeholder either**, which is the opposite
+  mistake. 176 cards wear it today and some will wear it for months. It is a
+  long-lived, heavily-seen state and §5 applies to it in full: it must look
+  *deliberate*, so a player reads "art pending" rather than "this one is broken".
+
+The genuine test the art gap exposes — and it is a good one — is whether **the
+frame carries the card on its own.** Black out the portrait on a Hearthstone or
+MTG Arena card and there is still an object: frame material, textbox, rarity
+furniture, collector line. That is what to judge, and improving it improves all
+296 cards rather than the painted ones only.
+
+### Anything the player cannot see
+
+Refactors, file organisation and internal naming are not visual quality. If a
+change does not alter a pixel or a frame, it does not belong in this work.

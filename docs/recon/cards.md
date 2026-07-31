@@ -2,6 +2,50 @@
 
 **Score: 5/10** — 13 defects (3 critical)
 
+---
+
+> ## SCOPE CORRECTION — read before acting on anything below
+>
+> **Card art coverage is not a defect and must never be scored.** The 120/296
+> figure is simply where the hand-authored art has got to; the remaining pieces
+> are being made one at a time and will land on their own schedule. An audit that
+> marks a card down for not being painted yet is measuring the artist's calendar,
+> not the renderer.
+>
+> **Therefore:**
+>
+> - **Do not generate, synthesise or fabricate card art.** Not procedurally, not
+>   as a "temporary" fill, not as a demo. Art arrives by dropping a PNG into
+>   `public/assets/art/<card-id>.png` and nothing else may write into that space.
+> - **Do not deduct for unpainted cards**, and do not treat a collection grid full
+>   of placeholders as evidence of anything except that art is in progress.
+> - **Do not reduce the placeholder's importance either.** It is the opposite
+>   mistake. 176 cards wear it today and some will wear it for months, so it is a
+>   long-lived, heavily-seen state.
+>
+> **What genuinely is in scope, and what this domain is judged on:**
+>
+> 1. **The placeholder must look deliberate.** AAA-BAR §5 — empty states are
+>    designed. Right now it reads as an image that failed to load: a flat gradient
+>    with a disembodied black ball, because the figure silhouette is buried under
+>    a 93%-opaque scrim, and the honest "ART PENDING" disclosure is drawn beneath
+>    the rules box where nobody will ever see it. Those are real bugs. A player
+>    should be able to see an unpainted card and think "that is the art-pending
+>    treatment", never "that one is broken".
+> 2. **The frame must carry a card on its own.** This is the real test the recon
+>    identified, and it stands: black out the portrait on a Hearthstone or MTG
+>    Arena card and there is still an object there — frame material, textbox,
+>    rarity furniture, collector line. Do that here and there is nothing but chips
+>    on a gradient. Fixing that improves all 296 cards, painted or not.
+> 3. Everything else below — rarity language, foils, the gem/badge treatment,
+>    typography and legibility, the card back, entrance and hover motion — is
+>    entirely independent of how much art exists.
+>
+> Defect 1 below is correct in its diagnosis and its fix; read it as "the
+> art-pending state is badly drawn", not as "there are too few paintings".
+
+---
+
 ## The single worst thing
 
 Three cards in five are a flat vertical gradient with a disembodied black circle floating in the middle of them. `verify-art.mjs` reports 120/296 painted (40.5%), so 176 cards fall through to `drawPlaceholderArt`, and that placeholder's only figurative element — a torso-plus-head silhouette anchored at 0.96h — is drawn *under* a bottom scrim that starts at 0.52h and is 93% opaque by 0.55h. The torso is buried; only the head survives. Every screenshot of the collection is a wall of coloured rectangles each with one black dot in it, and the card has no frame, no material and no rarity language to carry it when the art is absent. Hearthstone has no equivalent state because its frame is an object that is interesting with the portrait blacked out; MTG Arena's unpainted cards still ship a full frame, textbox parchment, set symbol and collector line. Here, remove the art and there is nothing left but chips on a gradient.
