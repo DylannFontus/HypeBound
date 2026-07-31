@@ -297,8 +297,15 @@ Critics are asked to be **harsh**, and harsh has a specific meaning here:
 These override any aesthetic ambition:
 
 - **£0.** No paid assets, fonts, services or APIs. Ever.
-- **No new runtime dependencies** without explicit sign-off. `three` and `zod`
-  are what we have. Everything else is hand-built.
+- **New libraries are allowed** where they buy real visual quality or
+  performance — see the Dependencies section of `docs/FOUNDATION-CONTRACT.md`.
+  They must be free and permissively licensed, installed from npm and **bundled**
+  (never a CDN or a runtime font fetch), free of telemetry, and worth their
+  weight on first load. Hand-rolling a worse version of a solved problem is not a
+  virtue; neither is a 300KB dependency on the critical path.
+- **Nothing is fetched at runtime.** The privacy screen states there is no
+  analytics SDK in the build and that the game keeps working offline. That is a
+  promise made on screen and it is not negotiable.
 - **Accessibility is not negotiable.** Contrast ratios hold, reduced-motion is
   honoured, keyboard focus is always visible, nothing is colour-only.
 - **Performance floors hold.** 30fps on the low tier, 60 on high. A beautiful

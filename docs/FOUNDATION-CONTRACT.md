@@ -274,9 +274,14 @@ Reduced motion collapses all of it to a fast fade with every screen fully usable
 ## Hard constraints
 
 - **£0.** No paid anything, ever.
-- **No new runtime dependencies.** `three` and `zod` is the whole list.
-- **Nothing is fetched.** Textures are generated, icons are inline, fonts are
-  self-hosted or already present.
+- **New runtime dependencies are allowed** when they genuinely buy visual quality
+  or performance. See "Dependencies" below for what a good one looks like.
+- **Nothing is fetched at runtime.** This is the constraint that actually binds,
+  and it is a promise the product makes on screen: the privacy screen states
+  there is no analytics SDK in the build and that the game keeps working offline.
+  A dependency installed from npm and bundled by Vite honours that. A CDN
+  `<script src="https://…">`, a Google Fonts link, or a library that phones home
+  does not.
 - **Reduced motion, contrast and keyboard focus all keep working.** They are
   already implemented and must not regress.
 - **30fps low tier, 60fps high.**
@@ -284,3 +289,56 @@ Reduced motion collapses all of it to a fast fade with every screen fully usable
   Pretty and broken is broken.
 - Additive only, this phase: **create the primitives, do not rewire consumers.**
   Screens are migrated in the next wave, deliberately, one domain at a time.
+
+---
+
+## Dependencies
+
+The original rule here was "no new runtime dependencies, `three` and `zod` is the
+whole list". That has been lifted: **add a library when it genuinely buys visual
+quality or performance.** Hand-rolling a worse version of a solved problem is not
+a virtue, and several things this project wants — a properly merged
+post-processing chain, SDF text in 3D — are a lot of work to do badly and very
+hard to do well.
+
+What still has to be true:
+
+1. **Free, with a permissive licence.** MIT, Apache-2.0, BSD or ISC without
+   thinking about it. Anything else — custom licences, "free for now", anything
+   with a commercial tier — gets raised before it is installed, not after.
+2. **Bundled, never fetched.** Installed from npm and built by Vite. No CDN
+   script tags, no runtime font or asset downloads. The game must keep working
+   offline, because the privacy screen says it does.
+3. **No telemetry.** Nothing that phones home, and no analytics SDK. Same screen,
+   same promise.
+4. **It must pay for its weight.** This ships to GitHub Pages and first load
+   matters. A library that saves a day of work and costs 300KB on the critical
+   path is a bad trade; the same library lazy-loaded behind the battle route may
+   be a good one.
+5. **The performance floors still hold.** 30fps low tier, 60fps high. A
+   dependency that makes the code prettier and the frame time worse is a
+   regression.
+6. **`server/` stays clean.** The Workers bundle must remain DOM-free and
+   dependency-light — there is a portability test enforcing it.
+
+Say what you added and why in your return value, so it can be reviewed rather
+than discovered.
+
+### Worth considering
+
+- **`postprocessing`** (pmndrs, MIT) — the strongest candidate. `scene.ts`
+  currently chains `EffectComposer` → `RenderPass` → `UnrealBloomPass` →
+  `OutputPass`, which costs a full-screen blit per pass. This library merges
+  effects into a **single** fullscreen pass and ships better bloom, SMAA,
+  vignette, grain, chromatic aberration and tone mapping. It is faster *and*
+  better looking, which is the rare case where the trade is not a trade — and it
+  is exactly the "one shared GradePass" the battle audit asked for.
+- **`troika-three-text`** (MIT) — signed-distance-field text in three.js. Only if
+  the opening cinematics need crisp 3D type; canvas textures are fine for
+  anything static.
+- **A DOM animation library** (`motion`, MIT and WAAPI-backed; or GSAP, free,
+  stronger timelines) — genuinely useful for §3a set-pieces. Note that
+  `src/ui/motion.ts` already provides tokens, `stagger`, `tickerTo` and one
+  shared rAF, so this is only worth it if sequenced set-pieces — pack openings,
+  reward flights, the curtain — turn out to need real timelines. Do not add it
+  and then leave two animation systems in the codebase.
