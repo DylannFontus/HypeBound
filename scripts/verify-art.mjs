@@ -362,6 +362,89 @@ if (unreachable.length === 0) {
 }
 
 // ---------------------------------------------------------------------------
+// 8. Does the audio actually decode, and is it the right length?
+// ---------------------------------------------------------------------------
+
+console.log("\n8. Every audio file decodes, at a sane length");
+
+/**
+ * Existence is not playability, and this is the audio twin of the image decode
+ * check in §3.
+ *
+ * `decodeAudioData` is the exact call the game makes. A file that fails it is
+ * cached as failed and the slot goes quiet for the session — no error, no
+ * visible difference from a slot with no file. A `.flac` that is secretly a WAV,
+ * or a truncated download, both land there.
+ *
+ * Length is checked too, because the likeliest mistake with these is not
+ * corruption but **forgetting to trim**. Stable Audio is asked for three or four
+ * seconds and the brief says to cut down to the transient; an interface click
+ * that shipped at its full generated length would be four seconds of sound on
+ * every button press. That is not subtle in play and it is invisible on disk.
+ */
+if (present.length > 0) {
+  const audioBrowser = await chromium.launch({
+    executablePath: CHROME,
+    headless: true,
+    args: ["--no-sandbox", "--autoplay-policy=no-user-gesture-required"],
+  });
+  try {
+    const page = await audioBrowser.newPage();
+    const reachable = await page.goto(ORIGIN, { waitUntil: "domcontentloaded" }).catch(() => null);
+    if (!reachable) {
+      fail(`no dev server on ${ORIGIN}, so the audio was not decoded`);
+    } else {
+      const decoded = await page.evaluate(async (paths) => {
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        const out = [];
+        for (const rel of paths) {
+          try {
+            const response = await fetch(`assets/audio/${rel}`);
+            if (!response.ok) {
+              out.push({ rel, ok: false, why: `HTTP ${response.status}` });
+              continue;
+            }
+            const buffer = await context.decodeAudioData(await response.arrayBuffer());
+            out.push({ rel, ok: true, seconds: buffer.duration, channels: buffer.numberOfChannels });
+          } catch (error) {
+            out.push({ rel, ok: false, why: String(error).slice(0, 80) });
+          }
+        }
+        return out;
+      }, present);
+
+      /** Anything an interface click could not plausibly be. */
+      const UI_MAX_SECONDS = 1.2;
+      let good = 0;
+      let longest = { rel: "", seconds: 0 };
+      for (const result of decoded) {
+        if (!result.ok) {
+          fail(`assets/audio/${result.rel} did not decode (${result.why}) — the slot would be silent`);
+          continue;
+        }
+        good++;
+        if (result.seconds > longest.seconds) longest = { rel: result.rel, seconds: result.seconds };
+        if (result.rel.startsWith("sfx/ui/") && result.seconds > UI_MAX_SECONDS) {
+          fail(
+            `assets/audio/${result.rel} is ${result.seconds.toFixed(2)}s — an interface sound this long was probably never trimmed`
+          );
+        }
+      }
+      if (good === decoded.length) {
+        ok(`all ${good} decode; longest is ${longest.rel} at ${longest.seconds.toFixed(2)}s`);
+      }
+
+      const totalSeconds = decoded.filter((r) => r.ok).reduce((sum, r) => sum + r.seconds, 0);
+      console.log(`   ${decoded.filter((r) => r.ok).length} file(s), ${totalSeconds.toFixed(0)}s of audio in total`);
+    }
+  } finally {
+    await audioBrowser.close();
+  }
+} else {
+  ok("no audio files yet, so nothing to decode");
+}
+
+// ---------------------------------------------------------------------------
 // Coverage, reported and never enforced
 // ---------------------------------------------------------------------------
 

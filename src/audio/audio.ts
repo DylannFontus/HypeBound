@@ -40,6 +40,21 @@ export class AudioManager {
   private loading = new Set<string>();
   private musicSource: AudioBufferSourceNode | null = null;
   private currentMusicSlot: string | null = null;
+  /**
+   * A music request made before the browser would allow any sound.
+   *
+   * Autoplay policy means no audio exists until the player interacts, and the
+   * lobby asks for its theme the moment it renders — which is always before
+   * that. The request used to be dropped on the floor, so the menu music never
+   * played on a cold load; it only appeared if you happened to navigate away
+   * and come back, by which point a click had unlocked the context. It looked
+   * like a missing file and was a discarded intention.
+   *
+   * Only the most recent request is kept. Someone who reaches the battle screen
+   * before touching anything should hear the battle theme, not the menu theme
+   * that was asked for two screens ago.
+   */
+  private pendingMusic: { slot: string; fadeSeconds: number } | null = null;
   private warned = new Set<string>();
   private unlocked = false;
 
@@ -68,6 +83,11 @@ export class AudioManager {
       this.applyVolumes();
       this.unlocked = true;
       void this.context.resume();
+
+      // Whatever asked for music while we were silent gets it now.
+      const pending = this.pendingMusic;
+      this.pendingMusic = null;
+      if (pending) this.playMusic(pending.slot, pending.fadeSeconds);
     } catch {
       this.unlocked = false;
     }
@@ -155,7 +175,10 @@ export class AudioManager {
   }
 
   playMusic(slot: string, fadeSeconds = 1.2): void {
-    if (!this.context || !this.unlocked) return;
+    if (!this.context || !this.unlocked) {
+      this.pendingMusic = { slot, fadeSeconds };
+      return;
+    }
     if (this.currentMusicSlot === slot) return;
     const path = this.resolvePath(slot);
     if (!path) {
@@ -186,6 +209,9 @@ export class AudioManager {
   }
 
   stopMusic(fadeSeconds = 0.8): void {
+    // A screen that silences music before the first gesture must not have it
+    // start behind them the moment the player clicks something.
+    this.pendingMusic = null;
     const source = this.musicSource;
     if (!source || !this.context) return;
     this.musicSource = null;
