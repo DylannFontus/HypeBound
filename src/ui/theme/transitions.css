@@ -1,0 +1,1151 @@
+/* =========================================================================
+   HYPEBOUND — continuity: the world behind the menus, and the space between
+   them.
+
+   These two things share a file because they are one mechanism. A transition
+   that lets the outgoing screen recede, blur and drop to zero is only safe
+   because something is guaranteed to be drawn behind it, and the only thing
+   that can guarantee that is a layer no navigation can remove. Split them and
+   the next person to change one will break the other without ever opening its
+   file.
+
+   What was here before: one `screen-in` keyframe — a 10px rise and a fade,
+   identical for all 49 routes — playing after a 200ms fade-out. That is a
+   cross-fade, and a cross-fade is what you use when you have nothing to say
+   about the relationship between two screens. There is always a relationship.
+   `shell.ts` works out which one applies and writes it onto the element as
+   `data-nav`; everything below is the vocabulary it draws from.
+
+   RULES, all of them hard (foundation contract §E2, AAA bar §3a):
+     - 260–420ms end to end. Longer is an obstacle on routine navigation.
+     - 80–120ms of overlap. The old screen leaves *while* the new one arrives;
+       sequential out-then-in is what makes a fast UI feel slow.
+     - Never a blank frame. See above: the world is always there.
+     - Input the moment the incoming screen is visible, mid-animation included.
+       Nothing here ever puts `pointer-events: none` on an *incoming* screen.
+     - `transform`, `opacity` and `filter` only. Nothing animates `width`,
+       `top`, `background-position` or `box-shadow`.
+     - Reduced motion collapses all of it to a fast fade, every screen fully
+       usable, no exceptions.
+
+   Durations are NOT written here. `shell.ts` owns the numbers and passes them
+   in as `--nav-dur` and `--nav-delay`, because it also has to schedule the
+   disposal of the outgoing screen against them and two copies of a timing
+   table is one copy too many.
+   ========================================================================= */
+
+:root {
+  /**
+   * Easing, forward-declared against module D's tokens.
+   *
+   * `var(--ease-arrive, …)` picks up the contract's shared token the moment
+   * module A mirrors it into CSS, and falls back to the same curve written out
+   * until then. That way there is never a second source of truth for a curve,
+   * only a temporary copy of one.
+   */
+  --nav-ease-arrive: var(--ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1));
+  --nav-ease-leave: var(--ease-leave, cubic-bezier(0.4, 0, 1, 1));
+  --nav-ease-glide: var(--ease-in-out, cubic-bezier(0.65, 0, 0.35, 1));
+
+  /**
+   * How far a parent recedes when you descend into one of its children, and
+   * therefore also how far it comes back when you ascend out. One set of
+   * numbers for both directions is what makes an ascend the exact reverse of
+   * the descend that preceded it — which is the whole point of the pair: the
+   * player's sense of where they are has to survive the round trip.
+   */
+  --nav-recede-scale: 0.932;
+  --nav-recede-lift: 10px;
+  --nav-recede-blur: 7px;
+  --nav-recede-dim: 0.42;
+
+  /** How far a child rises from, and a sibling slides in from. */
+  --nav-rise: 3.2%;
+  --nav-slide: 7%;
+  /** +1 travels right (the incoming screen enters from the right). */
+  --nav-dir: 1;
+
+  --nav-curtain-blur: 10px;
+  --nav-seam: var(--accent-bright, #d9a5ff);
+}
+
+/**
+ * The low tier pays for the frame rate with the blurs.
+ *
+ * A full-screen `filter: blur()` is the one thing in this file that can miss
+ * 30fps on a phone, and it is also the one thing whose absence nobody notices —
+ * the scale and the brightness ramp still read as "further away". `brightness`
+ * is nearly free by comparison and stays on everywhere.
+ */
+:root[data-gfx-tier="low"] {
+  --nav-recede-blur: 0px;
+  --nav-curtain-blur: 0px;
+}
+
+/* =========================================================================
+   1. THE WORLD
+   Mounted once by `atmosphere.ts`, outside `#app`, never unmounted.
+   ========================================================================= */
+
+.atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout paint style;
+  /**
+   * The floor under the floor. Even if every gradient below failed to parse,
+   * this one declaration is what makes "never a blank frame" true rather than
+   * merely likely.
+   */
+  background: var(--bg-void);
+  /** Master amplitude. High contrast turns the whole room down; see §1.7. */
+  --atm-strength: 1;
+  /**
+   * The key light is at the top-left, everywhere, forever — 315° in the
+   * foundation contract's terms. A CSS linear-gradient angle points at where
+   * the gradient *ends*, so a key at 315° is a gradient running to 135°.
+   */
+  --atm-lit: 135deg;
+}
+
+.atm-body {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---- 1.1 the room: two slots, crossfaded ------------------------------- */
+
+/**
+ * `visibility` alongside the opacity, delayed to the end of the crossfade.
+ *
+ * A slot at `opacity: 0` is still a painted, composited, full-viewport surface
+ * with two breathing gradients inside it, and for all but 900ms of the session
+ * one of the two is doing nothing at all. Hiding it takes three full-screen
+ * layers out of every frame; the delayed transition on `visibility` is what
+ * lets it stay visible for the whole fade and disappear only once it is
+ * genuinely invisible.
+ */
+.atm-room {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 900ms var(--nav-ease-glide),
+    visibility 0s linear 900ms;
+  /* safe defaults so an unpainted slot still resolves its calc()s */
+  --room-key: #b56cff;
+  --room-fill: #ff5fa2;
+  --room-rim: #52c8ff;
+  --room-x: 18%;
+  --room-y: 4%;
+  --room-intensity: 1;
+}
+
+.atm-room.is-front {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 900ms var(--nav-ease-glide),
+    visibility 0s linear 0s;
+}
+
+/**
+ * The grain rides on the wash rather than in a layer of its own.
+ *
+ * It began as a separate element with `mix-blend-mode: overlay`, which is the
+ * textbook way to do film grain and, measured, the single most expensive thing
+ * in this file — 2.8ms a frame on its own in software raster, against 0.1ms for
+ * every other layer here, because a blend mode drops the whole stack off the
+ * cheap path. As the topmost background-image on a surface that is already
+ * being painted it costs nothing measurable, and on a backdrop this dark the
+ * difference is academic: film grain in shadow reads as light speckle either
+ * way. §1's "reality has dirt", without the frame.
+ */
+.atm-wash {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-size: 96px 96px, auto, auto, auto, auto;
+  background-image:
+    var(--grain-src, none),
+    radial-gradient(
+      78% 62% at var(--room-x) var(--room-y),
+      color-mix(in srgb, var(--room-key) calc(30% * var(--room-intensity) * var(--atm-strength)), transparent),
+      transparent 66%
+    ),
+    radial-gradient(
+      62% 52% at calc(100% - var(--room-x)) 16%,
+      color-mix(in srgb, var(--room-fill) calc(20% * var(--room-intensity) * var(--atm-strength)), transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      96% 62% at 50% 112%,
+      color-mix(in srgb, var(--room-rim) calc(16% * var(--room-intensity) * var(--atm-strength)), transparent),
+      transparent 62%
+    ),
+    /* opaque, and lit from the top-left: the slots crossfade, so a translucent
+       base would let two rooms show through each other mid-change */
+    linear-gradient(var(--atm-lit), #170f2a 0%, var(--bg-deep) 46%, var(--bg-void) 100%);
+}
+
+/** The slow pulse: the key light breathing. 7.4s, very low amplitude. */
+.atm-bloom {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    44% 40% at var(--room-x) var(--room-y),
+    color-mix(in srgb, var(--room-key) calc(26% * var(--room-intensity) * var(--atm-strength)), transparent),
+    transparent 70%
+  );
+  transform-origin: var(--room-x) var(--room-y);
+  animation: atm-breathe 7.4s var(--nav-ease-glide) infinite;
+  will-change: transform, opacity;
+}
+
+/** Bounce off the floor, counter-phase to the key so the room never pumps. */
+.atm-horizon {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: -14%;
+  height: 46%;
+  transform-origin: 50% 100%;
+  background: radial-gradient(
+    62% 100% at 50% 100%,
+    color-mix(in srgb, var(--room-rim) calc(22% * var(--room-intensity) * var(--atm-strength)), transparent),
+    transparent 72%
+  );
+  animation: atm-breathe 11s var(--nav-ease-glide) infinite reverse;
+  will-change: transform, opacity;
+}
+
+@keyframes atm-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.07);
+  }
+}
+
+/* ---- 1.2 the drifting grid --------------------------------------------- */
+
+/**
+ * Two elements for one effect, deliberately. The container breathes and the
+ * pseudo-element drifts, because a single element cannot loop a translate
+ * seamlessly *and* carry a scale that returns to where it started — the drift
+ * has to end exactly one cell along, and anything else on the same transform
+ * would have to jump back with it.
+ */
+.atm-grid {
+  position: absolute;
+  inset: -6%;
+  animation: atm-grid-breathe 26s var(--nav-ease-glide) infinite;
+  will-change: transform;
+}
+
+.atm-grid::after {
+  content: "";
+  position: absolute;
+  inset: -72px;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, calc(0.03 * var(--atm-strength))) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, calc(0.03 * var(--atm-strength))) 1px, transparent 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: radial-gradient(116% 92% at 50% 36%, #000 24%, transparent 74%);
+  mask-image: radial-gradient(116% 92% at 50% 36%, #000 24%, transparent 74%);
+  animation: atm-grid-drift 22s linear infinite;
+  will-change: transform;
+}
+
+@keyframes atm-grid-drift {
+  to {
+    transform: translate3d(72px, 72px, 0);
+  }
+}
+
+@keyframes atm-grid-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+/* ---- 1.3 the mote field ------------------------------------------------ */
+
+/**
+ * Three tiled fields at three scales, three speeds and three tilts. The tilts
+ * are what stop the eye finding the repeat: no two layers ever line up twice.
+ *
+ * The drift **wanders and comes back** — `alternate`, eased at both ends —
+ * rather than streaming in one direction. That is the right look (dust in a
+ * room does not flow, it hangs and shifts) and it is also what makes the layer
+ * affordable. A field that translates continuously has to loop by exactly one
+ * tile to avoid a jump, which means the element must be a whole tile wider than
+ * the screen at each end; at a 520px tile that is an extra megapixel of
+ * composited texture per layer, three times over. Wandering 40px needs 60px of
+ * bleed, so the tiles can be large and near their native 512px — crisp motes,
+ * few enough repeats to be unfindable, and a texture barely bigger than the
+ * viewport.
+ *
+ * The parent's -12% bleed covers the rotation and nothing else, which is why
+ * the tilts stay at 6°: 12% is enough at 1280×720 as well as at 1600×900, and a
+ * bigger tilt would need a bigger bleed on every layer.
+ */
+.atm-motes {
+  position: absolute;
+  inset: -12%;
+  opacity: 0;
+  transform: rotate(var(--mote-tilt, 0deg));
+  transition: opacity 1200ms var(--nav-ease-arrive);
+}
+
+.atm-motes.is-ready {
+  opacity: calc(var(--mote-alpha, 0.5) * var(--atm-strength));
+}
+
+.atm-motes::after {
+  content: "";
+  position: absolute;
+  inset: -60px;
+  background-image: var(--mote-src, none);
+  background-repeat: repeat;
+  background-size: var(--mote-tile) var(--mote-tile);
+  animation:
+    atm-mote-drift var(--mote-drift) var(--nav-ease-glide) infinite alternate,
+    atm-mote-twinkle var(--mote-twinkle) ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.atm-motes-far {
+  --mote-alpha: 0.34;
+  --mote-tilt: -6deg;
+  --mote-tile: 560px;
+  --mote-shift: 22px;
+  --mote-drift: 31s;
+  --mote-twinkle: 7.5s;
+}
+
+.atm-motes-mid {
+  --mote-alpha: 0.5;
+  --mote-tilt: 4deg;
+  --mote-tile: 460px;
+  --mote-shift: -30px;
+  --mote-drift: 17s;
+  --mote-twinkle: 5.2s;
+}
+
+.atm-motes-near {
+  --mote-alpha: 0.66;
+  --mote-tilt: -5deg;
+  --mote-tile: 380px;
+  --mote-shift: 40px;
+  --mote-drift: 9s;
+  --mote-twinkle: 3.2s;
+}
+
+@keyframes atm-mote-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(var(--mote-shift), calc(var(--mote-shift) * -0.45), 0);
+  }
+}
+
+@keyframes atm-mote-twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ---- 1.4 the specular sweep -------------------------------------------- */
+
+/**
+ * A band of light crossing the room every 11 seconds, then off for the rest of
+ * it. The softness is in the gradient stops rather than in a `filter: blur()`,
+ * which matters: a blurred layer that also moves can force a re-render of the
+ * blur every frame, and this is a full-screen layer.
+ */
+.atm-sweep {
+  position: absolute;
+  top: -25%;
+  bottom: -25%;
+  left: 0;
+  width: 42%;
+  opacity: 0;
+  background: linear-gradient(
+    96deg,
+    transparent 0%,
+    rgba(255, 255, 255, calc(0.016 * var(--atm-strength))) 28%,
+    rgba(226, 214, 255, calc(0.055 * var(--atm-strength))) 50%,
+    rgba(255, 255, 255, calc(0.016 * var(--atm-strength))) 72%,
+    transparent 100%
+  );
+  transform: translate3d(-140%, 0, 0) skewX(-13deg);
+  animation: atm-sweep 11s var(--nav-ease-glide) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes atm-sweep {
+  0% {
+    transform: translate3d(-140%, 0, 0) skewX(-13deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  46% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    transform: translate3d(300%, 0, 0) skewX(-13deg);
+    opacity: 0;
+  }
+}
+
+/* ---- 1.5 vignette ------------------------------------------------------- */
+
+.atm-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(128% 108% at 50% 44%, transparent 52%, rgba(2, 1, 6, 0.55) 100%),
+    linear-gradient(
+      to bottom,
+      rgba(2, 1, 6, 0.34) 0%,
+      transparent 18%,
+      transparent 74%,
+      rgba(2, 1, 6, 0.46) 100%
+    );
+}
+
+/* ---- 1.6 travel: the world moves with you ------------------------------ */
+
+/**
+ * Secondary motion, and the reason a descend reads as a camera push rather
+ * than two rectangles swapping places. The world moves at roughly a quarter of
+ * the furniture's amplitude and settles *after* it — 620ms against the screen's
+ * 380ms — because the thing furthest away has the most mass.
+ */
+.atmosphere[data-travel] .atm-body {
+  will-change: transform, filter;
+}
+
+.atmosphere[data-travel="descend"] .atm-body {
+  animation: atm-travel-descend 620ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="ascend"] .atm-body {
+  animation: atm-travel-ascend 620ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="sibling-right"] .atm-body {
+  animation: atm-travel-sibling-right 560ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="sibling-left"] .atm-body {
+  animation: atm-travel-sibling-left 560ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="curtain-in"] .atm-body {
+  animation: atm-travel-curtain-in 900ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="curtain-out"] .atm-body {
+  animation: atm-travel-curtain-out 780ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="replace"] .atm-body {
+  animation: atm-travel-replace 480ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="arrive"] .atm-body {
+  animation: atm-travel-arrive 900ms var(--nav-ease-arrive) both;
+}
+
+@keyframes atm-travel-descend {
+  from {
+    transform: scale(1.028) translate3d(0, -0.6%, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes atm-travel-ascend {
+  from {
+    transform: scale(0.982) translate3d(0, 0.6%, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes atm-travel-sibling-right {
+  from {
+    transform: translate3d(1.6%, 0, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes atm-travel-sibling-left {
+  from {
+    transform: translate3d(-1.6%, 0, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes atm-travel-curtain-in {
+  0% {
+    transform: scale(1.06);
+    filter: brightness(1.9) saturate(1.25);
+  }
+  35% {
+    filter: brightness(1.3) saturate(1.15);
+  }
+  100% {
+    transform: none;
+    filter: brightness(1) saturate(1);
+  }
+}
+@keyframes atm-travel-curtain-out {
+  from {
+    transform: scale(0.955);
+    filter: brightness(0.62);
+  }
+  to {
+    transform: none;
+    filter: brightness(1);
+  }
+}
+@keyframes atm-travel-replace {
+  from {
+    filter: brightness(1.2);
+  }
+  to {
+    filter: brightness(1);
+  }
+}
+/**
+ * Deliberately no opacity on the boot reveal.
+ *
+ * A `both`-filled animation that starts at `opacity: 0` can be paused on its
+ * first frame — open the game in a background tab and switch away — and hold
+ * the entire world invisible until something else disturbs it. Scale and
+ * brightness cannot fail that way, and the first screen's own entrance is
+ * covering most of this anyway.
+ */
+@keyframes atm-travel-arrive {
+  from {
+    transform: scale(1.05);
+    filter: brightness(0.55);
+  }
+  to {
+    transform: none;
+    filter: brightness(1);
+  }
+}
+
+/* ---- 1.7 the world under the accessibility switches -------------------- */
+
+/**
+ * High contrast turns the room down rather than off. The wash is what sits
+ * behind body text once screens stop painting their own backdrop, and a neon
+ * haze under a paragraph is exactly what somebody switching this on is trying
+ * to get rid of. Keeping it at 45% preserves the depth cue and gives back the
+ * contrast.
+ */
+:root[data-contrast="high"] .atmosphere {
+  --atm-strength: 0.45;
+}
+
+/**
+ * Reduced motion kills the decorative layer and keeps the functional one. The
+ * world stays — it is what stops the page flashing to void — it simply stops
+ * moving. `animation: none` rather than a paused state, so nothing is left
+ * holding a composited layer it will never use again.
+ */
+:root[data-reduced-motion="true"] .atm-bloom,
+:root[data-reduced-motion="true"] .atm-horizon,
+:root[data-reduced-motion="true"] .atm-grid,
+:root[data-reduced-motion="true"] .atm-grid::after,
+:root[data-reduced-motion="true"] .atm-motes::after,
+:root[data-reduced-motion="true"] .atm-sweep,
+:root[data-reduced-motion="true"] .atmosphere[data-travel] .atm-body {
+  animation: none;
+}
+
+/**
+ * The sweep is parked, not deleted. Reduced motion asks for the movement to
+ * stop, not for the room to lose a light — so the band comes to rest a little
+ * left of centre and stays there as a static specular highlight. Left where the
+ * keyframes put it, at -140%, it would simply be off screen, which is a
+ * different and worse answer.
+ */
+:root[data-reduced-motion="true"] .atm-sweep {
+  opacity: 0.75;
+  transform: translate3d(52%, 0, 0) skewX(-13deg);
+}
+
+:root[data-reduced-motion="true"] .atm-room {
+  transition-duration: 120ms;
+}
+
+/** A hidden tab composites nothing useful; stop asking it to. */
+.atmosphere[data-paused="true"] .atm-body,
+.atmosphere[data-paused="true"] .atm-body *,
+.atmosphere[data-paused="true"] .atm-body *::after {
+  animation-play-state: paused;
+}
+
+/**
+ * Tiers, paid for in composited layers rather than in pixels.
+ *
+ * Each mote field is a full-viewport texture the GPU has to hold, and three of
+ * them plus the grid, the sweep and two breathing blooms is the point where a
+ * mid-range phone starts choosing between this and the board. Medium drops the
+ * farthest field — the one at 34% opacity that nobody could describe — and low
+ * keeps a single field, the wash, the bloom and the grid. The depth cues
+ * survive at every tier; only the decoration is negotiable.
+ */
+:root[data-gfx-tier="medium"] .atm-motes-far {
+  display: none;
+}
+
+:root[data-gfx-tier="low"] .atm-motes-far,
+:root[data-gfx-tier="low"] .atm-motes-near,
+:root[data-gfx-tier="low"] .atm-sweep {
+  display: none;
+}
+
+:root[data-gfx-tier="low"] .atm-grid {
+  animation: none;
+}
+
+:root[data-gfx-tier="low"] .atmosphere[data-travel="curtain-in"] .atm-body,
+:root[data-gfx-tier="low"] .atmosphere[data-travel="curtain-out"] .atm-body,
+:root[data-gfx-tier="low"] .atmosphere[data-travel="replace"] .atm-body {
+  animation: none;
+}
+
+/* =========================================================================
+   2. THE SPACE BETWEEN TWO SCREENS
+   `shell.ts` writes `data-nav="<relation>-<role>"` before the element is in
+   the document, so the first frame the browser paints is already the first
+   frame of the transition. It also writes `--nav-dur` and `--nav-delay`.
+   ========================================================================= */
+
+.screen[data-nav] {
+  animation-duration: var(--nav-dur, 300ms);
+  animation-delay: var(--nav-delay, 0ms);
+  animation-iteration-count: 1;
+  animation-fill-mode: both;
+  animation-timing-function: var(--nav-ease-arrive);
+  will-change: transform, opacity, filter;
+  backface-visibility: hidden;
+}
+
+/**
+ * The outgoing screen never takes input. It is still painted — often on *top*
+ * of the incoming one, deliberately, so an ascending child slides away over its
+ * parent — and without this every click during a transition would land on a
+ * screen that is on its way to the bin.
+ *
+ * This is the whole of the "no transition delays input" rule. The incoming
+ * screen is never given `pointer-events: none`, at any point, by any rule in
+ * this file.
+ */
+.screen[data-nav$="-out"] {
+  pointer-events: none;
+}
+
+/**
+ * At rest. `animation: none` and not the removal of the attribute, because
+ * `.screen` in base.css carries `animation: screen-in` — take `data-nav` off
+ * and the base rule would come back and replay the old placeholder entrance
+ * the moment this one finished.
+ */
+.screen[data-nav="settled"] {
+  animation: none;
+  will-change: auto;
+}
+
+/* ---- 2.1 descend / ascend: an exact pair ------------------------------- */
+
+.screen[data-nav="descend-out"] {
+  animation-name: nav-descend-out;
+  animation-timing-function: var(--nav-ease-leave);
+}
+.screen[data-nav="descend-in"] {
+  animation-name: nav-descend-in;
+}
+.screen[data-nav="ascend-out"] {
+  animation-name: nav-ascend-out;
+  animation-timing-function: var(--nav-ease-leave);
+}
+.screen[data-nav="ascend-in"] {
+  animation-name: nav-ascend-in;
+}
+
+/** The parent recedes: back, up a touch, dark and out of focus. */
+@keyframes nav-descend-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+    filter: blur(0) brightness(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(var(--nav-recede-scale)) translate3d(0, calc(var(--nav-recede-lift) * -1), 0);
+    filter: blur(var(--nav-recede-blur)) brightness(var(--nav-recede-dim));
+  }
+}
+
+/** The child rises over it. */
+@keyframes nav-descend-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--nav-rise), 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/** The child drops back down the way it came... */
+@keyframes nav-ascend-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, var(--nav-rise), 0) scale(0.985);
+  }
+}
+
+/** ...and the parent comes back from exactly where it went. */
+@keyframes nav-ascend-in {
+  from {
+    opacity: 0;
+    transform: scale(var(--nav-recede-scale)) translate3d(0, calc(var(--nav-recede-lift) * -1), 0);
+    filter: blur(var(--nav-recede-blur)) brightness(var(--nav-recede-dim));
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+    filter: blur(0) brightness(1);
+  }
+}
+
+/* ---- 2.2 sibling: one axis, and left is always left -------------------- */
+
+.screen[data-nav="sibling-out"] {
+  animation-name: nav-sibling-out;
+  animation-timing-function: var(--nav-ease-leave);
+}
+.screen[data-nav="sibling-in"] {
+  animation-name: nav-sibling-in;
+}
+
+@keyframes nav-sibling-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(calc(var(--nav-slide) * var(--nav-dir) * -1), 0, 0) scale(0.985);
+  }
+}
+
+@keyframes nav-sibling-in {
+  from {
+    opacity: 0;
+    transform: translate3d(calc(var(--nav-slide) * var(--nav-dir)), 0, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* ---- 2.3 curtain: entering and leaving the game ------------------------ */
+
+.screen[data-nav="curtain-out"] {
+  animation-name: nav-curtain-screen-out;
+  animation-timing-function: var(--nav-ease-leave);
+}
+.screen[data-nav="curtain-in"] {
+  animation-name: nav-curtain-screen-in;
+}
+
+/** Not a recede — a push *through*. The camera goes where you are going. */
+@keyframes nav-curtain-screen-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0) brightness(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.07);
+    filter: blur(var(--nav-curtain-blur)) brightness(0.28);
+  }
+}
+
+@keyframes nav-curtain-screen-in {
+  from {
+    opacity: 0;
+    transform: scale(1.045);
+    filter: brightness(1.4) saturate(0.55);
+  }
+  46% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1) saturate(1);
+  }
+}
+
+/* ---- 2.4 replace: the same route, dealt again -------------------------- */
+
+/**
+ * A rematch, the next tutorial stage, a puzzle retry. The player did not go
+ * anywhere, so nothing should travel — but something definitely happened, so a
+ * plain cross-fade would be a lie in the other direction. A short dip through
+ * a hair over 1.0 scale reads as a hand dealing again.
+ */
+.screen[data-nav="replace-out"] {
+  animation-name: nav-replace-out;
+  animation-timing-function: var(--nav-ease-leave);
+}
+.screen[data-nav="replace-in"] {
+  animation-name: nav-replace-in;
+}
+
+@keyframes nav-replace-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.014);
+  }
+}
+
+@keyframes nav-replace-in {
+  from {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---- 2.5 arrive: the very first screen, with nothing to leave ---------- */
+
+.screen[data-nav="arrive"] {
+  animation-name: nav-arrive;
+}
+
+@keyframes nav-arrive {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- 2.6 letting the world show through -------------------------------- */
+
+/**
+ * Thirty-nine screens still paint their own opaque `.ambient-bg`, and they will
+ * keep doing so until the migration wave reaches them — this phase is additive
+ * and does not rewire consumers. But an opaque backdrop travelling with the
+ * screen is precisely what makes navigation feel like swapping documents, so
+ * for the duration of a transition, and only then, that backdrop is faded and
+ * the persistent world behind it is what the player actually sees moving.
+ *
+ * The effect is the whole point of the module in one rule: the furniture moves,
+ * the room does not. A screen that has migrated and dropped its `.ambient-bg`
+ * simply has nothing here to match, and gets the same result for free.
+ */
+.screen[data-nav$="-in"] > .ambient-bg,
+.screen[data-nav="arrive"] > .ambient-bg {
+  animation: nav-ambient-in var(--nav-dur, 300ms) var(--nav-ease-arrive) var(--nav-delay, 0ms) both;
+}
+
+.screen[data-nav$="-out"] > .ambient-bg {
+  animation: nav-ambient-out var(--nav-dur, 200ms) var(--nav-ease-leave) both;
+}
+
+@keyframes nav-ambient-in {
+  0% {
+    opacity: 0;
+  }
+  46% {
+    opacity: 0.34;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes nav-ambient-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.12;
+  }
+}
+
+/* ---- 2.7 the curtain itself -------------------------------------------- */
+
+/**
+ * Two panels that close, **hold**, and part. Built by `shell.ts` for the
+ * duration of a curtain transition and then removed, because a permanent
+ * full-screen element sitting at z-index 900 over every route is a trap waiting
+ * for the first person who forgets it is there.
+ *
+ * The hold is the whole reason this is two phases and not one animation. The
+ * battle screen is the most expensive thing this game constructs, and a single
+ * close-and-part started before its constructor would have parted again while
+ * the main thread was still inside it. `data-phase="close"` ends closed and
+ * stays there; `shell.ts` flips it to `open` when there is something to reveal.
+ * The wait, however long it turns out to be, happens behind a drawn curtain,
+ * which is the AAA bar's "loading is part of the world" with no spinner in it.
+ *
+ * z-index 900 clears everything inside a screen — the battle mulligan sits at
+ * 70, the shop reveal at 60 — while staying well under `#rotate-overlay`.
+ *
+ * The panels are 52% tall each, so they overlap by 4% at full close and no
+ * rounding error can open a one-pixel line onto whatever is behind them.
+ */
+.nav-curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.nav-curtain-panel {
+  position: absolute;
+  left: -2%;
+  right: -2%;
+  height: 52%;
+  animation-duration: var(--nav-dur, 200ms);
+  animation-fill-mode: both;
+  will-change: transform;
+}
+
+.nav-curtain-panel.is-top {
+  top: 0;
+  background: linear-gradient(180deg, #05030b 0%, #0a0613 58%, #171029 100%);
+}
+
+.nav-curtain-panel.is-bottom {
+  bottom: 0;
+  background: linear-gradient(0deg, #05030b 0%, #0a0613 58%, #171029 100%);
+}
+
+/* closing: in fast, settling onto the seam */
+.nav-curtain[data-phase="close"] .nav-curtain-panel {
+  animation-timing-function: cubic-bezier(0.36, 0, 0.12, 1);
+}
+.nav-curtain[data-phase="close"] .is-top {
+  animation-name: nav-curtain-close-top;
+}
+.nav-curtain[data-phase="close"] .is-bottom {
+  animation-name: nav-curtain-close-bottom;
+}
+
+/* parting: slower, and accelerating away — the reveal, not the cover */
+.nav-curtain[data-phase="open"] .nav-curtain-panel {
+  animation-timing-function: cubic-bezier(0.5, 0, 0.18, 1);
+}
+.nav-curtain[data-phase="open"] .is-top {
+  animation-name: nav-curtain-open-top;
+}
+.nav-curtain[data-phase="open"] .is-bottom {
+  animation-name: nav-curtain-open-bottom;
+}
+
+@keyframes nav-curtain-close-top {
+  from {
+    transform: translate3d(0, -101%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes nav-curtain-close-bottom {
+  from {
+    transform: translate3d(0, 101%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes nav-curtain-open-top {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, -101%, 0);
+  }
+}
+@keyframes nav-curtain-open-bottom {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 101%, 0);
+  }
+}
+
+/**
+ * The light where the two halves meet — the only bright thing in the moment,
+ * and the thing that sells the whole gesture as a curtain rather than two
+ * rectangles. It lights as they close and stays lit through the hold, so a long
+ * load is a held bar of light rather than a black screen.
+ */
+.nav-curtain-seam {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--nav-seam) 16%,
+    #ffffff 50%,
+    var(--nav-seam) 84%,
+    transparent 100%
+  );
+  animation-duration: var(--nav-dur, 200ms);
+  animation-fill-mode: both;
+  will-change: transform, opacity;
+}
+
+.nav-curtain[data-phase="close"] .nav-curtain-seam {
+  animation-name: nav-curtain-seam-close;
+  animation-timing-function: cubic-bezier(0.36, 0, 0.12, 1);
+}
+
+.nav-curtain[data-phase="open"] .nav-curtain-seam {
+  animation-name: nav-curtain-seam-open;
+  animation-timing-function: var(--nav-ease-arrive);
+}
+
+.nav-curtain-seam::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -60px;
+  height: 120px;
+  background: radial-gradient(
+    58% 50% at 50% 50%,
+    color-mix(in srgb, var(--nav-seam) 42%, transparent),
+    transparent 72%
+  );
+}
+
+@keyframes nav-curtain-seam-close {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.1);
+  }
+  62% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/**
+ * The seam clears well before the panels do — gone by 55%, while they are still
+ * parting. It is the light spilling out of the gap, so it has to give way to
+ * what it revealed; held to the end it is a bright rule drawn across the board.
+ */
+@keyframes nav-curtain-seam-open {
+  0% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  55%,
+  100% {
+    opacity: 0;
+    transform: scaleX(1.3);
+  }
+}
+
+/* ---- 2.8 reduced motion: all of it, one fast fade ---------------------- */
+
+/**
+ * Not "a shorter version of the same thing" — the transforms, the blurs and the
+ * curtain all go, and what is left is opacity. `shell.ts` shortens the
+ * durations to match and skips building the curtain at all, so the two never
+ * disagree about how long a navigation takes.
+ *
+ * Every screen stays fully usable throughout. Nothing here introduces a
+ * pointer-events or visibility change that the non-reduced path does not
+ * already have.
+ */
+:root[data-reduced-motion="true"] .screen[data-nav$="-in"],
+:root[data-reduced-motion="true"] .screen[data-nav="arrive"] {
+  animation-name: nav-fade-in;
+  animation-timing-function: linear;
+}
+
+:root[data-reduced-motion="true"] .screen[data-nav$="-out"] {
+  animation-name: nav-fade-out;
+  animation-timing-function: linear;
+}
+
+:root[data-reduced-motion="true"] .screen[data-nav] > .ambient-bg {
+  animation: none;
+}
+
+@keyframes nav-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nav-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

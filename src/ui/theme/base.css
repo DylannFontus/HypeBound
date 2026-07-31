@@ -4,6 +4,12 @@
    nothing important is signalled by colour alone.
    ========================================================================= */
 
+/* The surface foundation: materials, radii, type roles, focus, scrollbars and
+   the form-control kit. It has to be an `@import` at the top rather than a
+   second entry in `main.ts`, so that the tokens it defines are in scope for
+   everything below and its rules never out-order this file by accident. */
+@import "./foundation.css";
+
 :root {
   /* ---- surfaces (glossy black + glass) ---- */
   --bg-void: #05030b;

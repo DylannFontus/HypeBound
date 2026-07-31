@@ -1,0 +1,1414 @@
+/* =========================================================================
+   HYPEBOUND — the surface foundation (module A of the foundation contract)
+   =========================================================================
+
+   Why this file exists.
+
+   Forty-nine screens were each given their own idea of what a raised surface
+   looks like, and the result is a game that reads as forty-nine competent
+   screens rather than one place. The fix is not more polish per screen — it is
+   one small set of primitives that every screen composes from, so that two
+   adjacent panels are lit by the same sun and a chip is recognisably the same
+   material as the hero button, one rank down.
+
+   That is all this file is: four materials, five radii, five type roles, one
+   interaction mixin, one focus ring, one scrollbar, one form-control kit and
+   one divider. Nothing else in the codebase is allowed to invent a bevel.
+
+   ## The rules this file follows, and asks of everyone else
+
+   **The light is at the top-left, at 315°, forever.** `--light-angle` is the
+   single most load-bearing declaration here and it agrees, by test, with
+   `LIGHT_RIG.cssAngle` in `src/ui/art/texture.ts`. CSS gradient angles point
+   the other way (135° *travels* to the bottom-right, so it *starts* at the
+   top-left), which is why `--light-sweep` exists — write the light direction
+   once, derive the gradient direction from it, and nobody has to remember the
+   180° flip at three in the morning.
+
+   **No material uses a pseudo-element.** This was a deliberate and slightly
+   painful constraint. `.mat-panel` has to be safe to add to an element that
+   already has a `::before` — and plenty do: `.panel-chrome::before` draws its
+   gradient edge, `.btn-play::after` is the sweep on the Play button. A
+   primitive that silently deletes the consumer's own decoration is a primitive
+   nobody can trust. So every material is background layers, a border and a
+   box-shadow, and the hover wipe that would normally be a `::after` is instead
+   a third background layer whose position is animated. It costs one gradient
+   layer per surface and buys the right to compose freely.
+
+   **`@property` is used only to stop leaks.** Custom properties inherit, and
+   an inheriting `--mat-amp` on a panel would quietly re-rank every chip inside
+   it. The registrations below exist for `inherits: false` far more than for
+   the types. The one place the types matter is `--sheen-x`, because an
+   unregistered custom property cannot be animated and the specular wipe is an
+   animation on exactly that.
+
+   **This file is imported at the top of `base.css`,** which means `base.css`
+   wins every specificity tie. That is mostly fine — it is the older, broader
+   layer and should. Where it is not fine, it is called out at the rule.
+
+   ## Two things here are repairs, not primitives
+
+   `--line`, `--sp-8`, `--muted` and `--radius-md` are referenced across
+   `screens.css` and `battle.css` and were never defined anywhere. An undefined
+   `var()` is not a no-op: `border: 1px solid var(--line)` is invalid at
+   computed-value time, so the whole declaration is dropped and the border
+   simply is not drawn. That is why the sign-in form has no field outlines and
+   nine screens lost their bottom padding. They are fixed here because tokens
+   are this module's business, and they are fixed as aliases of the tokens they
+   were obviously meant to be so that high contrast and the colour-blind modes
+   keep reaching them.
+
+   `.input` is the same category. Five controls in the Custom Lobby and one in
+   Doomscroll carry `class="input"`; the class was never written. Defining it
+   is not migrating a consumer, it is finishing a sentence somebody left
+   hanging.
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   0. Registered properties — all of them for `inherits: false`
+   -------------------------------------------------------------------------
+   A registered property with `syntax: "*"` and no `initial-value` starts as
+   the guaranteed-invalid value, which is exactly what makes `var(--x, y)`
+   fall through to the fallback. That is the behaviour every one of these
+   relies on, so do not "helpfully" add initial values to the universal ones.
+
+   Where `@property` is unsupported these degrade to ordinary inheriting
+   custom properties: a focused child of a panel would briefly borrow the
+   panel's corner radius. Wrong, but not broken, and every engine we ship to
+   has supported this since 2024. */
+
+@property --mat-amp     { syntax: "<number>"; inherits: false; initial-value: 0.55; }
+@property --rim-boost   { syntax: "<number>"; inherits: false; initial-value: 1; }
+@property --cast-lift   { syntax: "<number>"; inherits: false; initial-value: 1; }
+@property --sheen-x     { syntax: "<percentage>"; inherits: false; initial-value: 150%; }
+@property --mat-fill    { syntax: "*"; inherits: false; }
+@property --mat-cast    { syntax: "*"; inherits: false; }
+@property --press-cast  { syntax: "*"; inherits: false; }
+@property --r-self      { syntax: "*"; inherits: false; }
+
+/* -------------------------------------------------------------------------
+   1. Tokens
+   ------------------------------------------------------------------------- */
+
+:root {
+  /* ---- the one global decision -----------------------------------------
+     315° is where the light comes *from*. `--light-sweep` is the same fact
+     expressed the way `linear-gradient()` wants it: the direction the
+     gradient travels, which is the opposite. Write `linear-gradient(
+     var(--light-sweep), lighter, darker)` and the lighter stop lands at the
+     top-left every time, on every surface, in every screen. */
+  --light-angle: 315deg;
+  --light-sweep: calc(var(--light-angle) - 180deg);
+
+  /* ---- radius by role --------------------------------------------------
+     Literals are banned. Pick by what the thing *is*, not by how big it
+     looks, because "how big it looks" is how a screen ends up with three
+     radii on it. A content tile is `--r-tile`; it must never inherit the
+     pill radius `.btn` uses, which is currently happening in a few places. */
+  --r-chip: 999px;
+  --r-tile: 14px;
+  --r-panel: 18px;
+  --r-field: 10px;
+  --r-nested: calc(var(--r-panel) - var(--sp-2));
+
+  /* ---- motion, mirrored from src/ui/motion.ts --------------------------
+     Module D owns these numbers because three.js and canvas cannot read a
+     custom property. This is the CSS half of the same source, and a test
+     asserts the two halves agree — if you change one, change both. */
+  --dur-micro: 110ms;
+  --dur-ui: 260ms;
+  --dur-setpiece: 700ms;
+  --ease-arrive: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-leave: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Two durations module D does not own, because they are about this file's
+     six states rather than about the app's motion tiers.
+
+     The specular wipe is separate because it is *secondary* motion: it trails
+     the state change rather than matching it, which is the difference between
+     "the button lit up" and "light moved across the button".
+
+     A press is faster than the hover it interrupts. It has to land before the
+     finger is off the control, or the button feels like it is catching up. */
+  --dur-sheen: 140ms;
+  --dur-press: 80ms;
+
+  /* ---- material amplitudes ---------------------------------------------
+     One scale. A hero and a chip run the same recipe at different strengths,
+     which is what makes them read as the same substance at different ranks
+     instead of as two unrelated designs. */
+  --amp-hero: 1;
+  --amp-panel: 0.55;
+  --amp-chip: 0.35;
+  --amp-well: 0.7;
+
+  /* ---- material fills ---------------------------------------------------
+     Each is a two-stop gradient along the light vector. These are exposed as
+     tokens so a rule that cannot add a class can still inline the material:
+     set `--mat-fill: var(--fill-chip); --mat-amp: var(--amp-chip)` and add
+     `.mat`. Re-tinting (a Current-coloured chip, a faction plate) is the same
+     move with a different gradient. */
+  --fill-hero: linear-gradient(var(--light-sweep), var(--accent-bright) 0%, var(--accent) 48%, var(--accent-hot) 100%);
+  --fill-panel: linear-gradient(var(--light-sweep), rgb(40 29 71 / 0.94) 0%, rgb(17 11 31 / 0.96) 100%);
+  --fill-chip: linear-gradient(var(--light-sweep), rgb(54 40 92 / 0.92) 0%, rgb(29 21 52 / 0.94) 100%);
+  /* The well inverts it: darkest at the top-left, because that is where the
+     lip of a recess casts. */
+  --fill-well: linear-gradient(var(--light-sweep), rgb(2 1 6 / 0.72) 0%, rgb(22 15 42 / 0.5) 100%);
+
+  /* ---- grain ------------------------------------------------------------
+     Module B owns `--tex-grain` / `--tex-grain-size` and the half-scale
+     `--tex-grain-fine` pair, and injects them as a `:root` rule at boot.
+     Nothing is declared for them here on purpose: every use site asks with a
+     `none` fallback instead, so the surfaces are correct before the texture
+     arrives and dirtier — better — once it lands, and there is no ordering
+     race between two modules declaring the same name.
+
+     Large surfaces take the coarse grain, one noise cell per CSS pixel.
+     Chips and form controls take the fine one, because at chip size the
+     coarse tile stops reading as film and starts reading as dirt. */
+
+  /* ---- focus -----------------------------------------------------------
+     Inner stroke in the accent, outer halo in near-black. The halo is what
+     makes the ring legible when the thing behind it happens to be light —
+     an accent-only ring on a pale surface is the classic failure. Width
+     still comes from `--focus-width`, which the accessibility screen drives. */
+  --focus-ink: var(--accent-bright);
+  --focus-halo: rgb(4 2 10 / 0.92);
+  --focus-gap: 2px;
+
+  /* ---- scrollbars ------------------------------------------------------- */
+  --scroll-thumb: rgb(120 106 178 / 0.75);
+  --scroll-thumb-hot: rgb(168 150 232 / 0.9);
+  --scroll-track: rgb(0 0 0 / 0.3);
+
+  /* ---- dividers --------------------------------------------------------- */
+  /* The lit half carries the line on a dark screen — black at 55% on a
+     near-black background is a line nobody can see — and the dark half takes
+     over the moment the divider sits on a lit panel. */
+  --hairline-dark: rgb(0 0 0 / 0.55);
+  --hairline-lit: rgb(255 255 255 / 0.13);
+
+  /* ---- the select chevron ----------------------------------------------
+     A `data:` SVG cannot resolve `currentColor` — a background image is its
+     own document and knows nothing about the text colour of the element it
+     is painted on. So the colour is baked in, and the whole url is a token
+     with a high-contrast variant below rather than a literal buried in a
+     rule. 24px grid, 1.75px stroke: module C's language, so the chevron
+     drawn here and an icon drawn there are the same hand. */
+  --chevron: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23b3aad4'%20stroke-width='1.75'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m7%2010%205%205%205-5'/%3E%3C/svg%3E");
+  --tick: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23ffffff'%20stroke-width='2.75'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m5%2013%204.5%204.5L19%206.5'/%3E%3C/svg%3E");
+
+  /* ---- native chrome ----------------------------------------------------
+     `color-scheme: dark` is the cheapest line in this file and one of the
+     most valuable: it tells the engine that the page is dark, so anything we
+     have not explicitly restyled — the autofill overlay, a date picker, the
+     `<select>` popup list, a scrollbar we missed — comes back dark instead of
+     punching a white hole in a neon-black screen. `accent-color` is the same
+     idea for any checkbox or radio that somehow escapes the kit below. */
+  color-scheme: dark;
+  accent-color: var(--accent);
+
+  /* Firefox reads these as inherited properties, so declaring them once on
+     the root is genuinely global — see §7. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+/* -------------------------------------------------------------------------
+   2. Repairs: custom properties that were referenced but never defined
+   -------------------------------------------------------------------------
+   Aliases rather than literals, so that `data-contrast="high"` and the
+   colour-blind modes — which rewrite the tokens on the right-hand side —
+   keep reaching these too. A literal here would be a second palette that
+   silently ignores every accessibility setting. */
+
+:root {
+  /* `border: 1px solid var(--line)` in two places, one of them every field on
+     the sign-in form. Undefined meant no border at all, not a default one. */
+  --line: var(--glass-border);
+
+  /* Nine screens end with `padding: … var(--sp-8)`. The spacing scale runs
+     4 · 8 · 12 · 16 · 24 · 32 · 48, so the next step is 64. Undefined meant
+     those nine screens had *no* bottom padding and their last row sat on the
+     viewport edge. */
+  --sp-8: 64px;
+
+  /* The story archive asks for `color: var(--muted)`. There is a `.muted`
+     class and it resolves to `--text-dim`; the token form was never written,
+     so those two lines inherited whatever colour was above them. */
+  --muted: var(--text-dim);
+
+  /* `--radius-sm` and `--radius-lg` exist; the middle step is called
+     `--radius`, and two event-screen rules reached for the name it does not
+     have. An undefined radius computes to 0, so those cards were square. */
+  --radius-md: var(--radius);
+
+  /* Used twice with a fallback, so nothing was visibly broken — but two
+     different fallbacks for the same intent is how palettes drift. */
+  --bg: var(--bg-deep);
+}
+
+/* -------------------------------------------------------------------------
+   3. Materials
+   -------------------------------------------------------------------------
+   Four, and only four. Every surface in the game is one of these.
+
+   The recipe is written once, on the shared selector list, and the four
+   classes below it set nothing but knobs. That is what makes the family read
+   as one substance: there is literally one gradient, one rim, one lip, one
+   drop and one contact shadow in this file, and the difference between a hero
+   and a chip is a number.
+
+   Layer order, top to bottom: the specular wipe (parked off-canvas at rest),
+   module B's grain, the fill gradient. `soft-light` is the blend mode for the
+   grain because it is correct whether B hands us alpha-speckle or opaque grey
+   noise — mid-grey under soft-light is a no-op, so the surface cannot be
+   washed out by a texture that turns out to be denser than expected.
+
+   The two-pixel contact shadow at the end of the box-shadow list is the one
+   people skip and it is the one that matters. A panel with a 26px drop and no
+   contact shadow floats; the same panel with a tight dark line under its
+   bottom edge is *sitting on* something. That is the whole difference between
+   a rectangle and an object. It is also the only ingredient that does not
+   scale linearly with amplitude: a chip and a hero plate are touching the
+   same surface, so the line where they meet it is nearly as dark for both.
+   Amplitude governs how far a thing floats, not how hard it presses. */
+
+.mat,
+.mat-hero,
+.mat-panel,
+.mat-chip,
+.mat-well {
+  --sheen-alpha: 0.22;
+  background-image:
+    linear-gradient(
+      105deg,
+      transparent 42%,
+      rgb(255 255 255 / calc(var(--sheen-alpha) * var(--mat-amp))) 50%,
+      transparent 58%
+    ),
+    var(--mat-grain, var(--tex-grain, none)),
+    var(--mat-fill, var(--fill-panel));
+  background-repeat: no-repeat, repeat, no-repeat;
+  background-size: 240% 100%, var(--mat-grain-size, var(--tex-grain-size, auto)), 100% 100%;
+  background-position: var(--sheen-x) 0, 0 0, 0 0;
+  background-blend-mode: normal, soft-light, normal;
+  background-color: transparent;
+  border: 1px solid rgb(255 255 255 / calc(0.1 * var(--mat-amp)));
+  border-radius: var(--r-self, var(--r-panel));
+  color: var(--text);
+
+  /* Read this top to bottom as light falling from the top-left:
+     lit rim on the top edge, a weaker one on the left, the unlit lip at the
+     bottom, a weaker one on the right, the soft cast, then the contact. */
+  --mat-cast:
+    var(--press-cast, 0 0 rgb(0 0 0 / 0)),
+    inset 0 1px 0 rgb(255 255 255 / calc(0.2 * var(--mat-amp) * var(--rim-boost))),
+    inset 1px 0 0 rgb(255 255 255 / calc(0.07 * var(--mat-amp) * var(--rim-boost))),
+    inset 0 -1px 0 rgb(0 0 0 / calc(0.45 * var(--mat-amp))),
+    inset -1px 0 0 rgb(0 0 0 / calc(0.22 * var(--mat-amp))),
+    0 calc(10px * var(--mat-amp) * var(--cast-lift)) calc(26px * var(--mat-amp) * var(--cast-lift))
+      calc(-6px * var(--mat-amp)) rgb(0 0 0 / calc(0.55 * var(--mat-amp))),
+    0 calc(2px * var(--cast-lift)) calc(3px * var(--cast-lift)) -1px
+      rgb(0 0 0 / calc(0.3 + 0.3 * var(--mat-amp)));
+  box-shadow: var(--mat-cast);
+}
+
+/**
+ * The recessed one, and the only material that changes the recipe rather than
+ * its knobs. It inverts the first three ingredients — the inner shadow moves
+ * to the top-left where the lip blocks the light, the faint rim light to the
+ * bottom-right where the floor of the recess catches it — and it casts
+ * nothing, because a hole does not have a shadow. Its border is black rather
+ * than white for the same reason: the edge of a recess is in shade.
+ *
+ * The background half of the recipe is inherited from the rule above
+ * unchanged, which is the point: a well is the same substance seen from the
+ * other side, not a different one.
+ */
+.mat-well {
+  --mat-amp: var(--amp-well);
+  --mat-fill: var(--fill-well);
+  --sheen-alpha: 0.1;
+  --r-self: var(--r-field);
+  border-color: rgb(0 0 0 / calc(0.55 * var(--mat-amp)));
+  --mat-cast:
+    inset 0 2px 5px -1px rgb(0 0 0 / calc(0.62 * var(--mat-amp))),
+    inset 2px 0 5px -3px rgb(0 0 0 / calc(0.45 * var(--mat-amp))),
+    inset 0 -1px 0 rgb(255 255 255 / calc(0.1 * var(--mat-amp) * var(--rim-boost))),
+    inset -1px 0 0 rgb(255 255 255 / calc(0.05 * var(--mat-amp) * var(--rim-boost)));
+}
+
+.mat-hero {
+  --mat-amp: var(--amp-hero);
+  --mat-fill: var(--fill-hero);
+  --r-self: var(--r-panel);
+  border-color: rgb(255 255 255 / 0.34);
+  color: #fff;
+  /* Text on a saturated plate always gets a shadow. Never raw. */
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+}
+
+.mat-panel {
+  --mat-amp: var(--amp-panel);
+  --mat-fill: var(--fill-panel);
+  --r-self: var(--r-panel);
+}
+
+.mat-chip {
+  --mat-amp: var(--amp-chip);
+  --mat-fill: var(--fill-chip);
+  --mat-grain: var(--tex-grain-fine, none);
+  --mat-grain-size: var(--tex-grain-fine-size, auto);
+  --r-self: var(--r-chip);
+  padding: 2px var(--sp-3);
+}
+
+/* Radius utilities. A material picks a sensible default for its rank; these
+   override it when the role differs — a hero that is a pill, a panel used as
+   a tile. They set `--r-self` alongside `border-radius` so the focus ring in
+   §6 follows, which is the entire reason `--r-self` exists. Declared after
+   the materials so a plain class order in the markup does the obvious thing. */
+.r-chip   { border-radius: var(--r-chip);   --r-self: var(--r-chip); }
+.r-tile   { border-radius: var(--r-tile);   --r-self: var(--r-tile); }
+.r-panel  { border-radius: var(--r-panel);  --r-self: var(--r-panel); }
+.r-field  { border-radius: var(--r-field);  --r-self: var(--r-field); }
+.r-nested { border-radius: var(--r-nested); --r-self: var(--r-nested); }
+
+/* -------------------------------------------------------------------------
+   4. Type roles
+   -------------------------------------------------------------------------
+   Five roles, each with its own size, weight, tracking *and* colour. Four
+   sizes of one weight in one colour is not a hierarchy, it is a font-size
+   list — and squinting at a screen built that way resolves into one grey
+   mass, which is §6 of the bar failing before anything else gets a chance.
+
+   The faces are the two stacks already in `base.css`. Nothing is downloaded:
+   the privacy screen promises this build fetches nothing and that promise is
+   not negotiable for a typeface. */
+
+.t-display {
+  font-family: var(--font-display);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.04;
+  color: var(--text);
+  text-wrap: balance;
+}
+
+.t-heading {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.24;
+  color: var(--text);
+}
+
+.t-body {
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.t-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: var(--text-faint);
+}
+
+/**
+ * `.num` is mandatory on every number a player reads under pressure — cost,
+ * power, health, the turn timer, currency, mission progress. A number that
+ * reflows the row when it ticks from 9 to 10 is a defect, and it is the kind
+ * of defect that only shows up in the one frame where it matters.
+ *
+ * `tabular-nums` does the work when the font has the feature; Segoe UI does.
+ * `--digits` is the belt for the braces: set it to the widest value the slot
+ * will ever hold and the box stops moving even if the whole stack has fallen
+ * through to something without `tnum`. `1ch` is the width of a zero, which in
+ * a tabular face is the width of every digit.
+ *
+ * `inline-block` is deliberate — it is what makes `min-width` mean anything,
+ * and it stops a long figure breaking across two lines mid-number.
+ */
+.num {
+  display: inline-block;
+  min-width: calc(var(--digits, 0) * 1ch);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: normal;
+  text-align: var(--num-align, right);
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------------
+   5. Interaction — one mixin, six states
+   -------------------------------------------------------------------------
+   Compose it: `class="mat-panel act"`. Never hand-roll a hover again.
+
+   An opacity-only hover and an opacity-only disabled state are both contract
+   violations, and both are the current default across the app. What a hover
+   has to do here is move the element, light it and tighten its shadow, all at
+   once, inside 120ms — that simultaneity is the thing the reference games do
+   that a single `opacity: .8` does not.
+
+   The states are driven through the material knobs rather than by restating
+   the shadow: `--rim-boost: 2` doubles the rim highlight, `--cast-lift`
+   scales the drop and the contact together. So the hover rule is four lines
+   and it stays correct if the recipe above ever changes. */
+
+.act {
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--dur-micro) var(--ease-overshoot),
+    box-shadow var(--dur-micro) var(--ease-arrive),
+    border-color var(--dur-micro) var(--ease-arrive),
+    color var(--dur-micro) var(--ease-arrive),
+    filter var(--dur-micro) var(--ease-arrive),
+    outline-offset var(--dur-micro) var(--ease-arrive);
+}
+
+/**
+ * Hover is behind `(hover: hover)` because on a touch screen a `:hover` rule
+ * latches after a tap and the element stays lit until you press something
+ * else — which looks exactly like a bug and is why so many mobile web games
+ * have one permanently glowing button.
+ *
+ * The wipe is a one-shot animation rather than a transition on purpose. A
+ * transition would run backwards when the pointer leaves, and light does not
+ * un-sweep. When the animation ends `--sheen-x` returns to its parked 150%,
+ * which is off the right-hand edge, so there is nothing to clean up.
+ */
+@media (hover: hover) {
+  .act:hover:not(:disabled):not([aria-disabled="true"]):not([data-state="loading"]) {
+    transform: translateY(-2px) scale(1.015);
+    --rim-boost: 2;
+    --cast-lift: 0.55;
+    border-color: rgb(255 255 255 / calc(0.18 * var(--mat-amp) + 0.1));
+    animation: hb-sheen var(--dur-sheen) var(--ease-arrive) 1;
+  }
+}
+
+@keyframes hb-sheen {
+  from { --sheen-x: 150%; }
+  to { --sheen-x: -110%; }
+}
+
+/**
+ * Pressed. The element drops to the surface — lift goes to zero, so both the
+ * drop and the contact shadow collapse — and gains an inner shadow, which is
+ * what "this is now below its neighbours" looks like. 80ms, faster than the
+ * hover it interrupts, because a press must feel like it landed before the
+ * finger is off the button.
+ */
+.act:active:not(:disabled):not([aria-disabled="true"]):not([data-state="loading"]) {
+  transform: scale(0.985);
+  --cast-lift: 0;
+  --rim-boost: 0.4;
+  --press-cast: inset 0 2px 6px rgb(0 0 0 / calc(0.5 * var(--mat-amp) + 0.15));
+  transition-duration: var(--dur-press);
+  animation: none;
+}
+
+/**
+ * Disabled changes the fill, the border, the text *and* the icon. It never
+ * touches opacity alone.
+ *
+ * The reason is measurable rather than aesthetic. `.btn:disabled` currently
+ * sets `opacity: 0.42`, which takes the label from #f2eeff to roughly 2.6:1
+ * against the panel behind it — below the 4.5:1 floor, on the control that is
+ * most likely to be the one the player is trying to understand ("why can't I
+ * press this?"). Here the fill desaturates and darkens, the border loses its
+ * rim, `filter: saturate()` drains any icon inside so the state is not
+ * signalled by colour alone, and the text steps to `--text-dim`, which holds
+ * about 7:1 on the disabled fill.
+ */
+.act:disabled,
+.act[aria-disabled="true"],
+.act[data-state="disabled"] {
+  cursor: not-allowed;
+  transform: none;
+  --mat-amp: 0.22;
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(30 27 42 / 0.92) 0%, rgb(15 13 22 / 0.94) 100%);
+  border-color: rgb(255 255 255 / 0.1);
+  color: var(--text-dim);
+  text-shadow: none;
+  filter: saturate(0.22);
+}
+
+/**
+ * Loading is a shimmer crossing the surface, or an in-world meter. It is
+ * never a spinner — a spinner is an admission that the interface has nothing
+ * to say about what is happening, and it belongs to a different game.
+ *
+ * Same wipe as the hover, looped slowly. Reduced motion swaps it for a
+ * static dimmed plate below, because a permanent looping highlight is
+ * precisely the kind of thing that setting exists to stop.
+ */
+.act[data-state="loading"],
+.act.is-loading {
+  cursor: progress;
+  pointer-events: none;
+  transform: none;
+  animation: hb-sheen calc(var(--dur-setpiece) * 2) var(--ease-in-out) infinite;
+}
+
+/**
+ * Error. Not one of the contract's six, but §5 of the bar asks for it and a
+ * form control needs somewhere to put it. Colour is never the only signal —
+ * the border weight changes too, and callers are expected to render the
+ * message.
+ */
+.act[data-invalid="true"],
+.act[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: var(--mat-cast, 0 0 rgb(0 0 0 / 0)), 0 0 0 1px var(--danger), 0 0 18px rgb(255 77 106 / 0.28);
+}
+
+/**
+ * The content-shaped half of "loading". Where `.act` is a control that is
+ * busy, `.skeleton` is a box standing in for text or a tile that has not
+ * arrived. Sized by the caller; it only supplies the surface and the sweep.
+ */
+.skeleton {
+  border-radius: var(--r-self, var(--r-field));
+  background-image:
+    linear-gradient(105deg, transparent 42%, rgb(255 255 255 / 0.1) 50%, transparent 58%),
+    var(--fill-well);
+  background-repeat: no-repeat, no-repeat;
+  background-size: 240% 100%, 100% 100%;
+  background-position: var(--sheen-x) 0, 0 0;
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.5);
+  animation: hb-sheen calc(var(--dur-setpiece) * 2) var(--ease-in-out) infinite;
+}
+
+/* -------------------------------------------------------------------------
+   6. The focus ring
+   -------------------------------------------------------------------------
+   Two things were wrong with the one in `base.css`, and both are visible.
+
+   **It hard-codes `border-radius: var(--radius-sm)` on the focused element.**
+   Not on the ring — on the element. So tabbing to a pill button reshapes the
+   button into a 6px-cornered rectangle for as long as it has focus, and
+   tabbing to a panel squares its corners off. `--r-self` is the fix: every
+   material and every radius utility publishes its own corner radius under
+   that name, and this rule hands it back. Anything that has not adopted the
+   foundation yet falls through to `--radius-sm` and is exactly as it was.
+
+   **It replaces `box-shadow` outright,** which for anything wearing a
+   material would delete the entire bevel and contact shadow the moment it
+   received focus. So the ring composes: the element's own cast first, the
+   halo after it.
+
+   Neither could be fixed in `base.css` itself — this module owns one line
+   there, the `@import` — so both are fixed by out-specifying it. The doubled
+   `:root:root` is the cheap, legible way to get from (0,3,0) to (0,4,0)
+   without inventing an attribute nobody sets.
+
+   The `outline` is still a real `outline`: `verify:a11y` tabs to a control
+   and reads `outlineWidth` and `outlineStyle`, and more importantly a real
+   outline is the one focus indicator that cannot be clipped by an ancestor's
+   `overflow: hidden`. Width still comes from `--focus-width`, so the thin /
+   medium / thick setting keeps working.
+   ------------------------------------------------------------------------- */
+
+/**
+ * The rest position of every outline sits 4px further out than the focused
+ * one, so the ring tightens onto the control as it appears instead of simply
+ * existing. `:where()` gives this zero specificity: any element that already
+ * declares its own transition keeps it and quietly opts out of the animation,
+ * which is exactly the trade we want — no rule in this file may cost another
+ * module a transition it was relying on.
+ */
+:where(*) {
+  outline-offset: calc(var(--focus-gap) + 4px);
+  transition: outline-offset var(--dur-micro) var(--ease-arrive);
+}
+
+:root:root[data-keyboard-nav="true"] :focus-visible {
+  border-radius: var(--r-self, var(--radius-sm));
+  outline: var(--focus-width) solid var(--focus-ink);
+  outline-offset: var(--focus-gap);
+  box-shadow:
+    var(--mat-cast, 0 0 rgb(0 0 0 / 0)),
+    0 0 0 calc(var(--focus-width) + var(--focus-gap) + 2px) var(--focus-halo);
+}
+
+/**
+ * Compatibility for the two shapes in `base.css` that predate the materials.
+ * `--r-self` and `--mat-cast` do not inherit, so naming them here costs a
+ * `.btn`'s children nothing — and it means the most-focused control in the
+ * game stops turning square, and stops losing its shadow, the moment this
+ * file lands rather than whenever its screen gets migrated.
+ */
+.btn {
+  --r-self: var(--radius-pill);
+  --mat-cast: var(--shadow-sm), inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+.panel {
+  --r-self: var(--radius-lg);
+  --mat-cast: var(--shadow), inset 0 1px 0 rgb(255 255 255 / 0.07);
+}
+.panel-tight { --r-self: var(--radius); }
+
+/* -------------------------------------------------------------------------
+   7. Scrollbars, bound to the document rather than to a class
+   -------------------------------------------------------------------------
+   `base.css` styles `.scroll`, which works right up until somebody writes a
+   scrolling container and forgets the class — and then a Windows scrollbar
+   appears in the middle of a neon card game, which §7 of the bar calls a tear
+   in the world and is hard to argue with.
+
+   So these are unclassed. In WebKit the `::-webkit-scrollbar` pseudo-elements
+   have no specificity of their own, so `.scroll`'s existing rules still win
+   where they exist and these only fill the gaps. In Firefox `scrollbar-width`
+   and `scrollbar-color` are inherited properties, which is why declaring them
+   once on `:root` in §1 covers every scroller in the app at once.
+
+   The thumb is lit from the top-left like everything else. */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: var(--r-chip);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--light-sweep), rgb(150 132 216 / 0.85), rgb(74 66 112 / 0.85));
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: var(--r-chip);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22), inset 0 -1px 0 rgb(0 0 0 / 0.3);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(var(--light-sweep), var(--scroll-thumb-hot), rgb(110 96 168 / 0.9));
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* -------------------------------------------------------------------------
+   8. Form controls
+   -------------------------------------------------------------------------
+   This is the urgent part. The Custom Lobby renders five white-background,
+   black-text Windows widgets on a black screen, and a screenshot of it beside
+   a screenshot of Gwent answers the one-sentence test in about a second.
+
+   ## Why the baseline is unclassed, and why it is wrapped in `:where()`
+
+   A kit you have to opt into does not solve this, because the markup that
+   needs it most is the markup nobody is going to touch this week. So the
+   baseline is bound to the elements themselves: `select`, `input`, `textarea`.
+   Every control in the game gets it, including ones written after this file
+   and ones nobody remembers exist.
+
+   `:where()` then drops the specificity of those selectors to zero. That is
+   the whole safety argument for doing something this broad: every existing
+   rule — `.lab-field input`, `.signin-field input`, `.search-input`,
+   `.patch-search input` — still wins on every property it happens to declare,
+   so no screen's intentional layout moves. What the baseline supplies is only
+   the properties nobody was setting, and the one that matters most is
+   `appearance: none`, which nothing in the codebase currently touches. An OS
+   widget becomes impossible without anything else changing.
+
+   There is exactly one exception to the zero-specificity rule and it is the
+   select chevron — see the note on it below, where it is argued rather than
+   assumed.
+
+   `.field .select .checkbox .switch .slider .textarea` are the explicit
+   classes for new markup, at normal specificity, and `.input` is defined
+   because six existing controls already claim it and nobody ever wrote it. */
+
+:where(input, select, textarea, button) {
+  font: inherit;
+  color: inherit;
+}
+
+/* --- text-ish fields ---------------------------------------------------- */
+
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="image"]):not([type="reset"])
+),
+:where(textarea),
+:where(select),
+.field,
+.input,
+.textarea,
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 40px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid rgb(0 0 0 / 0.55);
+  border-radius: var(--r-field);
+  --r-self: var(--r-field);
+  --mat-amp: var(--amp-well);
+  color: var(--text);
+  background-color: transparent;
+  background-image: var(--tex-grain-fine, none), var(--fill-well);
+  background-repeat: repeat, no-repeat;
+  background-size: var(--tex-grain-fine-size, auto), 100% 100%;
+  background-blend-mode: soft-light, normal;
+  --mat-cast:
+    inset 0 2px 5px -1px rgb(0 0 0 / 0.55),
+    inset 2px 0 5px -3px rgb(0 0 0 / 0.4),
+    inset 0 -1px 0 rgb(255 255 255 / calc(0.1 * var(--rim-boost))),
+    inset -1px 0 0 rgb(255 255 255 / calc(0.05 * var(--rim-boost)));
+  box-shadow: var(--mat-cast);
+  transition:
+    border-color var(--dur-micro) var(--ease-arrive),
+    box-shadow var(--dur-micro) var(--ease-arrive),
+    background-color var(--dur-micro) var(--ease-arrive),
+    outline-offset var(--dur-micro) var(--ease-arrive);
+}
+
+:where(textarea),
+.textarea {
+  min-height: calc(var(--sp-7) + var(--sp-6));
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/**
+ * The state rules repeat `:not([type="range"]):not([type="checkbox"])
+ * :not([type="radio"])`, and they have to.
+ *
+ * `input` matches a slider and a tick box as happily as it matches a text
+ * field, and a `:hover` or `:focus` on the bare element name carries the same
+ * (0,1,0) as `.slider` — so without the exclusion a focused range input picks
+ * up the field's focus tint and turns into a translucent purple rectangle with
+ * a slider drawn inside it. The exclusions live inside `:where()`, so they
+ * cost no specificity and the rule still yields to any screen's own styling.
+ *
+ * A field lights its rim when the caret is in it, so "which box am I typing
+ * in" is answerable without the focus ring having to do all the work.
+ */
+:where(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), textarea, select):hover:not(:disabled),
+.field:hover:not(:disabled),
+.input:hover:not(:disabled),
+.textarea:hover:not(:disabled),
+.select:hover:not(:disabled) {
+  --rim-boost: 1.9;
+  border-color: rgb(120 100 190 / 0.7);
+}
+
+:where(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), textarea, select):focus,
+.field:focus,
+.input:focus,
+.textarea:focus,
+.select:focus {
+  --rim-boost: 2.2;
+  border-color: var(--accent);
+  background-color: rgb(20 12 40 / 0.55);
+}
+
+:where(input, textarea)::placeholder,
+.field::placeholder,
+.textarea::placeholder {
+  color: var(--text-faint);
+  opacity: 1; /* Firefox dims placeholders again on top of the colour */
+}
+
+:where(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), textarea, select):disabled,
+.field:disabled,
+.input:disabled,
+.textarea:disabled,
+.select:disabled {
+  cursor: not-allowed;
+  color: var(--text-dim);
+  border-color: rgb(255 255 255 / 0.08);
+  background-image: none, linear-gradient(var(--light-sweep), rgb(30 27 42 / 0.7), rgb(18 16 26 / 0.7));
+  --rim-boost: 0;
+}
+
+:where(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), textarea, select)[aria-invalid="true"],
+:where(input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), textarea, select)[data-invalid="true"],
+.field[aria-invalid="true"],
+.input[aria-invalid="true"],
+.textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: var(--mat-cast), 0 0 0 1px var(--danger);
+}
+
+/* Number inputs: kill the spinners. They are a native widget by another name,
+   they are unstyleable, and every place we use one has explicit min/max the
+   player can just type into. Firefox needs the property, WebKit needs the
+   pseudo-element, and both need saying. */
+:where(input[type="number"]),
+.field[type="number"],
+.input[type="number"] {
+  -moz-appearance: textfield;
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+:where(input[type="number"])::-webkit-outer-spin-button,
+:where(input[type="number"])::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+:where(input[type="search"])::-webkit-search-decoration,
+:where(input[type="search"])::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+/* --- select ------------------------------------------------------------- */
+
+/**
+ * `appearance: none` takes the OS chevron away, so one is drawn back: a
+ * `data:` SVG on the 24px grid at module C's stroke weight, right-aligned,
+ * with padding reserved for it. The extra right padding is what stops a long
+ * option name running underneath the arrow.
+ *
+ * The popup list itself is the one piece of a `<select>` no author stylesheet
+ * fully controls. `color-scheme: dark` on the root plus explicit `option`
+ * colours is as far as CSS reaches, and on Chromium that is far enough for
+ * the list to come up dark rather than white. It is also the reason
+ * `color-scheme` is set in §1 rather than left to chance.
+ */
+:where(select),
+.select,
+select.input,
+select.field {
+  cursor: pointer;
+  text-overflow: ellipsis;
+  /* The surface, held in a custom property so the escalated rule below can
+     put the chevron on top of it without having to know what it is. */
+  --select-surface: var(--tex-grain-fine, none), var(--fill-well);
+}
+
+/**
+ * The one rule in this file that deliberately out-specifies a screen, and the
+ * reason is affordance rather than taste. `background` is a shorthand, so
+ * `.lab-field select { background: var(--bg-panel) }` resets
+ * `background-image` to `none` — which, on a control we have just stripped
+ * `appearance` from, removes the last thing that says "this is a dropdown".
+ * A select that looks exactly like a text input is worse than the white
+ * Windows widget it replaced, so the chevron and the space reserved for it
+ * are forced. Everything else about a select — its fill, its size, its
+ * border — is still the screen's to decide.
+ */
+:root:root select,
+:root:root .select {
+  padding-right: calc(var(--sp-3) + 22px);
+  background-image: var(--chevron), var(--select-surface, var(--fill-well));
+  background-repeat: no-repeat, repeat, no-repeat;
+  background-size: 22px 22px, var(--tex-grain-fine-size, auto), 100% 100%;
+  background-position: right var(--sp-2) center, 0 0, 0 0;
+  background-blend-mode: normal, soft-light, normal;
+}
+
+:where(select) option,
+.select option {
+  background: var(--bg-panel);
+  color: var(--text);
+}
+
+:where(select) optgroup,
+.select optgroup {
+  background: var(--bg-deep);
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+/* --- checkbox and radio -------------------------------------------------- */
+
+/**
+ * Ticks and dots are background layers rather than `::before` content.
+ * Generated content on an `<input>` is officially undefined behaviour and
+ * engines disagree about it; a background image is boringly portable and it
+ * also gives us `background-size` to animate, which is where the little
+ * scale-in on check comes from.
+ */
+:where(input[type="checkbox"], input[type="radio"]),
+.checkbox {
+  /* One size token rather than four literals, so the coarse-pointer block at
+     the bottom can grow the whole control — box, corner and tick together —
+     to the 44px touch floor with a single line. The tick is a vector scaled
+     to the box, so it grows with it and needs no second asset. */
+  --check-size: 20px;
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: var(--check-size);
+  height: var(--check-size);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  vertical-align: -0.22em;
+  border: 1px solid rgb(0 0 0 / 0.6);
+  border-radius: calc(var(--check-size) * 0.3);
+  --r-self: calc(var(--check-size) * 0.3);
+  background-color: transparent;
+  background-image: var(--fill-well);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+  box-shadow:
+    inset 0 2px 4px -1px rgb(0 0 0 / 0.6),
+    inset 0 -1px 0 rgb(255 255 255 / 0.08);
+  transition:
+    background-color var(--dur-micro) var(--ease-arrive),
+    border-color var(--dur-micro) var(--ease-arrive),
+    box-shadow var(--dur-micro) var(--ease-arrive),
+    outline-offset var(--dur-micro) var(--ease-arrive);
+}
+
+:where(input[type="radio"]) {
+  border-radius: 50%;
+  --r-self: 50%;
+}
+
+@media (hover: hover) {
+  :where(input[type="checkbox"], input[type="radio"]):hover:not(:disabled),
+  .checkbox:hover:not(:disabled) {
+    border-color: rgb(140 116 220 / 0.8);
+  }
+}
+
+:where(input[type="checkbox"]):checked,
+.checkbox:checked {
+  border-color: rgb(255 255 255 / 0.4);
+  background-image: var(--tick), var(--fill-hero);
+  background-size: 100% 100%, 100% 100%;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35),
+    0 1px 3px rgb(0 0 0 / 0.5),
+    0 0 14px rgb(181 108 255 / 0.4);
+}
+
+:where(input[type="radio"]):checked {
+  border-color: rgb(255 255 255 / 0.4);
+  background-image:
+    radial-gradient(circle at 50% 50%, #fff 0 22%, transparent 24%),
+    var(--fill-hero);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    0 1px 3px rgb(0 0 0 / 0.5),
+    0 0 14px rgb(181 108 255 / 0.4);
+}
+
+/* Indeterminate is a real third state and it must not look like "off". */
+:where(input[type="checkbox"]):indeterminate,
+.checkbox:indeterminate {
+  border-color: rgb(255 255 255 / 0.3);
+  background-image:
+    linear-gradient(var(--accent-bright), var(--accent-bright)),
+    var(--fill-well);
+  background-size: 10px 2px, 100% 100%;
+}
+
+:where(input[type="checkbox"], input[type="radio"]):disabled,
+.checkbox:disabled {
+  cursor: not-allowed;
+  border-color: rgb(255 255 255 / 0.1);
+  background-image: linear-gradient(var(--light-sweep), rgb(30 27 42 / 0.8), rgb(18 16 26 / 0.8));
+  filter: saturate(0.2);
+}
+
+/* --- switch -------------------------------------------------------------- */
+
+/**
+ * A switch is a checkbox that has been told it is a physical object. The knob
+ * is a radial gradient in a background layer and it slides by animating
+ * `background-position` — again, no pseudo-element, so `.switch` can be added
+ * to an `<input>` that some screen has already decorated.
+ *
+ * It reads as on/off by *position and colour*, and the label beside it is
+ * expected to say which — never colour alone.
+ */
+.switch {
+  /* Same trick as the checkbox: the track, the knob radius and the travel are
+     all derived from two tokens, so a coarse pointer gets a 76×44 switch that
+     is still a switch rather than a 48px pill stretched to 44px tall. */
+  --switch-h: 26px;
+  --switch-w: 48px;
+  --knob-r: calc(var(--switch-h) / 2 - 5px);
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  width: var(--switch-w);
+  height: var(--switch-h);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  vertical-align: -0.35em;
+  border: 1px solid rgb(0 0 0 / 0.6);
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  background-color: transparent;
+  background-image:
+    radial-gradient(
+      circle at calc(var(--switch-h) / 2) 50%,
+      #f4f0ff 0 var(--knob-r),
+      rgb(200 190 235 / 0.9) var(--knob-r) calc(var(--knob-r) + 1px),
+      transparent calc(var(--knob-r) + 1.5px)
+    ),
+    var(--fill-well);
+  background-repeat: no-repeat, no-repeat;
+  background-size: 100% 100%, 100% 100%;
+  background-position: 0 0, 0 0;
+  box-shadow:
+    inset 0 2px 4px -1px rgb(0 0 0 / 0.6),
+    inset 0 -1px 0 rgb(255 255 255 / 0.07);
+  transition:
+    background-position var(--dur-ui) var(--ease-overshoot),
+    background-color var(--dur-micro) var(--ease-arrive),
+    border-color var(--dur-micro) var(--ease-arrive),
+    box-shadow var(--dur-micro) var(--ease-arrive),
+    outline-offset var(--dur-micro) var(--ease-arrive);
+}
+
+.switch:checked {
+  border-color: rgb(255 255 255 / 0.34);
+  background-image:
+    radial-gradient(
+      circle at calc(var(--switch-h) / 2) 50%,
+      #ffffff 0 var(--knob-r),
+      rgb(240 232 255 / 0.9) var(--knob-r) calc(var(--knob-r) + 1px),
+      transparent calc(var(--knob-r) + 1.5px)
+    ),
+    var(--fill-hero);
+  background-position: calc(var(--switch-w) - var(--switch-h)) 0, 0 0;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(0 0 0 / 0.3),
+    0 1px 3px rgb(0 0 0 / 0.5),
+    0 0 16px rgb(181 108 255 / 0.35);
+}
+
+.switch:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.2);
+  border-color: rgb(255 255 255 / 0.1);
+}
+
+/* --- slider -------------------------------------------------------------- */
+
+/**
+ * Ranges are the one control where the two engines cannot share a rule: put
+ * `::-webkit-slider-thumb` and `::-moz-range-thumb` in the same selector list
+ * and *both* engines drop the whole thing, because each treats the other's
+ * pseudo-element as a parse error. Hence the duplication below. It is not an
+ * oversight.
+ *
+ * `--slider-fill` is a hook for the filled portion of the track, because
+ * WebKit has no `::-webkit-range-progress` and there is no CSS-only way to
+ * know the value. A caller that sets it on input gets a two-tone track; one
+ * that does not gets a clean well, which is still correct.
+ */
+:where(input[type="range"]),
+.slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-height: 0;
+  height: var(--slider-h, 22px);
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  --r-self: var(--r-chip);
+}
+
+:where(input[type="range"])::-webkit-slider-runnable-track,
+.slider::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: var(--r-chip);
+  background:
+    linear-gradient(90deg, var(--accent) 0 var(--slider-fill, 0%), transparent var(--slider-fill, 0%)),
+    var(--fill-well);
+  box-shadow: inset 0 2px 3px -1px rgb(0 0 0 / 0.65), inset 0 -1px 0 rgb(255 255 255 / 0.07);
+}
+
+:where(input[type="range"])::-moz-range-track,
+.slider::-moz-range-track {
+  height: 8px;
+  border-radius: var(--r-chip);
+  background: var(--fill-well);
+  box-shadow: inset 0 2px 3px -1px rgb(0 0 0 / 0.65), inset 0 -1px 0 rgb(255 255 255 / 0.07);
+}
+
+:where(input[type="range"])::-moz-range-progress,
+.slider::-moz-range-progress {
+  height: 8px;
+  border-radius: var(--r-chip);
+  background: linear-gradient(var(--light-sweep), var(--accent-bright), var(--accent));
+}
+
+:where(input[type="range"])::-webkit-slider-thumb,
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -5px;
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #ffffff 0 22%, var(--accent-bright) 45%, var(--accent) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    0 1px 3px rgb(0 0 0 / 0.6),
+    0 0 0 1px rgb(0 0 0 / 0.5),
+    0 0 12px rgb(181 108 255 / 0.4);
+  transition: transform var(--dur-micro) var(--ease-overshoot);
+}
+
+:where(input[type="range"])::-moz-range-thumb,
+.slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #ffffff 0 22%, var(--accent-bright) 45%, var(--accent) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    0 1px 3px rgb(0 0 0 / 0.6),
+    0 0 0 1px rgb(0 0 0 / 0.5),
+    0 0 12px rgb(181 108 255 / 0.4);
+}
+
+:where(input[type="range"]):active::-webkit-slider-thumb,
+.slider:active::-webkit-slider-thumb {
+  transform: scale(1.14);
+}
+
+:where(input[type="range"]):disabled,
+.slider:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.2);
+}
+
+/* --- the label wrapper --------------------------------------------------- */
+
+/**
+ * Not in the contract, but every one of the controls above is useless
+ * without it and every screen would otherwise invent its own. A field is a
+ * label, a control and an optional note in a column; `.field-row` is the same
+ * thing laid out for a checkbox or a switch, where the label belongs beside
+ * the control and the whole row should be clickable.
+ */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.field-group > .t-label { margin: 0; }
+.field-note {
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--text-faint);
+}
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 32px;
+  cursor: pointer;
+}
+
+/* -------------------------------------------------------------------------
+   9. Fading dividers
+   -------------------------------------------------------------------------
+   A divider that butts hard into a panel edge is a line somebody drew; a
+   divider that fades out before it gets there is a line the light stopped
+   catching. The alpha ramps to nothing across the outer 15% at each end.
+
+   Two pixels tall rather than one, because a real groove in a lit surface is
+   a dark line with a lit line under it — the same top-left key light as
+   everything else, at the smallest scale it can be expressed. */
+
+.hairline {
+  flex: 0 0 auto;
+  height: 2px;
+  border: 0;
+  margin: 0;
+  background-image:
+    linear-gradient(90deg, transparent 0%, var(--hairline-dark) 15%, var(--hairline-dark) 85%, transparent 100%),
+    linear-gradient(90deg, transparent 0%, var(--hairline-lit) 15%, var(--hairline-lit) 85%, transparent 100%);
+  background-repeat: no-repeat, no-repeat;
+  background-size: 100% 1px, 100% 1px;
+  background-position: 0 0, 0 100%;
+}
+
+.hairline-v {
+  flex: 0 0 auto;
+  width: 2px;
+  align-self: stretch;
+  border: 0;
+  margin: 0;
+  background-image:
+    linear-gradient(180deg, transparent 0%, var(--hairline-dark) 15%, var(--hairline-dark) 85%, transparent 100%),
+    linear-gradient(180deg, transparent 0%, var(--hairline-lit) 15%, var(--hairline-lit) 85%, transparent 100%);
+  background-repeat: no-repeat, no-repeat;
+  background-size: 1px 100%, 1px 100%;
+  background-position: 0 0, 100% 0;
+}
+
+/* -------------------------------------------------------------------------
+   10. Accessibility
+   -------------------------------------------------------------------------
+   Both switches already exist and already work; everything added above has to
+   answer to them, which is the whole reason these blocks repeat selectors
+   `base.css` already uses. Same attribute, same moment, one more set of
+   tokens following it. */
+
+/**
+ * Reduced motion, and the two halves it splits into.
+ *
+ * **Functional motion is shortened, not deleted.** A progress bar still has to
+ * fill; a counter still has to land. So the three mirrored durations are a
+ * quarter of themselves, which is not a number invented here — it is exactly
+ * what `animationScale()` returns to `scaledDuration()` in `motion.ts` under
+ * the same setting, so 110 · 260 · 700 become 28 · 65 · 175 on both sides of
+ * the mirror rather than only on one. Getting this wrong is how a canvas ends
+ * up still moving while the DOM beside it has stopped.
+ *
+ * **Decorative motion is deleted.** The specular wipe and the loading shimmer
+ * go to zero and their animations are removed outright, because §3 asks this
+ * setting to kill the decorative layer rather than speed it up, and a shimmer
+ * that never ends is worse than a transition that is merely long.
+ *
+ * The overshoot easing goes linear. This is a deliberate divergence from the
+ * mirrored `EASE.overshoot` constant and it follows the precedent `base.css`
+ * already set with `--ease-snap`: a spring is precisely the shape of motion
+ * this setting is asking us not to make, whatever the duration.
+ */
+:root[data-reduced-motion="true"] {
+  --dur-micro: 28ms;
+  --dur-ui: 65ms;
+  --dur-setpiece: 175ms;
+  --dur-sheen: 0ms;
+  --ease-overshoot: linear;
+}
+
+:root[data-reduced-motion="true"] .act:hover,
+:root[data-reduced-motion="true"] .act[data-state="loading"],
+:root[data-reduced-motion="true"] .act.is-loading,
+:root[data-reduced-motion="true"] .skeleton {
+  animation: none;
+}
+
+/* Motion is not the only signal for either state: loading still dims and
+   stops taking pointer events, and the skeleton is still a visible well. */
+:root[data-reduced-motion="true"] .act[data-state="loading"],
+:root[data-reduced-motion="true"] .act.is-loading {
+  --mat-amp: 0.3;
+  color: var(--text-dim);
+}
+
+/* The reduced-motion transform is dropped rather than shortened. Under this
+   setting a hover should light up, not move. */
+:root[data-reduced-motion="true"] .act:hover:not(:disabled),
+:root[data-reduced-motion="true"] .act:active:not(:disabled) {
+  transform: none;
+}
+
+/**
+ * High contrast. The gradients flatten towards solid, the borders stop being
+ * suggestions, the grain comes off — 5–8% noise is exactly the sort of
+ * low-amplitude decoration this setting exists to remove — and the focus ring
+ * goes white with a heavier halo.
+ */
+:root[data-contrast="high"] {
+  --fill-hero: linear-gradient(var(--light-sweep), var(--accent-bright), var(--accent));
+  --fill-panel: linear-gradient(var(--light-sweep), rgb(14 9 26 / 0.99), rgb(8 5 16 / 0.99));
+  --fill-chip: linear-gradient(var(--light-sweep), rgb(26 18 46 / 0.99), rgb(16 11 30 / 0.99));
+  --fill-well: linear-gradient(var(--light-sweep), rgb(0 0 0 / 0.94), rgb(4 2 10 / 0.94));
+  /* Both of module B's grains, not just the coarse one. This is removed here
+     rather than in `texture.ts` because a `:root[data-…]` selector
+     out-specifies the plain `:root` rule that module injects — which is
+     precisely why it injects a rule rather than writing an inline style, an
+     inline style being the one thing no selector can out-rank. */
+  --tex-grain: none;
+  --tex-grain-fine: none;
+  --hairline-dark: rgb(0 0 0 / 0.9);
+  --hairline-lit: rgb(255 255 255 / 0.45);
+  --focus-ink: #ffffff;
+  --focus-halo: rgb(0 0 0 / 1);
+  --scroll-thumb: rgb(220 212 255 / 0.9);
+  --chevron: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23ffffff'%20stroke-width='2.25'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m7%2010%205%205%205-5'/%3E%3C/svg%3E");
+}
+
+:root[data-contrast="high"] .mat,
+:root[data-contrast="high"] .mat-hero,
+:root[data-contrast="high"] .mat-panel,
+:root[data-contrast="high"] .mat-chip {
+  border-color: var(--glass-border-bright);
+}
+
+:root[data-contrast="high"] :where(input, select, textarea),
+:root[data-contrast="high"] .field,
+:root[data-contrast="high"] .input,
+:root[data-contrast="high"] .select,
+:root[data-contrast="high"] .textarea,
+:root[data-contrast="high"] .checkbox,
+:root[data-contrast="high"] .switch {
+  border-color: var(--glass-border-bright);
+}
+
+/**
+ * The 44px touch floor from §13.
+ *
+ * `base.css` already forces `min-height: 44px` on `input` and `select` under
+ * a coarse pointer, and on a text field that is the whole job. On a tick box
+ * it is actively harmful: a native checkbox is 13px wide, so the existing
+ * rule was producing a 13×44 sliver — taller than the floor, half the floor
+ * wide, and shaped like nothing. `verify:mobile` measures both directions and
+ * it was right to.
+ *
+ * Because both controls are now sized from a token, the fix is to grow them
+ * whole. A 44px tick box and a 76×44 switch are large on a desktop and
+ * exactly right under a thumb, which is the only pointer this block is about.
+ */
+@media (pointer: coarse) {
+  .field,
+  .input,
+  .select,
+  .textarea,
+  .field-row {
+    min-height: 44px;
+  }
+  /* These deliberately carry ordinary specificity where the baseline in §8
+     carries none. The difference is that §8 is a *default* and has to yield
+     to a screen that meant something else, whereas this is a floor: a tick
+     box smaller than a thumb on a touch device is a bug in that screen, not
+     a decision worth preserving. */
+  input[type="checkbox"],
+  input[type="radio"],
+  .checkbox {
+    --check-size: 44px;
+  }
+  input.switch,
+  .switch {
+    --switch-h: 44px;
+    --switch-w: 76px;
+    min-height: var(--switch-h);
+  }
+  /* The track stays 8px; it is the grab area around it that grows. */
+  input[type="range"],
+  .slider {
+    --slider-h: 44px;
+  }
+}

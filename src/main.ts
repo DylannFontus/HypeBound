@@ -32,6 +32,7 @@ import { loanerDeckFor, tourOpponentDeck } from "./game/progression/grandTour";
 import { tutorialConfig } from "./game/progression/data";
 import { autoBuildDeck } from "./engine/deck";
 import { Shell, watchOrientation } from "./ui/shell";
+import { mountAtmosphere } from "./ui/atmosphere";
 import { createLobbyScreen } from "./ui/screens/lobbyScreen";
 import { createPlayScreen } from "./ui/screens/playScreen";
 import { createShopScreen } from "./ui/screens/shopScreen";
@@ -151,6 +152,20 @@ function showFatalError(error: unknown): void {
 function boot(): void {
   applySettings();
   watchOrientation();
+  /**
+   * The world goes up before anything else does.
+   *
+   * It is mounted outside `#app`, so it is the one layer no screen and no
+   * navigation can ever take away — which is what lets the transitions in
+   * `transitions.css` fade an outgoing screen all the way to zero without
+   * anybody having to prove the incoming one has already covered the hole.
+   *
+   * Before the content check rather than after it, deliberately: a validation
+   * failure is the one screen a player might sit and read for a while, and it
+   * should be a room with the lights on rather than a slab on black. The call
+   * is idempotent, so the Shell asking for it again below costs nothing.
+   */
+  mountAtmosphere();
   /**
    * Probe the interface icons. Fire-and-forget: each one that exists exposes
    * itself to CSS, each one that does not leaves the glyph in place, and
@@ -1038,6 +1053,8 @@ function boot(): void {
   });
 
   shell.register("lab", () => createLabScreen(content, { onBack: () => shell.navigate("lobby") }));
+
+  shell.register("uikit", async () => (await import("./ui/screens/uiKitScreen")).createUiKitScreen());
 
   shell.register("replays", () =>
     createReplayScreen(content, {
