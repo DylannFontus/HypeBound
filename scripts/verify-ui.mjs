@@ -474,6 +474,61 @@ async function main() {
 
     const before = await attacksUsed(attacker.instanceId);
 
+    /**
+     * Record what the game says, and what it thought was true, before the drag.
+     *
+     * This step failed once in roughly a dozen runs and the message could not
+     * say why: it reported that no attack happened and left the cause to
+     * guesswork. Two mechanical explanations were measured and ruled out — the
+     * attacker's screen position drifts at most 3.6 px in the window between
+     * reading it and pressing, far inside a card, and an attack drag does not
+     * move the dragged card under the cursor, so it cannot occlude its own
+     * target.
+     *
+     * What was never captured is the game's own account. A refused intent
+     * raises a toast — the engine's `result.error.message`, or the stage gate's
+     * refusal reason — and toasts live for 2.2 s, which outlasts this step's
+     * post-drop wait. So they are collected here and printed on failure. The
+     * next occurrence will name its cause instead of posing a question.
+     */
+    await page.evaluate(() => {
+      window.__toasts = [];
+      const layer = document.querySelector(".toast-layer") ?? document.body;
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            if (node instanceof HTMLElement && node.classList.contains("toast")) {
+              window.__toasts.push(`${node.className}: ${node.textContent}`);
+            }
+          }
+        }
+      });
+      observer.observe(layer, { childList: true, subtree: true });
+    });
+
+    /** Everything that has to still be true at the moment of the press. */
+    const preconditions = () =>
+      page.evaluate(
+        ([attackerId, targetId]) => {
+          const d = window.hypeboundBattle.debug();
+          const stage = window.hypeboundBattle.stage?.();
+          const allow = stage?.allow ?? null;
+          const ready = d.readyAttackers ?? [];
+          const found = ready.find((a) => a.instanceId === attackerId);
+          return {
+            attackerStillReady: Boolean(found),
+            attackerNow: found ? { x: Math.round(found.x), y: Math.round(found.y) } : null,
+            targetStillLegal: (d.legalAttackTargets ?? []).some((t) => t.id === targetId),
+            attacksAllowed: allow === null || allow.some((m) => m.intent === "attack" || m.intent === "any"),
+            busy: d.busy ?? null,
+            beat: stage?.beat ?? null,
+          };
+        },
+        [attacker.instanceId, target.id]
+      );
+
+    const atPress = await preconditions();
+
     await page.mouse.move(attacker.x, attacker.y);
     await page.waitForTimeout(200);
     await page.mouse.down();
@@ -486,9 +541,11 @@ async function main() {
     await page.waitForTimeout(300);
     const dragOverTarget = await page.evaluate(() => window.hypeboundBattle.debug().drag);
 
+    const atDrop = await preconditions();
     await page.mouse.up();
     await page.waitForTimeout(1600);
 
+    const said = await page.evaluate(() => window.__toasts ?? []);
     const after = await attacksUsed(attacker.instanceId);
     // null = the attacker traded and died, which also proves the attack resolved
     const attacked = after === null || after > before;
@@ -498,7 +555,10 @@ async function main() {
           `    target:    ${JSON.stringify(target)}\n` +
           `    attacker:  ${JSON.stringify(attacker)}\n` +
           `    on down:   ${JSON.stringify(dragStart)}\n` +
-          `    on target: ${JSON.stringify(dragOverTarget)}`
+          `    on target: ${JSON.stringify(dragOverTarget)}\n` +
+          `    at press:  ${JSON.stringify(atPress)}\n` +
+          `    at drop:   ${JSON.stringify(atDrop)}\n` +
+          `    the game said: ${said.length ? JSON.stringify(said) : "(nothing)"}`
       );
     }
     // `attacked` already proves the drag produced an accepted attack intent;

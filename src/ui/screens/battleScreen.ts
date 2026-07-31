@@ -457,6 +457,17 @@ export class BattleScreen {
         const positions = new Map(this.handBar.debugCards().map((c) => [c.instanceId, c]));
         const hand = (state["hand"] as { instanceId: string }[] | undefined) ?? [];
         state["hand"] = hand.map((card) => ({ ...card, screen: positions.get(card.instanceId)?.screen ?? null }));
+        /**
+         * Whether the transport would refuse an intent right now.
+         *
+         * The view cannot answer this — `isBusy()` belongs to the transport and
+         * covers the AI's turn and an intent already in flight — and it is the
+         * one precondition that can silently swallow a perfectly aimed drag.
+         * Exposed because a verification script that fails without it can only
+         * report that nothing happened.
+         */
+        state["busy"] = this.match.isBusy();
+        state["connected"] = this.connected;
         return state;
       },
     };
