@@ -376,13 +376,32 @@
 .lobby-rail-toggle { display: none; }
 
 /**
- * The wordmark.
+ * The wordmark, relit and stood on the rail.
  *
  * It used to vanish entirely below 900px, which left the game's front door with
  * no brand mark at all on a phone. It scales instead — the header is a flex row
  * with two known-width ends, so a `clamp` against `vw` always has somewhere to
  * go — and only steps out below 640px, where the two chips genuinely meet in
  * the middle.
+ *
+ * ## Why it is relit here rather than redrawn
+ *
+ * The review's finding was that this was the one object in the domain rendered
+ * in a different language from everything around it: a PNG filled with a
+ * **vertical** white→magenta gradient, on a screen where 100% of the linear
+ * gradients — 51 on this screen alone — run at 135°. That part is true and it
+ * is fixed below, by masking a 315° key ramp with the mark's own alpha and
+ * laying it over the art: brighter into the top-left, falling into the
+ * bottom-right, like every other surface it sits among.
+ *
+ * The rest of that finding is refutable and is not "fixed", because complying
+ * would make it worse. The hard offset the mark carries is a *drawn extrusion*
+ * and it runs down and to the right — which is where a 315° key light puts a
+ * shadow. Softening it would remove the one thing that gives the letters
+ * thickness, in the name of a rule it already obeys. What is added instead is
+ * the thing that was genuinely missing: a soft directional pair and a tight
+ * contact shadow, so the mark sits **on** the header rail rather than floating
+ * over it. §1 asks for exactly that of anything sitting on anything else.
  */
 .lobby-wordmark { display: none; }
 
@@ -400,6 +419,34 @@ html.has-brand-wordmark .lobby-wordmark {
   background-size: contain;
   opacity: 0.94;
   pointer-events: none;
+  /* Contact first, then the soft cast, both thrown down-right at the same 0.62
+     ratio the materials use. */
+  filter:
+    drop-shadow(1px 1px 0 rgb(0 0 0 / 0.55))
+    drop-shadow(4px 6px 10px rgb(0 0 0 / 0.5))
+    drop-shadow(6px 10px 22px rgb(0 0 0 / 0.3));
+}
+
+/* The key ramp, cut to the mark's own silhouette. */
+html.has-brand-wordmark .lobby-wordmark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    var(--light-sweep),
+    rgb(255 255 255 / 0.26) 0%,
+    rgb(255 255 255 / 0) 44%,
+    rgb(24 8 40 / 0.3) 100%
+  );
+  mask-image: var(--brand-wordmark);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-image: var(--brand-wordmark);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
 }
 
 @media (max-width: 640px) {
@@ -874,11 +921,32 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
    * cannot reach it. `--enter-delay` still inherits down to the band, so the nine
    * tiles still sweep at nine different phases.
    */
-  animation: lobby-tile-rise 340ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+  animation: lobby-tile-rise 300ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
 }
 
+/**
+ * It starts at 0.3, not at 0, and that single number is the blank frame.
+ *
+ * §3a: "Never a blank frame. No moment where neither screen is drawn." A CDP
+ * screencast of a real click on PLAY, sampled at 13ms, found exactly one — mean
+ * screen luminance 102 → **20** → 111, 95th-percentile pixel 103 → 36 → 111 —
+ * and the frame itself, dumped to disk by `scripts/measure-nav.mjs`, explains
+ * it: both screens *were* drawn. The arriving screen's header was fully opaque
+ * and every tile on it was at opacity 0, because a per-element entrance with
+ * `from { opacity: 0 }` and a staggered delay holds the whole content plane at
+ * nothing for the first ~90ms of a screen that has already replaced the one
+ * behind it. The DOM probes reported no blank because they measure the
+ * *screen's* opacity, which was 0.99.
+ *
+ * Starting the cascade at 0.3 costs nothing anybody can name — the tile still
+ * rises 16px and still triples in value over 340ms, which is an entrance — and
+ * it means the content plane can never be empty while the outgoing screen is
+ * leaving. The same edit is made to the play screen's tiles for the same
+ * reason; between them they are the whole content plane of the two screens the
+ * player moves between most.
+ */
 @keyframes lobby-tile-rise {
-  from { opacity: 0; translate: 0 16px; }
+  from { opacity: 0.42; translate: 0 16px; }
   to { opacity: 1; translate: none; }
 }
 
@@ -908,23 +976,35 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
  * Nine tiles, nine hues, one recipe — and no tile can be brighter than its own
  * label by accident, because the alpha is the same for all nine.
  */
+/**
+ * ...and the hue does **not** reach the tile body, which is the correction.
+ *
+ * Tinting the whole plate gave nine adjacent tiles seven different hues: Deck
+ * Builder read blue, Merch Drops warm brown, Mastery red-brown, Missions green,
+ * Collection and Events lilac. §6 allows one hero accent per screen and
+ * everything else supports — the PLAY plate is already that accent, and the grid
+ * beneath it was answering with a patchwork. Nine objects with nine colours is
+ * also nine objects; nine labels on one object is a navigation.
+ *
+ * So the body is neutral and identically lit on all nine, and the destination's
+ * colour survives where a colour is actually useful: in the mark and the plate
+ * it stands in, at 34px, where the eye goes to identify the tile anyway. On
+ * hover the hue comes out onto the silhouette — one tile at a time, which is
+ * still one accent.
+ */
 .lobby-nav-wash {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
   background:
-    /* the weave: 3px of the tile's own hue every 7px along the light axis */
-    repeating-linear-gradient(
-      var(--light-sweep),
-      color-mix(in srgb, var(--tile-accent) 7%, transparent) 0 1px,
-      transparent 1px 7px
-    ),
+    /* the weave: one lit thread every 7px along the light axis */
+    repeating-linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.035) 0 1px, transparent 1px 7px),
     /* the bounce off the unlit corner, so the plate has two ends */
-    radial-gradient(64% 84% at 104% 112%, color-mix(in srgb, var(--tile-accent) 20%, transparent), transparent 70%),
+    radial-gradient(64% 84% at 104% 112%, rgb(126 96 196 / 0.24), transparent 70%),
     /* the key */
-    radial-gradient(96% 130% at 4% -6%, color-mix(in srgb, var(--tile-accent) 30%, transparent), transparent 74%);
-  opacity: 0.78;
+    radial-gradient(96% 130% at 4% -6%, rgb(255 255 255 / 0.1), transparent 74%);
+  opacity: 0.86;
   transition: opacity var(--dur-micro) var(--ease-arrive);
 }
 
@@ -966,13 +1046,17 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
   height: clamp(26px, 3.8vh, 34px);
   font-size: clamp(15px, 2.2vh, 19px);
   border-radius: var(--r-field);
-  color: color-mix(in srgb, var(--tile-accent) 76%, #ffffff);
-  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.1), rgb(0 0 0 / 0.3));
+  color: color-mix(in srgb, var(--tile-accent) 82%, #ffffff);
+  /* The plate carries the hue now that the tile does not, so it gets a wash of
+     it under the same 315° light the tile is lit by. */
+  background:
+    radial-gradient(88% 110% at 12% 0%, color-mix(in srgb, var(--tile-accent) 24%, transparent), transparent 76%),
+    linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.1), rgb(0 0 0 / 0.3));
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.14),
     inset 0 -1px 0 rgb(0 0 0 / 0.45),
     0 2px 5px -2px rgb(0 0 0 / 0.6);
-  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--tile-accent) 20%, transparent));
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--tile-accent) 32%, transparent));
   transition: color var(--dur-micro) var(--ease-arrive), box-shadow var(--dur-micro) var(--ease-arrive);
 }
 
@@ -1333,11 +1417,13 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
   overflow: hidden;
   text-align: left;
   /* Entrance only — the crawl is the material's `::after`. */
-  animation: mode-card-rise 340ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+  animation: mode-card-rise 300ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
 }
 
+/* 0.3 rather than 0 — see `lobby-tile-rise` for the screencast that made this
+   the difference between a transition and a blank frame. */
 @keyframes mode-card-rise {
-  from { opacity: 0; translate: 0 16px; }
+  from { opacity: 0.42; translate: 0 16px; }
   to { opacity: 1; translate: none; }
 }
 
@@ -1356,14 +1442,10 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
 }
 .mode-card:hover .mode-wash { opacity: 1; }
 
-.mode-watermark {
-  position: absolute;
-  color: var(--tile-accent);
-  opacity: 0.1;
-  pointer-events: none;
-  transition: opacity var(--dur-micro) var(--ease-arrive), translate var(--dur-ui) var(--ease-arrive);
-}
-.mode-card:hover .mode-watermark { opacity: 0.18; translate: -5px 0; }
+/* `.mode-watermark` used to live here: the tile's own 24px icon scaled to 44% of
+   its height and set behind a normal-size copy of the same icon. Both the rule
+   and the element are gone; §6's "one hero accent per screen" and §7's "icons on
+   a single optical size" were being broken by the same twelve lines. */
 
 /* The icon plaque: a shallow recess with the mark lit inside it, which is what
    the old flat 52px purple square wanted to be. */
@@ -1519,15 +1601,36 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
   --r-self: var(--r-tile);
   border-radius: var(--r-tile);
 }
-.mode-feature .mode-watermark {
-  right: -4%;
-  top: 20%;
-  height: 44%;
-  width: auto;
+/**
+ * Light where the ghost icon was.
+ *
+ * The middle row of a feature tile is the space the watermark occupied, and
+ * leaving it empty would trade a bad graphic for a void. What fills it is the
+ * mode's own hue arriving on the 135° vector every other surface in the game is
+ * lit by: a bloom in the corner the key comes from and a fall across the plate.
+ * A lit surface is not empty space, and it is one accent rather than two marks.
+ */
+.mode-feature .mode-wash {
+  background:
+    radial-gradient(66% 82% at 5% 1%, color-mix(in srgb, var(--tile-accent) 32%, transparent), transparent 68%),
+    linear-gradient(var(--light-sweep), color-mix(in srgb, var(--tile-accent) 14%, transparent), transparent 64%);
 }
 .mode-feature .mode-plate { width: 42px; height: 42px; font-size: 22px; }
 .mode-feature .mode-name { font-size: var(--fs-lg); }
-.mode-feature .mode-body { grid-row: 3; }
+.mode-feature .mode-body { grid-row: 3; position: relative; }
+/* Where the type stands. §7's fading divider, not a rule butting into an edge. */
+.mode-feature .mode-body::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 22%;
+  top: calc(var(--sp-2) * -1);
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tile-accent) 62%, transparent), transparent);
+  opacity: 0.55;
+  transition: opacity var(--dur-micro) var(--ease-arrive), right var(--dur-ui) var(--ease-arrive);
+}
+.mode-card:hover .mode-body::before { opacity: 0.9; right: 6%; }
 .mode-feature .mode-status { grid-row: 4; }
 .mode-feature .mode-blurb {
   display: -webkit-box;
@@ -1664,7 +1767,6 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
   .mode-feature .mode-name { font-size: var(--fs-md); }
   .mode-feature .mode-blurb { -webkit-line-clamp: 2; font-size: var(--fs-xs); }
   .mode-feature .mode-plate { width: 34px; height: 34px; font-size: 18px; }
-  .mode-feature .mode-watermark { top: 8%; height: 56%; }
   .mode-tail-list { overflow: visible; grid-auto-rows: minmax(48px, auto); }
 }
 
@@ -1900,6 +2002,38 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
 }
 .card-detail-overlay[hidden] { display: none; }
 
+/**
+ * The exit §3a asks for, as the reverse of the entrance rather than a new idea.
+ *
+ * Closing was `hidden = true` — a hard cut on the one surface in this screen
+ * that arrives by growing out of the tile the player pressed. The overlay drops
+ * back through the scale it rose from and the card inside it recedes a little
+ * faster than its backdrop, so the two separate as they go; both run on
+ * `--ease-leave`, which accelerates, because an exit that eases out is one the
+ * eye follows all the way.
+ */
+.card-detail-overlay.cd-leaving {
+  animation: cd-out 220ms var(--ease-leave) both;
+  pointer-events: none;
+}
+.card-detail-overlay.cd-leaving .cd-tilt {
+  animation: cd-card-out 220ms var(--ease-leave) both;
+}
+@keyframes cd-out {
+  to { opacity: 0; transform: scale(0.97); }
+}
+@keyframes cd-card-out {
+  to { opacity: 0; transform: scale(0.88) translateY(14px); }
+}
+:root[data-reduced-motion="true"] .card-detail-overlay.cd-leaving,
+:root[data-reduced-motion="true"] .card-detail-overlay.cd-leaving .cd-tilt {
+  animation-duration: 90ms;
+  animation-name: cd-fade-out;
+}
+@keyframes cd-fade-out {
+  to { opacity: 0; }
+}
+
 .cd-stage {
   display: flex;
   flex-direction: column;
@@ -1993,12 +2127,22 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
 @media (prefers-reduced-motion: reduce) {
   .cd-tilt { animation: none; }
 }
+/**
+ * The shadow follows the card's outline, not the canvas's.
+ *
+ * A `box-shadow` and a hairline ring on a canvas draw the *bitmap's* rectangle —
+ * and the bitmap is 512×680 with twenty pixels of transparent bleed and a
+ * Current-cut silhouette inside it. So a chamfered, notched card sat on a
+ * rounded grey rectangle a centimetre bigger than itself on all four sides, with
+ * a pale outline tracing the rectangle rather than the card. `drop-shadow`
+ * reads the alpha channel, so Cinder's flame notches and Pulse's circuit steps
+ * throw their own shadow and there is no plate behind anything.
+ */
 .cd-tilt canvas {
   display: block;
   max-height: 62vh;
   width: auto;
-  border-radius: 16px;
-  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  filter: drop-shadow(0 22px 34px rgba(0, 0, 0, 0.66)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
 }
 @media (prefers-reduced-motion: reduce) {
   .cd-tilt { transition: none; }
@@ -5443,13 +5587,28 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
  * is in them and the whole block is centred instead, so the panels are the size
  * of their contents and the composition sits in the middle of the frame.
  */
+/**
+ * Three objects in a block, and the leader is not one of them.
+ *
+ * She used to be the first column of this grid, and that one decision produced
+ * two of the screen's measured defects at once. Her `min-height: min(64vh,
+ * 620px)` set the height of the whole first row, so the stage and the form —
+ * which are 300px of content — were centred inside a 576px row and the
+ * disclosure was pushed 220px below them, stranded alone at the bottom of the
+ * frame. And being a grid item, she started at the content edge: a straight
+ * vertical cut 57px in from the viewport, with background on both sides of it.
+ *
+ * Out of the grid, she is a bleed layer down the left of the screen with no
+ * left boundary at all, and the three things a player actually reads are a
+ * compact block that sits together and centres as one.
+ */
 .signin-body {
   position: relative;
   z-index: 1;
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 0 minmax(0, 1fr) minmax(340px, 0.78fr);
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.72fr);
   grid-template-rows: auto auto;
   gap: var(--sp-4);
   padding: var(--sp-3) var(--sp-6) var(--sp-5);
@@ -5458,18 +5617,18 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   margin: 0 auto;
   /* Content-sized rows, centred as a block. A `1fr` row stretches both panels
      to the full height of the viewport, which on a 900px screen is two 700px
-     slabs holding six lines each — bigger is not the same as more present. The
-     portrait sets the height of the composition and the panels stand beside it. */
+     slabs holding six lines each — bigger is not the same as more present. */
   align-content: center;
-  align-items: center;
+  align-items: stretch;
   overflow-y: auto;
 }
 
-/* The leader takes a real column only when there is a leader. An empty track at
-   `0` rather than a `display: none` on the element keeps the two panels in the
-   same grid areas in both cases, so nothing below has to know. */
+/* Room for the person standing at the left edge. Padding rather than a grid
+   track, so the amount of room is a property of the composition and not of a
+   column that has to exist even when nobody is standing in it. */
 .signin-screen.has-leader .signin-body {
-  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr) minmax(340px, 0.78fr);
+  padding-left: min(34vw, 470px);
+  max-width: none;
 }
 
 /**
@@ -5486,26 +5645,76 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  filter: blur(26px) saturate(0.8);
-  opacity: 0.78;
-  mask-image: radial-gradient(126% 108% at 26% 26%, #000 22%, transparent 84%);
-  -webkit-mask-image: radial-gradient(126% 108% at 26% 26%, #000 22%, transparent 84%);
+  filter: blur(20px) saturate(1);
+  opacity: 1;
+  mask-image: radial-gradient(172% 152% at 38% 36%, #000 52%, rgb(0 0 0 / 0.62) 86%, transparent 100%);
+  -webkit-mask-image: radial-gradient(172% 152% at 38% 36%, #000 52%, rgb(0 0 0 / 0.62) 86%, transparent 100%);
 }
 .signin-room-art { width: 100%; height: 100%; object-fit: cover; }
 
-/* Bled off the left edge of the viewport. A portrait with four visible sides is
-   a photograph on a wall; one that runs out of the frame is somebody standing in
-   the room. `-6vw` is the smallest offset that reliably clears the rounded
-   corner of the screen padding at every width this layout survives. */
+/**
+ * A floor for the composition, so it ends in ground rather than in a hole.
+ *
+ * §6: squint at it and it should resolve into light and dark masses. Before
+ * this the lower two fifths of the screen resolved into nothing — 83% and 81%
+ * of the fifth and sixth bands were dark and flat, against 18.6% on the play
+ * screen the same team had built two screens earlier.
+ */
+.signin-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    /* Corner fall-off, so the brightest value stays where the subject is. */
+    radial-gradient(140% 112% at 36% 40%, transparent 36%, rgb(5 2 12 / 0.44) 100%),
+    /* The pool the panels stand in. Without it the block floats and the lower
+       two bands of this screen measured 83% and 81% dark-and-flat. */
+    radial-gradient(64% 44% at 62% 88%, rgb(138 100 224 / 0.3), transparent 78%),
+    radial-gradient(42% 30% at 22% 92%, rgb(96 74 168 / 0.22), transparent 76%),
+    radial-gradient(76% 30% at 62% 56%, rgb(181 108 255 / 0.14), transparent 78%),
+    /* A practical high on the far wall, so the quadrant the form does not reach
+       has something in it. */
+    radial-gradient(36% 32% at 86% 10%, rgb(82 200 255 / 0.16), transparent 74%),
+    radial-gradient(30% 26% at 64% 6%, rgb(181 108 255 / 0.12), transparent 76%),
+    linear-gradient(180deg, rgb(6 3 14 / 0.42) 0%, transparent 13%),
+    linear-gradient(0deg, rgb(5 2 12 / 0.24) 0%, transparent 20%);
+}
+
+/* Where the room's floor is. One fading line, the §7 primitive, doing the job a
+   whole perspective grid does on the queue: it tells the eye the lower third is
+   ground rather than the end of the picture. */
+.signin-vignette::after {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 4%;
+  top: 74%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(217 165 255 / 0.34) 26%, rgb(126 214 255 / 0.26) 68%, transparent);
+  filter: blur(1px);
+}
+
+/**
+ * Bled off the left edge of the viewport, and out of the layout entirely.
+ *
+ * A portrait with four visible sides is a photograph on a wall; one that runs
+ * out of the frame is somebody standing in the room. It is `left: -3vw` on an
+ * absolutely-positioned layer rather than a negative margin on a grid item,
+ * because a grid item cannot bleed past the container's padding box on a
+ * scrolling grid — which is exactly how the old rule ended up with a visible
+ * cut 57px in.
+ */
 .signin-portrait {
-  position: relative;
-  grid-column: 1;
-  grid-row: 1;
-  margin-left: -6vw;
-  min-width: 0;
-  min-height: min(64vh, 620px);
+  position: absolute;
+  left: -3vw;
+  top: 0;
+  bottom: 0;
+  width: min(40vw, 560px);
+  z-index: 0;
+  pointer-events: none;
   display: flex;
-  align-items: stretch;
+  align-items: flex-end;
   justify-content: flex-start;
   overflow: hidden;
 }
@@ -5513,11 +5722,11 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 46% 14%;
-  /* The canvas cuts its own right and bottom edges; this ramps the top so the
-     head is not sliced by a horizontal line, and the left simply leaves frame. */
-  mask-image: linear-gradient(180deg, transparent 0%, #000 14%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 14%);
+  object-position: 46% 22%;
+  /* Corners only. The canvas now feathers all four of its own edges, so what is
+     left to do here is round the right angles between them. */
+  mask-image: radial-gradient(88% 80% at 42% 52%, #000 62%, rgb(0 0 0 / 0.5) 90%, transparent 100%);
+  -webkit-mask-image: radial-gradient(88% 80% at 42% 52%, #000 62%, rgb(0 0 0 / 0.5) 90%, transparent 100%);
   /* A portrait standing in a room, not a picture in a frame: no plate, no rim,
      just the cast it throws on the floor of the composition. */
   filter: drop-shadow(10px 16px 34px rgb(0 0 0 / 0.7));
@@ -5530,7 +5739,7 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 
 .signin-stage {
   position: relative;
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 1;
   overflow: hidden;
   display: flex;
@@ -5588,6 +5797,15 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 
 /* ---- the form ------------------------------------------------------------ */
 
+/**
+ * Tall enough to be the composition rather than a card in the middle of it.
+ *
+ * Content-height panels left a 400px block centred in an 824px body with the
+ * bottom band measuring 97% dark and flat. `min-height` gives the pair a share
+ * of the frame without the `1fr` row this file already rejects — the panels
+ * grow to a designed size and stop, rather than stretching to whatever the
+ * viewport happens to be.
+ */
 .signin-panel,
 .queue-panel {
   padding: var(--sp-5);
@@ -5595,14 +5813,16 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   flex-direction: column;
   justify-content: center;
   gap: var(--sp-3);
+  min-height: min(44vh, 380px);
   --r-self: var(--r-panel);
   border-radius: var(--r-panel);
 }
+.signin-stage { min-height: min(44vh, 380px); }
 
-.signin-panel { grid-column: 3; grid-row: 1; }
+.signin-panel { grid-column: 2; grid-row: 1; }
 /* The disclosure runs under the stage and the form, not under the portrait: a
    line of legal text set across a person's knees is not a layout. */
-.signin-note { grid-column: 2 / -1; grid-row: 2; }
+.signin-note { grid-column: 1 / -1; grid-row: 2; }
 
 .signin-lead { line-height: 1.55; }
 .signin-form { display: flex; flex-direction: column; gap: var(--sp-4); }
@@ -5738,8 +5958,22 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   }
   .signin-stage { display: none; }
   .signin-portrait { display: none; }
-  .signin-screen.has-leader .signin-body { grid-template-columns: minmax(0, 1fr); }
+  .signin-screen.has-leader .signin-body { grid-template-columns: minmax(0, 1fr); padding-left: var(--sp-3); }
   .signin-panel, .signin-note { grid-column: 1; grid-row: auto; }
+  /**
+   * `auto`, and `flex-start`, and the pair of them is the fix.
+   *
+   * The desktop rule gives these panels a share of a 900px frame. At 844×390 the
+   * body is 313px and the form is taller than that, and a panel that is
+   * `justify-content: center` and shorter than its contents spills them
+   * *equally in both directions* — so the EMAIL label was drawn 22px above the
+   * panel's own top edge, underneath the header, with the scroller reporting no
+   * overflow at all because the overflow was inside a flex box rather than
+   * inside the scroll container. `auto` gives the panel back its content
+   * minimum; `flex-start` means any residual spill goes down into the scroller,
+   * where the player can reach it, instead of up behind the chrome.
+   */
+  .signin-panel, .signin-stage { min-height: auto; justify-content: flex-start; }
   .signin-panel { padding: var(--sp-4); }
   .signin-form { gap: var(--sp-3); }
   .signin-submit { min-height: 48px; font-size: var(--fs-md); }
@@ -5751,20 +5985,66 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
    --------------------------------------------------------------------------- */
 
 /**
- * Full width, because the room is the screen.
+ * The room is the screen, and now it actually is.
  *
- * It used to be a 620px column centred in 1600px, which is the shape of a
- * dialog rather than of a place — and a searchlight sweeping a 620px box in the
- * middle of a black page is a widget with a spotlight drawn on it. The stage
- * now runs the width of the viewport and the writing stands on it.
+ * It has been a 620px dialog, and then a full-width *box*: a rounded rectangle
+ * running x=17 to x=1583 with a visible outline, the venue letterboxed into a
+ * strip inside it, and everything below it black. Measured, that read as 66.6%
+ * of the screen dark **and** flat (16px blocks, mean luminance under 26 and
+ * standard deviation under 7) with a 95th-percentile pixel of 53.9 against the
+ * lobby's 157.9 — squint at it and no light mass resolved anywhere. §2 names
+ * that exact arrangement: "a mat must feel like ground inside the place, not a
+ * panel dropped on a photo".
+ *
+ * So the room is no longer an element inside the layout. It is a layer behind
+ * the layout, inset 0 on the screen, and the writing stands on it.
  */
+/* `overflow` only. NOT `position: relative` — `.screen` is `position: absolute;
+   inset: 0`, so relative would win the cascade, take the screen out of that
+   arrangement and let its height collapse onto its contents. Measured when it
+   did: the room ended at y≈700 of a 900px viewport and the bottom fifth of the
+   screen was the page showing through. */
+.queue-screen {
+  overflow: hidden;
+  /**
+   * One clock for the whole room, declared on the screen and not on the room.
+   *
+   * The beam, the haze, the horizon, the leader's breath and the rim light that
+   * comes up as the beam reaches her are all multiples of this, so nothing in
+   * the place can drift out of phase with the lamp. Four seconds, fixed.
+   *
+   * It lives here because the figure no longer lives inside `.queue-world`: she
+   * stands in the content plane in front of it. Left on the world, the custom
+   * property did not inherit down to her, `calc(var(--queue-period) * 1.75)`
+   * resolved to nothing, and three animations silently had no duration —
+   * measured as a burst in which 0.0% of pixels changed between consecutive
+   * frames on a screen whose whole job is to be alive while nothing happens.
+   */
+  --queue-period: 4s;
+}
+
+.queue-world {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.queue-screen > .screen-header,
+.queue-body {
+  position: relative;
+  z-index: 1;
+}
+
 .queue-body {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  padding: var(--sp-3) var(--sp-6) var(--sp-4);
   width: 100%;
   margin: 0 auto;
 }
@@ -5774,8 +6054,8 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: var(--sp-3);
+  justify-content: flex-end;
+  gap: var(--sp-2);
   min-height: 0;
 }
 
@@ -5785,41 +6065,16 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 
 .queue-stage > * { position: relative; }
 
-/**
- * The searchlight.
- *
- * Two arcs on the same fixed 4s period, one trailing the other, sweeping a pair
- * of rings around a crosshair. Fixed is the whole argument: the queue does not
- * know when somebody will arrive, so nothing here may fill, tick down or
- * accelerate. It says "still looking" for exactly as long as that is true.
- *
- * A conic gradient rotated by `transform` — one compositor property, no layout,
- * no per-frame JavaScript. `data-state` stops it dead when the search does.
- */
-.queue-searchlight {
-  position: relative;
-  width: 100%;
-  height: min(56vh, 460px);
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  isolation: isolate;
-  border-radius: var(--r-panel);
-  /* One clock for the whole room. The beam, the haze, the horizon, the leader's
-     breath and the rim light that comes up as the beam reaches him are all
-     multiples of this, so nothing in the place can drift out of phase with the
-     lamp. Four seconds, fixed, exactly as before. */
-  --queue-period: 4s;
-}
-
-/* The venue, at heavy blur, filling the back of the room. */
+/* The venue, at heavy blur, filling the back of the room rather than a band
+   across the middle of it. Masked at the very bottom only, where the vignette
+   takes over, so the art reaches three of the four viewport edges. */
 .queue-room {
   position: absolute;
-  inset: -8% -6% -4%;
-  filter: blur(18px) saturate(0.9);
-  opacity: 0.85;
-  mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 62%, transparent 94%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 62%, transparent 94%);
+  inset: -10% -8% -4%;
+  filter: blur(14px) saturate(1.02);
+  opacity: 1;
+  mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.85) 0%, #000 22%, #000 52%, rgb(0 0 0 / 0.42) 78%, transparent 98%);
+  -webkit-mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.85) 0%, #000 22%, #000 52%, rgb(0 0 0 / 0.42) 78%, transparent 98%);
 }
 .queue-room-art { width: 100%; height: 100%; object-fit: cover; }
 
@@ -5836,9 +6091,9 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   position: absolute;
   left: -30%;
   right: -30%;
-  bottom: -16%;
-  height: 74%;
-  perspective: 340px;
+  top: 46%;
+  bottom: -6%;
+  perspective: 420px;
   perspective-origin: 50% 0%;
   pointer-events: none;
 }
@@ -5846,23 +6101,26 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   content: "";
   position: absolute;
   inset: 0;
-  transform: rotateX(70deg);
+  transform: rotateX(72deg);
   transform-origin: 50% 0%;
   background:
-    repeating-linear-gradient(90deg, rgb(206 168 255 / 0.28) 0 1px, transparent 1px 56px),
-    repeating-linear-gradient(0deg, rgb(206 168 255 / 0.2) 0 1px, transparent 1px 56px),
-    linear-gradient(180deg, rgb(52 32 94 / 0.42), rgb(8 4 18 / 0.9));
-  mask-image: linear-gradient(180deg, transparent 0%, #000 24%, rgb(0 0 0 / 0.5) 76%, transparent 100%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 24%, rgb(0 0 0 / 0.5) 76%, transparent 100%);
+    repeating-linear-gradient(90deg, rgb(206 168 255 / 0.24) 0 1px, transparent 1px 56px),
+    repeating-linear-gradient(0deg, rgb(206 168 255 / 0.18) 0 1px, transparent 1px 56px),
+    /* A lit floor, not a dark one. The far end is the one in shadow — the near
+       field is under the lamp, and painting it near-black is what left the fifth
+       sixth of this screen 91% dark-and-flat with a grid drawn on top of it. */
+    linear-gradient(180deg, rgb(60 38 108 / 0.55) 0%, rgb(52 32 96 / 0.66) 44%, rgb(16 9 34 / 0.86) 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 62%, rgb(0 0 0 / 0.7) 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 62%, rgb(0 0 0 / 0.7) 100%);
 }
 
 /* Where the floor meets the dark. A horizon is one line of light, and it is what
    tells the eye that the plane is a plane. */
 .queue-horizon {
   position: absolute;
-  left: 6%;
-  right: 6%;
-  top: 44%;
+  left: 4%;
+  right: 4%;
+  top: 46%;
   height: 2px;
   pointer-events: none;
   background: linear-gradient(90deg, transparent, rgb(217 165 255 / 0.6) 24%, rgb(126 214 255 / 0.5) 64%, transparent);
@@ -5890,9 +6148,9 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   position: absolute;
   left: -30%;
   right: -30%;
-  bottom: -16%;
-  height: 74%;
-  perspective: 340px;
+  top: 46%;
+  bottom: -6%;
+  perspective: 420px;
   perspective-origin: 50% 0%;
   pointer-events: none;
   mix-blend-mode: screen;
@@ -5901,14 +6159,14 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 .queue-beam {
   position: absolute;
   inset: 0;
-  transform: rotateX(70deg);
+  transform: rotateX(72deg);
   transform-origin: 50% 0%;
   background: conic-gradient(
     from 0deg at 50% 0%,
     transparent 0deg,
-    color-mix(in srgb, var(--accent-bright) 50%, transparent) 12deg,
-    color-mix(in srgb, var(--accent-bright) 12%, transparent) 30deg,
-    transparent 62deg,
+    color-mix(in srgb, var(--accent-bright) 66%, transparent) 12deg,
+    color-mix(in srgb, var(--accent-bright) 20%, transparent) 32deg,
+    transparent 64deg,
     transparent 360deg
   );
   mask-image: linear-gradient(180deg, transparent 0%, #000 24%, rgb(0 0 0 / 0.5) 78%, transparent 100%);
@@ -5922,13 +6180,13 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   background: conic-gradient(
     from 0deg at 50% 0%,
     transparent 0deg,
-    color-mix(in srgb, var(--accent-cool) 32%, transparent) 16deg,
-    transparent 40deg,
+    color-mix(in srgb, var(--accent-cool) 44%, transparent) 16deg,
+    transparent 42deg,
     transparent 360deg
   );
   animation-duration: calc(var(--queue-period) * 1.6);
   animation-direction: alternate-reverse;
-  opacity: 0.6;
+  opacity: 0.72;
 }
 
 @keyframes queue-sweep-arc {
@@ -5943,8 +6201,17 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(56% 40% at 50% 54%, rgb(150 110 235 / 0.15), transparent 74%),
-    radial-gradient(92% 30% at 50% 102%, rgb(20 12 42 / 0.72), transparent 78%);
+    /* The house lights on the back wall, so the upper half of the room has a
+       light mass in it rather than being the flat near-black that measured
+       66.6% dead. Two practicals and their spill, no brighter than the figure. */
+    radial-gradient(38% 30% at 22% 26%, rgb(181 108 255 / 0.2), transparent 72%),
+    radial-gradient(34% 26% at 79% 20%, rgb(82 200 255 / 0.15), transparent 74%),
+    radial-gradient(74% 34% at 50% 44%, rgb(150 110 235 / 0.2), transparent 76%),
+    /* The pool the lamp throws around the figure's feet. Without it the light
+       stops at her silhouette and the floor either side of her is a dark plane
+       with a grid on it. */
+    radial-gradient(58% 28% at 50% 76%, rgb(132 96 214 / 0.24), transparent 74%),
+    radial-gradient(120% 40% at 50% 112%, rgb(24 14 50 / 0.55), transparent 80%);
   animation: queue-haze-drift calc(var(--queue-period) * 3.5) var(--ease-in-out) infinite;
 }
 
@@ -5954,58 +6221,95 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 }
 
 /**
+ * A floor for the composition, not a hole.
+ *
+ * §6 asks the screen to resolve under a squint into light and dark masses, and
+ * §2 wants the furthest plane darkened and desaturated relative to the
+ * foreground. One element does both: a corner-weighted vignette that keeps the
+ * brightest value on the horizon where the subject stands, a fall of shade from
+ * under the header so the bar has something to sit on, and a rise of shade off
+ * the bottom edge so the room ends in ground rather than in the page.
+ */
+.queue-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(128% 96% at 50% 40%, transparent 34%, rgb(5 2 12 / 0.58) 100%),
+    linear-gradient(180deg, rgb(6 3 14 / 0.44) 0%, transparent 14%),
+    linear-gradient(0deg, rgb(5 2 12 / 0.44) 0%, transparent 24%);
+}
+
+/**
  * The plinth: somebody standing on the floor, breathing.
  *
- * The cast is a separate ellipse on the ground rather than a `drop-shadow` on
- * the portrait, for the same reason the lobby's is — a shadow welded to the
- * object it belongs to rises with that object, which is a light source bolted to
- * the thing it lights. This one softens and spreads as the figure lifts.
+ * In flow now rather than pinned to the bottom of a box, because the box is
+ * gone — she stands on the same floor plane the room draws, with the readout
+ * beneath her feet. The aspect matches the canvas the painter produces exactly,
+ * so `object-fit: contain` shows the plate at 1:1 and the four feathered edges
+ * and the reflection survive instead of being re-cropped by the element.
  */
 .queue-plinth {
-  position: absolute;
-  left: 50%;
-  bottom: 2%;
-  translate: -50% 0;
-  width: min(34vh, 300px);
-  height: min(58vh, 420px);
+  position: relative;
+  height: min(58vh, 480px);
+  aspect-ratio: 1 / 1.78;
+  flex: 0 1 auto;
+  min-height: 0;
   display: none;
 }
-.queue-searchlight.has-leader .queue-plinth { display: block; }
+.queue-screen.has-leader .queue-plinth { display: block; }
 
+/**
+ * Breath, from the feet.
+ *
+ * It used to be `translate: 0 -6px`, which lifted the whole figure off the
+ * ground every two seconds — and now that she casts a shadow and leaves a
+ * reflection, a rising figure would take both of them with her, which is a
+ * light source bolted to the thing it lights. Scaling from `50% 100%` keeps the
+ * contact line still and moves the shoulders, which is what breathing does.
+ */
 .queue-leader {
   position: absolute;
   inset: 0;
+  transform-origin: 50% 100%;
   animation: queue-breathe calc(var(--queue-period) * 1.75) var(--ease-in-out) infinite;
 }
 .queue-leader-art {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: 50% 10%;
-  mask-image: linear-gradient(180deg, transparent 0%, #000 12%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%);
+  object-fit: contain;
+  /* The corners. The painter feathers four straight edges, which still leaves
+     four right angles, and four right angles is a rectangle however soft its
+     sides are. A superellipse falloff is what turns the plate into a
+     silhouette — §7's "smooth superellipse feel", applied to art rather than to
+     a border radius. Centred low so the reflection at the foot survives it. */
+  mask-image: radial-gradient(74% 74% at 50% 52%, #000 58%, rgb(0 0 0 / 0.45) 88%, transparent 100%);
+  -webkit-mask-image: radial-gradient(74% 74% at 50% 52%, #000 58%, rgb(0 0 0 / 0.45) 88%, transparent 100%);
 }
 
 @keyframes queue-breathe {
-  0%, 100% { translate: 0 0; scale: 1; }
-  50% { translate: 0 -6px; scale: 1.006; }
+  0%, 100% { scale: 1 1; }
+  50% { scale: 1.004 1.014; }
 }
 
+/* The pool the figure stands in, under the reflection the canvas paints. Wider
+   and softer than the cast baked into the plate, so the two read as one shadow
+   with a hard core and a soft skirt rather than as two ellipses. */
 .queue-cast {
   position: absolute;
-  left: 6%;
-  right: 6%;
-  bottom: -2%;
-  height: 26px;
+  left: -18%;
+  right: -18%;
+  bottom: 6%;
+  height: 46px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgb(3 1 8 / 0.8), transparent 78%);
-  filter: blur(6px);
+  background: radial-gradient(closest-side, rgb(3 1 8 / 0.66), transparent 76%);
+  filter: blur(12px);
   animation: queue-cast-breathe calc(var(--queue-period) * 1.75) var(--ease-in-out) infinite;
 }
 
 @keyframes queue-cast-breathe {
   0%, 100% { opacity: 0.9; scale: 1 1; }
-  50% { opacity: 0.64; scale: 1.07 0.88; }
+  50% { opacity: 0.7; scale: 1.05 0.9; }
 }
 
 /**
@@ -6028,8 +6332,8 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     color-mix(in srgb, var(--accent-bright) 36%, transparent) 0%,
     transparent 38%
   );
-  mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 82%, transparent 100%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 24%, #000 80%, transparent 92%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 24%, #000 80%, transparent 92%);
   opacity: 0;
   animation: queue-lit var(--queue-period) var(--ease-in-out) infinite;
 }
@@ -6044,25 +6348,41 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 /* Stopped means stopped: a light still sweeping after the socket closed is the
    interface lying about what it is doing. The room stays lit — it is a place,
    and a place does not go out — but nothing in it moves. */
-.queue-searchlight[data-state="stopped"] .queue-beam,
-.queue-searchlight[data-state="found"] .queue-beam,
-.queue-searchlight[data-state="stopped"] .queue-leader-lit,
+.queue-world[data-state="stopped"] .queue-beam,
+.queue-world[data-state="found"] .queue-beam,
+.queue-world[data-state="stopped"] ~ .queue-body .queue-leader-lit,
 :root[data-reduced-motion="true"] .queue-beam,
 :root[data-reduced-motion="true"] .queue-haze,
 :root[data-reduced-motion="true"] .queue-horizon,
 :root[data-reduced-motion="true"] .queue-leader,
 :root[data-reduced-motion="true"] .queue-cast { animation-play-state: paused; }
 :root[data-reduced-motion="true"] .queue-leader-lit { animation: none; opacity: 0.26; }
-.queue-searchlight[data-state="stopped"] .queue-beam { opacity: 0.22; }
-.queue-searchlight[data-state="found"] .queue-leader-lit {
+.queue-world[data-state="stopped"] .queue-beam { opacity: 0.22; }
+.queue-world[data-state="found"] ~ .queue-body .queue-leader-lit {
   animation: none;
   opacity: 0.8;
   background: linear-gradient(100deg, color-mix(in srgb, var(--success) 44%, transparent) 0%, transparent 40%);
 }
 
-.queue-readout { text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
-.queue-state { font-size: clamp(1.25rem, 3.2vh, 2rem); }
-.queue-detail { font-size: var(--fs-sm); color: var(--text-dim); }
+.queue-readout {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding-top: var(--sp-2);
+}
+/* Type over imagery always has a scrim, a shadow or a plate (§4). This one sits
+   on the floor of a lit room, so it takes the shadow. */
+.queue-state {
+  font-size: clamp(1.25rem, 3.2vh, 2rem);
+  text-shadow: 0 2px 12px rgb(4 2 10 / 0.85), 0 1px 2px rgb(4 2 10 / 0.9);
+}
+.queue-detail {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  text-shadow: 0 1px 6px rgb(4 2 10 / 0.9);
+}
 
 .queue-count {
   display: inline-flex;
@@ -6126,12 +6446,21 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 :root[data-reduced-motion="true"] .queue-offer { animation: none; }
 
 .queue-note {
-  padding: var(--sp-3) var(--sp-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-5);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
   --r-self: var(--r-panel);
   border-radius: var(--r-panel);
+}
+.queue-note h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--accent-bright);
+  white-space: nowrap;
 }
 .queue-note p { margin: 0; font-size: var(--fs-sm); line-height: 1.55; color: var(--text-dim); }
 
@@ -6151,9 +6480,114 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     overflow-y: auto;
   }
   .queue-stage { justify-content: flex-start; gap: var(--sp-2); }
-  .queue-searchlight { width: min(30vh, 118px); height: min(30vh, 118px); flex: 0 0 auto; }
+  .queue-plinth { height: min(46vh, 180px); flex: 0 0 auto; }
   .queue-count { margin-top: var(--sp-1); padding: var(--sp-1) var(--sp-4); }
   .queue-offer { padding: var(--sp-3) var(--sp-4); gap: var(--sp-2); }
   .queue-offer-btn { min-height: 44px; }
   .queue-note { display: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   The hero action, as an object.
+
+   `.mat-hero` gets the material right — measured on the PLAY plate: a lit top
+   rim at luminance 200 over a 178 body falling to 157, a dark bottom lip at 126,
+   corners running 209.8 top-left to 108.3 bottom-right along the 135° vector,
+   grain at 5.4% of value. What it does not get is *furniture*. The silhouette is
+   a plain 18px-radius rectangle with no chamfer, no cap, no frame, and the label
+   sits flat on it. Hearthstone's ESPERANDO plate is a minor status widget and it
+   still has a bevelled metal border, a stone insert and inset type; this is the
+   primary call to action in the game and it had less object-ness than that.
+
+   Three things are added here and nothing is replaced:
+
+   1. **A 2px inner chamfer.** A second ring drawn one stop darker than the fill
+      and offset inward from the outer rim, so the edge reads as *thickness*
+      rather than as a line. The outer bevel is the material's; this is the
+      inside face of it.
+   2. **A specular hot spot, not a ramp.** A real highlight in the top-left
+      third where a curved surface would actually catch the key, in place of a
+      linear gradient that only says "lighter over there".
+   3. **Two end-caps, so the rectangle is not a rectangle.** A narrow darker band
+      at each end separated by a lit hairline — the metal ends of a bar sign,
+      which is the piece of nightlife furniture this game already looks like it
+      is made of. It is drawn rather than clipped: `clip-path` would have taken
+      the material's cast and contact shadows with it, and an object with no
+      contact shadow is the thing §1 bans.
+
+   Plus the letterpress §4 asks for on type over a lit surface: 1px of white
+   below the glyph and 1px of black above it.
+
+   Scoped to the five front-door heroes by name rather than to `.mat-hero`,
+   because `foundation.css` owns that class and this file does not. All five
+   consumers the review named are in this list, so they all get it at once.
+   --------------------------------------------------------------------------- */
+
+.lobby-play,
+.mode-cta,
+.signin-submit,
+.starter-confirm,
+.queue-offer-btn {
+  position: relative;
+  isolation: isolate;
+  /* Proportional, so a 500px PLAY plate and a 180px confirm get caps that read
+     as the same piece of hardware at two sizes rather than as two decisions. */
+  --hero-cap: clamp(13px, 4.2%, 26px);
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.34), 0 -1px 0 rgb(0 0 0 / 0.34);
+}
+
+.lobby-play::before,
+.mode-cta::before,
+.signin-submit::before,
+.starter-confirm::before,
+.queue-offer-btn::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: calc(var(--r-self, var(--r-panel)) - 2px);
+  background:
+    radial-gradient(50% 104% at 22% 2%, rgb(255 255 255 / 0.34), transparent 64%),
+    linear-gradient(
+      90deg,
+      rgb(0 0 0 / 0.34) 0,
+      rgb(0 0 0 / 0.16) calc(var(--hero-cap) - 2px),
+      rgb(255 255 255 / 0.4) var(--hero-cap),
+      rgb(255 255 255 / 0) calc(var(--hero-cap) + 3px)
+    ),
+    linear-gradient(
+      270deg,
+      rgb(0 0 0 / 0.34) 0,
+      rgb(0 0 0 / 0.16) calc(var(--hero-cap) - 2px),
+      rgb(255 255 255 / 0.24) var(--hero-cap),
+      rgb(255 255 255 / 0) calc(var(--hero-cap) + 3px)
+    );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.26),
+    inset 0 -1px 0 rgb(0 0 0 / 0.26),
+    inset 0 0 0 1px rgb(0 0 0 / 0.14);
+  transition: opacity var(--dur-micro) var(--ease-arrive);
+}
+
+/* Hover lights the hot spot rather than moving it: the plate itself is already
+   travelling 2px under the interaction mixin, and two things moving at once on
+   the same object is a wobble. */
+.lobby-play:hover::before,
+.mode-hero:hover .mode-cta::before,
+.signin-submit:hover::before,
+.starter-confirm:hover::before,
+.queue-offer-btn:hover::before { opacity: 1.0; filter: brightness(1.14); }
+
+.lobby-play:active::before,
+.signin-submit:active::before,
+.starter-confirm:active::before,
+.queue-offer-btn:active::before { filter: brightness(0.94); }
+
+/* Pressed, the light on the label inverts with it. */
+.lobby-play:active,
+.signin-submit:active,
+.starter-confirm:active,
+.queue-offer-btn:active {
+  text-shadow: 0 -1px 0 rgb(255 255 255 / 0.22), 0 1px 0 rgb(0 0 0 / 0.3);
 }

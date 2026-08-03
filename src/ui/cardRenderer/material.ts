@@ -217,6 +217,75 @@ export function edgeGradient(
   ]);
 }
 
+/**
+ * The narrow, hard highlight that separates an alloy from a tint.
+ *
+ * `bandFace` gives a surface a value ramp, and a ramp on its own is a coloured
+ * stripe: measured on a Veil legendary the frame ran from `#2a1b3e` to `#c8a8e8`
+ * with no discontinuity anywhere along it, which is a gradient, not metal. What
+ * the eye actually uses to decide something is polished is a *narrow* band of
+ * near-white sitting at one place on the ramp, with the surface falling away
+ * fast on both sides of it — the reflection of the key light itself rather than
+ * the diffuse response to it. It is why gold reads as gold and lavender reads as
+ * plastic even when both carry the same amount of light.
+ *
+ * So this lays one stop of white across the shape, positioned along the *same*
+ * 315° axis every other gradient in the file uses, at a width measured in ramp
+ * fraction rather than pixels — which means a 21px common band and a 31px
+ * legendary one get a specular of the same optical width. `tint` lets a cool
+ * metal keep a trace of its own hue in the highlight, which is the difference
+ * between platinum and chrome.
+ *
+ * Drawn in `screen` because a specular *adds* light; it must not be able to
+ * darken the metal underneath it anywhere.
+ */
+export function specularBand(
+  ctx: CanvasRenderingContext2D,
+  path: Path2D,
+  rect: Rect,
+  options: {
+    strength: number;
+    /** 0 = the shadowed corner, 1 = the lit one. The highlight's centre. */
+    at?: number;
+    /** Half-width of the band as a fraction of the ramp. */
+    width?: number;
+    tint?: string;
+    rule?: CanvasFillRule;
+  }
+): void {
+  /**
+   * At tile finish only the top tier's specular survives.
+   *
+   * It is one clipped gradient fill, so it is cheap by the standards of this
+   * file — but a rare's 0.16 peak is under two values once a 512px card lands in
+   * a 168px cell, which is a fill for nothing. A legendary's is not: it is the
+   * channel that makes the top tier read as metal from across the room, and the
+   * collection grid is the screen where a player compares tiers.
+   */
+  if (detail === "tile" && options.strength < 0.35) return;
+  const at = options.at ?? 0.86;
+  const half = options.width ?? 0.075;
+  const tint = options.tint ?? "#ffffff";
+  const peak = Math.max(0, Math.min(1, options.strength));
+  const stop = (t: number, alpha: number): readonly [number, string] =>
+    [Math.max(0, Math.min(1, t)), hexToRgba(alpha > 0 ? tint : "#000000", alpha)] as const;
+
+  ctx.save();
+  ctx.clip(path, options.rule ?? "nonzero");
+  ctx.globalCompositeOperation = "screen";
+  ctx.fillStyle = litGradient(ctx, rect, [
+    stop(0, 0),
+    stop(at - half * 2.4, 0),
+    stop(at - half, peak * 0.3),
+    stop(at, peak),
+    stop(at + half, peak * 0.22),
+    stop(at + half * 2.2, 0),
+    stop(1, 0),
+  ]);
+  ctx.fillRect(rect.x - 40, rect.y - 40, rect.w + 80, rect.h + 80);
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------------------
 // 2. Shadows
 // ---------------------------------------------------------------------------
@@ -620,17 +689,184 @@ export function drawGem(ctx: CanvasRenderingContext2D, options: GemOptions): voi
 }
 
 // ---------------------------------------------------------------------------
+// 5b. Rail bosses
+// ---------------------------------------------------------------------------
+
+export type Rail = "left" | "right" | "top" | "bottom";
+
+/** How far a boss rises past the outline it is carved into, in card space. */
+export const BOSS_RISE = 7;
+
+/**
+ * The boss's outline: a flat outer face that tapers back into the rail at both
+ * ends. Deliberately not a capsule — a capsule has no facet to catch the light,
+ * and the facet is the whole difference between carved and stuck on.
+ */
+export function railBossPath(
+  rect: Rect,
+  side: Rail,
+  reach: number,
+  thickness: number
+): { path: Path2D; box: Rect } {
+  const vertical = side === "left" || side === "right";
+  const sign = side === "left" || side === "top" ? -1 : 1;
+  // the rail's own coordinate: `out` is the protruding face, `in` the seat
+  const out =
+    side === "left" ? rect.x - BOSS_RISE
+    : side === "right" ? rect.x + rect.w + BOSS_RISE
+    : side === "top" ? rect.y - BOSS_RISE
+    : rect.y + rect.h + BOSS_RISE;
+  const seat = out - sign * (thickness + BOSS_RISE);
+  const mid = vertical ? rect.y + rect.h / 2 : rect.x + rect.w / 2;
+
+  const at = (across: number, along: number): [number, number] =>
+    vertical ? [across, mid + along] : [mid + along, across];
+
+  const points: [number, number][] = [
+    at(seat, -reach),
+    at(out + sign * 0, -reach * 0.58),
+    at(out, -reach * 0.34),
+    at(out, reach * 0.34),
+    at(out + sign * 0, reach * 0.58),
+    at(seat, reach),
+  ];
+  const path = new Path2D();
+  points.forEach(([x, y], i) => (i === 0 ? path.moveTo(x, y) : path.lineTo(x, y)));
+  path.closePath();
+
+  const box: Rect = vertical
+    ? { x: Math.min(out, seat), y: mid - reach, w: thickness + BOSS_RISE, h: reach * 2 }
+    : { x: mid - reach, y: Math.min(out, seat), w: reach * 2, h: thickness + BOSS_RISE };
+  return { path, box };
+}
+
+/**
+ * A carved boss on the mid-edge of a frame, with a set stone in it.
+ *
+ * Shared rather than private to the card face because the card *back* wears the
+ * same hardware, and that is the whole argument: a back and a front are one
+ * object flipped, so the ornament that says "this is a HYPEBOUND frame" cannot
+ * be a private function of the file that draws one of the two sides.
+ */
+export function drawRailBoss(
+  ctx: CanvasRenderingContext2D,
+  rect: Rect,
+  side: Rail,
+  reach: number,
+  thickness: number,
+  metal: Metal,
+  accent: string
+): void {
+  const { path, box } = railBossPath(rect, side, reach, thickness);
+  const vertical = side === "left" || side === "right";
+
+  castShadow(ctx, path, 4, 0.5);
+
+  ctx.save();
+  ctx.fillStyle = litGradient(ctx, box, [
+    [0, mix(metal.lo, metal.abyss ?? "#000000", 0.3)],
+    [0.42, metal.key],
+    [0.82, mix(metal.key, metal.hi, 0.5)],
+    [1, mix(metal.key, metal.hi, 0.9)],
+  ]);
+  ctx.fill(path);
+  ctx.restore();
+
+  if (detail !== "tile") grainOver(ctx, path, 0.7);
+
+  /**
+   * The ridge: one straight line down the middle of the outer face, stroked
+   * light on the side that turns toward the key and dark on the side that turns
+   * away. It is the only thing in the object that makes it read as two planes
+   * meeting rather than one plane painted with a gradient.
+   */
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  ctx.save();
+  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = edgeGradient(ctx, box, 0.5, 0.55);
+  ctx.beginPath();
+  if (vertical) {
+    ctx.moveTo(cx, cy - reach * 0.78);
+    ctx.lineTo(cx, cy + reach * 0.78);
+  } else {
+    ctx.moveTo(cx - reach * 0.78, cy);
+    ctx.lineTo(cx + reach * 0.78, cy);
+  }
+  ctx.stroke();
+  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = edgeGradient(ctx, box, 0.46, 0.7);
+  ctx.stroke(path);
+  ctx.restore();
+
+  // the tier's colour, as a set stone rather than as the whole ornament
+  drawGem(ctx, {
+    shape: "diamond",
+    cx,
+    cy,
+    r: Math.max(5, thickness * 0.34),
+    metal: {
+      hi: mix(accent, "#ffffff", 0.55),
+      key: accent,
+      lo: mix(accent, "#000000", 0.6),
+      abyss: mix(accent, "#000000", 0.82),
+    },
+    socket: true,
+    lift: 2,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // 6. Type
 // ---------------------------------------------------------------------------
 
-const DEFAULT_STACK = '"Segoe UI", system-ui, sans-serif';
+/**
+ * Three faces, and where each of them comes from.
+ *
+ * Every glyph on every card used to resolve to one string —
+ * `"Segoe UI", system-ui, sans-serif` — for the name, the type line, the rules,
+ * the collector band and the numerals alike. Two things were wrong with that and
+ * only one of them is about hierarchy. The first is that a card's *name* and a
+ * screen's *heading* were set in different faces, because the DOM had already
+ * moved its display role onto Chivo and the canvas never heard about it; a card
+ * held up next to the panel behind it was visibly printed by somebody else. The
+ * second is that on a machine with no Segoe UI — which is every machine that is
+ * not Windows — the whole card face collapsed to whatever `system-ui` happened
+ * to be, with no say in the matter.
+ *
+ * So the stacks are read from the same custom properties the DOM sets, at the
+ * one moment the rest of the page is obeying them:
+ *
+ * - **display** — `--font-display`, which resolves to the self-hosted Chivo
+ *   variable face. Card name, type line, cartouche label, collector band.
+ * - **body** — `--font-ui`. Rules text and flavour, where a humanist UI face
+ *   reads better at 14px than a grotesque with a 900 axis does.
+ * - **numeric** — the display face, deliberately. Chivo's digits measure the
+ *   same width at every weight without `tnum` (measured spread 0.0 across 0–9),
+ *   which is exactly the guarantee a cost gem counting 10 → 9 needs, and
+ *   `drawNumber`'s cell layout gives it a second time from the other side.
+ *
+ * MTG Arena runs Beleren for names and a separate humanist for rules;
+ * Hearthstone runs Belwe and Franklin Gothic. Two faces with different jobs is
+ * the shape of the thing, and this is that shape with the faces we are allowed
+ * to ship.
+ */
+const FALLBACK_DISPLAY = '"Chivo", "Segoe UI Semibold", "Trebuchet MS", system-ui, sans-serif';
+const FALLBACK_BODY = '"Segoe UI", system-ui, -apple-system, sans-serif';
 const DYSLEXIA_STACK = '"Atkinson Hyperlegible", "Comic Sans MS", Verdana, Tahoma, system-ui, sans-serif';
 
-let stack = DEFAULT_STACK;
+export type TypeFace = "display" | "body" | "numeric";
+
+let displayStack = FALLBACK_DISPLAY;
+let bodyStack = FALLBACK_BODY;
+let dyslexia = false;
 let highContrast = false;
+/** The `data-font`/`data-contrast` pair the cached stacks were resolved for. */
+let styleKey = "";
 
 /**
- * Keep the card face in step with the two accessibility settings it can honour.
+ * Keep the card face in step with the two accessibility settings it can honour,
+ * and with the DOM's own type tokens.
  *
  * The dyslexia setting swaps the family on `body` and `.screen`, which meant the
  * single most text-dense surface in the game — the rules text on every card —
@@ -642,21 +878,62 @@ let highContrast = false;
  *
  * The root element's attributes are the authority rather than the settings
  * store, for the same reason `motion.ts` reads them: they are what the rest of
- * the page is actually obeying this frame. Two dataset reads per card paint, no
- * layout.
+ * the page is actually obeying this frame. Two dataset reads per card paint, and
+ * the `getComputedStyle` that resolves the two font tokens runs only when one of
+ * those two attributes has actually changed — a collection mount paints 245
+ * cards and asks the style system exactly once.
  */
 export function refreshCardStyle(): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  stack = root.dataset["font"] === "dyslexia" ? DYSLEXIA_STACK : DEFAULT_STACK;
+  const key = `${root.dataset["font"] ?? ""}|${root.dataset["contrast"] ?? ""}`;
   highContrast = root.dataset["contrast"] === "high";
+  if (key === styleKey) return;
+  styleKey = key;
+  dyslexia = root.dataset["font"] === "dyslexia";
+  if (typeof getComputedStyle !== "function") return;
+  const css = getComputedStyle(root);
+  const display = css.getPropertyValue("--font-display").trim();
+  const ui = css.getPropertyValue("--font-ui").trim();
+  displayStack = display.length > 0 ? display : FALLBACK_DISPLAY;
+  bodyStack = ui.length > 0 ? ui : FALLBACK_BODY;
 }
 
 /** Whether the player has asked for maximum contrast — decoration comes off. */
 export const cardHighContrast = (): boolean => highContrast;
 
-export function cardFont(size: number, weight: number, italic = false): string {
-  return `${italic ? "italic " : ""}${weight} ${size}px ${stack}`;
+/** The resolved family for one of the three roles. */
+export function cardStack(face: TypeFace): string {
+  if (dyslexia) return DYSLEXIA_STACK;
+  return face === "body" ? bodyStack : displayStack;
+}
+
+export function cardFont(size: number, weight: number, italic = false, face: TypeFace = "body"): string {
+  return `${italic ? "italic " : ""}${weight} ${size}px ${cardStack(face)}`;
+}
+
+/** The name/label face. Separate call rather than a flag, so it reads at the site. */
+export const displayFont = (size: number, weight: number, italic = false): string =>
+  cardFont(size, weight, italic, "display");
+
+/**
+ * A card drawn before the web font lands is set in the fallback, and the
+ * difference is a visible reflow of every name in the collection.
+ *
+ * `document.fonts.ready` settles once per page, so this is the same one-shot
+ * contract as {@link onCardTextureReady}: subscribe, get called, let go.
+ */
+export function onCardFontsReady(listener: () => void): () => void {
+  if (typeof document === "undefined" || !("fonts" in document)) return () => {};
+  const fonts = document.fonts as FontFaceSet;
+  if (fonts.status === "loaded") return () => {};
+  let live = true;
+  void fonts.ready.then(() => {
+    if (live) listener();
+  });
+  return () => {
+    live = false;
+  };
 }
 
 /**
@@ -682,10 +959,18 @@ export function drawLabel(
   text: string,
   x: number,
   y: number,
-  options: { size?: number; colour: string; tracking?: number; align?: CanvasTextAlign; shadow?: number }
+  options: {
+    size?: number;
+    colour: string;
+    tracking?: number;
+    align?: CanvasTextAlign;
+    shadow?: number;
+    /** Hard ceiling; the glyphs condense rather than overrunning it. */
+    maxWidth?: number;
+  }
 ): void {
   ctx.save();
-  ctx.font = cardFont(options.size ?? TYPE.label, 700);
+  ctx.font = displayFont(options.size ?? TYPE.label, 700);
   ctx.textAlign = options.align ?? "center";
   ctx.textBaseline = "middle";
   ctx.letterSpacing = `${options.tracking ?? 2.4}px`;
@@ -695,7 +980,8 @@ export function drawLabel(
     ctx.shadowOffsetY = 1;
   }
   ctx.fillStyle = options.colour;
-  ctx.fillText(text.toUpperCase(), x, y);
+  if (options.maxWidth !== undefined) ctx.fillText(text.toUpperCase(), x, y, options.maxWidth);
+  else ctx.fillText(text.toUpperCase(), x, y);
   ctx.letterSpacing = "0px";
   ctx.restore();
 }
@@ -724,7 +1010,7 @@ export function drawNumber(
   const minSize = options.minSize ?? Math.round(options.size * 0.55);
 
   const cellWidth = (at: number): number => {
-    ctx.font = cardFont(at, weight);
+    ctx.font = displayFont(at, weight);
     let widest = 0;
     for (let d = 0; d <= 9; d++) widest = Math.max(widest, ctx.measureText(String(d)).width);
     return widest;
@@ -737,7 +1023,7 @@ export function drawNumber(
   }
 
   ctx.save();
-  ctx.font = cardFont(size, weight);
+  ctx.font = displayFont(size, weight);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
@@ -753,6 +1039,52 @@ export function drawNumber(
     ctx.fillText(glyph, x, cy);
     x += cell;
   }
+  ctx.restore();
+}
+
+/**
+ * A proper name, at one of a handful of sizes and never between them.
+ *
+ * It lives here rather than in `renderCard.ts` because the leader plaque used to
+ * roll its own — a three-step loop with a different ladder and a different
+ * shadow — and the two objects sit one above the other for the whole of every
+ * match. When the ladder is a parameter and the *mechanism* is shared, a card
+ * name and a leader name can differ in size without ever differing in kind; when
+ * both are hand-written, they drift, and 'King Ratio' ends up at twice the size
+ * of 'The Widow of Dead Fandoms'.
+ *
+ * Below the last step the glyphs condense rather than shrinking further —
+ * `fillText`'s own `maxWidth` narrows the face instead of dropping the cap
+ * height — which is what a floor means on a name that has to fit whatever the
+ * writers called it.
+ */
+export function drawCardName(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  cx: number,
+  cy: number,
+  maxWidth: number,
+  steps: readonly number[]
+): void {
+  let size = steps[steps.length - 1]!;
+  for (const step of steps) {
+    ctx.font = displayFont(step, 700);
+    if (ctx.measureText(text).width <= maxWidth) {
+      size = step;
+      break;
+    }
+  }
+  ctx.save();
+  ctx.font = displayFont(size, 700);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.letterSpacing = `${-size * 0.012}px`;
+  ctx.shadowColor = "rgba(0,0,0,0.95)";
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetY = 1;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(text, cx, cy, maxWidth);
+  ctx.letterSpacing = "0px";
   ctx.restore();
 }
 

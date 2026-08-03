@@ -53,6 +53,16 @@ export interface CardSurface {
   premium: boolean;
   /** Rendered CSS width, used only as the tie-break of last resort. */
   width: number;
+  /**
+   * Called at most once, the first time the canvas comes near the viewport.
+   *
+   * There is already exactly one `IntersectionObserver` in this file watching
+   * every card on the page, so a renderer that wants to know when a card is
+   * about to be looked at should ask this one rather than growing a second. It is
+   * what lets `renderCardToCanvas` defer the first paint of the two hundred tiles
+   * below the fold — see the note over `firstPaint` there.
+   */
+  onVisible?: () => void;
 }
 
 interface Entry extends CardSurface {
@@ -66,16 +76,41 @@ interface Entry extends CardSurface {
   /** Last phase actually painted, so a still card is not repainted for nothing. */
   paintedSheen: number;
   paintedHover: number;
+  /**
+   * How far the card is currently turned, as a signed fraction of a foil period.
+   *
+   * See {@link setCardTilt}. Held here rather than in the screen that computes it
+   * because the foil phase is assembled in `repaint`, and a screen has no way to
+   * reach into that without a second clock.
+   */
+  tilt: number;
+  tiltDirty: boolean;
 }
 
 /**
- * How many cards may repaint on one clock tick.
+ * How many cards may animate at once.
  *
- * A tile costs about a millisecond at tile finish and a detail card about three.
- * Eight of the expensive kind is 24ms, which is why they are spread across
- * frames rather than fired together — see `sliceOf`.
+ * The number used to be eight, and the number used to be wrong in both
+ * directions at once. It was justified by "a tile costs about a millisecond" —
+ * measured, a full tile paint cost 8.6ms median and 16.7 at p95, so eight of
+ * them in one 83ms tick was 69ms of main thread rather than the 24 this file
+ * assumed. And eight slots out of the twenty-odd tiles a collection has on
+ * screen meant thirteen of them measured a per-pixel change of exactly 0.000,
+ * so the grid read as *partly* broken, which is worse than uniformly still.
+ *
+ * Both facts came from the same mistake: a card was being repainted in full to
+ * move a specular across it. It is not any more — `renderCardToCanvas` keeps the
+ * static card in an offscreen and an idle tick is now a blit plus one clipped
+ * gradient fill, measured at **0.02ms** against the 8.6ms of a full paint. At
+ * that price the rationing that produced the dead tiles has nothing left to
+ * protect, so the cap rises to cover every tile a viewport can hold and the
+ * slice rises with it: forty animating cards, ten repainting per tick, is under
+ * a quarter of a millisecond of the 83ms budget.
  */
-const MAX_ANIMATED = 8;
+const MAX_ANIMATED = 40;
+
+/** How many of the active set repaint on one tick — see `sliceOf`. */
+const SLICE = 10;
 
 /** Twelve repaints a second is well under the eye's threshold for a slow crawl. */
 const IDLE_INTERVAL = 83;
@@ -122,13 +157,24 @@ function ensureObserver(): IntersectionObserver | null {
     (records) => {
       for (const record of records) {
         const entry = byCanvas.get(record.target as HTMLCanvasElement);
-        if (entry) entry.visible = record.isIntersecting;
+        if (!entry) continue;
+        entry.visible = record.isIntersecting;
+        if (record.isIntersecting && entry.onVisible) {
+          const announce = entry.onVisible;
+          entry.onVisible = undefined;
+          announce();
+        }
       }
       // a scroll that brings new cards in should not wait out the score interval
       sinceScore = RESCORE_INTERVAL;
     },
-    // a little margin, so a card lights up just before it is fully on screen
-    { rootMargin: "120px" }
+    /**
+     * Enough margin that a deferred first paint lands before the tile is on
+     * screen rather than under it. 120px was tuned for "light the card up as it
+     * arrives"; a paint needs more warning than a highlight does, and 480px is
+     * roughly two rows of collection tiles at any of the sizes the grid uses.
+     */
+    { rootMargin: "480px" }
   );
   return observer;
 }
@@ -187,18 +233,17 @@ function rescore(): void {
 /**
  * Which of the active cards repaint on this tick.
  *
- * Eight repaints landing on one frame is a stall five times a second on the
- * screen that can least afford it. The active set is walked two at a time, so
- * each card still gets its update inside a quarter of a second and no frame ever
- * carries more than a couple of milliseconds of card painting.
+ * Firing the whole active set on one frame is a stall twelve times a second on
+ * the screen that can least afford it, so the set is walked in slices — each
+ * card still gets its update inside a third of a second, and no frame carries
+ * more than a fraction of a millisecond of card compositing.
  */
 function sliceOf(active: Entry[]): Entry[] {
-  if (active.length <= 2) return active;
-  const size = 2;
-  const start = (slice * size) % active.length;
+  if (active.length <= SLICE) return active;
+  const start = (slice * SLICE) % active.length;
   slice += 1;
   const out: Entry[] = [];
-  for (let i = 0; i < size; i++) out.push(active[(start + i) % active.length]!);
+  for (let i = 0; i < SLICE; i++) out.push(active[(start + i) % active.length]!);
   return out;
 }
 
@@ -207,6 +252,9 @@ function sliceOf(active: Entry[]): Entry[] {
  * to walk instead of two hundred and forty-five.
  */
 const easing = new Set<Entry>();
+
+/** Cards whose tilt has changed since they were last painted. */
+const turning = new Set<Entry>();
 
 function phaseOf(entry: Entry, period: number): number {
   const phase = clock + entry.kick;
@@ -218,11 +266,34 @@ function repaint(entry: Entry): void {
     release(entry);
     return;
   }
-  const sheen = phaseOf(entry, SHEEN_PERIOD);
+  const wrap01 = (v: number): number => ((v % 1) + 1) % 1;
+  /**
+   * The tilt moves the band specular as well as the foil, at rather less of it.
+   *
+   * Only legendaries are premium, and a detail view that answered the pointer on
+   * one card in nine and sat still on the other eight would read as a bug rather
+   * than as a cosmetic. Every card has a specular crawling its frame; turning any
+   * of them should move it.
+   */
+  const sheen = wrap01(phaseOf(entry, SHEEN_PERIOD) + entry.tilt * 0.55);
   entry.paintedSheen = sheen;
   entry.paintedHover = entry.hover;
-  entry.paint({ sheen, foil: phaseOf(entry, FOIL_PERIOD), hover: easeHover(entry.hover) });
+  entry.tiltDirty = false;
+  entry.paint({ sheen, foil: wrap01(phaseOf(entry, FOIL_PERIOD) + entry.tilt), hover: easeHover(entry.hover) });
 }
+
+/**
+ * How often a card being turned under the pointer may repaint.
+ *
+ * The idle crawl runs at twelve a second, which is fine for a highlight nobody
+ * is steering and useless for one they are: a foil that answers a wrist
+ * movement eighty milliseconds later does not read as a surface catching the
+ * light, it reads as lag. Thirty a second is the rate at which the response
+ * stops being separable from the movement, and it costs one composite — a blit
+ * and the foil's four clipped fills — on the one card the player is holding.
+ */
+const TILT_INTERVAL = 33;
+let sinceTilt = 0;
 
 function tick(dt: number): void {
   /**
@@ -241,6 +312,24 @@ function tick(dt: number): void {
     entry.hover = Math.max(0, Math.min(1, raw));
     if (entry.hover === entry.hoverTarget) easing.delete(entry);
     repaint(entry);
+  }
+
+  /**
+   * Cards the player is physically turning, on their own budget.
+   *
+   * Kept out of `easing` so a tilt does not repaint every frame, and out of the
+   * idle slice so it does not wait a twelfth of a second — the tilt is a direct
+   * manipulation and the only thing on this clock that is.
+   */
+  if (turning.size > 0) {
+    sinceTilt += dt;
+    if (sinceTilt >= TILT_INTERVAL) {
+      sinceTilt = 0;
+      for (const entry of [...turning]) {
+        turning.delete(entry);
+        if (entry.tiltDirty && !easing.has(entry)) repaint(entry);
+      }
+    }
   }
 
   if (!animate) return;
@@ -279,6 +368,7 @@ function ensureClock(): void {
 function release(entry: Entry): void {
   entries.delete(entry);
   easing.delete(entry);
+  turning.delete(entry);
   byCanvas.delete(entry.canvas);
   observer?.unobserve(entry.canvas);
   if (entries.size === 0) {
@@ -301,6 +391,7 @@ function release(entry: Entry): void {
 export function registerCardSurface(surface: CardSurface): () => void {
   const entry: Entry = {
     ...surface,
+    onVisible: surface.onVisible,
     visible: false,
     hover: 0,
     hoverTarget: 0,
@@ -308,6 +399,8 @@ export function registerCardSurface(surface: CardSurface): () => void {
     active: false,
     paintedSheen: -1,
     paintedHover: 0,
+    tilt: 0,
+    tiltDirty: false,
   };
   entries.add(entry);
   byCanvas.set(surface.canvas, entry);
@@ -341,6 +434,33 @@ export function setCardHover(canvas: HTMLCanvasElement, on: boolean): void {
     sinceScore = RESCORE_INTERVAL;
   }
   easing.add(entry);
+  ensureClock();
+}
+
+/**
+ * Tell a card which way it is currently turned, so its foil answers the hand.
+ *
+ * The detail view tilts its card in 3D on `pointermove` — measured, the
+ * `rotateY` component travels 0.956 → 0.888 across the panel — while the foil's
+ * phase came only from the shared clock. So the sheen kept sweeping on its own
+ * schedule while the card turned underneath it, which reads as a light playing
+ * *over* a card rather than a surface catching the light. A real diffraction
+ * grating's angle to the eye is the only variable that matters; here that angle
+ * is exactly what the tilt handler already computes and threw away.
+ *
+ * `amount` is a signed fraction of a foil period, so ±0.5 is the whole sweep
+ * from one edge of the card to the other. It is *added* to the clock rather
+ * than replacing it, because a card left alone must still shimmer.
+ *
+ * Reduced motion gets nothing: the idle crawl is decoration and so is this.
+ */
+export function setCardTilt(canvas: HTMLCanvasElement, amount: number): void {
+  const entry = byCanvas.get(canvas);
+  if (!entry || !motionEnabled()) return;
+  if (Math.abs(entry.tilt - amount) < 0.002) return;
+  entry.tilt = amount;
+  entry.tiltDirty = true;
+  turning.add(entry);
   ensureClock();
 }
 

@@ -420,8 +420,11 @@ export function createLobbyScreen(content: ContentIndex, callbacks: LobbyCallbac
    * `<aside>`, and those are exactly the places where nine things arriving on
    * one frame reads as a page loading rather than an app booting.
    */
-  stagger(root.querySelectorAll(".lobby-nav-btn"), { step: 30, from: 90 });
-  stagger(root.querySelectorAll(".lobby-rail > .lobby-card"), { step: 55, from: 150 });
+  /* Tightened so the last of the nine lands at 268ms rather than 330, for the
+     reason written out at `playScreen.ts`'s call: a cascade that outlives the
+     navigation leaves the arriving screen dark in the middle of it. */
+  stagger(root.querySelectorAll(".lobby-nav-btn"), { step: 26, from: 60 });
+  stagger(root.querySelectorAll(".lobby-rail > .lobby-card"), { step: 42, from: 120 });
 
   // ---- behaviour -----------------------------------------------------------
   const bind = (id: string, handler: () => void): void => {

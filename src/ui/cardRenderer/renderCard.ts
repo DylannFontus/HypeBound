@@ -30,6 +30,24 @@
  * Everything with a surface comes from `material.ts` and everything with a
  * silhouette from `frameShapes.ts`, so there is one light in this file and no
  * way to add a second by accident.
+ *
+ * ## The rules box is the light surface and the frame is the dark one
+ *
+ * That inversion is the second thing this file gets right and it is worth saying
+ * out loud, because the first version got it backwards while being technically
+ * correct about everything else. The box was a recess lit from 315° — and it ran
+ * 4.5 at its top-left corner to 14.2 at its bottom-right, out of 255, which is a
+ * 3.7% value range across four hundred by a hundred and twelve pixels. A
+ * correctly lit hole is still a hole. Below it, on the cards with the least to
+ * say, the band down to the frame was black as well, so about forty per cent of
+ * a card carried neither information nor material.
+ *
+ * Hearthstone and MTG Arena both put their textbox in the light and their frame
+ * in the dark, and it is the whole reason their cards read as *printed pages*
+ * rather than as interface. So the box now sits in the 42–70 band with a real
+ * ramp and the shared grain, it sizes itself to its text, and the scrim beneath
+ * it gave eight points of opacity back to the painting. Card text contrast after
+ * all three: name 17.3:1, rules 13.5:1, type line 9.6:1, collector line 8.9:1.
  */
 
 import type { CardDef, CharacterCardDef, CurrentId, EquipmentCardDef, LeaderCardDef, LocationCardDef } from "../../engine/types";
@@ -40,12 +58,12 @@ import {
   FACTION_CODE,
   FACTION_COLOR,
   FACTION_INDEX,
-  GILD,
   LAYOUT,
   RARITY_STYLE,
+  frameMetal,
+  frameSpecular,
   hexToRgba,
   mix,
-  saturate,
 } from "./palette";
 import { bandPaths, framePath } from "./frameShapes";
 import { drawCurrentIcon, drawFactionCrest } from "./icons";
@@ -53,7 +71,7 @@ import { onAssetLoaded } from "../art/assetLoader";
 import { drawHatch, patternsOn } from "./hatch";
 import { drawPlaceholderArt, resetCrestStamps } from "./placeholderArt";
 import { getCardArt, onArtLoaded } from "../art/artLoader";
-import { registerCardSurface, setCardHover } from "./cardClock";
+import { registerCardSurface, setCardHover, setCardTilt } from "./cardClock";
 import { settingsStore } from "../../save/settings";
 import {
   TILE_DETAIL_BELOW,
@@ -65,22 +83,28 @@ import {
   cardHighContrast,
   crossfadeIn,
   castShadow,
+  displayFont,
+  drawCardName,
   drawGem,
   drawLabel,
   drawNumber,
+  drawRailBoss,
   edgeGradient,
   fadedRule,
   grainOver,
   innerCast,
   isTileDetail,
   litGradient,
+  onCardFontsReady,
   onCardTextureReady,
   raisedPlate,
   refreshCardStyle,
   roundRectPath,
   setCardDetail,
+  specularBand,
   sunkenPlate,
   type Metal,
+  type Rail,
   type Rect,
 } from "./material";
 
@@ -188,17 +212,33 @@ function bodyFont(size: number, bold: boolean, italic: boolean): string {
  * because the alternative — carrying on shrinking — is how a card ends up with
  * nine-pixel text nobody can read.
  */
-function drawRichText(
+interface LaidText {
+  size: number;
+  lineHeight: number;
+  lines: LaidWord[][];
+  height: number;
+}
+
+/**
+ * Wrap the text and report what it came to, without drawing any of it.
+ *
+ * Split out from the drawing because the rules box now *sizes itself* to its
+ * contents, and it cannot do that while the only thing that knows how tall the
+ * text is is halfway through a fill. The box asks for the layout, sets its own
+ * height from it, and hands the same layout back to be drawn — one wrap, not two.
+ */
+function layoutRichText(
   ctx: CanvasRenderingContext2D,
   text: string,
   box: Rect,
-  options: { steps: readonly number[]; color: string; align?: "center" | "left" }
-): void {
+  steps: readonly number[]
+): LaidText | null {
   const segments = parseCardText(text);
-  if (segments.length === 0) return;
+  if (segments.length === 0) return null;
 
-  for (let step = 0; step < options.steps.length; step++) {
-    const size = options.steps[step]!;
+  let laid: LaidText | null = null;
+  for (let step = 0; step < steps.length; step++) {
+    const size = steps[step]!;
     const lineHeight = size * 1.3;
     const words: LaidWord[] = [];
     for (const segment of segments) {
@@ -223,60 +263,36 @@ function drawRichText(
       lineWidth += word.width;
     }
 
-    const totalHeight = lines.length * lineHeight;
-    if (totalHeight > box.h && step < options.steps.length - 1) continue;
-
-    ctx.save();
-    ctx.fillStyle = options.color;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "left";
-    ctx.shadowColor = "rgba(0,0,0,0.7)";
-    ctx.shadowBlur = 2;
-    const startY = box.y + (box.h - totalHeight) / 2 + lineHeight / 2;
-
-    lines.forEach((line, index) => {
-      const width = line.reduce((sum, w) => sum + w.width, 0);
-      let x = options.align === "left" ? box.x : box.x + (box.w - width) / 2;
-      const y = startY + index * lineHeight;
-      for (const word of line) {
-        ctx.font = bodyFont(size, word.bold, word.italic);
-        ctx.fillText(word.text, x, y);
-        x += word.width;
-      }
-    });
-    ctx.restore();
-    return;
+    laid = { size, lineHeight, lines, height: lines.length * lineHeight };
+    if (laid.height <= box.h) return laid;
   }
+  return laid;
 }
 
-/** A card name, at one of three sizes and never between them. */
-function drawCardName(
+function paintRichText(
   ctx: CanvasRenderingContext2D,
-  text: string,
-  cx: number,
-  cy: number,
-  maxWidth: number,
-  steps: readonly number[]
+  laid: LaidText,
+  box: Rect,
+  options: { color: string; align?: "center" | "left" }
 ): void {
-  let size = steps[steps.length - 1]!;
-  for (const step of steps) {
-    ctx.font = cardFont(step, 700);
-    if (ctx.measureText(text).width <= maxWidth) {
-      size = step;
-      break;
-    }
-  }
   ctx.save();
-  ctx.font = cardFont(size, 700);
-  ctx.textAlign = "center";
+  ctx.fillStyle = options.color;
   ctx.textBaseline = "middle";
-  ctx.letterSpacing = `${-size * 0.012}px`;
-  ctx.shadowColor = "rgba(0,0,0,0.95)";
-  ctx.shadowBlur = 5;
-  ctx.shadowOffsetY = 1;
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText(text, cx, cy, maxWidth);
-  ctx.letterSpacing = "0px";
+  ctx.textAlign = "left";
+  ctx.shadowColor = "rgba(0,0,0,0.7)";
+  ctx.shadowBlur = 2;
+  const startY = box.y + (box.h - laid.height) / 2 + laid.lineHeight / 2;
+
+  laid.lines.forEach((line, index) => {
+    const width = line.reduce((sum, w) => sum + w.width, 0);
+    let x = options.align === "left" ? box.x : box.x + (box.w - width) / 2;
+    const y = startY + index * laid.lineHeight;
+    for (const word of line) {
+      ctx.font = bodyFont(laid.size, word.bold, word.italic);
+      ctx.fillText(word.text, x, y);
+      x += word.width;
+    }
+  });
   ctx.restore();
 }
 
@@ -290,39 +306,11 @@ function frameRect(): Rect {
 }
 
 /**
- * The metal the frame band is made of: the Current, ranked by rarity.
- *
- * Every tier is the Current's own hue at a different chroma and value, so the
- * ladder can only climb — see the note over `RARITY_STYLE` for what happened
- * when it was a hue mix instead. The gild is legendary's alone and is weighted
- * toward the lit end: gilding the shadows as hard as the highlights turns a deep
- * Veil frame into brown sludge, because there is no light down there for a warm
- * metal to be warm *in*.
+ * The metal the frame band is made of — see `palette::frameMetal`, which the
+ * leader plaque now shares so that the object above the hand and the objects in
+ * it are cut from the same alloy.
  */
-function bandMetal(current: CurrentId, rarity: CardDef["rarity"]): Metal {
-  const palette = CURRENT_PALETTE[current];
-  const style = RARITY_STYLE[rarity];
-  const rank = (hex: string, extraLift: number, gild: number): string =>
-    mix(saturate(hex, style.chroma, style.lift + extraLift), GILD, style.gild * gild);
-  return {
-    hi: rank(palette.hi, 0.02, 1),
-    key: rank(palette.key, 0, 0.9),
-    lo: rank(palette.lo, -0.01, 0.42),
-    abyss: mix(rank(palette.abyss, -0.02, 0.2), "#000000", 0.35),
-  };
-}
-
-/** The metal a rarity's own furniture — keyline, corner caps, mark — is cut from. */
-function rarityMetal(current: CurrentId, rarity: CardDef["rarity"]): Metal {
-  const style = RARITY_STYLE[rarity];
-  const palette = CURRENT_PALETTE[current];
-  return {
-    hi: mix(style.metal.hi, palette.hi, 0.18),
-    key: style.color,
-    lo: mix(style.metal.lo, palette.lo, 0.3),
-    abyss: mix(style.metal.lo, "#000000", 0.6),
-  };
-}
+const bandMetal = frameMetal;
 
 /**
  * Full-bleed art: the artwork fills the entire card, clipped to the Current's
@@ -375,16 +363,60 @@ function drawArt(
   ctx.fillStyle = topGrad;
   ctx.fillRect(top.x, top.y, top.w, top.h);
 
-  // bottom scrim — carries the name, rules text, collector line and stat gems
+  /**
+   * The bottom scrim, and the apron that stops it being a hole.
+   *
+   * The scrim's job is legibility: whatever the painting does down there, the
+   * name, the rules and the collector line have to sit on something that will
+   * hold white text. It used to do that job by going to `#04020a` at 97%, which
+   * is black, and the consequence was measured — roughly forty per cent of a
+   * short-text card below the name plate carried a total luminance range of ten
+   * out of two hundred and fifty-five. §1 of the bar bans a flat fill on any
+   * surface larger than an icon, and a flat *black* fill is still a flat fill.
+   *
+   * So the scrim now bottoms out on a tinted near-black rather than a true one,
+   * and an apron is laid over it: the same 315° ramp every other surface in the
+   * game wears, and the same grain. It is a small amount of light — about twenty
+   * five values across the diagonal — but twenty five is the difference between
+   * a surface the eye can find the far edge of and a hole.
+   */
   const scrimY = boardFace ? LAYOUT.boardScrimY : LAYOUT.bottomScrim.y;
   const bottom = { x: 0, y: scrimY, w: CARD_W, h: CARD_H - scrimY };
+  const floor = mix(palette.abyss, "#171326", 0.55);
   const bottomGrad = ctx.createLinearGradient(0, bottom.y, 0, bottom.y + bottom.h);
   bottomGrad.addColorStop(0, "rgba(0,0,0,0)");
-  bottomGrad.addColorStop(0.24, hexToRgba(palette.abyss, hard ? 0.85 : 0.6));
-  bottomGrad.addColorStop(0.46, hexToRgba("#05030c", hard ? 1 : 0.9));
-  bottomGrad.addColorStop(1, hexToRgba("#04020a", hard ? 1 : 0.97));
+  /**
+   * Eight points of opacity given back to the artwork.
+   *
+   * The scrim was 0.90 by the middle of the lower third and 0.97 at the foot,
+   * which is where "the bottom of the card is a hole" came from: a card whose
+   * rules box now sizes itself to its text has a band of *painting* under the
+   * type line, and at 0.97 that painting was not there. The furniture that has to
+   * stay readable over it — the collector line and the two stat gems — all carry
+   * their own plate or their own shadow, so the scrim does not have to be opaque
+   * to do its job. Measured after the change, the worst-case card text contrast
+   * is still far above the 4.5:1 floor.
+   */
+  bottomGrad.addColorStop(0.24, hexToRgba(palette.abyss, hard ? 0.85 : 0.58));
+  bottomGrad.addColorStop(0.46, hexToRgba(floor, hard ? 1 : 0.84));
+  bottomGrad.addColorStop(1, hexToRgba(floor, hard ? 1 : 0.93));
   ctx.fillStyle = bottomGrad;
   ctx.fillRect(bottom.x, bottom.y, bottom.w, bottom.h);
+
+  if (!hard) {
+    const apron = { x: 0, y: scrimY + bottom.h * 0.3, w: CARD_W, h: bottom.h * 0.7 };
+    ctx.fillStyle = litGradient(ctx, apron, [
+      [0, "rgba(0,0,0,0.16)"],
+      [0.5, hexToRgba(mix(palette.key, "#ffffff", 0.4), 0.045)],
+      [1, hexToRgba(mix(palette.hi, "#ffffff", 0.3), 0.13)],
+    ]);
+    ctx.fillRect(apron.x, apron.y, apron.w, apron.h);
+    if (!isTileDetail()) {
+      const apronPath = new Path2D();
+      apronPath.rect(apron.x, apron.y, apron.w, apron.h);
+      grainOver(ctx, apronPath, 0.8);
+    }
+  }
 
   // subtle Current wash over the whole card ties art to element
   ctx.globalCompositeOperation = "overlay";
@@ -415,73 +447,33 @@ function drawArt(
  * are clear between the cost gem and the cartouche and below the collector line.
  * So that is where the tier goes.
  *
- * ## Clipped to the band, which is what makes it work on eight silhouettes
+ * ## Cut into the outline, and made of the frame's own metal
  *
- * The inlay is a plain capsule intersected with the frame band, so it is by
- * construction a *segment of the frame* rather than a shape sitting on one.
- * Cinder's notches bite through it, Halo's dome curves it, Prism's facets cut
- * its ends — no per-shape geometry, and no way for it to spill onto the art.
+ * Two things were wrong with the first version and they were the same thing
+ * twice. It was a capsule *laid over* the band and clipped to it, so at 512
+ * native it read as a flat lozenge stuck on the rail with no join; and its metal
+ * came from `RARITY_STYLE.metal`, so a Halo rare — a gold Current — wore lavender
+ * pills and a Halo epic wore pink ones. Two hues that belong to neither the
+ * Current nor a metal, on the one surface whose entire job is to look like part
+ * of the frame.
+ *
+ * The boss is now a shape that *leaves* the silhouette: it rises seven pixels
+ * past the outer contour and tapers back into the rail at both ends, so the card
+ * has a different outline at rare than at common and you can see the tier from
+ * across the room. It is cut from the band's own metal one step brighter, with a
+ * ridge down its length stroked by the same edge gradient the frame's step wall
+ * uses, so it takes the 315° key light exactly as the metal around it does.
+ *
+ * Rarity's colour has not gone anywhere; it has gone where colour belongs on a
+ * gilt frame — into the small stone set in the middle of the boss, alongside the
+ * keyline, the mark in the name plate's cap and the word in the collector line.
+ * Four accents laid over one metal, which is the division Hearthstone makes
+ * between a gild and a class colour.
+ *
+ * The boss itself now lives in `material.ts`, because the card *back* wears four
+ * of them too — a piece of hardware that says "this is a HYPEBOUND frame" cannot
+ * be private to the file that draws one of the two faces.
  */
-type Rail = "left" | "right" | "top" | "bottom";
-
-function drawRailInlay(
-  ctx: CanvasRenderingContext2D,
-  rect: Rect,
-  band: Path2D,
-  side: Rail,
-  reach: number,
-  thickness: number,
-  metal: Metal
-): void {
-  const vertical = side === "left" || side === "right";
-  const cx = side === "left" ? rect.x + thickness / 2 : side === "right" ? rect.x + rect.w - thickness / 2 : rect.x + rect.w / 2;
-  const cy = side === "top" ? rect.y + thickness / 2 : side === "bottom" ? rect.y + rect.h - thickness / 2 : rect.y + rect.h / 2;
-  const length = reach * 2;
-  const box: Rect = vertical
-    ? { x: cx - thickness / 2, y: cy - length / 2, w: thickness, h: length }
-    : { x: cx - length / 2, y: cy - thickness / 2, w: length, h: thickness };
-  const capsule = roundRectPath(box, thickness * 0.44);
-
-  ctx.save();
-  ctx.clip(band, "evenodd");
-
-  // seated in a shadowed groove, so it reads as let into the metal
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.75)";
-  ctx.shadowBlur = 6;
-  ctx.fillStyle = "rgba(0,0,0,0.5)";
-  ctx.fill(capsule);
-  ctx.restore();
-
-  /**
-   * The highlight stops at 0.55 of the way to `hi`, not 0.85.
-   *
-   * At 0.85 every tier's inlay came out the same pale near-white lozenge — a
-   * lump on the rail rather than a piece of blue steel, violet or gold — which
-   * defeats the one job it has. Rarity is carried by the *hue* of this object, so
-   * the lit end has to stay recognisably that hue.
-   */
-  ctx.fillStyle = litGradient(ctx, box, [
-    [0, mix(metal.lo, metal.abyss ?? "#000000", 0.35)],
-    [0.45, metal.key],
-    [1, mix(metal.key, metal.hi, 0.55)],
-  ]);
-  ctx.fill(capsule);
-  ctx.lineWidth = 1.6;
-  ctx.strokeStyle = edgeGradient(ctx, box, 0.5, 0.7);
-  ctx.stroke(capsule);
-
-  drawGem(ctx, {
-    shape: "diamond",
-    cx,
-    cy,
-    r: Math.max(5, thickness * 0.36),
-    metal: { hi: mix(metal.hi, "#ffffff", 0.3), key: metal.key, lo: metal.lo, abyss: metal.abyss },
-    socket: false,
-    lift: 2,
-  });
-  ctx.restore();
-}
 
 /** Which rails a tier decorates. More rails is more valuable, at any size. */
 function railsFor(rarity: CardDef["rarity"]): Rail[] {
@@ -548,6 +540,26 @@ function drawFrameBand(
 
   grainOver(ctx, paths.band, 0.95, "evenodd");
 
+  /**
+   * The tier's specular, laid on the metal before any of the linework.
+   *
+   * It goes here rather than in `drawCardMotion` because it does not move: this
+   * is the *static* reflection of the fixed key light on a polished ring, and
+   * the travelling sheen the clock drives is a second, separate thing crossing
+   * it. A legendary that only catches the light when the animation happens to be
+   * over it is a legendary that reads as an epic in every screenshot.
+   */
+  const spec = frameSpecular(metal.hi, card.rarity);
+  if (spec) {
+    specularBand(ctx, paths.band, rect, {
+      strength: spec.strength,
+      tint: spec.tint,
+      rule: "evenodd",
+      // a wider band on a wider frame, so the highlight stays optically the same
+      width: 0.055 + style.band * 0.0009,
+    });
+  }
+
   // the wall of the step, lit
   ctx.lineWidth = 2.6;
   ctx.strokeStyle = edgeGradient(ctx, rect, 0.5, 0.58);
@@ -583,23 +595,6 @@ function drawFrameBand(
     ctx.restore();
   }
 
-  /**
-   * The rail inlays, cut from the rarity's own metal rather than the frame's.
-   *
-   * An ornament in the Current's metal on a frame made of the Current's metal is
-   * a lump, not an ornament — it disappears at exactly the size the tier most
-   * needs reading. Blue steel on a Tide rare, violet on an epic, gold on a
-   * legendary: the inlay is the one place on the frame where rarity outranks
-   * Current, and the *count* of them is a second, colourless channel that
-   * survives a greyscale monitor and a 3:1 downsample alike.
-   */
-  if (style.ornament > 0) {
-    const inlay = rarityMetal(current, card.rarity);
-    for (const side of railsFor(card.rarity)) {
-      drawRailInlay(ctx, rect, paths.band, side, style.ornament, style.band * 0.66, inlay);
-    }
-  }
-
   // the two walls of the band, lit from opposite sides because they face
   // opposite ways — this is what makes it a raised ring rather than an outline
   ctx.lineWidth = 2.4;
@@ -610,6 +605,29 @@ function drawFrameBand(
   ctx.stroke(paths.inner);
 
   ctx.restore();
+
+  /**
+   * The rail bosses, drawn *outside* the clip that everything else obeys.
+   *
+   * They have to be: a boss that changes the card's outline cannot be drawn
+   * under a clip to the outline it is changing. Drawing them last also means
+   * they cover the band's own wall stroke where the two meet, which is what a
+   * carved boss does — the outline steps out, runs along the face and steps back.
+   * The count of them is a second, colourless channel that survives a greyscale
+   * monitor and a 3:1 downsample alike: two rails at rare, three at epic, four at
+   * legendary.
+   */
+  if (style.ornament > 0) {
+    const bossMetal: Metal = {
+      hi: mix(metal.hi, "#ffffff", 0.28),
+      key: mix(metal.key, metal.hi, 0.3),
+      lo: metal.lo,
+      abyss: metal.abyss,
+    };
+    for (const side of railsFor(card.rarity)) {
+      drawRailBoss(ctx, rect, side, style.ornament, style.band * 0.8, bossMetal, style.color);
+    }
+  }
 
   // the frame's own shadow, falling across the artwork it sits over
   innerCast(ctx, paths.inner, rect, { blur: 13, alpha: 0.5, lift: 5, tone: "dark", away: true });
@@ -639,7 +657,16 @@ function drawFrameBand(
 export function drawCardMotion(
   ctx: CanvasRenderingContext2D,
   card: CardDef,
-  options: { sheen?: number; phase?: number; premium?: boolean; hover?: number } = {}
+  options: {
+    sheen?: number;
+    phase?: number;
+    premium?: boolean;
+    hover?: number;
+    /** the travelling specular; off on the static pass, which does not move */
+    sweep?: boolean;
+    /** the rim glow; off on the ticks where nothing about it has changed */
+    glow?: boolean;
+  } = {}
 ): void {
   const current: CurrentId = card.current;
   const palette = CURRENT_PALETTE[current];
@@ -649,41 +676,76 @@ export function drawCardMotion(
   const paths = bandPaths(palette.shape, rect, style.band);
   const sheen = options.sheen ?? 0.28;
   const hover = options.hover ?? 0;
-
-  ctx.save();
-  ctx.clip(paths.band, "evenodd");
   const lit = 1 + hover;
-  const travel = (sheen % 1) * (CARD_W + CARD_H) * 1.5 - CARD_H * 0.5;
-  const sweep = ctx.createLinearGradient(travel - CARD_H * 0.55, 0, travel, CARD_H);
-  sweep.addColorStop(0, "rgba(255,255,255,0)");
-  sweep.addColorStop(0.46, hexToRgba(metal.hi, (0.1 + 0.2 * style.glow) * lit));
-  sweep.addColorStop(0.52, hexToRgba("#ffffff", (0.12 + 0.3 * style.glow) * lit));
-  sweep.addColorStop(0.58, hexToRgba(metal.hi, (0.1 + 0.2 * style.glow) * lit));
-  sweep.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = sweep;
-  ctx.fillRect(0, 0, CARD_W, CARD_H);
 
-  // the hovered card's metal comes up a few points across the whole band, so
-  // the lift the wrapper does is a lift *into the light* rather than a slide
-  if (hover > 0) {
-    ctx.fillStyle = hexToRgba(mix(metal.hi, "#ffffff", 0.4), 0.09 * hover);
+  /**
+   * The specular crosses the **card** at tile finish and the **band** at full.
+   *
+   * Measured: two idle frames 2.1 seconds apart on the collection grid were
+   * indistinguishable by eye, at a mean per-pixel delta of 2.8/255. The reason is
+   * arithmetic rather than amplitude — the sweep was clipped to the frame band,
+   * which is 21 card-space pixels wide, and a 512px card in a 168px cell is a
+   * 3:1 downsample, so the entire moving surface was seven device pixels of a
+   * fifty-five-thousand-pixel tile. Nothing could have made that visible.
+   *
+   * At tile finish the sweep therefore runs across the whole silhouette at a
+   * lower amplitude: a slow light crossing the card, which is what "idle is never
+   * dead" asks for and what the reference does with a collection tile. At full
+   * finish the band clip comes back, because at 420px a highlight travelling the
+   * metal is a better-looking thing than one travelling the artwork.
+   */
+  const tile = isTileDetail();
+  if (options.sweep !== false) {
+    ctx.save();
+    if (tile) ctx.clip(paths.outer);
+    else ctx.clip(paths.band, "evenodd");
+    const travel = (sheen % 1) * (CARD_W + CARD_H) * 1.5 - CARD_H * 0.5;
+    const sweep = ctx.createLinearGradient(travel - CARD_H * (tile ? 0.9 : 0.55), 0, travel, CARD_H);
+    const edge = (0.1 + 0.2 * style.glow) * lit * (tile ? 0.62 : 1);
+    const core = (0.12 + 0.3 * style.glow) * lit * (tile ? 0.72 : 1);
+    sweep.addColorStop(0, "rgba(255,255,255,0)");
+    sweep.addColorStop(0.46, hexToRgba(metal.hi, edge));
+    sweep.addColorStop(0.52, hexToRgba("#ffffff", core));
+    sweep.addColorStop(0.58, hexToRgba(metal.hi, edge));
+    sweep.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = sweep;
     ctx.fillRect(0, 0, CARD_W, CARD_H);
+
+    // the hovered card's metal comes up a few points across the whole band, so
+    // the lift the wrapper does is a lift *into the light* rather than a slide
+    if (hover > 0) {
+      ctx.save();
+      ctx.clip(paths.band, "evenodd");
+      ctx.fillStyle = hexToRgba(mix(metal.hi, "#ffffff", 0.4), 0.09 * hover);
+      ctx.fillRect(0, 0, CARD_W, CARD_H);
+      ctx.restore();
+    }
+    ctx.restore();
   }
-  ctx.restore();
 
-  // a tight coloured rim glow — the big bloom belongs to the host, not the bitmap
-  ctx.save();
-  ctx.shadowColor = hexToRgba(palette.key, Math.min(0.95, (0.34 + 0.36 * style.glow) * (1 + 0.8 * hover)));
-  ctx.shadowBlur = 10 + 9 * hover;
-  ctx.lineWidth = 2 + 1.4 * hover;
-  ctx.strokeStyle = hexToRgba(
-    mix(palette.key, palette.hi, 0.35 + 0.4 * hover),
-    Math.min(1, (0.5 + 0.3 * style.glow) * (1 + 0.5 * hover))
-  );
-  ctx.stroke(paths.outer);
-  ctx.restore();
+  /**
+   * The rim glow, which is a *state* and not a motion, and so is skipped on the
+   * ticks where nothing about it has changed.
+   *
+   * It is a stroke with a ten-pixel shadow blur — a full blurred rasterisation of
+   * the silhouette — and it was being paid on every one of the twelve idle
+   * repaints a second even though its only input is the hover value. The static
+   * pass bakes it; the moving pass redraws it only while a hover is easing.
+   */
+  if (options.glow !== false) {
+    ctx.save();
+    ctx.shadowColor = hexToRgba(palette.key, Math.min(0.95, (0.34 + 0.36 * style.glow) * (1 + 0.8 * hover)));
+    ctx.shadowBlur = 10 + 9 * hover;
+    ctx.lineWidth = 2 + 1.4 * hover;
+    ctx.strokeStyle = hexToRgba(
+      mix(palette.key, palette.hi, 0.35 + 0.4 * hover),
+      Math.min(1, (0.5 + 0.3 * style.glow) * (1 + 0.5 * hover))
+    );
+    ctx.stroke(paths.outer);
+    ctx.restore();
+  }
 
-  if (options.premium) drawFoil(ctx, paths.outer, options.phase ?? 0);
+  if (options.premium) drawFoil(ctx, paths, options.phase ?? 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -786,6 +848,40 @@ function drawCurrentCartouche(ctx: CanvasRenderingContext2D, current: CurrentId)
 }
 
 /**
+ * The Current, for a card being read at 121px: one glyph, no label, no pill.
+ *
+ * Seated in the frame's top rail rather than floating on the art, with the same
+ * dark bezel and the same lit lip the cartouche's medallion carries, so a board
+ * unit and a card in hand are recognisably wearing the same hardware at two very
+ * different scales.
+ */
+function drawBoardCurrentMark(ctx: CanvasRenderingContext2D, current: CurrentId): void {
+  const palette = CURRENT_PALETTE[current];
+  const cx = CARD_W - 74;
+  const cy = 72;
+  const r = 40;
+  const bounds: Rect = { x: cx - r, y: cy - r, w: r * 2, h: r * 2 };
+
+  const bezel = new Path2D();
+  bezel.arc(cx, cy, r, 0, Math.PI * 2);
+  castShadow(ctx, bezel, 4, 0.55);
+
+  ctx.save();
+  ctx.fillStyle = litGradient(ctx, bounds, [
+    [0, mix(palette.lo, "#000000", 0.2)],
+    [0.55, mix(palette.abyss, "#000000", 0.35)],
+    [1, mix(palette.abyss, "#000000", 0.62)],
+  ]);
+  ctx.fill(bezel);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = edgeGradient(ctx, bounds, 0.44, 0.72, true);
+  ctx.stroke(bezel);
+  ctx.restore();
+
+  drawCurrentIcon(ctx, current, cx, cy, r * 0.62, mix(palette.hi, "#ffffff", 0.35));
+}
+
+/**
  * The name plate: a raised banner with a sunken medallion at each end.
  *
  * The caps are the fix for two separate defects at once. The rarity mark used to
@@ -820,7 +916,19 @@ function drawNamePlate(
   });
 
   if (boardFace) {
-    drawCardName(ctx, card.name, r.x + r.w / 2, r.y + r.h / 2 + 1, r.w - 28, [40, 33, 27]);
+    /**
+     * Two steps and a floor, not three steps and a cliff.
+     *
+     * `[40, 33, 27]` on a 396px plate put 'Bouncer of the Vibe' at 40 and 'The
+     * One Who Never Sleeps' at 27 — a 48% size difference between two units side
+     * by side on the same board, which is the same defect the collection face
+     * was rebuilt to remove and which arrived here by copying its ladder without
+     * its width. With the plate widened to 452 the longest names in the game
+     * reach the second step, and below that `drawCardName` condenses the face
+     * rather than dropping the cap height again: a board unit's name is read at
+     * about seven device pixels and the thing that has to hold is its *height*.
+     */
+    drawCardName(ctx, card.name, r.x + r.w / 2, r.y + r.h / 2 + 1, r.w - 26, [40, 34]);
     return;
   }
 
@@ -957,24 +1065,106 @@ export function lensText(card: CardDef): string {
 function drawBoardKeywords(ctx: CanvasRenderingContext2D, card: CardDef, current: CurrentId): void {
   if (card.keywords.length === 0) return;
   const palette = CURRENT_PALETTE[current];
-  const text = card.keywords
-    .slice(0, 2)
-    .map((id) => id.replace(/-/g, " "))
-    .join("  ·  ");
+  const room = LAYOUT.boardKeywordWidth;
+  const words = card.keywords.map((id) => id.replace(/-/g, " ").toUpperCase());
+
+  /**
+   * Two keywords if two fit, one if they do not, and a smaller one before a
+   * clipped one.
+   *
+   * The measure has to include the tracking, which `measureText` does not: a
+   * canvas applies `letterSpacing` when it draws but reports the untracked width
+   * unless the same spacing is set on the context first. Setting it here and
+   * clearing it afterwards is the only way the fit test and the draw agree, and
+   * disagreeing is how the row got out to both rims in the first place.
+   */
+  const fits = (text: string, size: number, tracking: number): boolean => {
+    ctx.save();
+    ctx.font = displayFont(size, 700);
+    ctx.letterSpacing = `${tracking}px`;
+    const width = ctx.measureText(text).width;
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+    return width <= room;
+  };
+
+  const pair = words.slice(0, 2).join("  ·  ");
+  let text = words[0]!;
+  let size = 26;
+  let tracking = 3;
+  if (words.length > 1 && fits(pair, 26, 3)) {
+    text = pair;
+  } else if (!fits(text, 26, 3)) {
+    // one keyword, tightened — 'AFTERPARTY' at 22px on 2px is still eight device
+    // pixels of capital at board size, which is the size the name sets at
+    size = 22;
+    tracking = 2;
+  }
+
   drawLabel(ctx, text, CARD_W / 2, LAYOUT.boardKeywordY, {
-    size: 28,
+    size,
     colour: hexToRgba(mix(palette.hi, "#ffffff", 0.4), 0.96),
-    tracking: 3,
+    tracking,
+    maxWidth: room,
   });
+}
+
+/**
+ * The rules box, as a surface with light on it rather than a hole in the card.
+ *
+ * The measurement that forced this rewrite: the old box ran 4.5 at its top-left
+ * corner to 14.2 at its bottom-right, out of 255. That is a 3.7% value range
+ * across 408×112 card-space pixels — technically a correct recess, lit from the
+ * correct direction, and *visually* a rectangle of black. Below it, on an Action
+ * or a short-text card, the band down to the frame was black too, so about forty
+ * per cent of the card under the name plate carried no information and no
+ * material either.
+ *
+ * Hearthstone inverts this and it is the whole reason its cards read as printed
+ * pages: the textbox is the **light** surface and the frame is the dark one, so
+ * the card resolves into two masses when you squint at it. We cannot go to
+ * parchment — the art is neon nightlife and a cream panel would fight it — but
+ * the principle transfers exactly. The box is now a slate plate sitting in the
+ * 42–70/255 range with a real 315° ramp across it and the shared grain on top,
+ * which is dark enough to hold #efeaff rules text at 9:1 and light enough that
+ * the eye reads a *surface* set into the frame.
+ *
+ * ## And it is only as tall as it needs to be
+ *
+ * The old box was a fixed 112px whatever it held, so 'Inspire: this gains +1/+1.'
+ * sat in the middle of ninety pixels of nothing. It now takes its height from the
+ * laid-out text and stops, with the collector furniture moving up under it — a
+ * printed card sizes its textbox to its rules, and so does this one.
+ */
+function textBoxRect(ctx: CanvasRenderingContext2D, card: CardDef): { rect: Rect; laid: LaidText | null } {
+  const base = LAYOUT.textBox;
+  const body = [card.text?.trim() ?? "", lensText(card)].filter(Boolean).join(" ");
+  const source = body.length > 0 ? body : card.flavor ? `*${card.flavor}*` : "";
+  const inner = { x: base.x + 16, y: base.y + 11, w: base.w - 32, h: base.h - 22 };
+  const laid = source.length > 0 ? layoutRichText(ctx, source, inner, TYPE.body) : null;
+  /**
+   * The box grows upward from a fixed bottom edge, not downward from a fixed top.
+   *
+   * Both leave the same number of spare pixels; the difference is where they end
+   * up. Anchoring the top puts the gap *below* the box, between it and the
+   * collector line, which is the deadest part of the card and where the black
+   * void was in the first place. Anchoring the bottom puts the gap above it,
+   * between the type line and the box — which is artwork, and a card showing more
+   * of its painting is a card showing more of its painting.
+   */
+  const foot = base.y + base.h;
+  const h = laid ? Math.max(LAYOUT.textBoxMin, Math.min(base.h, Math.ceil(laid.height + 26))) : LAYOUT.textBoxMin;
+  return { rect: { ...base, y: foot - h, h }, laid };
 }
 
 function drawTextBox(
   ctx: CanvasRenderingContext2D,
   card: CardDef,
-  current: CurrentId
+  current: CurrentId,
+  box: { rect: Rect; laid: LaidText | null }
 ): void {
   const palette = CURRENT_PALETTE[current];
-  const r = LAYOUT.textBox;
+  const r = box.rect;
   /**
    * §17's Rules Lens.
    *
@@ -987,29 +1177,45 @@ function drawTextBox(
    * The board face has no rules box at all, so there is nowhere for it to go
    * there and nothing to guard against.
    */
-  const body = [card.text?.trim() ?? "", lensText(card)].filter(Boolean).join(" ");
-  const hasBody = body.length > 0;
+  const hasBody = (card.text?.trim() ?? "").length > 0 || lensText(card).length > 0;
 
   const path = roundRectPath(r, 11);
+  /**
+   * The slate the rules are printed on.
+   *
+   * `sunkenPlate` runs its three stops from `mix(lo, key, 0.35)` at the shadowed
+   * corner down to `mix(lo, abyss, 0.55)` at the lit one — darker toward the
+   * light, because that is what the near wall of a recess does — so the metal is
+   * chosen to put those two ends at roughly 70 and 42 out of 255 rather than at
+   * 14 and 4. A hint of the Current is mixed into it so a Tide card's box is
+   * fractionally cooler than a Cinder card's, which is the same relationship the
+   * frame band already has and costs nothing to carry through.
+   */
+  const slateLo = mix("#3b3450", palette.key, 0.14);
   sunkenPlate(ctx, path, r, {
-    metal: { hi: mix(palette.hi, "#ffffff", 0.3), key: "#16112a", lo: "#0a0716", abyss: "#04020c" },
-    amplitude: 0.75,
-    opacity: cardHighContrast() ? 1 : hasBody || card.flavor ? 0.95 : 0.62,
+    metal: {
+      hi: mix(palette.hi, "#ffffff", 0.45),
+      key: mix("#615881", palette.key, 0.16),
+      lo: slateLo,
+      abyss: mix(slateLo, "#100c1c", 0.62),
+    },
+    amplitude: 0.62,
+    opacity: cardHighContrast() ? 1 : 0.97,
+    grain: 0.62,
   });
 
   // a hairline of the Current on the recess lip, so the box belongs to the card
   ctx.save();
   ctx.lineWidth = 1;
-  ctx.strokeStyle = hexToRgba(palette.key, 0.34);
+  ctx.strokeStyle = hexToRgba(palette.hi, 0.34);
   ctx.stroke(path);
   ctx.restore();
 
-  const textArea = { x: r.x + 16, y: r.y + 11, w: r.w - 32, h: r.h - 22 };
-
-  if (hasBody) {
-    drawRichText(ctx, body, textArea, { steps: TYPE.body, color: cardHighContrast() ? "#ffffff" : "#efeaff" });
-  } else if (card.flavor) {
-    drawRichText(ctx, `*${card.flavor}*`, textArea, { steps: TYPE.body, color: hexToRgba("#efeaff", 0.7) });
+  if (box.laid) {
+    const textArea = { x: r.x + 16, y: r.y + 11, w: r.w - 32, h: r.h - 22 };
+    paintRichText(ctx, box.laid, textArea, {
+      color: hasBody ? (cardHighContrast() ? "#ffffff" : "#f6f2ff") : hexToRgba("#f0ebff", 0.78),
+    });
   }
 }
 
@@ -1037,28 +1243,56 @@ function drawFooter(ctx: CanvasRenderingContext2D, card: CardDef, current: Curre
   const colour = cardHighContrast() ? "#ffffff" : hexToRgba(mix(palette.hi, "#ffffff", 0.25), 0.82);
 
   /**
-   * The band between the two stat gems is 260px wide and the line has to live
-   * inside it — a collector line disappearing under a health gem is worse than
-   * no collector line. Fields are dropped from the least load-bearing end: the
-   * art credit first, then the set code, so the rarity *word* — the channel that
-   * survives a greyscale monitor — is the last thing to go.
+   * All four fields, on every card, and the tracking gives way instead.
+   *
+   * The band between the two stat gems is 252px wide and the line has to live
+   * inside it. The first version answered an overflow by *dropping a field* —
+   * which meant `ALG · 033 · LEGENDARY` on Madam Null sat next to
+   * `AFT · 124 · COMMON · HYPEBOUND` on the card beside it, because LEGENDARY is
+   * three characters longer than COMMON. A collector line that has four fields on
+   * some cards and three on others is not furniture, it is a bug wearing
+   * furniture's clothes, and it is worse than having none.
+   *
+   * Tracking is the give. It runs from the designed 1.4px down to 0.5 and then
+   * the size steps 11 → 10, which between them buy about 55px — comfortably more
+   * than the 11px that LEGENDARY plus HYPEBOUND costs over COMMON plus HYPEBOUND.
+   * Shedding survives only as the last resort it should always have been.
    */
   const room = LAYOUT.healthChip.cx - LAYOUT.healthChip.r - 12 - (LAYOUT.attackChip.cx + LAYOUT.attackChip.r + 12);
   ctx.save();
-  ctx.font = cardFont(TYPE.footer, 700);
-  ctx.letterSpacing = "1.4px";
-  const shed = [3, 0];
   let text = parts.join(" · ");
-  for (const index of shed) {
-    if (ctx.measureText(text).width <= room) break;
+  let size: number = TYPE.footer;
+  let tracking = 1.4;
+  const measure = (): number => {
+    ctx.font = displayFont(size, 700);
+    ctx.letterSpacing = `${tracking}px`;
+    return ctx.measureText(text).width;
+  };
+  let width = measure();
+  for (const [nextSize, nextTracking] of [
+    [11, 1.1],
+    [11, 0.85],
+    [11, 0.6],
+    [10, 0.6],
+    [10, 0.4],
+  ] as const) {
+    if (width <= room) break;
+    size = nextSize;
+    tracking = nextTracking;
+    width = measure();
+  }
+  // and only then, if a future rarity word is longer than any of today's
+  for (const index of [3, 0]) {
+    if (width <= room) break;
     parts[index] = "";
     text = parts.filter(Boolean).join(" · ");
+    width = measure();
   }
-  const width = ctx.measureText(text).width;
+  ctx.letterSpacing = "0px";
   ctx.restore();
 
-  fadedRule(ctx, CARD_W / 2 - width / 2 - 34, CARD_W / 2 + width / 2 + 34, y - 13, palette.key, 0.4);
-  drawLabel(ctx, text, CARD_W / 2, y, { size: TYPE.footer, colour, tracking: 1.4 });
+  fadedRule(ctx, CARD_W / 2 - width / 2 - 34, CARD_W / 2 + width / 2 + 34, y - 13, palette.hi, 0.42);
+  drawLabel(ctx, text, CARD_W / 2, y, { size, colour, tracking });
 }
 
 /** A stable three-digit number per card, so the collector line means something. */
@@ -1151,40 +1385,80 @@ function drawStatGem(
  * `color-dodge`, which is the mode that makes a diffraction grating read as
  * metal rather than as fog, plus one hard specular running the other way.
  */
-function drawFoil(ctx: CanvasRenderingContext2D, outer: Path2D, phase: number): void {
-  ctx.save();
-  ctx.clip(outer);
+function drawFoil(
+  ctx: CanvasRenderingContext2D,
+  paths: { outer: Path2D; band: Path2D },
+  phase: number
+): void {
+  const drift = (phase % 1) * 260;
+  const bands = (peak: number): CanvasGradient => {
+    const gradient = ctx.createLinearGradient(-drift, 0, CARD_W * 1.2 - drift, CARD_H);
+    for (let i = 0; i <= 8; i++) {
+      const t = i / 8;
+      const hue = (t * 300 + phase * 360) % 360;
+      gradient.addColorStop(t, `hsla(${hue}, 95%, 62%, ${i % 2 === 0 ? peak : peak * 0.4})`);
+    }
+    return gradient;
+  };
 
   /**
-   * `overlay`, not `color-dodge`.
+   * The grating on the metal, where a grating belongs.
    *
-   * Dodge over a card whose rules box is deliberately near-black lifts that box
-   * to a green haze and takes the rules text with it — a cosmetic that makes the
-   * card harder to read is a bug however pretty it is. Overlay leaves the darks
-   * alone and only spreads the grating across the mid-tones and the metal, which
-   * is also physically what a diffraction foil does: you see it on the ink, not
-   * in the shadows.
+   * The frame band is the one part of a foil card that is *supposed* to be a
+   * rainbow: it is the printed foil stock, and dodging it at a tenth of an alpha
+   * lights it without touching anything a player has to read.
    */
-  ctx.globalCompositeOperation = "overlay";
-  const drift = (phase % 1) * 260;
-  const bands = ctx.createLinearGradient(-drift, 0, CARD_W * 1.2 - drift, CARD_H);
-  for (let i = 0; i <= 8; i++) {
-    const t = i / 8;
-    const hue = (t * 300 + phase * 360) % 360;
-    bands.addColorStop(t, `hsla(${hue}, 95%, 60%, ${i % 2 === 0 ? 0.34 : 0.14})`);
-  }
-  ctx.fillStyle = bands;
+  const travel = ((phase * 1.4) % 1) * (CARD_W + CARD_H) - CARD_H * 0.4;
+  const specular = (peak: number, tinted: boolean): CanvasGradient => {
+    const sweep = ctx.createLinearGradient(travel - CARD_H * 0.62, 0, travel, CARD_H);
+    sweep.addColorStop(0, "rgba(0,0,0,0)");
+    sweep.addColorStop(0.4, hexToRgba(tinted ? "#7df9ff" : "#ffffff", peak * 0.24));
+    sweep.addColorStop(0.5, hexToRgba("#ffffff", peak));
+    sweep.addColorStop(0.6, hexToRgba(tinted ? "#ff8fd8" : "#ffffff", peak * 0.24));
+    sweep.addColorStop(1, "rgba(0,0,0,0)");
+    return sweep;
+  };
+
+  ctx.save();
+  ctx.clip(paths.band, "evenodd");
+  ctx.globalCompositeOperation = "color-dodge";
+  ctx.fillStyle = bands(0.1);
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  // the loud channel lives on the metal, where a rainbow specular belongs
+  ctx.globalCompositeOperation = "screen";
+  ctx.fillStyle = specular(0.34, true);
+  ctx.fillRect(0, 0, CARD_W, CARD_H);
+  ctx.restore();
+
+  /**
+   * ...and a much weaker one over the painting, in the mode that cannot repaint
+   * it.
+   *
+   * The previous pass ran `overlay` at 0.34 over the whole card, and the result
+   * was the failure this replaces: at phases 0.3–0.6 the entire art panel washed
+   * to pink, Dawnrise's black jacket came out purple, and the skin lost its value
+   * structure altogether. A foil that repaints the art is a worse cosmetic than
+   * one you cannot see, because it damages the thing it exists to celebrate.
+   *
+   * `color-dodge` is the mode that makes the mask unnecessary: it divides by one
+   * minus the source, so a black pixel stays exactly black no matter what colour
+   * lands on it and only pixels that are already bright move at all. At 0.06 the
+   * jacket shifts by under a value and a lit shoulder picks up a hue — which is
+   * what a diffraction foil does in the world. You see it on the highlights.
+   */
+  ctx.save();
+  ctx.clip(paths.outer);
+  ctx.globalCompositeOperation = "color-dodge";
+  ctx.fillStyle = bands(0.06);
   ctx.fillRect(0, 0, CARD_W, CARD_H);
 
+  /**
+   * The same specular carries on across the painting at half the strength and
+   * with no hue in it at all — a sheet of glass catching the light, which is what
+   * a foil *is* over the ink, rather than a coloured film laid on the ink.
+   */
   ctx.globalCompositeOperation = "screen";
-  const travel = ((phase * 1.4) % 1) * (CARD_W + CARD_H) - CARD_H * 0.4;
-  const sweep = ctx.createLinearGradient(travel - CARD_H * 0.8, 0, travel, CARD_H);
-  sweep.addColorStop(0, "rgba(0,0,0,0)");
-  sweep.addColorStop(0.44, hexToRgba("#7df9ff", 0.1));
-  sweep.addColorStop(0.5, hexToRgba("#ffffff", 0.24));
-  sweep.addColorStop(0.56, hexToRgba("#ff8fd8", 0.1));
-  sweep.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = sweep;
+  ctx.fillStyle = specular(0.16, false);
   ctx.fillRect(0, 0, CARD_W, CARD_H);
   ctx.restore();
 }
@@ -1226,12 +1500,22 @@ export function renderCard(
 
   const paths = bandPaths(palette.shape, rect, RARITY_STYLE[card.rarity].band);
 
-  // the card is an object sitting on the page, so it casts before it is drawn
-  castShadow(ctx, paths.outer, 8, 0.5);
+  /**
+   * The card is an object sitting on the page, so it casts before it is drawn —
+   * at six of lift rather than eight, because the throw is asymmetric.
+   *
+   * `shadowOffset` moves a shadow down by the full distance and right by the
+   * throw ratio, so a lift the right edge can hold in its twenty pixels of bleed
+   * is a lift the *bottom* edge cannot: measured at eight, the bottom row of the
+   * canvas carried 40/255 against the right column's 9. Six brings the two into
+   * line without the card losing its footing.
+   */
+  castShadow(ctx, paths.outer, 6, 0.5);
 
   drawArt(ctx, card, current, options.art ?? null, paths.outer, boardFace);
   drawFrameBand(ctx, card, current, paths);
   drawNamePlate(ctx, card, current, boardFace);
+  const box = boardFace ? null : textBoxRect(ctx, card);
   if (boardFace) {
     drawBoardKeywords(ctx, card, current);
   } else {
@@ -1246,12 +1530,31 @@ export function renderCard(
      * card is drawn at a size that can hold them.
      */
     if (!tile) drawTypeLine(ctx, card, current);
-    drawTextBox(ctx, card, current);
+    if (box) drawTextBox(ctx, card, current, box);
     if (!tile) drawFooter(ctx, card, current, Boolean(options.art));
   }
-  // leaders are never played from hand, so they carry no Hype cost gem
-  if (card.type !== "leader") drawCostGem(ctx, card.cost, current);
-  drawCurrentCartouche(ctx, current);
+  /**
+   * What the board face wears instead of a top band.
+   *
+   * A minion in play has no cost — it is already paid for — so the cost gem on a
+   * board card is a number that means nothing, drawn at 121px where it is nine
+   * pixels across. The Current cartouche was worse: its label set at about two
+   * device pixels tall, which is not small type, it is grey noise, and this is
+   * the mode that exists *specifically* to strip noise. It already correctly
+   * removes the type line, the rules box, the collector band and the rarity mark.
+   *
+   * The Current still has to be readable — it drives every targeting rule in the
+   * game — so it stays as a single glyph at 44px card space, seated in a dark
+   * bezel let into the frame's top rail. Hearthstone's board minion shows art, a
+   * name banner, attack and health, and nothing else.
+   */
+  if (boardFace) {
+    drawBoardCurrentMark(ctx, current);
+  } else {
+    // leaders are never played from hand, so they carry no Hype cost gem
+    if (card.type !== "leader") drawCostGem(ctx, card.cost, current);
+    drawCurrentCartouche(ctx, current);
+  }
 
   // stat gems — board cards read theirs at ~121px wide, so they enlarge
   const atkChip = boardFace ? LAYOUT.boardAttackChip : LAYOUT.attackChip;
@@ -1295,6 +1598,9 @@ export function renderCard(
       premium: options.premium === true,
       hover: options.hover ?? 0,
     });
+  } else {
+    // the rim glow belongs to the static half — see `drawCardMotion`'s note
+    drawCardMotion(ctx, card, { sweep: false, hover: 0 });
   }
 
   // interaction rings
@@ -1461,6 +1767,92 @@ function rememberTile(key: string, source: HTMLCanvasElement): void {
   tileCache.set(key, copy);
 }
 
+// ---------------------------------------------------------------------------
+// When a card is first drawn
+// ---------------------------------------------------------------------------
+
+/**
+ * How many cards may paint synchronously before the rest are deferred.
+ *
+ * The number that forced this: a warm lobby → collection re-entry took **4,848ms**
+ * to show a populated grid, against §3a's 260–420ms budget and its 500ms
+ * "this is an obstacle" threshold. Two hundred and forty-five tiles at 13.9ms
+ * each is 3.4 seconds of main thread, paid in one blocking task, and the fact
+ * that two hundred and twenty of those tiles were below the fold and nobody
+ * would look at them for another thirty seconds made no difference at all.
+ *
+ * So a screen gets a synchronous allowance and then the queue takes over.
+ * Twenty-eight covers a 1600×900 viewport of 185px tiles with a row to spare —
+ * and covers a hand, a shop row, a deck list and a detail view outright, so
+ * every screen except the collection grid behaves exactly as it did. The rest
+ * paint when they come within two rows of the viewport, on the observer this
+ * file already owns, with an idle sweep behind that so a tile nobody ever
+ * scrolls to still ends up painted rather than blank.
+ */
+const SYNC_FIRST_PAINTS = 28;
+
+/** How long the idle sweep may hold the main thread in one go. */
+const IDLE_SLICE_MS = 6;
+
+let syncLeft = SYNC_FIRST_PAINTS;
+let syncResetQueued = false;
+const waiting = new Set<() => void>();
+let sweepQueued = false;
+
+type IdleHost = {
+  requestIdleCallback?: (cb: (deadline: { timeRemaining: () => number }) => void, opts?: { timeout: number }) => number;
+};
+
+function sweep(): void {
+  sweepQueued = false;
+  const start = typeof performance === "object" ? performance.now() : Date.now();
+  for (const run of waiting) {
+    waiting.delete(run);
+    run();
+    const now = typeof performance === "object" ? performance.now() : Date.now();
+    if (now - start >= IDLE_SLICE_MS) break;
+  }
+  if (waiting.size > 0) queueSweep();
+}
+
+function queueSweep(): void {
+  if (sweepQueued || typeof window === "undefined") return;
+  sweepQueued = true;
+  const host = window as unknown as IdleHost;
+  if (typeof host.requestIdleCallback === "function") host.requestIdleCallback(() => sweep(), { timeout: 900 });
+  else setTimeout(sweep, 60);
+}
+
+/**
+ * Draw now if the screen still has allowance, otherwise hand the work to the
+ * queue and return a function that drains it early — which is what the
+ * intersection callback calls when the tile comes into view.
+ */
+function firstPaint(run: () => void): (() => void) | null {
+  if (typeof window === "undefined" || typeof requestAnimationFrame !== "function") {
+    run();
+    return null;
+  }
+  if (!syncResetQueued) {
+    syncResetQueued = true;
+    requestAnimationFrame(() => {
+      syncLeft = SYNC_FIRST_PAINTS;
+      syncResetQueued = false;
+    });
+  }
+  if (syncLeft > 0) {
+    syncLeft -= 1;
+    run();
+    return null;
+  }
+  waiting.add(run);
+  queueSweep();
+  return () => {
+    if (!waiting.delete(run)) return;
+    run();
+  };
+}
+
 /**
  * Render a card into a fresh canvas at the requested pixel width.
  *
@@ -1538,7 +1930,22 @@ export function renderCardToCanvas(card: CardDef, width: number, options: Render
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(base, 0, 0);
     ctx.scale(scale * dpr, scale * dpr);
-    drawCardMotion(ctx, card, { sheen, phase: foil, premium: options.premium === true, hover });
+    /**
+     * The finish has to be set here as well as inside `renderCard`, because this
+     * path never calls it: a composite is a blit plus the moving layer, and the
+     * moving layer's whole shape — whether the specular crosses the card or the
+     * band — depends on which finish the card underneath was drawn at.
+     */
+    setCardDetail(width < TILE_DETAIL_BELOW ? "tile" : "full");
+    drawCardMotion(ctx, card, {
+      sheen,
+      phase: foil,
+      premium: options.premium === true,
+      hover,
+      // the glow is baked into `base`; redraw it only while a hover is easing
+      glow: hover > 0,
+    });
+    setCardDetail("full");
   };
 
   /**
@@ -1549,14 +1956,17 @@ export function renderCardToCanvas(card: CardDef, width: number, options: Render
    */
   const cacheKey = tileCacheKey(card, width, dpr, options);
   const cached = cacheKey ? tileCache.get(cacheKey) : undefined;
+  let drawEarly: (() => void) | null = null;
   if (cacheKey && cached) {
     tileCache.delete(cacheKey);
     tileCache.set(cacheKey, cached);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(cached, 0, 0);
   } else {
-    paint();
-    if (cacheKey) rememberTile(cacheKey, canvas);
+    drawEarly = firstPaint(() => {
+      paint();
+      if (cacheKey) rememberTile(cacheKey, canvas);
+    });
   }
 
   /**
@@ -1595,6 +2005,11 @@ export function renderCardToCanvas(card: CardDef, width: number, options: Render
     paint();
     unsubscribeGrain();
   });
+  const unsubscribeFonts = onCardFontsReady(() => {
+    dropTileCache();
+    paint();
+    unsubscribeFonts();
+  });
 
   watchSettings({ canvas, paint });
 
@@ -1615,6 +2030,8 @@ export function renderCardToCanvas(card: CardDef, width: number, options: Render
     canvas,
     premium: options.premium === true,
     width,
+    // a tile whose first paint was deferred draws as it comes within two rows
+    onVisible: drawEarly ?? undefined,
     paint: (state) => {
       sheen = state.sheen;
       if (options.premium) foil = state.foil;
@@ -1636,6 +2053,20 @@ export function renderCardToCanvas(card: CardDef, width: number, options: Render
  */
 export function hoverCard(canvas: HTMLCanvasElement, on: boolean): void {
   setCardHover(canvas, on);
+}
+
+/**
+ * Turn a card under the light: `x` and `y` are the pointer's offset from the
+ * card's centre, each −0.5 to 0.5.
+ *
+ * Exported here rather than making screens import `cardClock` directly, for the
+ * same reason `hoverCard` is: a screen's business is where the pointer is, and
+ * the mapping from that to a phase of a diffraction grating is this domain's.
+ * The two axes are weighted differently because the sweep runs diagonally — a
+ * horizontal turn moves it much further across the card than a vertical one.
+ */
+export function tiltCard(canvas: HTMLCanvasElement, x: number, y: number): void {
+  setCardTilt(canvas, x * 0.42 + y * 0.16);
 }
 
 export { CARD_W, CARD_H };

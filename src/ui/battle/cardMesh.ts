@@ -124,13 +124,21 @@ export function getCardTexture(card: CardDef, state: CardFaceState = {}): THREE.
   return texture;
 }
 
-/** Force a card's cached faces to be rebuilt (used when art finishes loading). */
+/**
+ * Force a card's cached faces to be rebuilt (used when art finishes loading).
+ *
+ * It **drops** the entries rather than disposing them, and that is the fix for
+ * a caught-once-in-five flicker: two `CardObject`s can hold the same card, both
+ * subscribe to `onArtLoaded`, and the second listener used to `dispose()` the
+ * very texture the first listener had just rebuilt and bound. A disposed
+ * `CanvasTexture` still on a live material loses its GPU handle mid-frame,
+ * which is exactly the class of failure that shows up once in five attempts and
+ * never in a debugger. Dropping the map entry gets the rebuild; the bitmap goes
+ * when the last mesh pointing at it does.
+ */
 export function invalidateCardTextures(cardId: string): void {
-  for (const [key, value] of [...textureCache.entries()]) {
-    if (key.startsWith(`${cardId}|`)) {
-      value.texture.dispose();
-      textureCache.delete(key);
-    }
+  for (const key of [...textureCache.keys()]) {
+    if (key.startsWith(`${cardId}|`)) textureCache.delete(key);
   }
 }
 
@@ -251,8 +259,16 @@ export class CardObject extends THREE.Group {
   readonly back: THREE.Mesh;
   private readonly rim: THREE.Mesh;
   private readonly grounding: THREE.Object3D[] = [];
+  private spill: THREE.Mesh | null = null;
+  private spillRest = 0.4;
+  /** Extra spill while a landing settles, decayed by update(). */
+  private flareAmount = 0;
   private currentKey = "";
   private lastFaceState: CardFaceState = {};
+  /** Whether the face currently on screen was drawn with real painted art. */
+  private artShown = false;
+  /** A face state parked because rebuilding it now would lose the art. */
+  private deferredFaceState: CardFaceState | null = null;
   private readonly unsubscribeArt: () => void;
 
   /** animation targets — the view sets these, update() eases toward them */
@@ -261,6 +277,15 @@ export class CardObject extends THREE.Group {
   targetScale = 1;
   /** set while the card is being dragged so easing is skipped */
   immediate = false;
+  /**
+   * While a flight tween owns this object, `update()` keeps its hands off.
+   *
+   * The token's own exponential easing is right for a card sliding along a row
+   * and wrong for the handoff from the drag ghost, which has to arrive on a
+   * named curve inside a named budget. Two easings competing for one position
+   * is how a 300ms flight becomes a 700ms drift.
+   */
+  flightHold = false;
   /** additive offset for attack lunges, cleared once the lunge returns */
   animOffset = new THREE.Vector3();
 
@@ -326,7 +351,8 @@ export class CardObject extends THREE.Group {
       if (cardId !== this.card.id) return;
       invalidateCardTextures(cardId);
       this.currentKey = ""; // force setFaceState to rebuild
-      this.setFaceState(this.lastFaceState);
+      this.artShown = false; // the guard must not block its own recovery
+      this.setFaceState(this.deferredFaceState ?? this.lastFaceState);
     });
 
     this.setFaceUp(faceUp);
@@ -370,6 +396,22 @@ export class CardObject extends THREE.Group {
     spill.renderOrder = 2;
     this.add(spill);
     this.grounding.push(spill);
+    this.spill = spill;
+  }
+
+  /**
+   * The card's own light hitting the floor harder for a moment, because it just
+   * landed on it.
+   *
+   * §3 asks for secondary motion — "when the main thing moves, something small
+   * moves because of it" — and measured before this existed, the mat 140px to
+   * the left of a landing card changed by a mean of 1.1 across the whole
+   * landing. Nothing reacted to a card arriving. This is the cheap half of the
+   * answer: the pool the token already casts swells and settles, so the mat is
+   * visibly lit *by* the thing that arrived on it.
+   */
+  flare(strength = 1): void {
+    this.flareAmount = Math.max(this.flareAmount, strength);
   }
 
   setFaceUp(faceUp: boolean): void {
@@ -378,12 +420,32 @@ export class CardObject extends THREE.Group {
     this.back.visible = !faceUp;
   }
 
-  /** Refresh the front texture when live stats or highlight change. */
+  /**
+   * Refresh the front texture when live stats or highlight change.
+   *
+   * The guard in the middle is the whole of the intermittent blank-card defect.
+   * Caught once in five drags: a board card that has painted art re-rendered
+   * with the concentric-arc placeholder the moment the drag changed its
+   * highlight, and stayed that way for the hold. Every state change is a cache
+   * miss, a cache miss is a fresh `renderCard`, and a fresh `renderCard` asks
+   * `getCardArt` — which answers null for a frame whenever the entry has been
+   * dropped and the image has not been handed back yet. Painting that answer
+   * would throw away a face the player is looking at, so the new state is
+   * parked instead and applied when the art is back. Drawing from the last good
+   * texture is always correct; falling back to the placeholder never is.
+   */
   setFaceState(state: CardFaceState): void {
+    const hasArt = getCardArt(this.card) !== null;
+    if (this.artShown && !hasArt) {
+      this.deferredFaceState = state;
+      return;
+    }
+    this.deferredFaceState = null;
     this.lastFaceState = state;
     const key = cacheKey(this.card, state);
     if (key === this.currentKey) return;
     this.currentKey = key;
+    this.artShown = hasArt;
     const material = this.front.material as THREE.MeshBasicMaterial;
     material.map = getCardTexture(this.card, state);
     material.needsUpdate = true;
@@ -403,6 +465,15 @@ export class CardObject extends THREE.Group {
 
   /** Ease toward the animation targets. Called every frame by the view. */
   update(delta: number): void {
+    if (this.flareAmount > 0 && this.spill) {
+      // ~260ms to settle, which is the tail of the landing rather than a second
+      // animation running after it.
+      this.flareAmount = Math.max(0, this.flareAmount - delta * 3.8);
+      const material = this.spill.material as THREE.MeshBasicMaterial;
+      material.opacity = this.spillRest + this.flareAmount * 1.15;
+      this.spill.scale.setScalar(1 + this.flareAmount * 0.5);
+    }
+    if (this.flightHold) return;
     // exponential ease-out, tau ~= 0.14s — matches the slide timing measured
     // in the reference footage
     const lerp = this.immediate ? 1 : 1 - Math.pow(0.0009, delta);

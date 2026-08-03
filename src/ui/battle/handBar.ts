@@ -21,8 +21,18 @@ import { HOLD_MS, HOLD_TOLERANCE_PX } from "./gestures";
 export interface HandBarCallbacks {
   /** pointer moved while dragging a card; return true if it is over a drop zone */
   onDragMove: (instanceId: string, clientX: number, clientY: number) => void;
-  /** pointer released; the view decides whether to play or cancel */
-  onDragEnd: (instanceId: string, clientX: number, clientY: number) => void;
+  /**
+   * Pointer released; the view decides whether to play or cancel.
+   *
+   * `ghost` is the drag element itself, detached from the bar's bookkeeping but
+   * still in the document. Whoever takes it owns removing it. This is what makes
+   * a card play continuous: the object under the cursor at release is the object
+   * that flies to the slot, rather than being destroyed at pointerup and a
+   * different one being created a second later somewhere else — which is §3a's
+   * "that object must not blink out of existence and reappear somewhere else",
+   * applied to the most repeated action in the game.
+   */
+  onDragEnd: (instanceId: string, clientX: number, clientY: number, ghost: HTMLElement | null) => void;
   onDragStart: (instanceId: string) => void;
   /** right-click: show the card's details until dismissed */
   onInspect: (card: CardDef) => void;
@@ -52,7 +62,42 @@ export class HandBar {
     this.root = document.createElement("div");
     this.root.className = "hand-bar";
     container.appendChild(this.root);
+
+    /**
+     * The fan is recomputed when the strip changes size, and it was not.
+     *
+     * `layout()` runs on `sync()` and on an explicit `resize()` call, and
+     * nothing was calling `resize()`. Measured by resizing a live board: at
+     * 1280×720 the hand's centre stayed at x=788 against a viewport centre of
+     * 640; at 2560×1440 it sat at 835 against 1280; and at 844×390 it spanned
+     * x=360..1197 inside an 844px window, putting four of seven cards off the
+     * right-hand edge. A fresh load at each size was always correct, which is
+     * exactly the signature of a layout computed once — and phone rotation is
+     * the supported case that only ever hits the resize path.
+     *
+     * The card widths are `vh`-derived, so the observer has to watch the strip
+     * itself rather than the window: a viewport that changes height changes the
+     * card size without changing the bar's width, and the pitch depends on both.
+     */
+    this.resizeObserver =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => this.layout()) : null;
+    this.resizeObserver?.observe(this.root);
+    window.addEventListener("resize", this.onWindowResize);
+    window.addEventListener("orientationchange", this.onWindowResize);
   }
+
+  private readonly resizeObserver: ResizeObserver | null;
+
+  /**
+   * A `ResizeObserver` fires before the new `vh` has been applied to the card
+   * canvases in some engines, so the window listener re-runs the layout on the
+   * next frame with the settled sizes. Both are cheap: `layout()` writes inline
+   * styles and reads one offset width.
+   */
+  private onWindowResize = (): void => {
+    this.layout();
+    requestAnimationFrame(() => this.layout());
+  };
 
   /**
    * `stateProxy` is owned by BattleView; the bar borrows it for playability.
@@ -287,20 +332,23 @@ export class HandBar {
     const onUp = (upEvent: PointerEvent): void => {
       if (upEvent.pointerId !== event.pointerId) return;
       detach();
-      this.endDrag();
       if (closePeek) {
         endPeek();
-        this.callbacks.onDragEnd(instanceId, -1, -1); // held still: a look, not a play
+        this.endDrag();
+        this.callbacks.onDragEnd(instanceId, -1, -1, null); // held still: a look, not a play
         return;
       }
-      this.callbacks.onDragEnd(instanceId, upEvent.clientX, upEvent.clientY);
+      // Hand the ghost over BEFORE endDrag, which is what would have deleted it.
+      const handed = this.detachGhost();
+      this.endDrag();
+      this.callbacks.onDragEnd(instanceId, upEvent.clientX, upEvent.clientY, handed);
     };
 
     const onCancel = (): void => {
       detach();
       endPeek();
       this.endDrag();
-      this.callbacks.onDragEnd(instanceId, -1, -1); // off-screen = cancel
+      this.callbacks.onDragEnd(instanceId, -1, -1, null); // off-screen = cancel
     };
 
     window.addEventListener("pointermove", onMove);
@@ -317,6 +365,20 @@ export class HandBar {
     this.dragging.ghost.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
   }
 
+  /**
+   * Give up ownership of the drag ghost without removing it from the document.
+   *
+   * Returns null when the ghost is hidden behind a peek, because an element with
+   * `visibility: hidden` has no meaningful rect to fly from.
+   */
+  private detachGhost(): HTMLElement | null {
+    const drag = this.dragging;
+    if (!drag || drag.ghost.style.visibility === "hidden") return null;
+    const ghost = drag.ghost;
+    this.dragging = { ...drag, ghost: document.createElement("div") };
+    return ghost;
+  }
+
   /** Abort any in-progress drag (Escape, right-click, or completion). */
   endDrag(): void {
     if (!this.dragging) return;
@@ -324,6 +386,20 @@ export class HandBar {
     const entry = this.entries.find((e) => e.instanceId === this.dragging?.instanceId);
     entry?.element.classList.remove("dragging");
     this.dragging = null;
+  }
+
+  /**
+   * Colour the ghost by whether the ground under it would take the card.
+   *
+   * The board says the same thing at the same time (see `setDropTarget`), and
+   * saying it twice is the point: the pointer is looking at the ghost, not at
+   * the floor forty pixels below it.
+   */
+  setDragValidity(state: "valid" | "blocked" | "neutral"): void {
+    const ghost = this.dragging?.ghost;
+    if (!ghost) return;
+    ghost.classList.toggle("drop-valid", state === "valid");
+    ghost.classList.toggle("drop-blocked", state === "blocked");
   }
 
   isDragging(): boolean {
@@ -345,6 +421,9 @@ export class HandBar {
 
   dispose(): void {
     this.endDrag();
+    this.resizeObserver?.disconnect();
+    window.removeEventListener("resize", this.onWindowResize);
+    window.removeEventListener("orientationchange", this.onWindowResize);
     this.root.remove();
   }
 }

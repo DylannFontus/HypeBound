@@ -70,6 +70,8 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
 
   root.innerHTML = `
     <div class="signin-room" aria-hidden="true"></div>
+    <div class="signin-vignette" aria-hidden="true"></div>
+    <aside class="signin-portrait" id="signin-portrait" aria-hidden="true"></aside>
 
     <header class="screen-header">
       <button class="btn btn-ghost signin-back" id="signin-back">${icon("arrow-left")}<span>Back</span></button>
@@ -77,8 +79,6 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
     </header>
 
     <main class="signin-body">
-      <aside class="signin-portrait" id="signin-portrait" aria-hidden="true"></aside>
-
       <section class="signin-stage mat-panel">
         <div class="signin-stage-wash" aria-hidden="true"></div>
         <div class="t-label">Why an account</div>
@@ -152,11 +152,21 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
   const room = root.querySelector<HTMLElement>(".signin-room");
   if (room) {
     room.appendChild(paintVenue(deck?.leaderCardId ? leaderCard?.faction ?? "default" : "default", {
-      width: 960,
-      aspect: 0.62,
-      bias: 0.04,
-      scrim: 0.55,
-      dim: 0.42,
+      width: 1280,
+      /**
+       * Bigger, brighter, and no longer a strip.
+       *
+       * At 960×595 behind a `dim: 0.42` and a 26px blur the venue was
+       * effectively not on screen: 59.9% of this screen's 16px blocks measured
+       * both dark and flat, the whole band x=500..1600 by y=620..810 was empty,
+       * and the room the player is signing in to reach contributed nothing to
+       * the composition. Every value here moved in the same direction, and the
+       * disclosure below is what proves it worked.
+       */
+      aspect: 0.6,
+      bias: 0.05,
+      scrim: 0.34,
+      dim: 0.22,
       className: "signin-room-art",
     }));
   }
@@ -166,11 +176,26 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
     portraitHost.appendChild(
       paintLeaderPortrait(leaderCard, {
         width: 520,
-        aspect: 1.34,
-        bias: 0.12,
-        scrim: 0.62,
+        aspect: 1.52,
+        bias: 0.08,
+        scrim: 0.5,
+        /**
+         * Feathered on all four sides, and bled off the left of the viewport
+         * as well.
+         *
+         * Three edges used to feather and the fourth was a straight vertical
+         * line 57px in from the screen edge with background on both sides of
+         * it — measured at y=400, luminance went 32 at x=57 to 133 at x=60,
+         * which is the one arrangement that guarantees the eye reads "cropped
+         * photograph". `fadeLeft` did not exist when this was written. It does
+         * now, and the element bleeds past x=0 as well, so there are two
+         * independent reasons no boundary can appear there.
+         */
+        fadeTop: 0.14,
+        fadeLeft: 0.2,
         fadeRight: 0.24,
-        fadeBottom: 0.16,
+        fadeBottom: 0.12,
+        reflect: 0.1,
         className: "signin-portrait-art",
       })
     );
@@ -317,7 +342,17 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
     callbacks.onBack();
   });
 
-  queueMicrotask(() => emailInput?.focus());
+  /**
+   * Focused, but the screen does not move to do it.
+   *
+   * A plain `focus()` asks the browser to scroll the field into view, and on a
+   * phone in landscape the sign-in body is a scroller that is a dozen pixels
+   * taller than its box — so the browser scrolled it, and the first thing the
+   * player saw at 844×390 was the EMAIL label sliced in half by the header. The
+   * field is already on screen at every size this layout supports; what the
+   * scroll was buying was nothing, and what it cost was a label.
+   */
+  queueMicrotask(() => emailInput?.focus({ preventScroll: true }));
 
   return { root };
 }

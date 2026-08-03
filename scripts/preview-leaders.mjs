@@ -1,44 +1,38 @@
 /**
- * Renders one leader medallion per Current to a PNG.
+ * Every leader plaque on one sheet, in colour or in greyscale.
  *
- * The rim profile is the Current's colourblind signal, so the check this is
- * for is whether the eight silhouettes stay separable with colour ignored.
+ * The greyscale pass is the point of the tool. A leader's Current has to survive
+ * a monitor with its saturation at zero, and after the eight wildly different
+ * silhouettes were collapsed into one plaque family with a twelve-pixel
+ * modulation, the burden of that moved onto the glyph in the name banner's left
+ * cap and the chasing on the wings. `--mono` is how you check it still works.
  *
- * Usage: node scripts/preview-leaders.mjs [--mono] [leaderId ...]
+ * Like `preview-cards.mjs`, this waited fifteen seconds for a `window.hypebound`
+ * global that `src/` stopped exposing long ago, and therefore crashed every time
+ * it ran. It now drives `preview-cardface.mjs`, which loads the renderer module
+ * from the dev server directly.
+ *
+ * Usage: node scripts/preview-leaders.mjs [--mono] [--width n]
  */
-import { chromium } from "playwright-core";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const CHROME = [
-  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-].find((p) => existsSync(p));
+const argv = process.argv.slice(2);
+const mono = argv.includes("--mono");
+const width = argv.includes("--width") ? argv[argv.indexOf("--width") + 1] : "360";
 
-const args = process.argv.slice(2);
-const mono = args.includes("--mono");
-const ids = args.filter((a) => !a.startsWith("--"));
+const args = [
+  path.join(HERE, "preview-cardface.mjs"),
+  "--set",
+  "leaders",
+  "--width",
+  String(width),
+  "--out",
+  mono ? "leaders-mono" : "leaders",
+];
+if (mono) args.push("--mono");
 
-const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
-const page = await browser.newPage({ viewport: { width: 1700, height: 820 } });
-await page.goto("http://localhost:5173", { waitUntil: "networkidle" });
-await page.waitForFunction(() => window.hypebound !== undefined, null, { timeout: 15000 });
-
-const chosen = await page.evaluate(
-  ([list, greyscale]) => {
-    const picked = window.hypebound.previewLeaders(300, list.length ? list : undefined);
-    if (greyscale) document.getElementById("leader-strip").style.filter = "grayscale(1)";
-    return picked;
-  },
-  [ids, mono]
-);
-
-await page.waitForTimeout(1400); // let any art load and repaint
-const out = path.join(HERE, "screenshots", mono ? "leaders-mono.png" : "leaders.png");
-await page.locator("#leader-strip").screenshot({ path: out });
-console.log(`wrote ${out}`);
-console.log(`leaders: ${chosen.join(", ")}`);
-
-await browser.close();
+const run = spawnSync(process.execPath, args, { stdio: "inherit" });
+process.exit(run.status ?? 1);

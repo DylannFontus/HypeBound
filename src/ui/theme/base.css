@@ -337,7 +337,23 @@ button {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(140deg, rgba(255, 255, 255, 0.5), transparent 30%, transparent 70%, rgba(181, 108, 255, 0.45));
+  /**
+   * 315deg, not the 140deg this was authored at.
+   *
+   * This is a border-image: the white stop is the lit edge and the violet stop
+   * is the shaded one, so the angle is a statement about where the light is.
+   * At 140deg it lit the bottom-left, disagreeing with every material in
+   * foundation.css and with LIGHT_RIG — the "two suns" defect, in the oldest
+   * stylesheet in the project. tests/one-sun.test.ts now fails on any oblique
+   * gradient that neither derives from the rig nor registers a reason.
+   */
+  background: linear-gradient(
+    var(--light-angle, 315deg),
+    rgba(255, 255, 255, 0.5),
+    transparent 30%,
+    transparent 70%,
+    rgba(181, 108, 255, 0.45)
+  );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;

@@ -461,6 +461,16 @@ export function onMotionFrame(callback: MotionFrameCallback): () => void {
 // stagger
 // ---------------------------------------------------------------------------
 
+/**
+ * The slowest a cascade may run and still read as one.
+ *
+ * A frame at 60fps is 16.7ms, so two elements less than a frame apart arrive
+ * together no matter what the stylesheet was told. 24ms is about a frame and a
+ * half — the point below which a stagger stops being a wave and becomes a
+ * simultaneous entrance with extra arithmetic.
+ */
+const STAGGER_FLOOR = 24;
+
 export interface StaggerOptions {
   /** Milliseconds between one element's entrance and the next. */
   step?: number;
@@ -506,19 +516,39 @@ export function stagger(
   const max = options.max ?? DUR.setpiece;
 
   /*
-   * `step` is what you asked for; `effective` is what fits. With one element
-   * there is no gap to divide, so the request is irrelevant and only `from`
-   * applies.
+   * Compress the step to fit the budget — but never below visibility.
+   *
+   * The original rule was `min(step, room / (n - 1))`: divide the budget evenly
+   * and let the step fall wherever it lands. For a handful of rows that is
+   * exactly right, and it is why five items in 100ms still cascade at a clean
+   * 25ms. For a collection grid it is self-defeating. 245 tiles against a 700ms
+   * budget yields 2.87ms per tile, and a review measured the first ten delays as
+   * 0,1,2,3,5,6,7,8,9,10ms — under a single frame apart. That is not a fast
+   * wave, it is no wave at all: every tile arrives in the same frame and the
+   * cascade exists only in the arithmetic.
+   *
+   * So the step is allowed to compress down to STAGGER_FLOOR and no further.
+   * Once the budget cannot buy every element its own slot at that rate, the
+   * *index* is clamped instead: the leading elements cascade visibly and the
+   * remainder land together on the final slot. On a grid those leading elements
+   * are the ones near the top, which are the only ones on screen while the
+   * entrance is playing, and the tail is below the fold where simultaneous
+   * arrival costs nothing.
+   *
+   * Either way the last delay is <= `max`, which is the promise `max` makes.
    */
   const room = Math.max(0, max - from);
-  const effective = elements.length > 1 ? Math.min(step, room / (elements.length - 1)) : 0;
+  const even = elements.length > 1 ? room / (elements.length - 1) : 0;
+  const effective = elements.length > 1 ? Math.max(STAGGER_FLOOR, Math.min(step, even)) : 0;
+  const slots = effective > 0 ? Math.floor(room / effective) : 0;
 
   for (const [index, node] of elements.entries()) {
     // Not every `Element` carries an inline style — a bare `Element`, an
     // `SVGDefsElement`, a test double. Skipping one is right; throwing is not.
     const style = (node as Partial<HTMLElement>).style;
     if (!style) continue;
-    style.setProperty("--enter-delay", cascade ? `${Math.round(from + index * effective)}ms` : "0ms");
+    const delay = from + Math.min(index, slots) * effective;
+    style.setProperty("--enter-delay", cascade ? `${Math.round(delay)}ms` : "0ms");
   }
 }
 

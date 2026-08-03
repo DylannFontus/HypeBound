@@ -405,9 +405,25 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
       return card;
     }
 
+    /**
+     * The features carry no watermark, and that is a deletion rather than an
+     * omission.
+     *
+     * They used to carry their own 24px mark blown up to roughly 40% of the
+     * tile as a ghost behind a normal-size copy of the *same* mark in its plate
+     * — the identical drawing twice at two optical sizes, eighteen pixels apart.
+     * At 844×390 the ghost was clipped by the tile's right edge and read as a
+     * stray graphic. The note above about the hero says why an icon does not
+     * become an illustration by being scaled, and then this branch did it again
+     * one rank down.
+     *
+     * What replaces it is light rather than another drawing: the mode's hue
+     * arrives as a lit corner and a 135° fall across the plate, and a fading
+     * rule marks where the type stands. Nothing here is a second copy of
+     * anything.
+     */
     card.innerHTML = `
       <span class="mode-wash" aria-hidden="true"></span>
-      ${icon(mark, { class: "mode-watermark", optical: "display" })}
       <span class="mode-plate">${icon(mark, { optical: "hero" })}</span>
       <span class="mode-body">
         <span class="mode-name">${mode.name}</span>
@@ -543,8 +559,22 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
    * eight rows do not turn into a queue. `transitions.css` already staggers the
    * three sections themselves — this is what happens inside them.
    */
-  stagger([...root.querySelectorAll(".mode-hero, .mode-feature")], { step: 55, from: 90 });
-  stagger(root.querySelectorAll(".mode-tail-list .mode-card"), { step: 28, from: 210 });
+  /**
+   * The cascade has to finish inside the navigation, not after it.
+   *
+   * It was `{step: 55, from: 90}` and `{step: 28, from: 210}`, which puts the
+   * ninth tail row's delay at 434ms — so 434ms after this screen replaced the
+   * lobby, a third of it was still holding its entrance start state. A CDP
+   * screencast caught the consequence as a dim frame in the middle of the
+   * transition (95th-percentile pixel 103 → 39 → 111): the departing screen had
+   * finished leaving at 170ms and the arriving one was a dark plate with a
+   * bright header on it. §3's 30–60ms cascade is a *rhythm*, not a licence for
+   * the last element to arrive half a second late. Tightened so the last row's
+   * delay lands at 246ms, inside the 260–420ms budget for the whole
+   * navigation, with the reading order and the sense of a ripple both intact.
+   */
+  stagger([...root.querySelectorAll(".mode-hero, .mode-feature")], { step: 38, from: 60 });
+  stagger(root.querySelectorAll(".mode-tail-list .mode-card"), { step: 16, from: 118 });
 
   for (const card of root.querySelectorAll(".mode-card")) {
     card.addEventListener("pointerenter", () => audio.play("sfx.ui.hover"));

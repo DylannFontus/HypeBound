@@ -33,6 +33,7 @@ import { legalChooseTargets } from "../../engine/effects";
 import { BattleView } from "../battle/battleView";
 import { BattleHud } from "../battle/hud";
 import { HandBar } from "../battle/handBar";
+import { motionEnabled } from "../motion";
 import { BattlePresenter } from "../battle/presenter";
 import { audio } from "../../audio/audio";
 import { getSettings, updateSettings } from "../../save/settings";
@@ -320,6 +321,9 @@ export class BattleScreen {
         onInspect: (card) => this.showCardDetail(card),
         onPeek: (card) => this.peekCardDetail(card),
         onNeedsTargets: (instanceId, slot) => this.openTargetFlow(instanceId, slot),
+        // The board lights the socket; this is the same answer on the card the
+        // cursor is actually looking at.
+        onDropFeedback: (state) => this.handBar.setDragValidity(state),
       },
       quality === "auto" ? undefined : quality
     );
@@ -327,7 +331,7 @@ export class BattleScreen {
     this.handBar = new HandBar(this.root, this.content, {
       onDragStart: (instanceId) => this.view.externalDragStart(instanceId),
       onDragMove: (_id, x, y) => this.view.externalDragMove(x, y),
-      onDragEnd: (_id, x, y) => this.view.externalDragEnd(x, y),
+      onDragEnd: (_id, x, y, ghost) => this.view.externalDragEnd(x, y, ghost),
       onInspect: (card) => this.showCardDetail(card),
       onPeek: (card) => this.peekCardDetail(card),
     });
@@ -954,10 +958,27 @@ export class BattleScreen {
    * indication of why, until they happened to Tab back onto the right element.
    * `verify:keyboard` caught it on the very first Tab after the mulligan.
    */
-  private dismissOverlay(): void {
-    this.overlay?.remove();
+  private dismissOverlay(exitMs = 0): void {
+    const overlay = this.overlay;
     this.overlay = null;
     if (!this.ended) this.root.focus();
+    if (!overlay) return;
+    /**
+     * `exitMs` is opt-in because most dismissals want the overlay gone now — a
+     * chooser closing, a settings panel, the handoff screen. Only the mulligan
+     * asks for an exit, and it asks for one because that dismissal is a screen
+     * transition rather than a panel closing.
+     *
+     * It stops taking clicks on the same tick it starts leaving. A dead panel
+     * that still swallows the first click on the board is worse than a hard cut.
+     */
+    if (exitMs <= 0 || !motionEnabled()) {
+      overlay.remove();
+      return;
+    }
+    overlay.style.pointerEvents = "none";
+    overlay.classList.add("leaving");
+    window.setTimeout(() => overlay.remove(), exitMs);
   }
 
   /** Opening mulligan: click cards to mark them for replacement. */
@@ -1013,8 +1034,38 @@ export class BattleScreen {
     const confirm = document.createElement("button");
     confirm.className = "btn btn-primary";
     confirm.textContent = "Confirm";
+    /**
+     * The one moment §3a singles out by name — "entering the game: the big one.
+     * It should feel like a curtain going up, not a route change" — and it was
+     * the hardest cut in the build. Measured by screencast: clicking Confirm left
+     * the panel completely unchanged for 627ms with no press state and no exit,
+     * and then the board appeared fully settled — hand fanned, leaders in place,
+     * everything at rest — in the very next 30ms frame at t=657. Zero overlap,
+     * zero stagger, 627ms of dead air in front of a hard cut.
+     *
+     * The panel now leaves *while* the board arrives. The curtain starts on the
+     * same tick as the click, so the leaders are already rising behind a panel
+     * that is still shrinking, and the intent is submitted immediately rather
+     * than after the animation — a transition must never delay input.
+     */
+    /**
+     * …and even that left 229ms in which the screen was pixel-identical.
+     *
+     * Re-measured on a 60fps screencast: after Confirm, nothing changed for
+     * 229ms, and *then* the 92ms of correct curtain overlap began. The overlap
+     * is right and stays; the dead air in front of it was the button never
+     * painting a press state, so the frames between the click and the first
+     * layout work had nothing in them. §5 asks for 80–140ms of micro-feedback
+     * and the only moment that can deliver it is `pointerdown`, before the
+     * handler that causes the wait has been entered.
+     */
+    confirm.addEventListener("pointerdown", () => confirm.classList.add("pressed"));
+    for (const event of ["pointerup", "pointercancel", "pointerleave"] as const) {
+      confirm.addEventListener(event, () => confirm.classList.remove("pressed"));
+    }
     confirm.addEventListener("click", () => {
-      this.dismissOverlay();
+      this.view.playCurtain();
+      this.dismissOverlay(200);
       void this.submit({ type: "mulligan", seat: view.seat, replaceInstanceIds: [...selected] });
     });
     actions.appendChild(confirm);

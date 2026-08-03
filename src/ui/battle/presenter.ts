@@ -17,10 +17,37 @@ import { BOARD } from "./scene";
 import type { AudioManager } from "../../audio/audio";
 import { cueCaption } from "../../audio/cues";
 
-/** Base durations in ms, before the animation-speed multiplier. */
+/**
+ * Base durations in ms, before the animation-speed multiplier.
+ *
+ * ## These are budgets now, not waits
+ *
+ * The previous round set `cardPlay` to 170 and `summon` to 250 and believed the
+ * whole play therefore fitted §3's 600ms cap. Measured on a 60fps screencast it
+ * took **1.9 seconds**, with the player's row completely empty from t≈250ms to
+ * t≈1140ms — the object the player had just dragged did not exist anywhere on
+ * screen for nine hundred milliseconds of it. Shortening these numbers again
+ * would not have touched that, because the hole was not here: `battleView.sync`
+ * returned early for the whole batch while layout was locked, so the token was
+ * not created by `cardPlayed` or by `characterSummoned` but by the `finally` at
+ * the end of `play()`. Every sleep in the batch happened in front of an empty
+ * row.
+ *
+ * With arrivals no longer deferred, the flight starts on the frame the engine
+ * answers and lasts 300ms. What these numbers now buy is **overlap**: the beat
+ * for `cardPlayed` is short enough that a trigger nameplate lands *while* the
+ * card is still in the air rather than 550ms after it vanished, and the summon
+ * beat is the tail of the landing rather than a wait in front of it. §3 names
+ * sequential animations that wait for each other as the thing that makes a UI
+ * feel like a slideshow.
+ *
+ * `turnBanner` came down from 700 to 240 in the same change, because the
+ * handover is now a wipe of light across the mat's centre line instead of three
+ * full-board DOM plates costing three and a half seconds a turn.
+ */
 const TIMING = {
-  cardPlay: 420,
-  summon: 300,
+  cardPlay: 90,
+  summon: 150,
   attack: 380,
   damage: 240,
   heal: 260,
@@ -28,8 +55,8 @@ const TIMING = {
   defeat: 380,
   confluence: 1100,
   resonance: 1400,
-  turnBanner: 700,
-  trigger: 180,
+  turnBanner: 240,
+  trigger: 130,
   quiet: 60,
 } as const;
 
@@ -113,10 +140,22 @@ export class BattlePresenter {
 
   private async playOne(event: EngineEvent, view: PlayerView): Promise<void> {
     switch (event.e) {
+      /**
+       * The handover, moved into the room.
+       *
+       * The board learns whose turn it is *first* — the active half of the mat
+       * lifts, that seat's practical comes up, motes run the seam — and the DOM
+       * ribbon that names the turn rides along with it rather than being waited
+       * for. Measured before this change: RIVAL'S TURN occupied the centre of the
+       * play area from 476ms to 1576ms, a card nameplate from 2326ms to 2702ms
+       * and YOUR TURN from 2702ms to 3447ms, every turn.
+       */
       case "turnStarted": {
-        this.hud.announceTurn(event.seat === view.seat, event.turn);
+        const yours = event.seat === view.seat;
+        this.view.setTurnSide(yours ? "player" : "enemy");
+        this.hud.announceTurn(yours, event.turn);
         this.audio.play("sfx.turn.start");
-        this.cue(event.seat === view.seat ? "turnStartedYou" : "turnStartedEnemy");
+        this.cue(yours ? "turnStartedYou" : "turnStartedEnemy");
         await sleep(this.time(TIMING.turnBanner));
         break;
       }

@@ -16,6 +16,7 @@
  *   node scripts/preview-cardface.mjs --set board           at real board size
  *   node scripts/preview-cardface.mjs --set leaders         leader medallions
  *   node scripts/preview-cardface.mjs --ids a,b,c --width 300
+ *   node scripts/preview-cardface.mjs --set leaders --mono   desaturated, for §9
  */
 import { chromium } from "playwright-core";
 import path from "node:path";
@@ -38,6 +39,7 @@ const set = flag("set", "mixed");
 const width = Number(flag("width", 0)) || null;
 const ids = flag("ids", null);
 const outDir = flag("dir", path.join(HERE, "screenshots", "w1", "cards"));
+const mono = argv.includes("--mono");
 const outName = flag("out", `face-${set}`);
 mkdirSync(outDir, { recursive: true });
 
@@ -54,7 +56,7 @@ page.on("pageerror", (e) => errors.push(String(e.message)));
 await page.goto("http://localhost:5173/", { waitUntil: "domcontentloaded" });
 
 const box = await page.evaluate(
-  async ({ set, width, ids, paintedKeys }) => {
+  async ({ set, width, ids, paintedKeys, mono }) => {
     const [content, renderer, leader, palette, backs] = await Promise.all([
       import("/src/engine/content.ts"),
       import("/src/ui/cardRenderer/renderCard.ts"),
@@ -151,12 +153,26 @@ const box = await page.evaluate(
       "position:fixed;inset:0;z-index:99999;display:flex;flex-wrap:wrap;gap:20px;align-content:flex-start;" +
       "background:#0b0614;padding:22px;overflow:hidden";
     /**
+     * Colour removed, not colour changed. §9 of the accessibility contract says
+     * nothing may be signalled by hue alone, and the only honest test of that is
+     * to take the hue away and look.
+     */
+    if (mono) sheet.style.filter = "grayscale(1)";
+    /**
      * A back beside a front, which is the only useful way to look at a back.
      * The defect it exists to catch is not "is the back nice" but "is it the
      * same object as the face" — and that is a question about the pair.
      */
     if (set === "back") {
-      const face = byId("idols-lumi-starcall") ?? all[0];
+      /**
+       * A *character* front, not a leader. The pair test is "is the back the
+       * same object as a card", and a leader rendered through the card renderer
+       * is neither one thing nor the other.
+       */
+      const face =
+        (ids ? byId(String(ids).split(",")[0]) : null) ??
+        all.find((c) => c.rarity === "legendary" && c.type === "character") ??
+        all[0];
       const styles = [
         { color: "#b56cff", emblem: "diamond" },
         { color: "#ff6b2c", emblem: "starburst" },
@@ -197,7 +213,7 @@ const box = await page.evaluate(
     const r = sheet.getBoundingClientRect();
     return { w: Math.ceil(r.width), h: Math.ceil(r.height), n: picks.length, size, palette: !!palette };
   },
-  { set, width, ids, paintedKeys }
+  { set, width, ids, paintedKeys, mono }
 );
 
 await page.waitForTimeout(600);

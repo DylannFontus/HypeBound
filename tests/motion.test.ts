@@ -297,13 +297,34 @@ describe("stagger", () => {
     expect(probes.map((probe) => probe.delay())).toEqual(["120ms", "150ms", "180ms"]);
   });
 
-  it("compresses the step so a big grid does not take nine seconds to arrive", () => {
+  it("keeps a big grid's cascade inside a set-piece AND still visible", () => {
     const probes = Array.from({ length: 200 }, () => staggerProbe());
     stagger(probes.map((probe) => probe.node));
+    const ms = (i: number) => Number.parseInt(probes[i]!.delay(), 10);
+
     expect(probes[0]!.delay()).toBe("0ms");
-    // 200 tiles at the nominal 45ms would be 8,955ms. Capped, the cascade is a
-    // wave that still lands inside a set-piece.
-    expect(probes[199]!.delay()).toBe(`${DUR.setpiece}ms`);
+
+    // 200 tiles at the nominal 45ms would be 8,955ms of entrance, so the whole
+    // cascade still has to land inside a set-piece.
+    expect(ms(199)).toBeLessThanOrEqual(DUR.setpiece);
+
+    /*
+     * ...but landing in time is only half the promise, and this assertion is
+     * the half that was missing. The old rule divided the budget by the element
+     * count, which satisfied the ceiling by handing 200 tiles a 3.5ms step —
+     * under a quarter of a frame, so every tile arrived together and the
+     * cascade was real only in the arithmetic. A review had to measure the
+     * delays off a live grid (0,1,2,3,5,6,7,8,9,10ms) to notice.
+     *
+     * So: consecutive leading elements must be far enough apart to be seen as
+     * separate. A frame is 16.7ms; anything under that is one entrance.
+     */
+    expect(ms(1) - ms(0)).toBeGreaterThanOrEqual(20);
+    expect(ms(5) - ms(4)).toBeGreaterThanOrEqual(20);
+
+    // The tail shares the final slot rather than compressing everyone — that is
+    // what buys the leading elements a visible step.
+    expect(ms(199)).toBe(ms(150));
   });
 
   it("respects a custom ceiling", () => {

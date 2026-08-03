@@ -50,6 +50,25 @@
  * grade, by the mat's own lighting gradient and by the vignette, which is what
  * §2 actually asks for.
  *
+ * ## The framing also reserves what the HAND can reach, not what it rests at
+ *
+ * The bottom inset used to be the height of a *resting* hand card while the hand
+ * scaled its focused card to 1.85×. Measured at 1600×900 that focused card came
+ * out 220×291 spanning y588–880, over a player medallion centred at (800, 675)
+ * with r≈85 — covered outright, at 1600×900 and at 1280×720 both, while the
+ * plate in the corner was covered by the ability rail. Your own life total was
+ * legible nowhere on screen. `HAND_HOVER_SCALE` is now one number shared with
+ * `battle.css`, and the camera reserves space against *it*, so the hand cannot
+ * reach a leader at any supported size.
+ *
+ * ## Entering the board is a curtain, not a cut
+ *
+ * `playEntrance` closes 14% of framing while the key light comes up from a third
+ * of its strength, over 420ms, starting on the same tick the mulligan's Confirm
+ * is pressed. Before it, clicking Confirm left the panel unchanged for 627ms and
+ * then showed a fully settled board in the next 30ms frame: zero overlap, zero
+ * stagger, and §3a names this exact moment as "the big one".
+ *
  * ## One fullscreen pass, not four
  *
  * The chain was `RenderPass → UnrealBloomPass → OutputPass` from the three.js
@@ -64,6 +83,7 @@
 import * as THREE from "three";
 import { LIGHT_RIG, lightPosition, studioEnvironment } from "../art/texture";
 import { getSettings } from "../../save/settings";
+import { EASE, tween } from "../motion";
 
 export type QualityTier = "high" | "medium" | "low";
 
@@ -179,6 +199,16 @@ export interface BattleSceneHandles {
   resize: () => void;
   dispose: () => void;
   setQuality: (tier: QualityTier) => void;
+  /** Run the board's half of the lobby-to-battle curtain (§3a). */
+  playEntrance: () => void;
+  /**
+   * Bring up the active player's practical and take the other one down.
+   *
+   * The room is what says whose turn it is. A DOM plate parked over the play
+   * area says it once, blocks the board while it does and then takes the
+   * information away with it; a lamp that is on stays on for the whole turn.
+   */
+  setActiveSide: (side: "player" | "enemy" | null) => void;
   /** Show a board backdrop behind the scene, or null for the flat void. */
   setBackdrop: (image: HTMLImageElement | null) => void;
   /** screen-space projection helper for anchoring DOM overlays to 3D objects */
@@ -219,7 +249,7 @@ const MAX_BACKDROP_WIDTH = 1920;
  * surround. §2 wants the backdrop darker and softer than the foreground, not
  * absent: the four depth planes collapse to two when the furthest one is gone.
  */
-const BACKDROP_GRADE = "blur(2.2px) saturate(0.82) brightness(0.95)";
+const BACKDROP_GRADE = "blur(2.6px) saturate(0.6) brightness(1.04)";
 
 function gradeForTexture(image: HTMLImageElement): HTMLImageElement | HTMLCanvasElement {
   const scale = Math.min(1, MAX_BACKDROP_WIDTH / Math.max(1, image.naturalWidth));
@@ -270,7 +300,33 @@ const CONTENT_CENTRE_Z = (BOARD.enemyLeaderZ + BOARD.playerLeaderZ) / 2;
  */
 function insetsFor(width: number, height: number): BoardInsets {
   const handFraction = height < 620 ? 0.26 : 0.175;
-  const bottom = Math.min(height * 0.28, Math.max(96, height * handFraction * 0.98));
+  /**
+   * The reserve is sized for a **hovered** card, not a resting one, and that is
+   * the whole fix for the second half of the leader-occlusion defect.
+   *
+   * It used to be `handFraction * 0.98` — the resting height — while the hand's
+   * focused card scaled to 1.85×. Measured at 1600×900 the focused card came out
+   * 220×291 spanning y588–880 over a player medallion centred at (800, 675) with
+   * r≈85, i.e. y590–760: covered outright, at 1600×900 *and* at 1280×720, with
+   * the plate in the corner covered by the ability rail at the same time. Your
+   * own life total was not legible anywhere on screen at either common desktop
+   * size.
+   *
+   * `HAND_HOVER_SCALE` is the same number `battle.css` scales by, and the two
+   * have to move together: the camera reserves what the hand can occupy, so the
+   * hand can never reach a leader. Changing one without the other puts the
+   * medallion back under the cards.
+   */
+  /**
+   * The 0.32 ceiling exists so a very short window does not hand the whole
+   * viewport to the hand; at 390px tall it was cutting the reserve to 125px
+   * against a 142px hover envelope, which put the player's medallion back under
+   * the cards on exactly the target the reserve exists for. Short viewports get
+   * a looser ceiling, because their hand is proportionally taller (26vh, not
+   * 17.5vh) and their leaders are the thing worth protecting.
+   */
+  const ceiling = height < COMPACT_HEIGHT ? 0.35 : 0.32;
+  const bottom = Math.min(height * ceiling, Math.max(104, height * handFraction * HAND_HOVER_SCALE + 10));
   /**
    * On a short viewport the rival's dial is no longer centred over the enemy
    * leader — `battle.css` moves it out to the right under 500px of height — so
@@ -296,6 +352,17 @@ function insetsFor(width: number, height: number): BoardInsets {
  * medallion's far half sit under its own HUD strip, and take the 75px card.
  */
 const COMPACT_HEIGHT = 500;
+
+/**
+ * How far a hand card grows when the pointer is on it.
+ *
+ * Mirrored into `--hand-hover-scale` in `battle.css`; this copy is the one the
+ * camera framing reserves space against. It came down from 1.85 because no
+ * arrangement of a 1.85× card and a leader medallion fits in the lower third of
+ * a 900px window — the full-size read belongs to press-and-hold and right-click,
+ * both of which already exist and neither of which covers the board.
+ */
+const HAND_HOVER_SCALE = 1.3;
 
 export function createBattleScene(container: HTMLElement, tier: QualityTier = detectQuality()): BattleSceneHandles {
   let quality = QUALITY_PRESETS[tier];
@@ -327,7 +394,7 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
    */
   scene.fog = new THREE.FogExp2(0x120a24, 0.0075);
   scene.environment = studioEnvironment(renderer);
-  scene.environmentIntensity = 0.5;
+  scene.environmentIntensity = 0.6;
 
   // --- camera ----------------------------------------------------------------
   const camera = new THREE.PerspectiveCamera(FOV, 16 / 9, 0.5, 260);
@@ -339,9 +406,22 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
 
   const aim = new THREE.Vector3(0, 0, CONTENT_CENTRE_Z);
 
+  /**
+   * How much further back than solved the camera currently sits, 0 at rest.
+   *
+   * The curtain (§3a's "entering the game — the big one") is a push-in: the
+   * arena is framed 14% wider at the moment the mulligan lets go and closes to
+   * its solved framing while the panel is still leaving, so the two overlap and
+   * there is never a frame in which neither is drawn. It is a multiplier on the
+   * solved distance rather than a separate camera, so a resize mid-entrance
+   * still lands in the right place.
+   */
+  let introPull = 0;
+
   function placeCamera(): void {
-    const lift = Math.cos((TILT * Math.PI) / 180) * camDistance;
-    const back = Math.sin((TILT * Math.PI) / 180) * camDistance;
+    const distance = camDistance * (1 + introPull);
+    const lift = Math.cos((TILT * Math.PI) / 180) * distance;
+    const back = Math.sin((TILT * Math.PI) / 180) * distance;
     camera.position.set(drift.x, lift + drift.y, aim.z + back + drift.z);
     camera.lookAt(aim.x + drift.x * 0.35, 0, aim.z + drift.z * 0.35);
   }
@@ -474,14 +554,22 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
    * The directional is kept underneath it at fill strength, because the spot
    * alone leaves the card rims and the plinth bevels outside the pool unlit.
    */
-  const ambient = new THREE.AmbientLight(0x9c93bd, 0.22);
+  const ambient = new THREE.AmbientLight(0x9c93bd, 0.3);
   scene.add(ambient);
 
   const keyLight = new THREE.DirectionalLight(0xfff2e2, LIGHT_RIG.fill);
   keyLight.position.copy(lightPosition(24));
   scene.add(keyLight);
 
-  const keySpot = new THREE.SpotLight(0xffeedd, 2.8, 0, Math.PI / 3.9, 0.98, 0);
+  /**
+   * Up from 2.8, because the mat has to be the light mass.
+   *
+   * The measured frame was one dark violet field: median L17.6 whole-frame, the
+   * play surface itself only reaching L55. This is the half of that fix that
+   * belongs to the light rather than to the albedo — raising the albedo alone
+   * would flatten the pool the spot is here to draw.
+   */
+  const keySpot = new THREE.SpotLight(0xffeedd, 3.05, 0, Math.PI / 3.9, 0.98, 0);
   keySpot.position.copy(lightPosition(19));
   keySpot.target.position.set(0, 0, CONTENT_CENTRE_Z * 0.4);
   scene.add(keySpot);
@@ -497,13 +585,49 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
    * board has an emitter you can point at, so each of these now carries a small
    * additive orb at its own position, sized and coloured from the light it is.
    */
-  const rimWarm = new THREE.PointLight(0xff5fa2, 26, 34, 1.8);
-  rimWarm.position.set(9.4, 3.4, 3.4);
+  /**
+   * Down from 26 and 22, and lifted clear of the deck they were sitting on.
+   *
+   * The magenta practical stood at y=3.4 directly over the near-right run of the
+   * arena rim, and it was bright enough to beat the key across the whole board:
+   * measured, the near rim came back at L≈74 against the far rim at L≈39 — the
+   * *unlit* edge nearly twice as bright as the lit one, which inverts
+   * FOUNDATION-CONTRACT §0 on the largest surface in the game. Raising them and
+   * pulling the intensity back keeps the colour and stops them out-voting the
+   * sun; the rim's own vertex shading (board.ts) is the other half of the fix.
+   */
+  /**
+   * …and then they moved off the arena entirely.
+   *
+   * At (±9.8, 4.8) they stood directly over the two deck runs, and once the
+   * resource furniture moved onto those runs the player's deck came back as a
+   * blown magenta blob with a bloom halo instead of as a pile of cards. A
+   * practical that is *inside* the set lights whatever it is standing on and
+   * nothing else. Out at |x| = 13.5 and 7.5 units up they are venue lighting —
+   * off the deck, above the eyeline, throwing across the arena rather than
+   * pooling on one object — which is also where the emitter sprites read as
+   * lamps hung on the rig rather than as smudges lying on the floor.
+   */
+  const rimWarm = new THREE.PointLight(0xff5fa2, 26, 40, 2);
+  rimWarm.position.set(13.5, 7.5, 4);
   scene.add(rimWarm);
 
-  const rimCool = new THREE.PointLight(0x52c8ff, 22, 34, 1.8);
-  rimCool.position.set(-9.4, 3.4, -3.6);
+  const rimCool = new THREE.PointLight(0x52c8ff, 22, 40, 2);
+  rimCool.position.set(-13.5, 7.5, -4.2);
   scene.add(rimCool);
+
+  /**
+   * Whose lamp is up. Eased toward rather than set, so a turn change is a light
+   * coming up in a room rather than a switch being thrown.
+   */
+  const RIM_REST = { warm: 26, cool: 22 };
+  let warmTarget = RIM_REST.warm;
+  let coolTarget = RIM_REST.cool;
+
+  function setActiveSide(side: "player" | "enemy" | null): void {
+    warmTarget = RIM_REST.warm * (side === "player" ? 1.75 : side === "enemy" ? 0.55 : 1);
+    coolTarget = RIM_REST.cool * (side === "enemy" ? 1.75 : side === "player" ? 0.55 : 1);
+  }
 
   const emitterTexture = makeEmitterTexture();
   const emitters: THREE.Sprite[] = [];
@@ -595,7 +719,7 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
         levels: quality.tier === "high" ? 7 : 5,
       });
       const toneMapping = new pp.ToneMappingEffect({ mode: pp.ToneMappingMode.ACES_FILMIC });
-      const vignette = new pp.VignetteEffect({ offset: 0.38, darkness: 0.44 });
+      const vignette = new pp.VignetteEffect({ offset: 0.42, darkness: 0.34 });
       const noise = new pp.NoiseEffect({ blendFunction: pp.BlendFunction.OVERLAY, premultiply: true });
       noise.blendMode.opacity.value = 0.055;
       noiseEffect = noise;
@@ -686,29 +810,49 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
   let frameCount = 0;
   let frameAverage = 0;
 
+  /** The intensities actually on screen, eased toward their targets. */
+  let warmShown = RIM_REST.warm;
+  let coolShown = RIM_REST.cool;
+
   function render(elapsed: number): void {
     const still = getSettings().reducedMotion;
     const started = still ? 0 : performance.now();
 
+    // Whose lamp is up is *functional* — it is how the board says whose turn it
+    // is — so it keeps working under reduced motion. It simply arrives at once.
+    warmShown += (warmTarget - warmShown) * (still ? 1 : 0.09);
+    coolShown += (coolTarget - coolShown) * (still ? 1 : 0.09);
+
     if (still) {
       drift.set(0, 0, 0);
-      rimWarm.intensity = 26;
-      rimCool.intensity = 22;
-      if (noiseEffect) noiseEffect.blendMode.opacity.value = 0.03;
+      rimWarm.intensity = warmShown;
+      rimCool.intensity = coolShown;
+      /**
+       * The grain is switched **off**, not turned down.
+       *
+       * `NoiseEffect` regenerates its field every frame from the shader's own
+       * time, so leaving it at 0.03 left the whole screen shimmering under a
+       * setting whose entire promise is that decorative motion stops. Measured
+       * with it on: reduced motion still moved 38.9% of the frame's pixels
+       * against 58.0% with motion enabled — barely half the reduction the
+       * setting claims. §3 asks for the decorative layer to die.
+       */
+      if (noiseEffect) noiseEffect.blendMode.opacity.value = 0;
     } else {
       drift.set(
         Math.sin(elapsed * ((Math.PI * 2) / 23)) * 0.55,
         Math.sin(elapsed * ((Math.PI * 2) / 37)) * 0.28,
         Math.cos(elapsed * ((Math.PI * 2) / 31)) * 0.4
       );
-      rimWarm.intensity = 26 + Math.sin(elapsed * ((Math.PI * 2) / 6.9)) * 4;
-      rimCool.intensity = 22 + Math.cos(elapsed * ((Math.PI * 2) / 8.7)) * 3.5;
+      rimWarm.intensity = warmShown + Math.sin(elapsed * ((Math.PI * 2) / 6.9)) * 2.6;
+      rimCool.intensity = coolShown + Math.cos(elapsed * ((Math.PI * 2) / 8.7)) * 2.3;
+      if (noiseEffect) noiseEffect.blendMode.opacity.value = 0.055;
     }
     placeCamera();
     for (let i = 0; i < emitters.length; i++) {
       const sprite = emitters[i];
       const light = i === 0 ? rimWarm : rimCool;
-      if (sprite) sprite.material.opacity = 0.5 + (light.intensity / 26) * 0.42;
+      if (sprite) sprite.material.opacity = 0.42 + (light.intensity / 26) * 0.42;
     }
     if (backdropMesh) {
       // Counter-shift, so the world behind the board slides against it.
@@ -751,6 +895,47 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
     };
   }
 
+  /**
+   * The curtain going up.
+   *
+   * Entering the board was a hard cut and it was measured as one: clicking
+   * Confirm on the mulligan left the panel completely unchanged for 627ms — no
+   * press state, no exit — and then the board appeared fully settled, hand
+   * fanned, leaders in place, everything at rest, in the very next 30ms frame at
+   * t=657. Zero overlap, zero stagger, 627ms of dead air in front of it.
+   *
+   * What this half owns is the room: the camera closes 14% of framing while the
+   * key light comes up from a third of its strength, so the arena resolves out
+   * of a wider, dimmer, further-away version of itself rather than being
+   * switched on. The DOM half — the panel leaving and the hand fanning in — is
+   * in `battleView.playCurtain`, and the two deliberately overlap.
+   *
+   * Reduced motion collapses it to nothing here and to a 120ms fade in the DOM,
+   * which is §3's rule: the decorative layer dies, the functional layer lives.
+   */
+  function playEntrance(): void {
+    if (getSettings().reducedMotion) return;
+    const baseSpot = keySpot.intensity;
+    const baseAmbient = ambient.intensity;
+    tween({
+      from: 1,
+      to: 0,
+      ms: 420,
+      ease: EASE.arrive,
+      onUpdate: (value) => {
+        introPull = value * 0.14;
+        keySpot.intensity = baseSpot * (0.34 + 0.66 * (1 - value));
+        ambient.intensity = baseAmbient * (0.5 + 0.5 * (1 - value));
+        placeCamera();
+      },
+      onDone: () => {
+        introPull = 0;
+        keySpot.intensity = baseSpot;
+        ambient.intensity = baseAmbient;
+      },
+    });
+  }
+
   function setQuality(nextTier: QualityTier): void {
     quality = QUALITY_PRESETS[nextTier];
     void setupComposer();
@@ -788,6 +973,8 @@ export function createBattleScene(container: HTMLElement, tier: QualityTier = de
     resize,
     dispose,
     setQuality,
+    playEntrance,
+    setActiveSide,
     setBackdrop,
     project,
     raycastFromPointer,

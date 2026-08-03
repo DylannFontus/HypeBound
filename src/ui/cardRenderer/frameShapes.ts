@@ -255,6 +255,112 @@ const crystalFacet: PathFn = (ctx, r, amp) => {
   ctx.closePath();
 };
 
+/** A point `d` along the segment from `from` toward `to`, never past its middle. */
+function towards(from: readonly [number, number], to: readonly [number, number], d: number): [number, number] {
+  const dx = to[0] - from[0];
+  const dy = to[1] - from[1];
+  const length = Math.hypot(dx, dy) || 1;
+  const t = Math.min(d, length / 2) / length;
+  return [from[0] + dx * t, from[1] + dy * t];
+}
+
+/** A closed polygon with every vertex filleted — the family's corner vocabulary. */
+function roundedPoly(ctx: PathTarget, points: readonly (readonly [number, number])[], radius: number): void {
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const previous = points[(i - 1 + n) % n]!;
+    const vertex = points[i]!;
+    const next = points[(i + 1) % n]!;
+    const a = towards(vertex, previous, radius);
+    const b = towards(vertex, next, radius);
+    if (i === 0) moveTo(ctx, a[0], a[1]);
+    else lineTo(ctx, a[0], a[1]);
+    ctx.quadraticCurveTo(vertex[0], vertex[1], b[0], b[1]);
+  }
+  ctx.closePath();
+}
+
+/**
+ * The Current-neutral outline, used by the card back and nothing else.
+ *
+ * A face-down card must not leak which Current it is, so it cannot wear any of
+ * the eight cuts. It used to answer that with `roundedRect(26)` — and the
+ * screenshot said what that is: a Material Design card. Put beside a Root
+ * hex-stone, a Pulse circuit-angle or a Prism crystal-facet, all three of which
+ * *cut* their corners at forty-five degrees, a soft-cornered rectangle is not a
+ * neutral member of the family, it is a member of a different family. Neutrality
+ * is about which Current, not about which game.
+ *
+ * So the neutral plate is now the thing the eight silhouettes have in common
+ * with each other rather than the thing none of them is: a chamfered octagon
+ * with a small fillet where each cut meets each edge. Six of the eight shapes
+ * chamfer, and the two that fillet do it at a radius the fillet here matches.
+ */
+export const NEUTRAL_CHAMFER = 44;
+export const NEUTRAL_FILLET = 11;
+
+const neutralPlate: PathFn = (ctx, r, amp) => {
+  const { x, y, w, h } = r;
+  const c = Math.min(NEUTRAL_CHAMFER * amp, w * 0.33, h * 0.25);
+  roundedPoly(
+    ctx,
+    [
+      [x + c, y],
+      [x + w - c, y],
+      [x + w, y + c],
+      [x + w, y + h - c],
+      [x + w - c, y + h],
+      [x + c, y + h],
+      [x, y + h - c],
+      [x, y + c],
+    ],
+    NEUTRAL_FILLET * Math.min(1, amp)
+  );
+};
+
+/**
+ * The band paths for the back, built through exactly the same routine the face
+ * uses so the two carry the same section, the same width and the same inner
+ * fillet. `inner` is the neutral plate inset by the band, with the chamfer
+ * shortened in proportion so the cut stays parallel rather than converging —
+ * which is what `traceInner` does for the eight cut shapes.
+ */
+export function neutralBandPaths(rect: Rect, inset: number): BandPaths {
+  const key = `neutral|${rect.x}|${rect.y}|${rect.w}|${rect.h}|${inset}`;
+  const hit = bandCache.get(key);
+  if (hit) return hit;
+  const outer = new Path2D();
+  neutralPlate(outer, rect, 1);
+  const inner = neutralPath(rect, inset);
+  const band = new Path2D();
+  band.addPath(outer);
+  band.addPath(inner);
+  const built = { outer, inner, band };
+  bandCache.set(key, built);
+  return built;
+}
+
+/**
+ * The neutral plate on its own, at any inset — for the shelf and the keyline.
+ *
+ * The chamfer shrinks by `inset × (2 − √2)`, which is the amount that keeps the
+ * cut *parallel* to the outer one rather than merely smaller: offsetting a 45°
+ * edge inward by `d` moves its ends `d(2 − √2)` along both axes. Guess a
+ * coefficient instead and the band's corners converge or splay, which is
+ * immediately visible as a frame whose mitres do not line up.
+ */
+const CHAMFER_OFFSET = 2 - Math.SQRT2;
+
+export function neutralPath(rect: Rect, inset = 0): Path2D {
+  const path = new Path2D();
+  neutralPlate(
+    path,
+    { x: rect.x + inset, y: rect.y + inset, w: rect.w - inset * 2, h: rect.h - inset * 2 },
+    Math.max(0.2, 1 - (inset * CHAMFER_OFFSET) / NEUTRAL_CHAMFER)
+  );
+  return path;
+}
+
 const SHAPES: Record<FrameShape, PathFn> = {
   "flame-notch": flameNotch,
   "wave-round": waveRound,
@@ -328,18 +434,45 @@ export function innerPath(shape: FrameShape, rect: Rect, inset: number, amp?: nu
   return path;
 }
 
-/** Both boundaries of the frame band, ready to fill even-odd. */
-export function bandPaths(
-  shape: FrameShape,
-  rect: Rect,
-  inset: number
-): { outer: Path2D; inner: Path2D; band: Path2D } {
+export interface BandPaths {
+  outer: Path2D;
+  inner: Path2D;
+  band: Path2D;
+}
+
+/**
+ * Both boundaries of the frame band, ready to fill even-odd — and kept, because
+ * building them is not free and the answer never changes.
+ *
+ * A silhouette is a pure function of a shape, a rectangle and a band width. The
+ * rectangle is `frameRect()`, which is a constant; the widths are the four in
+ * `RARITY_STYLE`. So the whole game asks this function for one of thirty-two
+ * answers, and it was tracing all three contours from scratch every time — once
+ * per card paint, and then again on every one of the twelve idle repaints a
+ * second the clock asks for, on every animating card. Sixteen bezier segments
+ * and forty line segments, twelve times a second, per card, to produce a path
+ * that is identical to the one thrown away a frame earlier.
+ *
+ * `Path2D` is treated as immutable by every caller here — they clip, fill and
+ * stroke, and nobody calls `addPath` on one after it is handed out — so sharing
+ * is safe. The map is bounded by construction: eight shapes, four band widths,
+ * one rectangle.
+ */
+const bandCache = new Map<string, BandPaths>();
+
+export function bandPaths(shape: FrameShape, rect: Rect, inset: number): BandPaths {
+  const key = `${shape}|${rect.x}|${rect.y}|${rect.w}|${rect.h}|${inset}`;
+  const hit = bandCache.get(key);
+  if (hit) return hit;
   const outer = framePath(shape, rect, 1);
   const inner = innerPath(shape, rect, inset);
   const band = new Path2D();
   band.addPath(outer);
   band.addPath(inner);
-  return { outer, inner, band };
+  const built = { outer, inner, band };
+  if (bandCache.size > 64) bandCache.clear();
+  bandCache.set(key, built);
+  return built;
 }
 
 /**

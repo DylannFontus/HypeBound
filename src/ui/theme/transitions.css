@@ -1105,14 +1105,33 @@
  * the blur are doing all the work of saying "further away" that this ramp was
  * duplicating.
  */
+/*
+ * The stops moved up once more, and a screencast is why.
+ *
+ * `scripts/measure-nav.mjs` grades a real click on PLAY by the *image* rather
+ * than by computed opacity, and it found the frame this ramp exists to prevent:
+ * 95th-percentile pixel 103 → **36** → 111 across three consecutive screencast
+ * samples, on a navigation the DOM probe reported as two screens both painted.
+ * Most of that was the arriving screen's own content cascade starting from
+ * opacity 0 (fixed in `screens.css`), but the outgoing half was contributing:
+ * this ramp is on `--nav-ease-leave`, which is slow to start and then falls off
+ * a cliff, so the parent spent the second half of its exit under 0.3 while the
+ * child was still assembling. Holding it at 0.66 to the midpoint and 0.42 to
+ * 82% costs nothing visible — by then the child is on top of it and the scale,
+ * lift and blur are carrying the whole "further away" reading — and it keeps a
+ * lit surface on screen through the exchange.
+ */
 @keyframes nav-descend-out {
   from {
     opacity: 1;
     transform: scale(1) translate3d(0, 0, 0);
     filter: blur(0) brightness(1);
   }
-  60% {
-    opacity: 0.55;
+  55% {
+    opacity: 0.66;
+  }
+  82% {
+    opacity: 0.42;
   }
   to {
     opacity: var(--nav-exit-floor);
@@ -1121,10 +1140,27 @@
   }
 }
 
-/** The child rises over it. */
+/**
+ * The child rises over it, and it is never at nothing.
+ *
+ * `from { opacity: 0 }` is only safe if the parent underneath is guaranteed to
+ * still be painted, and under load it is not: measured with a CDP screencast on
+ * a real click, the first *painted* frame of a descend can land a few
+ * milliseconds into the child's ramp with the parent's 170ms exit already
+ * finished and the element removed — one frame in which the brightest pixel on
+ * screen is a dim purple. Starting at 0.22 makes the overlap a property of the
+ * keyframe rather than of how busy the thread happened to be, and it is the
+ * same 80–120ms exchange §3a asks for, stated where it cannot be skipped. The
+ * rise and the scale still carry the entrance; nobody can name the difference
+ * between a fade from 0 and a fade from 0.22 under a `translate3d` of 5%.
+ *
+ * Deliberately not applied to `nav-ascend-in`: on an ascend the departing child
+ * is painted *on top of* its parent, and the long note below records what
+ * happened the last two times both halves were made more present at once.
+ */
 @keyframes nav-descend-in {
   from {
-    opacity: 0;
+    opacity: 0.22;
     transform: translate3d(0, var(--nav-rise), 0) scale(0.985);
   }
   to {

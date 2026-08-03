@@ -27,6 +27,13 @@ interface Particle {
 
 export interface VfxLayer {
   summonBurst: (position: THREE.Vector3, current: CurrentId) => void;
+  /**
+   * The dust a card kicks up when it is put down, as distinct from the light it
+   * throws. `summonBurst` is the Current arriving; this is the floor answering.
+   */
+  landing: (position: THREE.Vector3, current: CurrentId) => void;
+  /** The turn changing, swept along the arena's centre line toward `side`. */
+  turnSweep: (side: "player" | "enemy") => void;
   impact: (position: THREE.Vector3, amount: number, elemental: boolean) => void;
   /** white strike flash at the point of contact, thrown along the attack vector */
   contactSpark: (position: THREE.Vector3, direction: THREE.Vector3) => void;
@@ -181,6 +188,76 @@ export function createVfx(scene: BattleSceneHandles): VfxLayer {
         life: 0.5 + Math.random() * 0.35,
         startScale: 0.34,
         endScale: 0.02,
+      });
+    }
+  }
+
+  /**
+   * Contact: the floor answering a card being put down on it.
+   *
+   * Deliberately **not** additive and deliberately pale-violet rather than the
+   * card's Current — additive light is what `summonBurst` already does, and
+   * doing it twice makes a flash rather than an impact. This is grit lifted off
+   * the mat, thrown outward along the ground and dropping back, which is the
+   * half of a landing that says the surface is a surface. The ring is flat and
+   * wide and gone in a third of a second: any longer and it reads as a spell.
+   */
+  function landing(position: THREE.Vector3, current: CurrentId): void {
+    if (reduced()) return;
+    const palette = CURRENT_PALETTE[current] ?? CURRENT_PALETTE.prism;
+
+    spawn({
+      position: position.clone().setY(0.05),
+      velocity: new THREE.Vector3(),
+      color: palette.hi,
+      life: 0.32,
+      startScale: 1.5,
+      endScale: 5.4,
+      texture: "ring",
+    });
+
+    const count = Math.min(18, Math.max(8, Math.floor(budget() * 0.045)));
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + (i % 3) * 0.21;
+      const speed = 2.4 + (i % 5) * 0.42;
+      spawn({
+        position: position
+          .clone()
+          .setY(0.06)
+          .add(new THREE.Vector3(Math.cos(angle) * 0.85, 0, Math.sin(angle) * 0.62)),
+        velocity: new THREE.Vector3(Math.cos(angle) * speed, 0.3 + Math.random() * 0.55, Math.sin(angle) * speed * 0.6),
+        color: i % 3 === 0 ? "#ded2f6" : "#8a7ab0",
+        life: 0.4 + Math.random() * 0.26,
+        startScale: 0.28,
+        endScale: 1.15,
+        additive: false,
+      });
+    }
+  }
+
+  /**
+   * The turn changing, as an event in the room rather than a chip over the board.
+   *
+   * A line of motes runs the width of the arena along the centre seam and drifts
+   * toward whoever is now to act. It costs one spawn loop and it replaces the
+   * biggest single lump of dead time on this screen — a 1.1-second full-board
+   * DOM banner, three times a turn.
+   */
+  function turnSweep(side: "player" | "enemy"): void {
+    if (reduced()) return;
+    const toward = side === "player" ? 1 : -1;
+    const colour = side === "player" ? "#ff8fc4" : "#8fd8ff";
+    const count = Math.min(26, Math.max(10, Math.floor(budget() * 0.06)));
+    for (let i = 0; i < count; i++) {
+      const t = i / Math.max(1, count - 1);
+      spawn({
+        position: new THREE.Vector3(-9.4 + t * 18.8, 0.16, (Math.random() - 0.5) * 0.5),
+        velocity: new THREE.Vector3((Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.5, toward * (2.6 + Math.random() * 1.4)),
+        color: i % 4 === 0 ? "#ffffff" : colour,
+        life: 0.42 + Math.random() * 0.2,
+        startScale: 0.3,
+        endScale: 0.04,
+        texture: i % 3 === 0 ? "spark" : "soft",
       });
     }
   }
@@ -434,5 +511,5 @@ export function createVfx(scene: BattleSceneHandles): VfxLayer {
     group.removeFromParent();
   }
 
-  return { summonBurst, impact, contactSpark, lastContactSpark, heal, statusPop, confluence, resonance, defeat, screenFlash, update, dispose };
+  return { summonBurst, landing, turnSweep, impact, contactSpark, lastContactSpark, heal, statusPop, confluence, resonance, defeat, screenFlash, update, dispose };
 }

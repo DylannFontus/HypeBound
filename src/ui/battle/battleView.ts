@@ -32,6 +32,8 @@ import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { createTargetingLayer, type TargetingLayer } from "./targeting";
 import { createVfx, type VfxLayer } from "./vfx";
 import { HOLD_MS, HOLD_TOLERANCE_PX } from "./gestures";
+import { getSettings } from "../../save/settings";
+import { EASE, motionEnabled, stagger, tween } from "../motion";
 /**
  * One reconstruction of a `MatchState` from a `PlayerView`, not two.
  *
@@ -60,6 +62,15 @@ export interface BattleViewCallbacks {
   onPeek: (card: CardDef) => () => void;
   /** a card needs targets the board cannot supply — host opens a chooser */
   onNeedsTargets: (instanceId: string, slot: number | undefined) => void;
+  /**
+   * Whether the ground under the dragged card would take it.
+   *
+   * The board lights its own socket; this is how the *card* learns the same
+   * thing, so an illegal drop reads as illegal at the cursor rather than only
+   * forty pixels below it. Optional so a host that has no hand bar (the keyboard
+   * path, the tests) does not have to supply one.
+   */
+  onDropFeedback?: (state: "valid" | "blocked" | "neutral") => void;
 }
 
 interface DragState {
@@ -127,12 +138,38 @@ export class BattleView {
   // State sync
   // -------------------------------------------------------------------------
 
-  /** Rebuild the 3D board and hand from a redacted player view. */
+  /**
+   * Rebuild the 3D board and hand from a redacted player view.
+   *
+   * ## The 950ms hole, and where it actually was
+   *
+   * Measured on a 60fps screencast: mouse-up at t=0, the drag ghost gone by
+   * t≈230ms, and then **the player's row was empty from t≈250ms to t≈1140ms** —
+   * the object the player had just dragged existed nowhere on screen for nine
+   * hundred milliseconds, against §3's 600ms cap for the whole play. Every
+   * previous round treated that as an animation-timing problem and shortened
+   * sleeps. It was not. It was this method returning early.
+   *
+   * `setLayoutLocked(true)` is taken for the *whole* event batch, and this
+   * used to `return` before `syncBoard()` whenever it was set. So a played card
+   * did not get a token when `cardPlayed` fired, nor when `characterSummoned`
+   * fired — it got one in the `finally` of `presenter.play`, after every trigger
+   * chip, every damage beat and every status pop in the batch had finished
+   * sleeping. The lock exists for one real reason: a token must not be deleted
+   * out from under the defeat animation that is playing on it. So that is now
+   * the only thing it defers. Arrivals are immediate, departures wait.
+   */
   sync(view: PlayerView): void {
     this.view = view;
     this.proxy = null; // rebuilt lazily from the new view
     this.applyBackdrop();
-    if (this.layoutLocked) return;
+    /**
+     * The piles are a readout, so they are synced even while the presenter has
+     * layout locked: a deck stack that only updates once an animation queue
+     * drains is a deck stack that lies for a second every turn.
+     */
+    this.board.setResources("player", view.you.deck.length, view.you.discard.length);
+    this.board.setResources("enemy", view.opponent.deckCount, view.opponent.discard.length);
     this.syncBoard();
     this.layout();
   }
@@ -239,33 +276,29 @@ export class BattleView {
           object.rotation.copy(object.targetRotation);
           object.targetPosition.copy(spawn);
 
-          /**
-           * Fly the card in from its owner's hand instead of popping it into
-           * the slot. It starts small, off the near edge on that player's side
-           * and lifted clear of the arena, then the object's own easing carries
-           * it down into place — so a played card visibly travels from where you
-           * dragged it, and the rival's plays read as coming from across the
-           * table rather than materialising.
-           *
-           * The burst fires at the destination straight away rather than on
-           * arrival: the reference always prepares the receiving slot before the
-           * card gets there, never the other way round.
-           */
-          const entry = spawn.clone();
-          // Start just BEYOND the owner's leader, not on top of it. A fixed
-          // offset put the card down squarely over the medallion — dead centre
-          // for the first character of a row — so the flight began by hiding the
-          // portrait instead of arriving from the hand behind it.
-          const leaderZ = row.side === "player" ? BOARD.playerLeaderZ : BOARD.enemyLeaderZ;
-          const beyond = BOARD.leaderHeight / 2 + 0.9;
-          entry.z = row.side === "player" ? leaderZ + beyond : leaderZ - beyond;
-          entry.y += 1.3;
-          object.position.copy(entry);
-          object.scale.setScalar(0.5);
-
           this.scene.cardGroup.add(object);
           this.boardObjects.set(character.instanceId, object);
-          this.vfx.summonBurst(spawn, character.current as CurrentId);
+
+          /**
+           * Every token that appears on this board flies in from somewhere the
+           * player can point at, and there is exactly one code path for it.
+           *
+           * A card the player just released **becomes** the drag ghost: the
+           * ghost's screen-space centre is unprojected onto the flight plane and
+           * the token is placed there at the ghost's own apparent size, so the
+           * two are the same silhouette at the same place at the same scale on
+           * the same frame. The ghost then cross-fades out over 90ms and the
+           * token carries the movement. Nothing is destroyed and respawned; §3a
+           * forbids exactly that, and the previous build did it with a 900ms gap
+           * in the middle.
+           *
+           * A card the *rival* plays flies out of the rival's deck stack, so a
+           * play that used to materialise in place now visibly comes from a
+           * pile the player can see draining.
+           */
+          const handoff = this.takeHandoff(character.cardId, row.side);
+          const entry = handoff ?? this.deckEntry(row.side);
+          this.flyIntoSlot(object, entry.position, entry.scale, character.current as CurrentId);
         }
 
         object.syncFromCharacter(
@@ -276,12 +309,225 @@ export class BattleView {
       });
     }
 
+    /**
+     * Departures, and the one thing the layout lock is still for.
+     *
+     * A token removed the instant the engine says it died takes the defeat
+     * animation with it — the presenter grabs the object, asks the vfx layer to
+     * burst at its position and then sleeps, and if the object is gone by then
+     * there is nothing to burst at. Arrivals have no such constraint, which is
+     * why they no longer wait.
+     */
+    if (this.layoutLocked) return;
     for (const [instanceId, object] of [...this.boardObjects]) {
       if (seen.has(instanceId)) continue;
       this.scene.cardGroup.remove(object);
       object.dispose();
       this.boardObjects.delete(instanceId);
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // The flight: one object, from wherever it came from, into its slot
+  // -------------------------------------------------------------------------
+
+  /**
+   * How high above the mat a card travels while it is in the air. It is the
+   * plane the released ghost is unprojected onto, so the handoff and the flight
+   * agree about where "in the air" is.
+   */
+  private static readonly FLIGHT_Y = 0.9;
+
+  /** Where the pointer (or any screen point) meets a horizontal plane. */
+  private pointerOnPlane(clientX: number, clientY: number, y: number): THREE.Vector3 | null {
+    const rect = this.scene.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, this.scene.camera);
+    const point = new THREE.Vector3();
+    return raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), point) ? point : null;
+  }
+
+  /**
+   * The world scale at which a board token covers `widthPx` screen pixels at a
+   * given point, so the token can be handed a DOM element's apparent size
+   * rather than a hard-coded number that would be wrong at every other viewport.
+   */
+  private scaleForWidth(at: THREE.Vector3, widthPx: number): number {
+    const centre = this.scene.project(at.clone());
+    const edge = this.scene.project(at.clone().setX(at.x + BOARD.cardWidth / 2));
+    const halfPx = Math.abs(edge.x - centre.x);
+    if (halfPx < 1) return 1;
+    return Math.max(0.3, Math.min(2.4, widthPx / 2 / halfPx));
+  }
+
+  /** The rival's (or your own) deck stack, as a flight origin. */
+  private deckEntry(side: "player" | "enemy"): { position: THREE.Vector3; scale: number } {
+    const deck = this.board.deckPosition(side);
+    return { position: deck.setY(BattleView.FLIGHT_Y), scale: 0.62 };
+  }
+
+  /**
+   * Fly a token from wherever it came from into the slot it is going to.
+   *
+   * 300ms on `EASE.overshoot`, which is inside §3's 600ms cap for a whole card
+   * play with room left over for the presenter's beats to overlap it. The
+   * overshoot is deliberate and is why the tween drives the object directly
+   * instead of nudging its easing targets: a curve whose value passes 1 on the
+   * way to 1 is what makes a placement feel like it hit something, and the
+   * token's own exponential ease can only approach.
+   *
+   * `targetPosition` is read every frame rather than captured, so a row that
+   * re-centres mid-flight (because a second card arrived, or the window
+   * resized) redirects the card instead of stranding it.
+   */
+  private flyIntoSlot(
+    object: CardObject,
+    from: THREE.Vector3,
+    fromScale: number,
+    current: CurrentId
+  ): void {
+    const start = from.clone();
+    if (!motionEnabled()) {
+      object.position.copy(object.targetPosition);
+      object.scale.setScalar(1);
+      this.landToken(object, current);
+      return;
+    }
+    const arc = Math.max(0.45, start.distanceTo(object.targetPosition) * 0.075);
+    object.position.copy(start);
+    object.scale.setScalar(fromScale);
+    object.flightHold = true;
+    tween({
+      from: 0,
+      to: 1,
+      ms: 300,
+      ease: EASE.overshoot,
+      onUpdate: (t) => {
+        const to = object.targetPosition;
+        const lift = Math.sin(Math.PI * Math.min(1, Math.max(0, t))) * arc;
+        object.position.set(
+          start.x + (to.x - start.x) * t,
+          start.y + (to.y - start.y) * t + lift,
+          start.z + (to.z - start.z) * t
+        );
+        object.scale.setScalar(Math.max(0.2, fromScale + (1 - fromScale) * t));
+      },
+      onDone: () => {
+        object.flightHold = false;
+        object.position.copy(object.targetPosition);
+        object.scale.setScalar(1);
+        this.landToken(object, current);
+      },
+    });
+  }
+
+  /**
+   * The moment of contact, and the three things that happen because of it.
+   *
+   * §3's secondary motion, measured as absent: over a whole landing the mat
+   * 140px to the left of the arriving card changed by a mean of 1.1–4.4, i.e.
+   * nothing on the board reacted to a card being put on it. Now the card's own
+   * Current floods the floor under it, dust lifts off the mat, and the two
+   * nearest tokens in the row give way and settle back.
+   */
+  private landToken(object: CardObject, current: CurrentId): void {
+    const at = object.targetPosition.clone();
+    object.flare(1);
+    this.vfx.summonBurst(at, current);
+    this.vfx.landing(at, current);
+    this.nudgeNeighbours(object);
+  }
+
+  /** The two nearest tokens in the same row recoil, then settle. */
+  private nudgeNeighbours(landed: CardObject): void {
+    if (!motionEnabled()) return;
+    const seat = landed.userData["seat"];
+    const x = landed.targetPosition.x;
+    const z = landed.targetPosition.z;
+    const neighbours = [...this.boardObjects.values()]
+      .filter(
+        (other) =>
+          other !== landed &&
+          other.userData["seat"] === seat &&
+          Math.abs(other.targetPosition.z - z) < 0.6
+      )
+      .sort((a, b) => Math.abs(a.targetPosition.x - x) - Math.abs(b.targetPosition.x - x))
+      .slice(0, 2);
+
+    for (const [index, other] of neighbours.entries()) {
+      const away = Math.sign(other.targetPosition.x - x) || 1;
+      const amount = 0.34 / (1 + index * 0.8);
+      tween({
+        from: 1,
+        to: 0,
+        ms: 280,
+        ease: EASE.arrive,
+        onUpdate: (value) => {
+          other.animOffset.x = away * amount * value;
+        },
+        onDone: () => {
+          other.animOffset.x = 0;
+        },
+      });
+    }
+  }
+
+  /**
+   * The board's half of the curtain, run when the mulligan lets go.
+   *
+   * `scene.playEntrance` owns the room — the camera closing 14% of framing while
+   * the key comes up. This owns the *arrivals*, and they are staggered rather
+   * than simultaneous: the leaders come up first because they are what the match
+   * is about, the tokens follow at 90ms, and the DOM hand fans in behind both on
+   * a 45ms cascade written by `stagger`. §3a asks for 260–420ms with 80–120ms of
+   * overlap and never a blank frame, and the overlap here is real — the mulligan
+   * panel is still on screen and still shrinking while the leaders are rising.
+   *
+   * Everything it touches is a *target*: the objects' own exponential easing does
+   * the movement, so a resize, a sync or a second call mid-flight cannot leave
+   * anything stranded at a keyframe.
+   */
+  playCurtain(): void {
+    this.scene.playEntrance();
+    if (!motionEnabled()) return;
+
+    /**
+     * `LeaderObject` is a plain `THREE.Group` with no easing of its own — unlike
+     * `CardObject`, which eases toward a target every frame — so this drives it
+     * rather than nudging it. Setting a scale on something that never eases back
+     * is how a "fix" leaves a leader permanently at 72%.
+     */
+    const leaders = [...this.leaderObjects.values()];
+    if (leaders.length > 0) {
+      tween({
+        from: 1,
+        to: 0,
+        ms: 340,
+        ease: EASE.overshoot,
+        onUpdate: (value) => {
+          for (const token of leaders) {
+            token.scale.setScalar(1 - value * 0.26);
+            token.position.y = 0.16 + value * 0.75;
+          }
+        },
+        onDone: () => {
+          for (const token of leaders) {
+            token.scale.setScalar(1);
+            token.position.y = 0.16;
+          }
+        },
+      });
+    }
+    // Tokens already ease toward `targetScale` every frame; giving them a small
+    // start is the whole animation, and it lands 90ms behind the leaders.
+    for (const object of this.boardObjects.values()) object.scale.setScalar(0.6);
+
+    const cards = this.container.parentElement?.querySelectorAll(".hand-card");
+    if (cards) stagger(cards, { step: 45, from: 90, max: 420 });
   }
 
   /** Cached per sync — layout calls this once per hand card. */
@@ -496,7 +742,7 @@ export class BattleView {
     const view = this.view;
     this.targeting.hide();
     this.targeting.hidePreview();
-    this.board.clearSlotHighlights();
+    this.board.setDropTarget("player", null, 0);
 
     if (!drag || !view) return;
     this.drag = null;
@@ -593,7 +839,7 @@ export class BattleView {
     drag.object.immediate = false;
     this.targeting.hide();
     this.targeting.hidePreview();
-    this.board.clearSlotHighlights();
+    this.board.setDropTarget("player", null, 0);
     this.scene.renderer.domElement.style.cursor = "default";
     this.syncBoard();
     this.layout();
@@ -688,6 +934,9 @@ export class BattleView {
 
   /** Begin tracking a card dragged out of the DOM hand. */
   externalDragStart(instanceId: string): void {
+    // A second drag started before the last handoff resolved: the parked ghost
+    // belongs to a play that is no longer the one on screen.
+    this.releaseHandoff();
     const view = this.view;
     if (!view) return;
     const playable = checkPlayable(this.stateProxy(), this.content, view.seat, instanceId);
@@ -711,7 +960,15 @@ export class BattleView {
     this.syncBoard();
   }
 
-  /** Pointer moved during an external drag; update slot and target feedback. */
+  /**
+   * Pointer moved during an external drag; update slot and target feedback.
+   *
+   * This is where the board's drop socket is driven from, and it is the fix for
+   * the worst defect on this screen: `setDropTarget` existed, was exported, and
+   * had zero call sites, so dragging a card anywhere over the arena lit nothing
+   * at all. Everything it needs was already computed here to open the row's gap
+   * — the only thing missing was telling the board about it.
+   */
   externalDragMove(clientX: number, clientY: number): void {
     const drag = this.externalDrag;
     const view = this.view;
@@ -719,6 +976,8 @@ export class BattleView {
 
     const point = this.pointerOnTable(clientX, clientY);
     const overBoard = point !== null && this.isPlayZone(point);
+    /** Over the arena at all, including the rival's half and the cancel strip. */
+    const overArena = point !== null && Math.abs(point.x) < BOARD.width / 2 + 1 && point.z > -BOARD.depth / 2;
 
     if (overBoard && drag.needsSlot) {
       // Work out which gap the pointer is nearest by comparing against the
@@ -737,9 +996,30 @@ export class BattleView {
         this.layout();
       }
       drag.hoverSlot = index;
-    } else if (this.makeRoomIndex !== null) {
-      this.makeRoomIndex = null;
-      this.layout();
+      this.board.setDropTarget("player", index, virtualCount, "valid");
+    } else if (drag.needsSlot && overArena) {
+      /**
+       * Over the arena but somewhere this card cannot go — the rival's row, the
+       * far apron, the cancel strip under your own hand. A struck-through socket
+       * is drawn at the nearest thing to a landing place so the refusal has a
+       * position, because "nothing happens" and "that is not allowed" looked
+       * identical before this and only one of them is true.
+       */
+      if (this.makeRoomIndex !== null) {
+        this.makeRoomIndex = null;
+        this.layout();
+      }
+      drag.hoverSlot = null;
+      const enemySide = point!.z < 0;
+      const row = enemySide ? "enemy" : "player";
+      const count = (enemySide ? view.opponent.board : view.you.board).filter((c) => c !== null).length;
+      this.board.setDropTarget(row, Math.max(0, count - 1), Math.max(1, count), "blocked");
+    } else {
+      if (this.makeRoomIndex !== null) {
+        this.makeRoomIndex = null;
+        this.layout();
+      }
+      this.board.setDropTarget("player", null, 0);
     }
 
     drag.hoverTarget = this.targetAtPoint(clientX, clientY, drag.legalTargets);
@@ -748,28 +1028,48 @@ export class BattleView {
     } else {
       this.targeting.hide();
     }
+
+    /**
+     * A spell with no slot is legal wherever its target is, so its ghost turns
+     * green over a legal target and red over the arena with nothing under it.
+     * A character's answer is the socket's answer.
+     */
+    const accepted = drag.needsSlot
+      ? overBoard
+      : drag.legalTargets.length > 0
+        ? drag.hoverTarget !== null
+        : overBoard;
+    this.callbacks.onDropFeedback?.(overArena || overBoard ? (accepted ? "valid" : "blocked") : "neutral");
   }
 
   /** Pointer released during an external drag: play the card, or cancel. */
-  externalDragEnd(clientX: number, clientY: number): void {
+  externalDragEnd(clientX: number, clientY: number, ghost: HTMLElement | null = null): void {
     const drag = this.externalDrag;
     const view = this.view;
+    const slotIndex = drag?.hoverSlot ?? null;
+    const virtualCount = view ? view.you.board.filter((c) => c !== null).length + 1 : 1;
     this.externalDrag = null;
     this.makeRoomIndex = null;
     this.targeting.hide();
-    this.board.clearSlotHighlights();
-    if (!drag || !view) return;
+    this.board.setDropTarget("player", null, 0);
+    this.callbacks.onDropFeedback?.("neutral");
+    if (!drag || !view) {
+      this.dismissGhost(ghost);
+      return;
+    }
     this.layout(); // close the gap
 
     const point = this.pointerOnTable(clientX, clientY);
     const overBoard = point !== null && this.isPlayZone(point);
     if (!overBoard && !drag.hoverTarget) {
+      this.dismissGhost(ghost);
       this.syncBoard(); // released over the hand or off-screen: keep the card
       return;
     }
 
     const playable = checkPlayable(this.stateProxy(), this.content, view.seat, drag.instanceId);
     if (!playable.ok) {
+      this.dismissGhost(ghost);
       this.syncBoard();
       return;
     }
@@ -778,10 +1078,54 @@ export class BattleView {
     const isEquipment = playable.targetSpecs.length === 0 && drag.legalTargets.length > 0;
 
     if (((needsTarget || isEquipment) && !drag.hoverTarget) || playable.choiceCount > 0) {
+      this.dismissGhost(ghost);
       this.callbacks.onNeedsTargets(drag.instanceId, playable.needsSlot ? (drag.hoverSlot ?? 0) : undefined);
       this.syncBoard();
       return;
     }
+
+    /**
+     * Hand the ghost over, then submit.
+     *
+     * Two different things happen here and they used to be one, which is why
+     * neither worked. A card that becomes a **token** hands its screen-space
+     * transform to that token and stops travelling: the ghost is frozen where
+     * the player let go, `syncBoard` puts the real object at exactly that point
+     * at exactly that apparent size within a frame, and the ghost cross-fades
+     * out from under it. There is no moment at which the card is nowhere.
+     *
+     * A card that becomes **nothing** — a spell, a targeted effect — has no
+     * token to become, so the ghost itself is the object and it flies to the
+     * thing it is being cast at, which is the only honest place for it to go.
+     */
+    if (playable.needsSlot) {
+      /**
+       * Claimed by **card id**, not by instance id, and that is the whole reason
+       * the last two rounds of this fix did nothing.
+       *
+       * `summonCharacter` calls `instantiateCharacter`, which mints a fresh
+       * instance id for the board token — so the hand instance the player
+       * dragged and the character that arrives are, correctly, different
+       * objects with different identities. The previous handoff test compared
+       * those two ids, never matched, and silently fell through to the "fly in
+       * from behind your own leader" entrance every single time. That is exactly
+       * what the review photographed: a card released at the slot, and 900ms
+       * later a card rising out from behind the player's medallion.
+       *
+       * Card id plus "the player's own row" plus a 420ms window is enough: only
+       * one card can be in flight at a time, and a trigger that summons a
+       * *different* character in the same batch will not match.
+       */
+      const cardId = view.you.hand.find((c) => c.instanceId === drag.instanceId)?.cardId;
+      this.armHandoff(cardId ?? null, ghost);
+    } else {
+      const landing = drag.hoverTarget
+        ? this.worldPositionOf(drag.hoverTarget)
+        : this.board.leaderPosition("player");
+      this.flyGhost(ghost, landing);
+    }
+    void slotIndex;
+    void virtualCount;
 
     this.callbacks.onIntent({
       type: "playCard",
@@ -790,6 +1134,172 @@ export class BattleView {
       ...(playable.needsSlot ? { slot: drag.hoverSlot ?? 0 } : {}),
       ...(drag.hoverTarget ? { targets: [drag.hoverTarget] } : {}),
     });
+  }
+
+  /**
+   * A **spell's** flight, and only a spell's.
+   *
+   * A card that becomes a board token hands itself over to that token instead
+   * (see `armHandoff`), because a DOM element flying to a place where a 3D
+   * object is about to appear is two objects covering the same ground. A spell
+   * has no token to become: the ghost is the only representation the effect will
+   * ever have, so it travels to the thing it is being cast at and dissolves
+   * there, which is where the player is already looking.
+   *
+   * A Web Animations tween on `transform` and `opacity` only, so it composites
+   * and cannot cost the board a frame.
+   *
+   * Under reduced motion the card is simply removed: the functional layer here
+   * is "the card left your hand", which the hand bar already says.
+   */
+  private flyGhost(ghost: HTMLElement | null, landing: THREE.Vector3): void {
+    if (!ghost) return;
+    if (getSettings().reducedMotion || typeof ghost.animate !== "function") {
+      this.dismissGhost(ghost);
+      return;
+    }
+    const rect = ghost.getBoundingClientRect();
+    const canvasRect = this.scene.renderer.domElement.getBoundingClientRect();
+    const target = this.scene.project(landing.clone().setY(0.3));
+    const dx = target.x + canvasRect.left - (rect.left + rect.width / 2);
+    const dy = target.y + canvasRect.top - (rect.top + rect.height / 2);
+    /**
+     * The board token is ~2.6 world units wide; the ghost is a DOM card at hand
+     * scale. Projecting one world unit at the landing point gives the ratio
+     * without hard-coding a number that would be wrong at every other viewport.
+     */
+    const edge = this.scene.project(landing.clone().setX(landing.x + BOARD.cardWidth / 2).setY(0.3));
+    const boardWidth = Math.max(24, Math.abs(edge.x - target.x) * 2);
+    const shrink = Math.max(0.3, Math.min(1.4, boardWidth / Math.max(1, rect.width)));
+
+    ghost.style.transformOrigin = "50% 50%";
+    ghost.classList.add("flying");
+    const current = ghost.style.transform;
+    const animation = ghost.animate(
+      [
+        { transform: current, opacity: 1, offset: 0 },
+        {
+          transform: `${current} translate(${dx * 0.62}px, ${dy * 0.62}px) scale(${shrink + (1 - shrink) * 0.34})`,
+          opacity: 1,
+          offset: 0.62,
+        },
+        { transform: `${current} translate(${dx}px, ${dy}px) scale(${shrink * 0.94})`, opacity: 0, offset: 1 },
+      ],
+      { duration: 230, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "forwards" }
+    );
+    animation.finished.catch(() => undefined).finally(() => ghost.remove());
+    // A belt-and-braces removal: an animation on a detached element never fires.
+    window.setTimeout(() => ghost.remove(), 400);
+  }
+
+  /**
+   * The released card, parked between the pointer letting go and the token
+   * arriving. It holds the ghost itself, because the ghost is not allowed to
+   * disappear until something has taken its place.
+   */
+  private handoff: {
+    cardId: string | null;
+    ghost: HTMLElement | null;
+    screen: { x: number; y: number };
+    width: number;
+    timeout: number;
+  } | null = null;
+
+  /**
+   * Freeze the ghost where it was let go and remember its transform.
+   *
+   * The safety timeout is the only thing standing between a refused play and a
+   * card stuck to the cursor forever: the engine can reject, a trigger can eat
+   * the play, the batch can arrive empty. 420ms is long enough to cover the
+   * round trip and short enough that a stranded ghost is never seen.
+   */
+  private armHandoff(cardId: string | null, ghost: HTMLElement | null): void {
+    this.releaseHandoff();
+    const rect = ghost?.getBoundingClientRect();
+    const screen = rect
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      : { x: 0, y: 0 };
+    ghost?.classList.add("handed-off");
+    this.handoff = {
+      cardId,
+      ghost,
+      screen,
+      width: rect?.width ?? 0,
+      timeout: window.setTimeout(() => this.releaseHandoff(), 420),
+    };
+  }
+
+  /** Drop the parked ghost, whether or not anything took its place. */
+  private releaseHandoff(): void {
+    const handoff = this.handoff;
+    if (!handoff) return;
+    this.handoff = null;
+    window.clearTimeout(handoff.timeout);
+    this.dismissGhost(handoff.ghost);
+  }
+
+  /**
+   * Claim the parked ghost for a token that is being created right now, and
+   * answer with the world transform the token has to start at so the two are
+   * indistinguishable on the frame they swap.
+   */
+  private takeHandoff(
+    cardId: string,
+    side: "player" | "enemy"
+  ): { position: THREE.Vector3; scale: number } | null {
+    const handoff = this.handoff;
+    if (!handoff || side !== "player" || handoff.cardId !== cardId) return null;
+    this.handoff = null;
+    window.clearTimeout(handoff.timeout);
+
+    const position = handoff.width
+      ? this.pointerOnPlane(handoff.screen.x, handoff.screen.y, BattleView.FLIGHT_Y)
+      : null;
+    // A 90ms cross-fade rather than a cut: the ghost carries a hand card's
+    // outline and drop shadow and the token does not, and swapping those in one
+    // frame is a flicker even when the silhouette matches exactly.
+    this.fadeGhost(handoff.ghost, 90);
+    if (!position) return null;
+    return { position, scale: this.scaleForWidth(position, handoff.width) };
+  }
+
+  /**
+   * Cross-fade the ghost out in place — no travel, no shrink.
+   *
+   * It is standing exactly where the token now is; moving it would be two
+   * objects covering the same ground, which is the discontinuity the handoff
+   * exists to remove.
+   */
+  private fadeGhost(ghost: HTMLElement | null, ms: number): void {
+    if (!ghost) return;
+    if (getSettings().reducedMotion || typeof ghost.animate !== "function") {
+      ghost.remove();
+      return;
+    }
+    ghost.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: ms,
+      easing: "linear",
+      fill: "forwards",
+    });
+    window.setTimeout(() => ghost.remove(), ms + 40);
+  }
+
+  /** A drag that came to nothing: fade the ghost rather than deleting it. */
+  private dismissGhost(ghost: HTMLElement | null): void {
+    if (!ghost) return;
+    if (getSettings().reducedMotion || typeof ghost.animate !== "function") {
+      ghost.remove();
+      return;
+    }
+    const current = ghost.style.transform;
+    ghost.animate(
+      [
+        { transform: current, opacity: 1 },
+        { transform: `${current} scale(0.86)`, opacity: 0 },
+      ],
+      { duration: 130, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" }
+    );
+    window.setTimeout(() => ghost.remove(), 180);
   }
 
   /** Is this table point inside the area where cards may be played? */
@@ -897,6 +1407,23 @@ export class BattleView {
     };
   }
 
+  /**
+   * The turn changing, told to the room.
+   *
+   * Three things at once, all of them inside one 320ms UI beat: the active
+   * half of the mat lifts and stays lifted for the whole turn, that seat's
+   * practical comes up while the other goes cold, and a line of motes runs the
+   * width of the arena along the centre seam in the direction play is moving.
+   * That replaces ~3.5 seconds of full-board DOM plates per handover with a
+   * board state a player can read at any moment rather than only in the second
+   * after they were told.
+   */
+  setTurnSide(side: "player" | "enemy"): void {
+    this.board.setActiveSide(side);
+    this.scene.setActiveSide(side);
+    this.vfx.turnSweep(side);
+  }
+
   /** Presenter locks layout while a sequence animates. */
   setLayoutLocked(locked: boolean): void {
     this.layoutLocked = locked;
@@ -919,6 +1446,13 @@ export class BattleView {
     const elapsed = this.clock.elapsedTime;
 
     for (const object of this.boardObjects.values()) object.update(delta);
+    /**
+     * `window.innerHeight` rather than the canvas's `clientHeight`: this runs
+     * every frame and reading a layout property would force a style recalc for a
+     * number that changes on resize only. `setCompact` early-returns when the
+     * answer has not moved, so the whole check is one comparison.
+     */
+    this.board.setCompact(window.innerHeight < 500);
     this.board.update(elapsed);
     this.vfx.update(delta, elapsed);
     this.scene.render(elapsed);
@@ -926,6 +1460,7 @@ export class BattleView {
 
   dispose(): void {
     this.disposed = true;
+    this.releaseHandoff();
     cancelAnimationFrame(this.raf);
     const canvas = this.scene.renderer.domElement;
     canvas.removeEventListener("pointermove", this.onPointerMove);

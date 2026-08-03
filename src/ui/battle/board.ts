@@ -78,6 +78,35 @@
  *   one thing that makes a large lit surface read as lit rather than as painted.
  *
  * Everything here is canvas-generated and memoised; nothing is fetched.
+ *
+ * ## …and then the drag feedback was never switched on
+ *
+ * Two rounds ran with this file carrying **two** drop-feedback systems and using
+ * neither. Twelve fixed slot rings with their twelve additive sprites were
+ * created, added to the scene and lerped toward zero on every frame, because
+ * `setSlotHighlight` was never once called with `on = true`; and the socket, band
+ * and `setDropTarget` added to replace them had three references in the whole
+ * tree — the interface line, the definition and the export — and no call site at
+ * all. So dragging a card anywhere over this arena lit nothing, and the machinery
+ * for lighting it cost frames twice over. That is the same defect class as the
+ * shadow pass with no casters that this file already deleted once.
+ *
+ * The rings are gone. What is left is one marker, moved to the place the card
+ * will actually land, driven from `battleView.externalDragMove` — which was
+ * already computing that place in order to open the row's gap. It has two states,
+ * because a refusal that looks identical to an invitation is worse than no
+ * feedback: the blocked socket is the same silhouette struck through, in red, and
+ * it does not breathe.
+ *
+ * ## Value, and why the floor got a stop and a half brighter
+ *
+ * Measured against the reference on the same frame: HYPEBOUND's whole frame came
+ * back at a median luminance of 16.9 with 2.6% of pixels over L128 and 66.8%
+ * under L40; frame 60 of the reference measures 70.9 / 28.9% / 22.6% — and ours
+ * was *more* saturated while being four times darker. Squinted at, this board was
+ * one dark violet mass with two bright chips on it. The play surface is the light
+ * mass now (median L≈72 measured at 1600×900, surround under L12), which is what
+ * §6 asks for; the dark is carried by the surround, where it belongs.
  */
 
 import * as THREE from "three";
@@ -95,20 +124,47 @@ export interface BoardHandles {
   rowPosition: (side: "player" | "enemy", index: number, count: number) => THREE.Vector3;
   leaderPosition: (side: "player" | "enemy") => THREE.Vector3;
   locationPosition: (side: "player" | "enemy") => THREE.Vector3;
-  /** pulse a slot marker (drop targets while dragging a character) */
-  setSlotHighlight: (side: "player" | "enemy", slot: number, on: boolean) => void;
-  clearSlotHighlights: () => void;
   /**
    * Light the place a dragged card would land, or clear it with a null index.
    *
-   * Separate from `setSlotHighlight` because a row is not a set of fixed slots:
-   * characters centre themselves, so the socket has to be drawn at the *virtual*
-   * position the row will have once the card is in it, which only the caller
-   * knows. This is the whole of the board's drag feedback and there was none.
+   * A row is not a set of fixed slots — characters centre themselves — so the
+   * socket has to be drawn at the *virtual* position the row will have once the
+   * card is in it, which only the caller knows. This is the whole of the board's
+   * drag feedback, and until this round it was never called: `setDropTarget` had
+   * three references in the tree (the interface line, the definition and the
+   * export) and no call site, so twelve slot rings, a socket and a row inlay were
+   * allocated and lerped toward zero every frame for nothing.
+   *
+   * `state` is what makes an illegal drop look illegal. Dragging over the rival's
+   * row used to look exactly like dragging over your own.
    */
-  setDropTarget: (side: "player" | "enemy", index: number | null, count: number) => void;
+  setDropTarget: (
+    side: "player" | "enemy",
+    index: number | null,
+    count: number,
+    state?: DropState
+  ) => void;
+  /** Deck and discard heights and counts, so the stacks are the readout. */
+  setResources: (side: "player" | "enemy", deck: number, discard: number) => void;
+  /** Top of a seat's deck pile — the place its played cards fly out of. */
+  deckPosition: (side: "player" | "enemy") => THREE.Vector3;
+  /**
+   * Whose turn it is, told to the room rather than to a chip over the board.
+   *
+   * The active half of the mat lifts, the rope light along that half's lip comes
+   * up, and the other half goes cold. It is a state rather than an animation:
+   * the handover *sweeps* to it over one UI beat and then it simply stays true
+   * for the whole turn, which is the difference between an announcement and a
+   * board that knows whose it is.
+   */
+  setActiveSide: (side: "player" | "enemy" | null) => void;
+  /** Below ~500px of viewport height the socket labels are illegible mush. */
+  setCompact: (compact: boolean) => void;
   update: (elapsed: number) => void;
 }
+
+/** A drop under the pointer is either somewhere the card can go, or it is not. */
+export type DropState = "valid" | "blocked";
 
 // ---------------------------------------------------------------------------
 // Mat dimensions
@@ -233,10 +289,17 @@ function rowInlayRects(): [number, number, number, number, number][] {
  * pool, and the socket interior is now genuinely darker than the floor rather
  * than merely a different violet.
  */
-const SOCKET_X = 6.4;
+const SOCKET_X = 7.9;
 const SOCKET_R = 1.2;
-/** How far up-board the sockets sit from their leader, clear of the row. */
-const SOCKET_Z = (side: 1 | -1): number => (side === 1 ? BOARD.playerLeaderZ - 0.5 : BOARD.enemyLeaderZ + 0.5);
+/**
+ * How far up-board the sockets sit from their leader, clear of the row.
+ *
+ * They moved out from 6.4 to 7.9 when the deck stacks left the play surface for
+ * the border: with the piles gone from x = ±3.85 the ground beside each leader
+ * is the emptiest part of the arena, and a socket that used to be crowded
+ * between a pile and a medallion now has room to be an object.
+ */
+const SOCKET_Z = (side: 1 | -1): number => (side === 1 ? BOARD.playerLeaderZ - 1.1 : BOARD.enemyLeaderZ + 1.1);
 
 // ---------------------------------------------------------------------------
 // The arena rim
@@ -255,6 +318,26 @@ const SOCKET_Z = (side: 1 | -1): number => (side === 1 ? BOARD.playerLeaderZ - 0
 const RIM = {
   innerW: 20.4,
   innerD: 16.9,
+  /**
+   * Four different deck widths, and the difference is the point.
+   *
+   * A ring of constant thickness is a rounded rectangle with a rounded
+   * rectangle cut out of it — the same object the mat's redesign spent a whole
+   * round deleting, drawn one step further out. Measured on the last capture
+   * the inner lip ran dead straight for 760 pixels across the top and the apron
+   * was the same width at every point you could put a ruler on. Frame 60 of the
+   * reference has a border that is three units of carved stone at one corner and
+   * half a unit of splintered plank at another, and the eye reads that
+   * inconsistency as "a place somebody built" long before it reads any of the
+   * detail on it. So: the near run is a deep front-of-house apron, the far run
+   * is a thin catwalk behind the rival, and the two flanks disagree with each
+   * other as well.
+   */
+  far: 1.1,
+  near: 2.4,
+  left: 2.05,
+  right: 1.3,
+  /** A nominal width, for the few things that only need one number. */
   thickness: 1.55,
   height: 0.46,
   radius: 3.4,
@@ -262,8 +345,12 @@ const RIM = {
   z: MAT_Z,
 } as const;
 
-const RIM_OUTER_W = RIM.innerW + RIM.thickness * 2;
-const RIM_OUTER_D = RIM.innerD + RIM.thickness * 2;
+const RIM_OUTER_W = RIM.innerW + RIM.left + RIM.right;
+const RIM_OUTER_D = RIM.innerD + RIM.far + RIM.near;
+/** How far the outer rectangle sits from the hole it surrounds. */
+const RIM_OFF_X = (RIM.right - RIM.left) / 2;
+const RIM_OFF_Z = (RIM.near - RIM.far) / 2;
+
 
 /**
  * Hex cell radius, in texture pixels — about 0.75 world units, which is a third
@@ -288,9 +375,24 @@ function makeTableTexture(): THREE.CanvasTexture {
   const ctx = canvas2d(TEX_W, TEX_H);
   if (!ctx) return new THREE.CanvasTexture(document.createElement("canvas"));
 
-  // A dark violet floor. Flat on purpose: the spot light gives it its
-  // directional gradient, and a second gradient here would be a second sun.
-  ctx.fillStyle = "#201738";
+  /**
+   * A violet floor, a stop and a half up from where it was.
+   *
+   * Flat on purpose: the spot light gives it its directional gradient, and a
+   * second gradient here would be a second sun. What changed is the *value*. At
+   * `#201738` the whole frame measured a median luminance of 17.6 with 67.8% of
+   * its pixels under L40 and only 2.1% over L128, against a reference frame at
+   * median 70.9 / 22.6% / 28.9% — four times darker at the median with a
+   * fraction of the light mass, while carrying *more* saturation than the
+   * reference does. Squinted at, our board resolved into one dark violet mass
+   * with two bright chips on it; the reference resolves into a large light play
+   * surface inside a dark frame, which is what §6's value structure asks for.
+   *
+   * Neon nightlife is a dark palette. The play surface still has to be the light
+   * mass inside it — the surround is what carries the dark, and it is graded
+   * down in `scene.ts` in the same change.
+   */
+  ctx.fillStyle = "#312459";
   ctx.fillRect(0, 0, TEX_W, TEX_H);
 
   /**
@@ -307,7 +409,7 @@ function makeTableTexture(): THREE.CanvasTexture {
    */
   ctx.save();
   ctx.filter = "blur(52px)";
-  ctx.fillStyle = "rgba(140, 100, 228, 0.6)";
+  ctx.fillStyle = "rgba(196, 162, 255, 0.6)";
   roundedPath(
     ctx,
     tx(-BOARD.width / 2 + 1.2),
@@ -333,7 +435,7 @@ function makeTableTexture(): THREE.CanvasTexture {
   const mottle = grainPattern(ctx, 256, 0.14, 0x4d4154, 7);
   if (mottle) {
     ctx.save();
-    ctx.globalAlpha = 0.42;
+    ctx.globalAlpha = 0.56;
     ctx.scale(5, 5);
     ctx.fillStyle = mottle;
     ctx.fillRect(0, 0, TEX_W / 5, TEX_H / 5);
@@ -348,7 +450,13 @@ function makeTableTexture(): THREE.CanvasTexture {
    * from across the room. Etched, not printed: what should be visible is that
    * the floor has a grain, not what the grain is.
    */
-  ctx.strokeStyle = "rgba(186, 162, 255, 0.05)";
+  ctx.save();
+  ctx.strokeStyle = "rgba(12, 5, 28, 0.095)";
+  ctx.lineWidth = 2.6;
+  ctx.translate(1.4, 1.4);
+  hexPath(ctx, HEX_R, (path) => ctx.stroke(path));
+  ctx.restore();
+  ctx.strokeStyle = "rgba(226, 210, 255, 0.08)";
   ctx.lineWidth = 1.4;
   hexPath(ctx, HEX_R, (path) => ctx.stroke(path));
 
@@ -372,7 +480,17 @@ function makeTableTexture(): THREE.CanvasTexture {
   }
 
   drawStageCrest(ctx, "rgba(210, 190, 255, 0.14)", "rgba(6, 3, 16, 0.1)");
-  drawScuffs(ctx, "rgba(214, 196, 255, 0.075)");
+  /**
+   * A scuff on a bright floor needs both halves of its edge.
+   *
+   * One pale arc at 7.5% was legible against `#201738`; against a play surface
+   * lifted to L*≈80 it is nothing at all. Drawn twice, three pixels apart along
+   * the key vector, the same arc becomes a scratch with a shaded side and a lit
+   * side — which is the difference between "the floor has a mark on it" and "the
+   * floor is a gradient".
+   */
+  drawScuffs(ctx, "rgba(20, 8, 42, 0.16)", 3);
+  drawScuffs(ctx, "rgba(240, 230, 255, 0.1)");
 
   /**
    * The two location sockets, cut out of the weave rather than tinted onto it.
@@ -546,7 +664,7 @@ function drawStageCrest(ctx: CanvasRenderingContext2D, light: string, dark: stri
  * random scatter, so two builds of the game produce the same floor and a visual
  * diff shows only what changed.
  */
-function drawScuffs(ctx: CanvasRenderingContext2D, colour: string): void {
+function drawScuffs(ctx: CanvasRenderingContext2D, colour: string, offset = 0): void {
   const arcs: [number, number, number, number, number][] = [
     [-5.4, -3.1, 4.2, 0.2, 2.1],
     [5.9, -2.2, 3.4, 3.4, 5.6],
@@ -562,7 +680,7 @@ function drawScuffs(ctx: CanvasRenderingContext2D, colour: string): void {
   for (const [x, z, radius, from, to] of arcs) {
     ctx.lineWidth = 3 + (radius % 2) * 2;
     ctx.beginPath();
-    ctx.arc(tx(x), tz(z), radius * PX, from, to);
+    ctx.arc(tx(x) + offset, tz(z) + offset, radius * PX, from, to);
     ctx.stroke();
   }
   ctx.restore();
@@ -786,20 +904,27 @@ function makeHaloTexture(): THREE.CanvasTexture {
 // The rim, the rope light and the props standing on them
 // ---------------------------------------------------------------------------
 
-/** A rounded rectangle as a `Shape`/`Path`, centred on the origin. */
-function roundedOutline(path: THREE.Shape | THREE.Path, w: number, d: number, r: number): void {
+/** A rounded rectangle as a `Shape`/`Path`, centred on (cx, cy). */
+function roundedOutline(
+  path: THREE.Shape | THREE.Path,
+  w: number,
+  d: number,
+  r: number,
+  cx = 0,
+  cy = 0
+): void {
   const hw = w / 2;
   const hd = d / 2;
   const rr = Math.min(r, hw, hd);
-  path.moveTo(-hw + rr, -hd);
-  path.lineTo(hw - rr, -hd);
-  path.quadraticCurveTo(hw, -hd, hw, -hd + rr);
-  path.lineTo(hw, hd - rr);
-  path.quadraticCurveTo(hw, hd, hw - rr, hd);
-  path.lineTo(-hw + rr, hd);
-  path.quadraticCurveTo(-hw, hd, -hw, hd - rr);
-  path.lineTo(-hw, -hd + rr);
-  path.quadraticCurveTo(-hw, -hd, -hw + rr, -hd);
+  path.moveTo(cx - hw + rr, cy - hd);
+  path.lineTo(cx + hw - rr, cy - hd);
+  path.quadraticCurveTo(cx + hw, cy - hd, cx + hw, cy - hd + rr);
+  path.lineTo(cx + hw, cy + hd - rr);
+  path.quadraticCurveTo(cx + hw, cy + hd, cx + hw - rr, cy + hd);
+  path.lineTo(cx - hw + rr, cy + hd);
+  path.quadraticCurveTo(cx - hw, cy + hd, cx - hw, cy + hd - rr);
+  path.lineTo(cx - hw, cy - hd + rr);
+  path.quadraticCurveTo(cx - hw, cy - hd, cx - hw + rr, cy - hd);
 }
 
 /** A flat ring between two rounded rectangles. */
@@ -808,6 +933,31 @@ function ringShape(outerW: number, outerD: number, innerW: number, innerD: numbe
   roundedOutline(shape, outerW, outerD, radius);
   const hole = new THREE.Path();
   roundedOutline(hole, innerW, innerD, Math.max(0.2, radius - (outerW - innerW) / 2));
+  shape.holes.push(hole);
+  return shape;
+}
+
+/**
+ * The arena ring, whose outer rectangle is deliberately not concentric with the
+ * hole it surrounds.
+ *
+ * A shape lives in the XY plane and the mesh is rotated -90° about X, which maps
+ * shape +y onto world -z. So the *far* side of the board is shape +y and the
+ * near side is shape -y, which is why the z offset is negated here and nowhere
+ * else in this file.
+ */
+function rimRingShape(grow = 0): THREE.Shape {
+  const shape = new THREE.Shape();
+  roundedOutline(
+    shape,
+    RIM_OUTER_W + grow * 2,
+    RIM_OUTER_D + grow * 2,
+    RIM.radius + Math.max(RIM.left, RIM.right) + grow,
+    RIM_OFF_X,
+    -RIM_OFF_Z
+  );
+  const hole = new THREE.Path();
+  roundedOutline(hole, RIM.innerW, RIM.innerD, RIM.radius);
   shape.holes.push(hole);
   return shape;
 }
@@ -868,9 +1018,14 @@ function makeRimTexture(): THREE.CanvasTexture {
   const ctx = canvas2d(width, height);
   if (!ctx) return new THREE.CanvasTexture(document.createElement("canvas"));
 
+  /**
+   * The canvas covers the ring's own outer rectangle, which is off-centre from
+   * the hole. Getting this wrong clamps the plank run at one end and puts the
+   * corner plates a metre inboard of the corners.
+   */
   const ux = width / RIM_OUTER_W;
-  const rx = (worldX: number): number => (worldX + RIM_OUTER_W / 2) * ux;
-  const ry = (worldZ: number): number => (worldZ - RIM.z + RIM_OUTER_D / 2) * ux;
+  const rx = (worldX: number): number => (worldX - (RIM_OFF_X - RIM_OUTER_W / 2)) * ux;
+  const ry = (worldZ: number): number => (worldZ - (RIM.z + RIM_OFF_Z - RIM_OUTER_D / 2)) * ux;
 
   ctx.fillStyle = "#241a3c";
   ctx.fillRect(0, 0, width, height);
@@ -911,8 +1066,8 @@ function makeRimTexture(): THREE.CanvasTexture {
   const plate = 3.6;
   for (const sx of [-1, 1] as const) {
     for (const sz of [-1, 1] as const) {
-      const cx = rx((RIM_OUTER_W / 2 - plate / 2 - 0.35) * sx);
-      const cy = ry(RIM.z + (RIM_OUTER_D / 2 - plate / 2 - 0.35) * sz);
+      const cx = rx(RIM_OFF_X + (RIM_OUTER_W / 2 - plate / 2 - 0.35) * sx);
+      const cy = ry(RIM.z + RIM_OFF_Z + (RIM_OUTER_D / 2 - plate / 2 - 0.35) * sz);
       const half = (plate / 2) * ux;
       ctx.save();
       ctx.translate(cx, cy);
@@ -942,11 +1097,17 @@ function makeRimTexture(): THREE.CanvasTexture {
     }
   }
 
-  // Hazard paint on the two side runs — worn, because nobody repaints a stage.
-  for (const sx of [-1, 1] as const) {
+  /**
+   * Hazard paint, on ONE run and not on both.
+   *
+   * Mirrored, it was a second thing making the two flanks measure the same. A
+   * crew paints the edge people actually walk off, which here is the wide near
+   * apron on the left, and leaves the other one bare.
+   */
+  {
     ctx.save();
     ctx.beginPath();
-    ctx.rect(rx((RIM_OUTER_W / 2 - RIM.thickness * 0.62) * sx - 0.5 * ux), ry(RIM.z - 3.4), RIM.thickness * 0.5 * ux, 6.8 * ux);
+    ctx.rect(rx(-RIM.innerW / 2 - RIM.left), ry(RIM.z - 1.2), RIM.left * 0.46 * ux, 8.4 * ux);
     ctx.clip();
     ctx.globalAlpha = 0.42;
     for (let i = -20; i < 30; i++) {
@@ -959,6 +1120,48 @@ function makeRimTexture(): THREE.CanvasTexture {
     }
     ctx.restore();
   }
+
+  /**
+   * Cut into the deck: two hatches and a cable port, so the border is a thing
+   * with holes in it rather than a painted strip.
+   *
+   * Each is a rounded well with the light landing on its far wall — the same
+   * inversion `.mat-well` uses, which is what stops a recess from reading as a
+   * button. They sit at different depths along the flanks, so the run of the
+   * lip is broken at three more places.
+   */
+  const hatch = (worldX: number, worldZ: number, w: number, d: number): void => {
+    const x = rx(worldX - w / 2);
+    const y = ry(worldZ - d / 2);
+    const pw = w * ux;
+    const ph = d * ux;
+    ctx.save();
+    // The cast shadow of the near lip, bottom-right, before the hole itself.
+    ctx.fillStyle = "rgba(2, 1, 8, 0.5)";
+    roundedPath(ctx, x + 3, y + 4, pw, ph, 9);
+    ctx.fill();
+    roundedPath(ctx, x, y, pw, ph, 9);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = "#07040f";
+    ctx.fillRect(x, y, pw, ph);
+    const wall = ctx.createLinearGradient(x + LIGHT_RIG.screen.x * pw, y + LIGHT_RIG.screen.y * ph, x - LIGHT_RIG.screen.x * pw, y - LIGHT_RIG.screen.y * ph);
+    wall.addColorStop(0, "rgba(0,0,0,0)");
+    wall.addColorStop(0.62, "rgba(74, 58, 118, 0.16)");
+    wall.addColorStop(1, "rgba(168, 146, 226, 0.42)");
+    ctx.fillStyle = wall;
+    ctx.fillRect(x, y, pw, ph);
+    ctx.restore();
+    // …and the lit top-left lip around it.
+    ctx.lineWidth = 3.2;
+    ctx.strokeStyle = "rgba(226, 214, 255, 0.3)";
+    roundedPath(ctx, x - 1.6, y - 1.8, pw, ph, 9);
+    ctx.stroke();
+    ctx.restore();
+  };
+  hatch(-RIM.innerW / 2 - RIM.left * 0.52, RIM.z - 5.2, 1.15, 1.5);
+  hatch(RIM.innerW / 2 + RIM.right * 0.5, RIM.z + 1.9, 0.95, 2.3);
+  hatch(-2.8, RIM.z + RIM.innerD / 2 + RIM.near * 0.46, 2.6, 0.95);
 
   // Gaffer tape: three strips across the deck, one peeling.
   const tape = (x0: number, z0: number, x1: number, z1: number, w: number): void => {
@@ -985,7 +1188,11 @@ function makeRimTexture(): THREE.CanvasTexture {
   // Grime in the corners, and the same dirt the floor wears.
   const grime = ctx.createRadialGradient(width * 0.5, height * 0.46, width * 0.2, width * 0.5, height * 0.46, width * 0.7);
   grime.addColorStop(0, "rgba(0,0,0,0)");
-  grime.addColorStop(1, "rgba(2, 1, 8, 0.6)");
+  // 0.42 rather than 0.6: this darkening lands on top of the key's own falloff
+  // and the composer's vignette, and the three together put the near run at
+  // L≈15 — below the graded backdrop behind it, which is not shadow, it is a
+  // hole. Dirt in the corners, not a black surround.
+  grime.addColorStop(1, "rgba(2, 1, 8, 0.42)");
   ctx.fillStyle = grime;
   ctx.fillRect(0, 0, width, height);
 
@@ -1002,7 +1209,8 @@ function makeRimTexture(): THREE.CanvasTexture {
   rimTexture.colorSpace = THREE.SRGBColorSpace;
   rimTexture.anisotropy = 8;
   rimTexture.repeat.set(1 / RIM_OUTER_W, 1 / RIM_OUTER_D);
-  rimTexture.offset.set(0.5, 0.5);
+  // Derived rather than 0.5, because the ring's outer box is off-centre now.
+  rimTexture.offset.set(0.5 - RIM_OFF_X / RIM_OUTER_W, 0.5 + RIM_OFF_Z / RIM_OUTER_D);
   return rimTexture;
 }
 
@@ -1010,24 +1218,54 @@ function makeRimTexture(): THREE.CanvasTexture {
 function makeRim(): THREE.Object3D {
   const group = new THREE.Group();
 
-  const shape = ringShape(RIM_OUTER_W, RIM_OUTER_D, RIM.innerW, RIM.innerD, RIM.radius + RIM.thickness);
+  const shape = rimRingShape();
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: RIM.height,
     bevelEnabled: true,
-    bevelThickness: 0.13,
-    bevelSize: 0.17,
+    // A wider, deeper bevel than before, and it is the geometric half of the
+    // hard-step defect: measured at x=600 the boundary from deck to play surface
+    // was a single pixel carrying +39 of luminance. A 0.3-unit chamfer with four
+    // segments gives that boundary a lit shoulder to ramp across.
+    bevelThickness: 0.2,
+    bevelSize: 0.3,
     bevelOffset: 0,
-    bevelSegments: 2,
-    curveSegments: 12,
+    bevelSegments: 4,
+    curveSegments: 14,
   });
   geometry.rotateX(-Math.PI / 2);
   geometry.translate(0, 0, RIM.z);
+  /**
+   * The 315° rule, applied to the largest object on the board by construction
+   * rather than by hoping the lights agree.
+   *
+   * Measured on the previous build: the near (bottom) run came back at L≈74
+   * against the far (top) run at L≈39 — the *unlit* edge nearly twice as bright
+   * as the lit one, which is FOUNDATION-CONTRACT §0 inverted on the biggest
+   * surface in the game. The cause was the magenta practical sitting at
+   * (9.4, 3.4, 3.4), i.e. directly over the near-right deck, out-lighting a key
+   * that has to travel across the whole arena. Vertex-shading the albedo along
+   * the key vector means no amount of practical can flip the ordering: the
+   * top-left run is painted three times the reflectance of the bottom-right one
+   * before a single light is added.
+   */
+  /**
+   * 0.95 to 1.7, and both numbers were arrived at by measuring.
+   *
+   * The first attempt used 0.38 to 1.34. The ordering came out correct — far rim
+   * L≈49 against near rim L≈15.5, which is the 315° rule finally holding on this
+   * object — but the unlit run landed *below the graded backdrop behind it*, so
+   * the widest part of the border read as a hole rather than as timber in
+   * shadow. A 1.8:1 albedo ratio keeps the direction unmistakable and leaves the
+   * dark end enough value to be a material. Shadow is not absence.
+   */
+  shadeAlongKey(geometry, 0.95, 1.7);
 
   const deck = new THREE.Mesh(
     geometry,
     new THREE.MeshStandardMaterial({
       map: makeRimTexture(),
       color: 0xb6a8d8,
+      vertexColors: true,
       roughness: 0.82,
       metalness: 0.12,
       envMapIntensity: 0.6,
@@ -1072,7 +1310,7 @@ function makeRim(): THREE.Object3D {
    * key is not. Painted rather than cast: a shadow map for one static ring is a
    * per-frame depth pass for a thing that never moves.
    */
-  const skirtShape = ringShape(RIM.innerW + 0.1, RIM.innerD + 0.1, RIM.innerW - 2.4, RIM.innerD - 2.4, RIM.radius);
+  const skirtShape = ringShape(RIM.innerW + 0.1, RIM.innerD + 0.1, RIM.innerW - 3.2, RIM.innerD - 3.2, RIM.radius);
   const skirtGeometry = new THREE.ShapeGeometry(skirtShape, 12);
   skirtGeometry.rotateX(-Math.PI / 2);
   skirtGeometry.translate(0, 0.006, RIM.z);
@@ -1080,10 +1318,11 @@ function makeRim(): THREE.Object3D {
   const skirt = new THREE.Mesh(
     skirtGeometry,
     new THREE.MeshBasicMaterial({
+      map: makeSkirtRamp(),
       color: 0x05020e,
       vertexColors: true,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.62,
       depthWrite: false,
       fog: false,
     })
@@ -1095,6 +1334,55 @@ function makeRim(): THREE.Object3D {
 }
 
 /**
+ * The gradient the deck's shadow fades along, as a bitmap rather than as vertex
+ * colours.
+ *
+ * The skirt is a ring two quads deep, so shading it by vertex can only ramp
+ * between its inner and outer edges in straight steps, which is what left the
+ * boundary reading as a step rather than as a shoulder. A `ShapeGeometry`'s
+ * default UVs are the shape's own coordinates, so the distance from the ring's
+ * centre is available per fragment: this bitmap is sampled by that, opaque at
+ * the lip and gone by the inner edge.
+ */
+let skirtRamp: THREE.CanvasTexture | null = null;
+function makeSkirtRamp(): THREE.CanvasTexture {
+  if (skirtRamp) return skirtRamp;
+  const size = 256;
+  const ctx = canvas2d(size, size);
+  if (!ctx) return new THREE.CanvasTexture(document.createElement("canvas"));
+  const image = ctx.createImageData(size, size);
+  const pixels = image.data;
+  const half = size / 2;
+  // The shape spans roughly ±RIM.innerW/2 in u and ±RIM.innerD/2 in v; the
+  // default generator maps those straight through, so normalising by the half
+  // extents recovers "how far out toward the lip am I".
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const nx = Math.abs((x + 0.5 - half) / half);
+      const ny = Math.abs((y + 0.5 - half) / half);
+      const r = Math.min(1, Math.pow(Math.pow(nx, 6) + Math.pow(ny, 6), 1 / 6));
+      const t = Math.min(1, Math.max(0, (r - 0.72) / 0.28));
+      const p = (y * size + x) * 4;
+      pixels[p] = 255;
+      pixels[p + 1] = 255;
+      pixels[p + 2] = 255;
+      pixels[p + 3] = Math.round(Math.pow(t, 1.5) * 255);
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  skirtRamp = new THREE.CanvasTexture(ctx.canvas);
+  skirtRamp.colorSpace = THREE.SRGBColorSpace;
+  /**
+   * `ShapeGeometry` writes the shape's own coordinates as UVs — values in the
+   * ±10 range, not 0–1 — so without this the whole ring samples one clamped
+   * corner pixel and the ramp does nothing at all.
+   */
+  skirtRamp.repeat.set(1 / RIM.innerW, 1 / RIM.innerD);
+  skirtRamp.offset.set(0.5, 0.5);
+  return skirtRamp;
+}
+
+/**
  * A prop's surface: a road case, which is what everything backstage is made of.
  *
  * One bitmap on all six faces of a box. It is not a lie — a flight case really is
@@ -1102,8 +1390,25 @@ function makeRim(): THREE.Object3D {
  * is one texture and one draw call for an object whose job is to break a
  * silhouette rather than to be looked at.
  */
+/**
+ * The four stencils, because eight copies of one is a repeat you can read.
+ *
+ * "STAGE LEFT" appeared on every road case, wedge and crate on the arena — the
+ * same three-word stencil eight times, legible at 2560 and unmissable once you
+ * have seen it once. A real backline is a pile of cases that have been to
+ * different places: a monitor world box, a tour crate that has been re-stencilled
+ * twice, a fragile flight case with tape over the last band's name.
+ */
+type PropKind = "case" | "case-tour" | "case-fragile" | "speaker";
+
+const PROP_STENCIL: Record<string, { text: string; band: string }> = {
+  case: { text: "STAGE LEFT", band: "rgba(196, 182, 240, 0.26)" },
+  "case-tour": { text: "HYPEBOUND · 26", band: "rgba(255, 149, 196, 0.3)" },
+  "case-fragile": { text: "FRAGILE", band: "rgba(242, 198, 90, 0.34)" },
+};
+
 const propTextures = new Map<string, THREE.CanvasTexture>();
-function makePropTexture(kind: "case" | "speaker"): THREE.CanvasTexture {
+function makePropTexture(kind: PropKind): THREE.CanvasTexture {
   const hit = propTextures.get(kind);
   if (hit) return hit;
   const size = 256;
@@ -1114,7 +1419,7 @@ function makePropTexture(kind: "case" | "speaker"): THREE.CanvasTexture {
   if (!ctx) return texture;
 
   const body = ctx.createLinearGradient(0, 0, size, size);
-  body.addColorStop(0, kind === "speaker" ? "#2a2140" : "#332246");
+  body.addColorStop(0, kind === "speaker" ? "#2a2140" : kind === "case-tour" ? "#2b1f3f" : "#332246");
   body.addColorStop(1, "#100a1e");
   ctx.fillStyle = body;
   ctx.fillRect(0, 0, size, size);
@@ -1169,15 +1474,34 @@ function makePropTexture(kind: "case" | "speaker"): THREE.CanvasTexture {
       ctx.arc(cx, cy, 15, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.fillStyle = "rgba(196, 182, 240, 0.26)";
+    const stencil = PROP_STENCIL[kind] ?? PROP_STENCIL["case"]!;
+    ctx.fillStyle = stencil.band;
     ctx.fillRect(size * 0.36, size * 0.46, size * 0.28, size * 0.1);
     ctx.fillStyle = "rgba(4, 2, 12, 0.55)";
     ctx.fillRect(size * 0.36, size * 0.53, size * 0.28, 4);
+    // The case that has been round twice carries a struck-through old stencil
+    // above the current one, which is the detail that says "this has a history"
+    // for the price of two draw calls.
+    if (kind === "case-tour") {
+      ctx.save();
+      ctx.font = cardFont(11, 600);
+      ctx.textAlign = "center";
+      ctx.letterSpacing = "1.8px";
+      ctx.fillStyle = "rgba(206, 192, 248, 0.16)";
+      ctx.fillText("AFTERHOURS TOUR", size / 2, size * 0.66);
+      ctx.strokeStyle = "rgba(206, 192, 248, 0.22)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(size * 0.2, size * 0.645);
+      ctx.lineTo(size * 0.8, size * 0.655);
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.font = cardFont(13, 700);
     ctx.textAlign = "center";
     ctx.letterSpacing = "2.4px";
     ctx.fillStyle = "rgba(226, 212, 255, 0.3)";
-    ctx.fillText("STAGE LEFT", size / 2, size * 0.78);
+    ctx.fillText(stencil.text, size / 2, size * 0.78);
     ctx.letterSpacing = "0px";
   }
 
@@ -1204,12 +1528,16 @@ function makePropTexture(kind: "case" | "speaker"): THREE.CanvasTexture {
  */
 function makeProps(): THREE.Object3D {
   const group = new THREE.Group();
-  const caseMaterial = new THREE.MeshStandardMaterial({
-    map: makePropTexture("case"),
-    roughness: 0.78,
-    metalness: 0.18,
-    envMapIntensity: 0.8,
-  });
+  const crate = (kind: PropKind): THREE.MeshStandardMaterial =>
+    new THREE.MeshStandardMaterial({
+      map: makePropTexture(kind),
+      roughness: 0.78,
+      metalness: 0.18,
+      envMapIntensity: 0.8,
+    });
+  const caseMaterial = crate("case");
+  const tourMaterial = crate("case-tour");
+  const fragileMaterial = crate("case-fragile");
   const speakerMaterial = new THREE.MeshStandardMaterial({
     map: makePropTexture("speaker"),
     roughness: 0.66,
@@ -1243,27 +1571,29 @@ function makeProps(): THREE.Object3D {
     group.add(shadow);
   };
 
-  const farZ = RIM.z - RIM_OUTER_D / 2 + RIM.thickness * 0.55;
-  const nearZ = RIM.z + RIM_OUTER_D / 2 - RIM.thickness * 0.55;
-  const sideX = RIM_OUTER_W / 2 - RIM.thickness * 0.5;
+  const farZ = RIM.z + RIM_OFF_Z - RIM_OUTER_D / 2 + RIM.far * 0.5;
+  const nearZ = RIM.z + RIM_OFF_Z + RIM_OUTER_D / 2 - RIM.near * 0.5;
+  const leftX = RIM_OFF_X - RIM_OUTER_W / 2;
+  const rightX = RIM_OFF_X + RIM_OUTER_W / 2;
 
-  // Two PA stacks at the far corners: a sub with a top box on it. They read as
-  // the tallest things on the arena and they bracket the rival's half.
-  for (const sx of [-1, 1] as const) {
-    put(speakerMaterial, 2.3, 1.5, 1.7, sx * (RIM_OUTER_W / 2 - 2.0), farZ + 0.15, RIM.height, sx * 0.14);
-    put(speakerMaterial, 1.9, 1.2, 1.4, sx * (RIM_OUTER_W / 2 - 2.0), farZ + 0.15, RIM.height + 1.5, sx * 0.14);
-  }
+  /**
+   * Two PA stacks at the far corners, and they are no longer a mirrored pair.
+   *
+   * The catwalk behind the rival is the thinnest run on the ring, so the boxes
+   * hang off it — which is what a real far-throw stack does — and the left one
+   * is a sub with a top box while the right one is a single wide box turned
+   * further out of true.
+   */
+  put(speakerMaterial, 2.3, 1.5, 1.7, leftX + 2.1, farZ + 0.15, RIM.height, 0.17);
+  put(speakerMaterial, 1.9, 1.2, 1.4, leftX + 2.0, farZ + 0.2, RIM.height + 1.5, 0.11);
+  put(speakerMaterial, 2.7, 1.35, 1.5, rightX - 2.4, farZ - 0.1, RIM.height, -0.22);
 
-  // Road cases near the player, stacked two high on one side so the near rim is
-  // not a mirror of itself.
-  put(caseMaterial, 2.5, 1.05, 1.6, -RIM_OUTER_W / 2 + 2.3, nearZ - 0.1, RIM.height, 0.08);
-  put(caseMaterial, 1.7, 0.8, 1.3, -RIM_OUTER_W / 2 + 2.1, nearZ - 0.15, RIM.height + 1.05, -0.22);
-  put(caseMaterial, 2.9, 0.9, 1.5, RIM_OUTER_W / 2 - 2.6, nearZ - 0.05, RIM.height, -0.06);
-
-  // Amp heads on the side runs, sitting across the deck so they overhang the
-  // inner lip and break the ring.
-  put(caseMaterial, 1.5, 0.72, 2.4, -sideX + 0.1, RIM.z - 1.4, RIM.height, 0.04);
-  put(caseMaterial, 1.4, 0.6, 2.1, sideX - 0.15, RIM.z + 2.6, RIM.height, -0.05);
+  // Road cases on the deep near apron, stacked two high on one side so the near
+  // rim is not a mirror of itself either.
+  put(tourMaterial, 2.5, 1.05, 1.6, leftX + 2.6, nearZ - 0.25, RIM.height, 0.08);
+  put(caseMaterial, 1.7, 0.8, 1.3, leftX + 2.4, nearZ - 0.3, RIM.height + 1.05, -0.22);
+  put(fragileMaterial, 2.9, 0.9, 1.5, rightX - 2.9, nearZ - 0.15, RIM.height, -0.06);
+  put(caseMaterial, 1.35, 0.62, 1.35, rightX - 5.4, nearZ + 0.1, RIM.height, 0.3);
 
   /**
    * The cable run, which is this board's version of the reference's foliage
@@ -1280,14 +1610,71 @@ function makeProps(): THREE.Object3D {
     new THREE.MeshBasicMaterial({ map: makeCableTexture(), transparent: true, depthWrite: false, fog: false })
   );
   cable.rotation.x = -Math.PI / 2;
-  cable.position.set(-RIM.innerW / 2 - 0.2, RIM.height + 0.012, RIM.z + 4.4);
+  cable.position.set(-RIM.innerW / 2 - 0.2, RIM.height + 0.012, RIM.z + 7.2);
   cable.renderOrder = 3;
   group.add(cable);
 
   const cable2 = cable.clone();
   cable2.rotation.z = Math.PI;
-  cable2.position.set(RIM.innerW / 2 + 0.3, RIM.height + 0.012, RIM.z - 4.8);
+  cable2.position.set(RIM.innerW / 2 + 0.3, RIM.height + 0.012, RIM.z - 7.4);
   group.add(cable2);
+
+  /**
+   * Three things standing *over* the lip, and no two of them the same depth in.
+   *
+   * The rim did its job and the arena stopped being a hard rectangle — and then
+   * became a rounded rectangle instead, which is the same object with its
+   * corners filed off. Measured on the capture, the inner lip ran dead straight
+   * from x=420 to x=1180 across the top and down both sides: three parallel runs
+   * and four arcs, which is furniture, not ground inside a venue. Frame 60 of the
+   * reference has no straight edge anywhere on it, and the reason is not that its
+   * border is a cleverer curve — it is that foliage, rocks, a waterfall and two
+   * hero banners keep *crossing* the border, so the eye never gets a long enough
+   * run to resolve one.
+   *
+   * These are wedges and a crate, dropped where a crew would actually leave them,
+   * each overhanging the ground by a different amount (1.4, 0.9 and 2.1 units) so
+   * the apron is a different width at every point you could measure it.
+   */
+  const overhang: [THREE.Material, number, number, number, number, number, number, number][] = [
+    // stage monitor, near-left, tipped up the way a wedge is
+    [caseMaterial, 2.2, 0.62, 1.5, -RIM.innerW / 2 + 1.4, RIM.z + 5.6, 0.24, 0.42],
+    // second wedge, far-right, in a different distance
+    [fragileMaterial, 1.9, 0.55, 1.3, RIM.innerW / 2 - 0.9, RIM.z - 6.2, 0.2, -0.55],
+    // a crate reaching furthest of the three, mid-left
+    [tourMaterial, 1.7, 1.15, 1.7, -RIM.innerW / 2 + 2.1, RIM.z - 6.9, 0.16, 0.19],
+  ];
+  for (const [material, w, h, d, x, z, y, yaw] of overhang) put(material, w, h, d, x, z, y, yaw);
+
+  /**
+   * And two spills of light doing the same job with no geometry at all.
+   *
+   * A practical standing outside the arena throws a wedge of light *onto* it, and
+   * that wedge crosses the boundary — so the boundary is interrupted by something
+   * with no edge of its own, which is the cheapest possible silhouette break and
+   * the one the eye argues with least.
+   */
+  for (const [x, z, size, colour] of [
+    [-RIM.innerW / 2 - 0.6, RIM.z - 1.2, 7.4, 0x52c8ff],
+    [RIM.innerW / 2 + 0.4, RIM.z + 2.4, 6.6, 0xff5fa2],
+  ] as const) {
+    const spill = new THREE.Mesh(
+      new THREE.PlaneGeometry(size, size * 0.72),
+      new THREE.MeshBasicMaterial({
+        map: makeGlowTexture(),
+        color: colour,
+        transparent: true,
+        opacity: 0.17,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false,
+      })
+    );
+    spill.rotation.x = -Math.PI / 2;
+    spill.position.set(x, 0.026, z);
+    spill.renderOrder = 3;
+    group.add(spill);
+  }
 
   return group;
 }
@@ -1367,6 +1754,64 @@ function makeSweepTexture(): THREE.CanvasTexture {
   sweepTexture.wrapS = THREE.RepeatWrapping;
   sweepTexture.wrapT = THREE.ClampToEdgeWrapping;
   return sweepTexture;
+}
+
+/**
+ * Half the mat, as something that can be lit.
+ *
+ * The quad is built with its seam edge on the origin so `scale.y` grows it away
+ * from the centre line rather than about it, which is what turns an opacity fade
+ * into a wipe. Its ramp is hottest at the seam and gone by the far edge, with a
+ * taper across so the wash never draws a straight line down either flank.
+ */
+function makeHalfWash(side: "player" | "enemy"): THREE.Mesh {
+  const depth = BOARD.depth / 2 + 1.4;
+  const geometry = new THREE.PlaneGeometry(MAT_WIDTH * 0.92, depth);
+  geometry.translate(0, side === "player" ? -depth / 2 : depth / 2, 0);
+  geometry.rotateX(-Math.PI / 2);
+
+  const w = 128;
+  const h = 128;
+  const ctx = canvas2d(w, h);
+  if (ctx) {
+    // v = 1 is the seam on the player's half and v = 0 on the rival's, because
+    // the plane was pushed in opposite directions to anchor it.
+    const seamAtTop = side === "enemy";
+    const ramp = ctx.createLinearGradient(0, 0, 0, h);
+    ramp.addColorStop(seamAtTop ? 1 : 0, "rgba(255,255,255,0)");
+    ramp.addColorStop(seamAtTop ? 0.62 : 0.38, "rgba(255,255,255,0.34)");
+    ramp.addColorStop(seamAtTop ? 0 : 1, "rgba(255,255,255,1)");
+    ctx.fillStyle = ramp;
+    ctx.fillRect(0, 0, w, h);
+    const taper = ctx.createLinearGradient(0, 0, w, 0);
+    taper.addColorStop(0, "rgba(0,0,0,1)");
+    taper.addColorStop(0.2, "rgba(0,0,0,0)");
+    taper.addColorStop(0.8, "rgba(0,0,0,0)");
+    taper.addColorStop(1, "rgba(0,0,0,1)");
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fillStyle = taper;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "source-over";
+  }
+  const texture = new THREE.CanvasTexture(ctx?.canvas ?? document.createElement("canvas"));
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  const mesh = new THREE.Mesh(
+    geometry,
+    new THREE.MeshBasicMaterial({
+      map: texture,
+      color: side === "player" ? 0xffb0d6 : 0xaadcff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+    })
+  );
+  mesh.position.set(0, 0.01, 0);
+  mesh.renderOrder = 1;
+  mesh.visible = false;
+  return mesh;
 }
 
 /** A soft round glow sprite used for slot markers and light pools. */
@@ -1543,6 +1988,75 @@ function makeDeckFaceTexture(): THREE.CanvasTexture {
 }
 
 /**
+ * The count plate that turns a pile into a readout.
+ *
+ * A stack whose height falls as it empties is free information, and it is the
+ * right kind of information — you can see at a glance that the rival is running
+ * out — but it is not a *number*, and a player deciding whether to burn a draw
+ * needs the number. Nine pixels of engraved label on the mat was not it. This is
+ * a chip: a bevelled plate lit from 315° with tabular digits on it, sized so it
+ * still reads at 1280×720.
+ */
+const countPlates = new Map<string, THREE.CanvasTexture>();
+function makeCountTexture(value: number, tint: string): THREE.CanvasTexture {
+  const key = `${value}:${tint}`;
+  const cached = countPlates.get(key);
+  if (cached) return cached;
+  const w = 160;
+  const h = 96;
+  const ctx = canvas2d(w, h);
+  const texture = new THREE.CanvasTexture(ctx?.canvas ?? document.createElement("canvas"));
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  countPlates.set(key, texture);
+  if (!ctx) return texture;
+
+  // The plate: two-stop along the key vector, lit rim top-left, lip bottom-right.
+  const body = ctx.createLinearGradient(0, 0, w * 0.7, h);
+  body.addColorStop(0, "rgba(72, 56, 112, 0.96)");
+  body.addColorStop(1, "rgba(14, 8, 30, 0.96)");
+  roundedPath(ctx, 6, 6, w - 12, h - 12, 26);
+  ctx.fillStyle = body;
+  ctx.fill();
+  ctx.lineWidth = 2.4;
+  ctx.strokeStyle = "rgba(232, 218, 255, 0.5)";
+  roundedPath(ctx, 7.2, 7.2, w - 14.4, h - 15.6, 25);
+  ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(4, 2, 12, 0.6)";
+  roundedPath(ctx, 7.2, 9.6, w - 14.4, h - 15.6, 25);
+  ctx.stroke();
+
+  ctx.font = cardFont(52, 800);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(2, 1, 8, 0.8)";
+  ctx.fillText(String(value), w / 2 + 1.5, h / 2 + 2.5);
+  ctx.fillStyle = tint;
+  ctx.fillText(String(value), w / 2, h / 2);
+
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/** How thick a pile of `count` cards stands, in world units. */
+const stackHeight = (count: number): number => Math.min(0.98, Math.max(0.03, count * 0.031));
+
+export interface ResourceFurniture {
+  group: THREE.Object3D;
+  setCounts: (deck: number, discard: number) => void;
+  update: (elapsed: number, still: boolean) => void;
+  /** World position of the top of the pile — where a played card comes from. */
+  origin: () => THREE.Vector3;
+}
+
+/** The centre line of each side run of the deck, which are different widths. */
+const RUN_X = {
+  right: RIM.innerW / 2 + RIM.right / 2,
+  left: -(RIM.innerW / 2 + RIM.left / 2),
+} as const;
+
+/**
  * A deck stack and a discard tray, flanking one leader.
  *
  * Both are real objects with thickness rather than HUD chips in a screen corner,
@@ -1550,18 +2064,45 @@ function makeDeckFaceTexture(): THREE.CanvasTexture {
  * the reference gives a hero that we did not. They are placed with 180° rotational
  * symmetry about the arena centre, so the rival's deck is where yours would be if
  * you were sitting in their chair.
+ *
+ * The stack is now driven by the count rather than being a fixed slab. Both piles
+ * shipped at one constant height at every count, which meant that from across the
+ * table an empty deck and a full one were the same object — and the only number
+ * anywhere near them was a nine-pixel label. The deck now *falls* as it empties,
+ * the stripe pitch on its cut edge stays constant while it does (so it reads as
+ * fewer cards rather than as a shorter card), the discard fills up as the deck
+ * drains, and each carries a chip with the figure on it.
  */
-function makeLeaderFurniture(side: "player" | "enemy"): THREE.Object3D {
+function makeLeaderFurniture(side: "player" | "enemy"): ResourceFurniture {
   const group = new THREE.Group();
   const mirror = side === "player" ? 1 : -1;
-  const z = side === "player" ? BOARD.playerLeaderZ : BOARD.enemyLeaderZ;
+  /**
+   * Out of the play surface and onto the border, which is where the reference
+   * seats every resource it owns.
+   *
+   * They stood at x = ±3.85 beside the leader — on the ground the cards are
+   * played on, taking up two of the six places a row can reach while a quarter
+   * of the mat sat empty on the flanks. On the deck runs they do three jobs at
+   * once: the play surface gets its space back, the flanks stop being dead
+   * apron, and each pile overhangs the narrow right-hand run enough to break the
+   * lip. The z stays inside ±4.5 so nothing lands on a corner arc, where the
+   * deck curves away and a stack would be standing on nothing.
+   */
+  const z = side === "player" ? 2.9 : -3.25;
+  const deckX = side === "player" ? RUN_X.right : RUN_X.left;
+  const discardX = side === "player" ? RUN_X.left : RUN_X.right;
+  const base = RIM.height;
+  const accent = side === "player" ? "#ffd9ec" : "#cfeaff";
 
   // --- the deck ---------------------------------------------------------
   const dw = 1.5;
   const dd = 2.0;
-  const dh = 0.34;
+  /** The geometry is a unit-tall box, so `scale.y` *is* the pile height. */
+  const edgeMap = makeDeckEdgeTexture().clone();
+  edgeMap.needsUpdate = true;
+  edgeMap.wrapT = THREE.RepeatWrapping;
   const edge = new THREE.MeshStandardMaterial({
-    map: makeDeckEdgeTexture(),
+    map: edgeMap,
     roughness: 0.6,
     metalness: 0.05,
     envMapIntensity: 0.9,
@@ -1572,13 +2113,66 @@ function makeLeaderFurniture(side: "player" | "enemy"): THREE.Object3D {
     metalness: 0.1,
     envMapIntensity: 1.1,
   });
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(dw, dh, dd), [edge, edge, face, edge, edge, edge]);
-  deck.position.set(mirror * 3.85, dh / 2 + 0.02, z);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(dw, 1, dd), [edge, edge, face, edge, edge, edge]);
+  deck.position.set(deckX, base + 0.02, z);
   deck.rotation.y = mirror * 0.07;
   group.add(deck);
-  const deckShadow = groundShadow(dw * 1.5, dd * 1.4, { lift: 7, opacity: 0.5, y: 0.014 });
-  deckShadow.position.set(mirror * 3.85 + 0.09, 0.014, z + 0.14);
+
+  /**
+   * Two cards riding slightly proud of the pile.
+   *
+   * A perfectly squared block of cards is a machine-cut object and nobody's deck
+   * looks like that. These are the same trick the props use on the rim: they
+   * break the silhouette so the shape cannot resolve into a rectangle, and they
+   * cost two quads.
+   */
+  const loose: THREE.Mesh[] = [];
+  for (const [i, yaw] of [0.055, -0.09].entries()) {
+    const card = new THREE.Mesh(
+      new THREE.PlaneGeometry(dw * 0.99, dd * 0.99),
+      new THREE.MeshStandardMaterial({
+        map: makeDeckFaceTexture(),
+        roughness: 0.44,
+        metalness: 0.1,
+        envMapIntensity: 1.1,
+      })
+    );
+    card.rotation.x = -Math.PI / 2;
+    card.rotation.z = mirror * 0.07 + yaw;
+    card.position.set(deckX + (i === 0 ? 0.1 : -0.07), base + 0.02, z + (i === 0 ? -0.08 : 0.09));
+    loose.push(card);
+    group.add(card);
+  }
+
+  const deckShadow = groundShadow(dw * 1.5, dd * 1.4, { lift: 7, opacity: 0.5, y: base + 0.014 });
+  deckShadow.position.set(deckX + 0.09, base + 0.014, z + 0.14);
   group.add(deckShadow);
+
+  const deckCount = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.16, 0.7),
+    new THREE.MeshBasicMaterial({ map: makeCountTexture(0, accent), transparent: true, depthWrite: false, fog: false })
+  );
+  deckCount.rotation.x = -Math.PI / 2;
+  /**
+   * Always on the near side of its pile, never the far side.
+   *
+   * Mirrored with the rest of the furniture, the rival's chip sat *up-board* of a
+   * stack that is now nearly a unit tall, and a tall object drawn nearer the
+   * camera covers everything behind it: the rival's deck count was hidden by the
+   * rival's deck. 180-degree symmetry is right for where the furniture stands and
+   * wrong for where its label goes, because the camera is not symmetric.
+   */
+  /**
+   * On the deck run beside its pile, not floating over the ground.
+   *
+   * The z is chosen so the plate lands on the *straight* part of the run: the
+   * ring's outer corner radius is 5.45 units, so anything past |z| ≈ 4.7 is on
+   * an arc where the deck has already curved inward and a flat plate would be
+   * lying on nothing.
+   */
+  deckCount.position.set(deckX, base + 0.03, z + 1.5);
+  deckCount.renderOrder = 4;
+  group.add(deckCount);
 
   // --- the discard ------------------------------------------------------
   /**
@@ -1602,26 +2196,39 @@ function makeLeaderFurniture(side: "player" | "enemy"): THREE.Object3D {
     curveSegments: 6,
   });
   lipGeometry.rotateX(-Math.PI / 2);
-  lipGeometry.translate(-mirror * 3.85, 0.02, z);
+  lipGeometry.translate(discardX, base + 0.02, z);
   const lip = new THREE.Mesh(
     lipGeometry,
     new THREE.MeshStandardMaterial({ color: 0x3a2c5c, roughness: 0.7, metalness: 0.16, envMapIntensity: 0.8 })
   );
   group.add(lip);
 
+  /**
+   * The tray floor, lifted off black.
+   *
+   * It shipped as `0x120a24` shaded from 0.32 down to 0.02 along the key, which
+   * arrives at a floor between L*≈3 and L*≈0 — not a recess, a hole cut in the
+   * picture, and with an empty discard (which is every board on turn one) the
+   * whole object read as a solid black rounded rectangle with a lavender
+   * outline. A well is *darker than its surroundings*, not absent: the range now
+   * runs from a lit far wall down to a deep near corner, which is the same
+   * inversion `.mat-well` uses and is legible as depth rather than as void.
+   */
   const floorGeometry = new THREE.PlaneGeometry(trayW - 0.34, trayD - 0.34);
   floorGeometry.rotateX(-Math.PI / 2);
-  floorGeometry.translate(-mirror * 3.85, 0.03, z);
-  shadeAlongKey(floorGeometry, 0.32, 0.02);
+  floorGeometry.translate(discardX, base + 0.03, z);
+  shadeAlongKey(floorGeometry, 0.9, 0.26);
   group.add(
     new THREE.Mesh(
       floorGeometry,
-      new THREE.MeshBasicMaterial({ color: 0x120a24, vertexColors: true, fog: false })
+      new THREE.MeshBasicMaterial({ color: 0x2b1c4c, vertexColors: true, fog: false })
     )
   );
 
-  // Two spent cards lying askew in the tray, dimmed because they are out.
-  for (const [i, yaw] of [0.34, -0.18].entries()) {
+  // Spent cards lying askew in the tray, dimmed because they are out. Four of
+  // them, revealed one at a time, so the tray fills as the deck drains.
+  const spentCards: THREE.Mesh[] = [];
+  for (const [i, yaw] of [0.34, -0.18, 0.12, -0.31].entries()) {
     const spent = new THREE.Mesh(
       new THREE.PlaneGeometry(1.16, 1.56),
       new THREE.MeshBasicMaterial({
@@ -1635,12 +2242,63 @@ function makeLeaderFurniture(side: "player" | "enemy"): THREE.Object3D {
     );
     spent.rotation.x = -Math.PI / 2;
     spent.rotation.z = yaw;
-    spent.position.set(-mirror * 3.85 + (i === 0 ? -0.1 : 0.12), 0.04 + i * 0.012, z + (i === 0 ? 0.08 : -0.1));
+    spent.position.set(
+      discardX + (i % 2 === 0 ? -0.1 : 0.12),
+      base + 0.04 + i * 0.014,
+      z + (i % 2 === 0 ? 0.08 : -0.1)
+    );
     spent.renderOrder = 3;
+    spent.visible = false;
+    spentCards.push(spent);
     group.add(spent);
   }
 
-  return group;
+  const discardCount = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.16, 0.7),
+    new THREE.MeshBasicMaterial({ map: makeCountTexture(0, accent), transparent: true, depthWrite: false, fog: false })
+  );
+  discardCount.rotation.x = -Math.PI / 2;
+  discardCount.position.set(discardX, base + 0.03, z + 1.62);
+  discardCount.renderOrder = 4;
+  group.add(discardCount);
+
+  let deckN = -1;
+  let discardN = -1;
+  /** Target and shown height, so a draw settles rather than snapping a step. */
+  let targetHeight = stackHeight(0);
+  let shownHeight = targetHeight;
+
+  function setCounts(deckSize: number, discardSize: number): void {
+    if (deckSize !== deckN) {
+      deckN = deckSize;
+      targetHeight = stackHeight(deckSize);
+      // Keep the stripe pitch constant as the pile shrinks: the cut edge should
+      // show fewer card edges, not the same edges further apart.
+      edgeMap.repeat.set(1, Math.max(0.06, targetHeight / 0.98));
+      (deckCount.material as THREE.MeshBasicMaterial).map = makeCountTexture(deckSize, accent);
+      deck.visible = deckSize > 0;
+      for (const [i, card] of loose.entries()) card.visible = deckSize > i * 6 + 2;
+    }
+    if (discardSize !== discardN) {
+      discardN = discardSize;
+      (discardCount.material as THREE.MeshBasicMaterial).map = makeCountTexture(discardSize, accent);
+      for (const [i, card] of spentCards.entries()) card.visible = discardSize > i;
+    }
+  }
+  setCounts(0, 0);
+
+  function update(_elapsed: number, still: boolean): void {
+    shownHeight += (targetHeight - shownHeight) * (still ? 1 : 0.18);
+    deck.scale.y = Math.max(0.001, shownHeight);
+    deck.position.y = base + 0.02 + shownHeight / 2;
+    for (const [i, card] of loose.entries()) card.position.y = base + 0.021 + shownHeight + i * 0.006;
+  }
+  update(0, true);
+
+  /** Where a card flies out of, so the rival's plays come from somewhere. */
+  const origin = (): THREE.Vector3 => new THREE.Vector3(deckX, base + 0.4, z);
+
+  return { group, setCounts, update, origin };
 }
 
 // ---------------------------------------------------------------------------
@@ -1662,15 +2320,16 @@ function makeLeaderFurniture(side: "player" | "enemy"): THREE.Object3D {
  * C's file, which the contract forbids; `mode-tour` is the set's "a place you
  * go" mark and is the honest reuse.
  */
-let socketPlateTexture: THREE.CanvasTexture | null = null;
-function makeSocketPlateTexture(): THREE.CanvasTexture {
-  if (socketPlateTexture) return socketPlateTexture;
+const socketPlateTextures = new Map<boolean, THREE.CanvasTexture>();
+function makeSocketPlateTexture(labelled: boolean): THREE.CanvasTexture {
+  const cached = socketPlateTextures.get(labelled);
+  if (cached) return cached;
   const size = 320;
   const ctx = canvas2d(size, size);
   const texture = new THREE.CanvasTexture(ctx?.canvas ?? document.createElement("canvas"));
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
-  socketPlateTexture = texture;
+  socketPlateTextures.set(labelled, texture);
   if (!ctx) return texture;
 
   const cx = size / 2;
@@ -1703,30 +2362,41 @@ function makeSocketPlateTexture(): THREE.CanvasTexture {
   ctx.strokeStyle = "rgba(2, 1, 8, 0.5)";
   ctx.stroke(hexShape(cx + 2.5, cy + 2.5, radius + 8));
 
-  // The label plate, tracked out the way `.t-label` is.
-  const plateW = size * 0.62;
-  const plateH = 34;
-  const plateX = cx - plateW / 2;
-  const plateY = size * 0.79;
-  const plate = ctx.createLinearGradient(plateX, plateY, plateX + plateW * 0.4, plateY + plateH);
-  plate.addColorStop(0, "rgba(58, 44, 92, 0.92)");
-  plate.addColorStop(1, "rgba(16, 9, 32, 0.92)");
-  ctx.fillStyle = plate;
-  roundedPath(ctx, plateX, plateY, plateW, plateH, 8);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(226, 212, 255, 0.22)";
-  ctx.lineWidth = 1.6;
-  roundedPath(ctx, plateX + 0.8, plateY + 0.8, plateW - 1.6, plateH - 1.6, 8);
-  ctx.stroke();
-  ctx.font = cardFont(17, 700);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.letterSpacing = "3.2px";
-  ctx.fillStyle = "rgba(4, 2, 12, 0.85)";
-  ctx.fillText("LOCATION", cx + 1, plateY + plateH / 2 + 1.4);
-  ctx.fillStyle = "rgba(224, 210, 255, 0.9)";
-  ctx.fillText("LOCATION", cx, plateY + plateH / 2);
-  ctx.letterSpacing = "0px";
+  /**
+   * The label plate, tracked out the way `.t-label` is — and omitted entirely
+   * below 500px of viewport height.
+   *
+   * At 844×390 the plinth labels rendered at about five pixels: not small type,
+   * illegible mush, and mush next to a lip that is doing its job perfectly well
+   * on its own. Type that cannot be read is worse than no type, because it still
+   * costs contrast and attention. Dropping it is the honest answer; shrinking it
+   * further is not.
+   */
+  if (labelled) {
+    const plateW = size * 0.62;
+    const plateH = 34;
+    const plateX = cx - plateW / 2;
+    const plateY = size * 0.79;
+    const plate = ctx.createLinearGradient(plateX, plateY, plateX + plateW * 0.4, plateY + plateH);
+    plate.addColorStop(0, "rgba(58, 44, 92, 0.92)");
+    plate.addColorStop(1, "rgba(16, 9, 32, 0.92)");
+    ctx.fillStyle = plate;
+    roundedPath(ctx, plateX, plateY, plateW, plateH, 8);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(226, 212, 255, 0.22)";
+    ctx.lineWidth = 1.6;
+    roundedPath(ctx, plateX + 0.8, plateY + 0.8, plateW - 1.6, plateH - 1.6, 8);
+    ctx.stroke();
+    ctx.font = cardFont(17, 700);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.letterSpacing = "3.2px";
+    ctx.fillStyle = "rgba(4, 2, 12, 0.85)";
+    ctx.fillText("LOCATION", cx + 1, plateY + plateH / 2 + 1.4);
+    ctx.fillStyle = "rgba(224, 210, 255, 0.9)";
+    ctx.fillText("LOCATION", cx, plateY + plateH / 2);
+    ctx.letterSpacing = "0px";
+  }
 
   // The glyph, once it decodes. A `data:` URI is not a network fetch, and if it
   // never arrives the socket still reads as a labelled empty recess.
@@ -1895,8 +2565,47 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
   // --- the rim, and everything standing on it -------------------------------
   group.add(makeRim());
   group.add(makeProps());
-  group.add(makeLeaderFurniture("player"));
-  group.add(makeLeaderFurniture("enemy"));
+  const resourceFurniture = new Map<"player" | "enemy", ResourceFurniture>();
+  for (const side of ["player", "enemy"] as const) {
+    const furniture = makeLeaderFurniture(side);
+    resourceFurniture.set(side, furniture);
+    group.add(furniture.group);
+  }
+
+  function setResources(side: "player" | "enemy", deck: number, discard: number): void {
+    resourceFurniture.get(side)?.setCounts(deck, discard);
+  }
+
+  const deckPosition = (side: "player" | "enemy"): THREE.Vector3 =>
+    resourceFurniture.get(side)?.origin() ?? new THREE.Vector3(0, 0.6, 0);
+
+  /**
+   * Whose half of the room is lit, and the wipe that moves it there.
+   *
+   * §3a budgets a handover at 260–420ms. What it used to cost was three full-board
+   * DOM chips totalling 3.5 seconds — a RIVAL'S TURN plate parked over the play
+   * area for 1.1s, a card nameplate for another 0.4s, and a YOUR TURN plate for
+   * 0.7s — every single turn. None of that is information the board could not
+   * carry itself. Two additive quads do: one covering each half of the mat, wiped
+   * on and off along the seam. The active half sits a stop up for the whole turn,
+   * so "whose turn is it" is answered by looking at the board rather than by
+   * having been told a second ago.
+   */
+  const halfWash: Record<"player" | "enemy", THREE.Mesh> = {
+    player: makeHalfWash("player"),
+    enemy: makeHalfWash("enemy"),
+  };
+  group.add(halfWash.player, halfWash.enemy);
+
+  let activeSide: "player" | "enemy" | null = null;
+  /** 0 at the seam, 1 fully across — the wipe, driven by update(). */
+  let washSweep = 0;
+
+  function setActiveSide(side: "player" | "enemy" | null): void {
+    if (side === activeSide) return;
+    activeSide = side;
+    washSweep = getSettings().reducedMotion ? 1 : 0;
+  }
 
   /**
    * The specular crawl: a wide soft band of light sliding across the floor.
@@ -1929,8 +2638,7 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
   sweep.renderOrder = 1;
   group.add(sweep);
 
-  // --- slot markers ---------------------------------------------------------
-  const slotMarkers = new Map<string, { ring: THREE.Mesh; glow: THREE.Sprite; highlighted: boolean }>();
+  // --- row geometry ---------------------------------------------------------
   const SLOTS = 6;
 
   /**
@@ -1950,45 +2658,19 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
   const slotPosition = (side: "player" | "enemy", slot: number, slots = SLOTS): THREE.Vector3 =>
     rowPosition(side, slot, slots);
 
-  for (const side of ["player", "enemy"] as const) {
-    for (let slot = 0; slot < SLOTS; slot++) {
-      const position = slotPosition(side, slot);
-
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.66, 0.75, 48),
-        new THREE.MeshBasicMaterial({
-          color: side === "player" ? 0x9a6cff : 0x4aa0ff,
-          transparent: true,
-          opacity: 0,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-          fog: false,
-        })
-      );
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.copy(position);
-      ring.renderOrder = 5;
-      group.add(ring);
-
-      const glow = new THREE.Sprite(
-        new THREE.SpriteMaterial({
-          map: glowTexture,
-          color: side === "player" ? 0xb56cff : 0x52c8ff,
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          fog: false,
-        })
-      );
-      glow.scale.set(2.6, 2.6, 1);
-      glow.position.set(position.x, 0.06, position.z);
-      glow.renderOrder = 6;
-      group.add(glow);
-
-      slotMarkers.set(`${side}:${slot}`, { ring, glow, highlighted: false });
-    }
-  }
+  /**
+   * The twelve fixed slot rings that used to live here are gone.
+   *
+   * They were the older of *two* drop-feedback systems on this board, and both
+   * were dead: `setSlotHighlight` was never called with `on = true` anywhere in
+   * the tree, so twelve `RingGeometry` meshes and twelve additive sprites were
+   * created, added to the scene and lerped toward an opacity of zero on every
+   * frame forever. They could not have been right even if something had called
+   * them — a row centres itself, so a ring at the Nth of six fixed positions is
+   * never where the Nth of four cards actually stands. One marker, moved to the
+   * place the card will land, is both the correct feedback and eleven fewer
+   * draw calls.
+   */
 
   // --- leader podiums -------------------------------------------------------
   const leaderPosition = (side: "player" | "enemy"): THREE.Vector3 =>
@@ -2046,7 +2728,7 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
   const locationPosition = (side: "player" | "enemy"): THREE.Vector3 =>
     new THREE.Vector3(side === "player" ? SOCKET_X : -SOCKET_X, 0.02, SOCKET_Z(side === "player" ? 1 : -1));
 
-  const socketPlate = makeSocketPlateTexture();
+  const socketPlates: THREE.Mesh[] = [];
   for (const side of ["player", "enemy"] as const) {
     const position = locationPosition(side);
     const plate = new THREE.Mesh(
@@ -2055,7 +2737,7 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
       // affordance.
       new THREE.PlaneGeometry(SOCKET_R * 2.9, SOCKET_R * 2.9),
       new THREE.MeshBasicMaterial({
-        map: socketPlate,
+        map: makeSocketPlateTexture(true),
         // Opaque enough to measure. The old rim ran at 0.3 and could not have
         // cleared 3:1 at any colour.
         transparent: true,
@@ -2067,7 +2749,19 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
     plate.rotation.x = -Math.PI / 2;
     plate.position.set(position.x, 0.012, position.z + SOCKET_R * 0.42);
     plate.renderOrder = 3;
+    socketPlates.push(plate);
     group.add(plate);
+  }
+
+  let compact = false;
+  function setCompact(next: boolean): void {
+    if (next === compact) return;
+    compact = next;
+    for (const plate of socketPlates) {
+      const material = plate.material as THREE.MeshBasicMaterial;
+      material.map = makeSocketPlateTexture(!next);
+      material.needsUpdate = true;
+    }
   }
 
   // --- the drop target ------------------------------------------------------
@@ -2075,22 +2769,38 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
    * What a legal slot looks like while a card is over it, and there was none.
    *
    * Diffed six times amplified against a resting frame, a drag over the player's
-   * row changed nothing in the row: `update()` read `marker.highlighted`, nothing
-   * ever set it during an external drag, and the fixed slot markers would have
-   * been in the wrong places anyway because a row centres itself. This is one
-   * marker, moved to wherever the card would actually land: a socket ring with
-   * the mat's own superellipse falloff, a band of the row inlay raised under it,
-   * and a light pool. It is the object the row opens a gap for.
+   * row changed nothing in the row. Now it is one marker, moved to wherever the
+   * card would actually land: a socket ring with the mat's own superellipse
+   * falloff, a band of the row inlay raised under it, and a light pool. It is the
+   * object the row opens a gap for, and it is driven from the same pointer move
+   * in `battleView.externalDragMove` that already decides which gap that is.
+   *
+   * There are two of them because a refusal has to look like a refusal. Dragging
+   * a character over the rival's row, or over ground it cannot occupy, used to
+   * light nothing — indistinguishable from dragging over a legal slot, which is
+   * the worse of the two failures. The blocked socket is the same silhouette
+   * struck through, in the danger red used everywhere else in this game, and it
+   * does not breathe: a thing that is refusing you should be still.
+   */
+  /**
+   * Not additive any more, and that is the whole of the recess.
+   *
+   * An additive quad can only add light, so the "socket" could only ever be a
+   * glowing outline painted on the floor — §1 bans a border as the only edge
+   * treatment and that is exactly what it was: a 4px rounded rect with corner
+   * brackets and nothing inside it. A hole in a floor is *darker in the middle*
+   * with an inner shadow under its near lip and a rim light on its far one, and
+   * none of those three things can be drawn by adding. Normal blending, a
+   * texture that carries its own darkening, and `dropPool` beside it doing the
+   * light half.
    */
   const dropSocket = new THREE.Mesh(
-    new THREE.PlaneGeometry(BOARD.cardWidth * 1.5, BOARD.cardHeight * 1.34),
+    new THREE.PlaneGeometry(BOARD.cardWidth * 1.34, BOARD.cardHeight * 1.2),
     new THREE.MeshBasicMaterial({
-      map: makeDropSocketTexture(),
-      color: 0xc79bff,
+      map: makeDropSocketTexture(false),
       transparent: true,
       opacity: 0,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
       fog: false,
     })
   );
@@ -2119,29 +2829,61 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
   dropBand.visible = false;
   group.add(dropBand);
 
-  let dropTarget: { side: "player" | "enemy"; index: number; count: number } | null = null;
+  /**
+   * The light the socket throws back up onto the card hanging over it.
+   *
+   * A ring painted on the floor is a decal; a ring plus a pool of its own colour
+   * spilling out past the row is a hole with something in it. It is a separate
+   * quad rather than a bigger texture because it has to sit *under* the row band
+   * and fade on a slower curve.
+   */
+  const dropPool = new THREE.Mesh(
+    new THREE.PlaneGeometry(BOARD.cardWidth * 3.4, BOARD.cardHeight * 2.4),
+    new THREE.MeshBasicMaterial({
+      map: glowTexture,
+      color: 0x9a6cff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+    })
+  );
+  dropPool.rotation.x = -Math.PI / 2;
+  dropPool.position.set(0, 0.018, BOARD.playerRowZ);
+  dropPool.renderOrder = 4;
+  dropPool.visible = false;
+  group.add(dropPool);
 
-  function setDropTarget(side: "player" | "enemy", index: number | null, count: number): void {
+  let dropTarget: { side: "player" | "enemy"; index: number; count: number; state: DropState } | null = null;
+  let dropStateShown: DropState | null = null;
+
+  function setDropTarget(
+    side: "player" | "enemy",
+    index: number | null,
+    count: number,
+    state: DropState = "valid"
+  ): void {
     if (index === null) {
       dropTarget = null;
       return;
     }
-    dropTarget = { side, index, count };
+    dropTarget = { side, index, count, state };
     const at = rowPosition(side, index, Math.max(1, count));
     dropSocket.position.set(at.x, 0.026, at.z);
+    dropPool.position.set(at.x, 0.018, at.z);
     dropBand.position.set(0, 0.02, at.z);
     dropSocket.visible = true;
-    dropBand.visible = true;
-  }
-
-  // --- api ------------------------------------------------------------------
-  function setSlotHighlight(side: "player" | "enemy", slot: number, on: boolean): void {
-    const marker = slotMarkers.get(`${side}:${slot}`);
-    if (marker) marker.highlighted = on;
-  }
-
-  function clearSlotHighlights(): void {
-    for (const marker of slotMarkers.values()) marker.highlighted = false;
+    dropPool.visible = true;
+    dropBand.visible = state === "valid";
+    if (state !== dropStateShown) {
+      dropStateShown = state;
+      const blocked = state === "blocked";
+      const socketMaterial = dropSocket.material as THREE.MeshBasicMaterial;
+      socketMaterial.map = makeDropSocketTexture(blocked);
+      socketMaterial.needsUpdate = true;
+      (dropPool.material as THREE.MeshBasicMaterial).color.setHex(blocked ? 0xff3355 : 0x9a6cff);
+    }
   }
 
   /**
@@ -2159,33 +2901,56 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
     // band and slow enough that it never competes with a card being played.
     sweepTexture.offset.x = still ? 0.25 : (elapsed / 6.8) % 1;
 
-    for (const marker of slotMarkers.values()) {
-      // Characters centre themselves on the row rather than snapping to fixed
-      // slots, so idle rings would never line up with them. The row inlay in the
-      // mat carries the board's shape at rest; these appear only as drop targets
-      // while a card is being dragged.
-      const throb = still ? 0 : Math.sin(elapsed * 5);
-      const targetRing = marker.highlighted ? 0.8 + throb * 0.18 : 0;
-      const targetGlow = marker.highlighted ? 0.45 + throb * 0.14 : 0;
-      const ringMaterial = marker.ring.material as THREE.MeshBasicMaterial;
-      const glowMaterial = marker.glow.material as THREE.SpriteMaterial;
-      ringMaterial.opacity += (targetRing - ringMaterial.opacity) * 0.2;
-      glowMaterial.opacity += (targetGlow - glowMaterial.opacity) * 0.2;
+    /**
+     * The handover wipe, and then the state it leaves behind.
+     *
+     * `washSweep` runs 0→1 in about 320ms — inside §3a's budget — and the wash
+     * quad's own texture is a ramp along z, so scaling the quad from the seam
+     * outward reads as light travelling across the mat rather than as an opacity
+     * fade. Under reduced motion `setActiveSide` starts it at 1, so the state
+     * change is instant and correct and nothing moves.
+     */
+    if (washSweep < 1) washSweep = Math.min(1, washSweep + 0.055);
+    for (const side of ["player", "enemy"] as const) {
+      const mesh = halfWash[side];
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      const on = activeSide === side;
+      /**
+       * 0.13 rather than 0.3, measured on the first capture.
+       *
+       * At 0.3 the active half of the mat was visibly pink rather than visibly
+       * *lit*, which breaks §6 twice: the most saturated thing on screen has to
+       * be the thing that matters most, and the play surface is the ground, not
+       * the subject. A tenth of a stop is enough to answer "whose turn is it" at
+       * a glance without the board changing colour.
+       */
+      const target = on ? 0.13 * washSweep : 0;
+      material.opacity += (target - material.opacity) * (still ? 1 : 0.22);
+      mesh.visible = material.opacity > 0.01;
+      const reach = on ? 0.25 + 0.75 * washSweep : 1;
+      mesh.scale.set(1, reach, 1);
     }
 
     const socketMaterial = dropSocket.material as THREE.MeshBasicMaterial;
     const bandMaterial = dropBand.material as THREE.MeshBasicMaterial;
-    const breath = still ? 0 : Math.sin(elapsed * 4.4);
-    const socketTarget = dropTarget ? 0.82 + breath * 0.16 : 0;
-    const bandTarget = dropTarget ? 0.3 + breath * 0.06 : 0;
-    socketMaterial.opacity += (socketTarget - socketMaterial.opacity) * 0.28;
-    bandMaterial.opacity += (bandTarget - bandMaterial.opacity) * 0.28;
+    const poolMaterial = dropPool.material as THREE.MeshBasicMaterial;
+    // A refusal holds still; an invitation breathes.
+    const breath = still || dropTarget?.state === "blocked" ? 0 : Math.sin(elapsed * 4.4);
+    const socketTarget = dropTarget ? 0.9 + breath * 0.08 : 0;
+    const bandTarget = dropTarget?.state === "valid" ? 0.18 + breath * 0.04 : 0;
+    const poolTarget = dropTarget ? (dropTarget.state === "valid" ? 0.42 : 0.3) + breath * 0.08 : 0;
+    socketMaterial.opacity += (socketTarget - socketMaterial.opacity) * 0.34;
+    bandMaterial.opacity += (bandTarget - bandMaterial.opacity) * 0.34;
+    poolMaterial.opacity += (poolTarget - poolMaterial.opacity) * 0.24;
     if (socketMaterial.opacity < 0.005 && !dropTarget) {
       dropSocket.visible = false;
       dropBand.visible = false;
+      dropPool.visible = false;
     }
     const pop = dropTarget ? 1 + breath * 0.03 : 1;
     dropSocket.scale.set(pop, pop, 1);
+
+    for (const furniture of resourceFurniture.values()) furniture.update(elapsed, still);
   }
 
   return {
@@ -2194,51 +2959,117 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
     rowPosition,
     leaderPosition,
     locationPosition,
-    setSlotHighlight,
-    clearSlotHighlights,
     setDropTarget,
+    setResources,
+    deckPosition,
+    setActiveSide,
+    setCompact,
     update,
   };
 }
 
 /**
- * The socket a dragged card is about to land in.
+ * The socket a dragged card is about to land in — a hole in the floor, not a
+ * line drawn on it.
  *
- * Superellipse, with the same exponent and the same feather the mat's own alpha
- * mask uses, because a drop target with a crisp outline is a rectangle drawn on
- * a surface that spent a whole redesign getting rid of them. A bright inner ring
- * with a soft filled well inside it: the ring says "here", the fill says "this
- * much space", which together are what makes placing a minion feel like placing
- * something.
+ * This shipped for two rounds as the last literal wireframe on the board: a
+ * glowing four-pixel rounded rectangle with corner brackets, drawn additively so
+ * it could not darken anything, sitting flat on a lit mat. §1 bans a border as
+ * the only edge treatment and §8 of the review named it by name.
+ *
+ * A recess is four things and it is always the same four. The floor of it is
+ * *darker* than the surface around it, because less light reaches the bottom of
+ * a hole. Its near lip casts an inner shadow across that floor, at the top-left,
+ * because that is where the key is. Its far lip catches the key, at the
+ * bottom-right, as a bright chamfer. And the ground immediately outside it is
+ * slightly lifted, because the material displaced by the cut has to have gone
+ * somewhere. Drawn in that order the shape reads as depth from the first frame,
+ * with no outline anywhere in it.
+ *
+ * The blocked variant keeps the recess and strikes a bar across it, so the two
+ * states differ in *shape* as well as in colour — §6's "never signal by colour
+ * alone" applies to a drop target at least as much as to a status pip, and this
+ * one is read at speed with a card in the way.
  */
-function makeDropSocketTexture(): THREE.CanvasTexture {
+const dropSocketTextures = new Map<boolean, THREE.CanvasTexture>();
+function makeDropSocketTexture(blocked: boolean): THREE.CanvasTexture {
+  const cached = dropSocketTextures.get(blocked);
+  if (cached) return cached;
   const w = 256;
   const h = 320;
   const ctx = canvas2d(w, h);
   if (!ctx) return new THREE.CanvasTexture(document.createElement("canvas"));
   ctx.clearRect(0, 0, w, h);
 
+  const lx = LIGHT_RIG.screen.x;
+  const ly = LIGHT_RIG.screen.y;
   const image = ctx.createImageData(w, h);
   const pixels = image.data;
+  /** Where the cut wall stands, as a fraction of the half-extent. */
+  const WALL = 0.8;
+
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const nx = Math.abs((x + 0.5 - w / 2) / (w / 2));
-      const ny = Math.abs((y + 0.5 - h / 2) / (h / 2));
-      const r = Math.pow(Math.pow(nx, 3.1) + Math.pow(ny, 3.1), 1 / 3.1);
-      // A wall at r≈0.74 and a soft floor inside it.
-      const ring = Math.exp(-Math.pow((r - 0.74) / 0.075, 2));
-      const fill = Math.max(0, 1 - Math.pow(r / 0.74, 2.6)) * 0.22;
-      const value = Math.min(1, ring + fill);
+      const ux = (x + 0.5 - w / 2) / (w / 2);
+      const uy = (y + 0.5 - h / 2) / (h / 2);
+      const r = Math.pow(Math.pow(Math.abs(ux), 5.2) + Math.pow(Math.abs(uy), 5.2), 1 / 5.2);
+      /**
+       * How far toward the light this pixel sits: +1 at the top-left of the
+       * socket, -1 at the bottom-right. Every one of the four terms below keys
+       * off it, and every one of them uses the *opposite* sign to the one an
+       * embossed button would — which is the entire difference between a hole
+       * and a knob, and the reason this is spelled out rather than inlined.
+       */
+      const toLight = ux * lx + uy * ly;
+      const nearLip = Math.max(0, toLight); // top-left: the lip the light skims
+      const farWall = Math.max(0, -toLight); // bottom-right: the wall it lands on
+
+      // Inside the cut: a dark floor, deepest where the near lip shades it.
+      const inside = Math.max(0, Math.min(1, (WALL - r) / 0.16));
+      const wellAlpha = inside * (blocked ? 0.5 : 0.6) * (0.5 + 0.5 * nearLip);
+
+      // The wall itself, lit only where the key can actually reach it.
+      const wall = Math.exp(-Math.pow((r - WALL) / 0.06, 2));
+      const rimAlpha = wall * farWall * (blocked ? 0.5 : 0.85);
+      const lipShadow = wall * nearLip * 0.9;
+
+      // Displaced ground just outside the cut, catching the key on its top-left.
+      const berm = Math.exp(-Math.pow((r - (WALL + 0.13)) / 0.09, 2)) * nearLip * 0.34;
+
+      const dark = Math.min(1, wellAlpha + lipShadow);
+      const light = Math.min(1, rimAlpha + berm);
+      const alpha = Math.min(1, dark + light);
+      if (alpha <= 0.002) continue;
+      // One texel cannot be both black and white, so the two are mixed by which
+      // one dominates — which is what a photograph of an edge looks like anyway.
+      const mix = light / Math.max(1e-4, dark + light);
       const p = (y * w + x) * 4;
-      pixels[p] = 255;
-      pixels[p + 1] = 246;
-      pixels[p + 2] = 255;
-      pixels[p + 3] = Math.round(value * 255);
+      pixels[p] = Math.round((blocked ? 40 : 16) + mix * (blocked ? 215 : 231));
+      pixels[p + 1] = Math.round(8 + mix * (blocked ? 218 : 238));
+      pixels[p + 2] = Math.round((blocked ? 20 : 34) + mix * (blocked ? 214 : 221));
+      pixels[p + 3] = Math.round(alpha * 255);
     }
   }
   ctx.putImageData(image, 0, 0);
+
+  if (blocked) {
+    // The bar, tapered at both ends so it reads as drawn rather than clipped.
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(-Math.PI / 5);
+    const bar = ctx.createLinearGradient(-w * 0.42, 0, w * 0.42, 0);
+    bar.addColorStop(0, "rgba(255, 226, 230, 0)");
+    bar.addColorStop(0.2, "rgba(255, 122, 148, 0.95)");
+    bar.addColorStop(0.8, "rgba(255, 122, 148, 0.95)");
+    bar.addColorStop(1, "rgba(255, 226, 230, 0)");
+    ctx.fillStyle = bar;
+    ctx.fillRect(-w * 0.42, -9, w * 0.84, 18);
+    ctx.restore();
+  }
+
   const texture = new THREE.CanvasTexture(ctx.canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  dropSocketTextures.set(blocked, texture);
   return texture;
 }
 

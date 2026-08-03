@@ -67,6 +67,15 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   const leader = leaderCard?.type === "leader" ? leaderCard : undefined;
 
   root.innerHTML = `
+    <div class="queue-world" aria-hidden="true">
+      <div class="queue-room"></div>
+      <div class="queue-floor"></div>
+      <div class="queue-horizon"></div>
+      <div class="queue-sweep"><span class="queue-beam"></span><span class="queue-beam queue-beam-b"></span></div>
+      <div class="queue-haze"></div>
+      <div class="queue-vignette"></div>
+    </div>
+
     <header class="screen-header">
       <button class="btn btn-ghost queue-back" id="queue-back">${icon("arrow-left")}<span>Leave the queue</span></button>
       <h1 class="title">Casual Match</h1>
@@ -74,17 +83,10 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
 
     <main class="queue-body">
       <section class="queue-stage">
-        <div class="queue-searchlight" aria-hidden="true">
-          <div class="queue-room"></div>
-          <div class="queue-floor"></div>
-          <div class="queue-horizon"></div>
-          <div class="queue-sweep"><span class="queue-beam"></span><span class="queue-beam queue-beam-b"></span></div>
-          <div class="queue-haze"></div>
-          <div class="queue-plinth">
-            <div class="queue-cast"></div>
-            <div class="queue-leader"></div>
-            <div class="queue-leader-lit"></div>
-          </div>
+        <div class="queue-plinth" aria-hidden="true">
+          <div class="queue-cast"></div>
+          <div class="queue-leader"></div>
+          <div class="queue-leader-lit"></div>
         </div>
 
         <div class="queue-readout">
@@ -107,8 +109,8 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
         </div>
       </section>
 
-      <aside class="queue-note mat-well">
-        <h3 class="t-label">What this number means</h3>
+      <aside class="queue-note mat-panel">
+        <h3 class="t-label">${icon("eye")} What this number means</h3>
         <p>
           The count is the real number of people in this queue, including you. This game is
           new and usually that number is one. It is shown rather than hidden because a
@@ -124,7 +126,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   const countEl = root.querySelector<HTMLElement>("#queue-count");
   const countValueEl = root.querySelector<HTMLElement>("#queue-count-value");
   const countLabelEl = root.querySelector<HTMLElement>("#queue-count-label");
-  const light = root.querySelector<HTMLElement>(".queue-searchlight");
+  const light = root.querySelector<HTMLElement>(".queue-world");
 
   /**
    * The room, built before the light.
@@ -148,11 +150,21 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   if (roomHost) {
     roomHost.appendChild(
       paintVenue(leader?.faction ?? "default", {
-        width: 900,
-        aspect: 0.5,
-        bias: 0.02,
-        scrim: 0.34,
-        dim: 0.24,
+        width: 1400,
+        /**
+         * Wide enough to be a room rather than a strip.
+         *
+         * It was 900×450 letterboxed into a rounded rectangle inset 17px from
+         * each edge, and the measurable result was a queue where 66.6% of the
+         * 16px blocks were both dark and flat and the 95th-percentile pixel sat
+         * at 53.9 against the lobby's 157.9. The venue now fills the viewport
+         * behind everything, so the light in the room is the light on the
+         * screen.
+         */
+        aspect: 0.56,
+        bias: 0.06,
+        scrim: 0.22,
+        dim: 0.12,
         className: "queue-room-art",
       })
     );
@@ -163,18 +175,30 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
     leaderHost.appendChild(
       paintLeaderPortrait(leader, {
         width: 460,
-        aspect: 1.42,
-        bias: 0.1,
-        scrim: 0.34,
-        // Cut on three sides. A figure standing in a room has no frame; a
+        /**
+         * Taller, and the crop starts above the head rather than through it.
+         *
+         * At 1.42 the frame began at her chest and the missing `fadeTop` turned
+         * the start of the frame into a horizontal line across her — +64
+         * luminance in a single pixel at 1600×900, +148 in two at 1280×720. The
+         * aspect is now tall enough for the whole figure and the bias small
+         * enough that the ramp lands in empty air above her.
+         */
+        aspect: 1.78,
+        bias: 0.03,
+        scrim: 0.3,
+        // Cut on all four sides. A figure standing in a room has no frame; a
         // rectangle in the middle of a floor is a poster somebody left there.
-        fadeLeft: 0.28,
-        fadeRight: 0.28,
-        fadeBottom: 0.26,
+        fadeTop: 0.24,
+        fadeLeft: 0.26,
+        fadeRight: 0.26,
+        fadeBottom: 0.05,
+        // ...and she leaves a mark on the floor she is standing on.
+        reflect: 0.12,
         className: "queue-leader-art",
       })
     );
-    light?.classList.add("has-leader");
+    root.classList.add("has-leader");
   }
 
   const say = (state: string, detail = ""): void => {

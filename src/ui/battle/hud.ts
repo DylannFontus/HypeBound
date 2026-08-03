@@ -20,6 +20,7 @@ import type { MatchClocks } from "../../net/transport";
 import { getAsset } from "../art/assetLoader";
 import { iconPath } from "../art/iconAssets";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
+import { icon } from "../art/uiIcons";
 import { getSettings } from "../../save/settings";
 import { audio } from "../../audio/audio";
 
@@ -105,16 +106,27 @@ export class BattleHud {
     this.enemyPlate.addEventListener("click", () => this.view && this.callbacks.onInspectLeader(this.view.opponent.seat));
     this.root.appendChild(this.enemyPlate);
 
-    // ---- player plate (bottom centre) -------------------------------------
     this.playerPlate = el("div", "leader-plate leader-plate-player");
     this.playerPlate.addEventListener("click", () => this.view && this.callbacks.onInspectLeader(this.view.seat));
-    this.root.appendChild(this.playerPlate);
 
-    // ---- obsession dials ---------------------------------------------------
     this.obsessionEnemy = el("div", "obsession-dial obsession-enemy");
     this.obsessionPlayer = el("div", "obsession-dial obsession-player");
     this.abilityBar = el("div", "ability-bar");
-    this.root.append(this.obsessionEnemy, this.obsessionPlayer, this.abilityBar);
+
+    /**
+     * The bottom-left corner is one flow column, not three absolute offsets.
+     *
+     * It was three elements anchored to the same corner and separated by two
+     * hand-measured constants — `--rail-h: 104px` and `--plate-h: 84px` — which
+     * is correct at exactly one text size. At `--ui-scale: 1.4` the ability rail
+     * grew past 104px and its top edge cut straight through the leader plate's
+     * meta row, so the player's own hand, deck and discard counts were clipped
+     * by their own abilities. A column that stacks its children cannot go wrong
+     * at any scale, and it deletes both constants.
+     */
+    const corner = el("div", "hud-corner");
+    corner.append(this.obsessionPlayer, this.playerPlate, this.abilityBar);
+    this.root.append(this.obsessionEnemy, corner);
 
     // ---- hype crystals (bottom right) -------------------------------------
     const hypeWrap = el("div", "hype-wrap");
@@ -127,10 +139,52 @@ export class BattleHud {
     const turnWrap = el("div", "turn-wrap");
     this.timerRing = el("div", "timer-ring");
     this.timerLabel = el("div", "timer-label", "");
-    this.endTurnButton = el("button", "end-turn-btn");
+    /**
+     * The one hero action on this screen, wearing the one hero material.
+     *
+     * It was a flat `radial-gradient` disc with a single uniform 2px ring as its
+     * whole edge treatment — §1 bans that twice over ("a solid #hex on any
+     * surface larger than an icon", "a `border: 1px solid` as the only edge
+     * treatment") — and because the ring was equally bright the whole way round,
+     * the most important control on the screen was the one object on it with no
+     * light direction at all while everything near it is lit from 315°.
+     * `.mat-hero` is where that gradient, that rim, that lip, that contact shadow
+     * and that grain already live, and `.act` is where the six interaction
+     * states live. Composition, per the foundation contract: a builder who
+     * hand-rolls their own bevel has broken it even if the bevel is prettier.
+     */
+    this.endTurnButton = el("button", "end-turn-btn mat-hero act");
     this.endTurnButton.type = "button";
-    this.endTurnButton.innerHTML = '<span class="end-turn-text">End Turn</span>';
+    /**
+     * An icon, a label and a rule — not a sentence in body type.
+     *
+     * It read as 16px black body-weight "End Turn" with default tracking on a
+     * lavender disc: the most-clicked object in the game typeset like a
+     * paragraph. `.t-label` is the role §4 gives a control — uppercase, +0.08em
+     * — and the chevron is module C's drawing at module C's stroke weight, so
+     * the mark on the hero action is the same mark as every other affordance on
+     * the screen rather than a glyph the OS happened to have.
+     */
+    this.endTurnButton.innerHTML =
+      `<span class="end-turn-icon">${icon("chevron-right")}</span>` +
+      '<span class="end-turn-text t-label">End Turn</span>';
     this.endTurnButton.addEventListener("click", () => this.callbacks.onEndTurn());
+    /**
+     * Something moves on the same frame as the press.
+     *
+     * Measured: 130ms passed between the click and the first pixel of the
+     * confirm dialogue, with no press state on the button at any point in it.
+     * §5 wants 80–140ms of micro-feedback and §3a forbids a transition delaying
+     * input, and the honest reading of both is that the acknowledgement belongs
+     * on `pointerdown` — before any of the work the click causes has started.
+     */
+    this.endTurnButton.addEventListener("pointerdown", () => {
+      if (this.endTurnButton.disabled) return;
+      this.endTurnButton.classList.add("pressed");
+    });
+    for (const event of ["pointerup", "pointercancel", "pointerleave", "blur"] as const) {
+      this.endTurnButton.addEventListener(event, () => this.endTurnButton.classList.remove("pressed"));
+    }
     this.timerRing.append(this.endTurnButton, this.timerLabel);
     turnWrap.appendChild(this.timerRing);
     this.root.appendChild(turnWrap);
@@ -143,7 +197,8 @@ export class BattleHud {
     const historyPanel = el("div", "history-panel panel");
     const historyHead = el("div", "history-head");
     historyHead.append(el("span", "eyebrow", "Action Log"));
-    const historyToggle = el("button", "btn btn-ghost btn-icon history-toggle", "▾");
+    const historyToggle = el("button", "btn btn-ghost btn-icon history-toggle");
+    historyToggle.innerHTML = icon("chevron-down", { label: "Toggle action log" });
     historyToggle.setAttribute("aria-label", "Toggle action log");
     historyToggle.addEventListener("click", () => {
       historyPanel.classList.toggle("collapsed");
@@ -160,11 +215,27 @@ export class BattleHud {
 
     // ---- top-right controls ------------------------------------------------
     const controls = el("div", "battle-controls");
-    const settingsBtn = el("button", "btn btn-ghost btn-icon", "⚙");
+    /**
+     * Seven Unicode glyphs used to live on this screen and none of them belong
+     * to the same drawing.
+     *
+     * The hand was a full-colour OS emoji sitting in a monochrome neon UI — at
+     * 5x it was the first thing the eye landed on in the top-left corner — and
+     * the three buttons here were an outline smiley, a solid heavy gear and a
+     * solid white flag: three fill conventions and three optical weights inside
+     * three identical circles. The foundation contract lists the hand, the deck
+     * and the discard glyphs by name as things to delete. These are the same
+     * drawings at the same 1.75px stroke in `currentColor`, so they inherit the
+     * button's own ink and its disabled state rather than whatever font the
+     * operating system happens to have.
+     */
+    const settingsBtn = el("button", "btn btn-ghost btn-icon");
+    settingsBtn.innerHTML = icon("settings", { label: "Settings" });
     settingsBtn.setAttribute("aria-label", "Settings");
     settingsBtn.addEventListener("click", () => this.callbacks.onSettings());
 
-    const emoteBtn = el("button", "btn btn-ghost btn-icon", "☺");
+    const emoteBtn = el("button", "btn btn-ghost btn-icon");
+    emoteBtn.innerHTML = icon("emote", { label: "Emotes" });
     emoteBtn.setAttribute("aria-label", "Emotes");
     const emoteMenu = el("div", "emote-menu");
     for (const emote of this.callbacks.emotes ?? DEFAULT_EMOTES) {
@@ -178,7 +249,8 @@ export class BattleHud {
     }
     emoteBtn.addEventListener("click", () => emoteMenu.classList.toggle("open"));
 
-    const concedeBtn = el("button", "btn btn-ghost btn-icon", "⚑");
+    const concedeBtn = el("button", "btn btn-ghost btn-icon");
+    concedeBtn.innerHTML = icon("concede", { label: "Concede" });
     concedeBtn.setAttribute("aria-label", "Concede");
     concedeBtn.addEventListener("click", () => this.callbacks.onConcede());
 
@@ -250,10 +322,10 @@ export class BattleHud {
       <div class="leader-info">
         <div class="leader-name">${leader?.name ?? "Unknown"}</div>
         <div class="leader-meta">
-          <span class="chip" title="Cards in hand">✋ ${handCount}</span>
-          <span class="chip" title="Cards in deck">▤ ${deckCount}</span>
-          <span class="chip" title="Cards in discard">✖ ${discardCount}</span>
-          ${reactionCount > 0 ? `<span class="chip chip-reaction" title="Face-down Reactions">⧉ ${reactionCount}</span>` : ""}
+          <span class="chip" title="Cards in hand">${icon("hand")}<span class="num">${handCount}</span></span>
+          <span class="chip" title="Cards in deck">${icon("deck")}<span class="num">${deckCount}</span></span>
+          <span class="chip" title="Cards in discard">${icon("discard")}<span class="num">${discardCount}</span></span>
+          ${reactionCount > 0 ? `<span class="chip chip-reaction" title="Face-down Reactions">${icon("reaction")}<span class="num">${reactionCount}</span></span>` : ""}
         </div>
       </div>`;
   }
@@ -446,19 +518,40 @@ export class BattleHud {
     }, 2200);
   }
 
+  /**
+   * Name the turn, on a ribbon that rides the mat's centre line and is gone
+   * inside §3a's budget.
+   *
+   * It used to be a dark rounded plate parked over the middle of the play area
+   * for 1.1 seconds plus a 320ms fade, twice a turn, with a card nameplate
+   * between them: measured end to end, three and a half seconds of chips over
+   * the board per handover, during which the board could not be read. The board
+   * itself now carries the state (`battleView.setTurnSide` lifts the active half
+   * of the mat and brings that seat's practical up, and it *stays* up), so this
+   * only has to say the word. A thin ribbon that wipes along the seam does it in
+   * 390ms and never covers a card.
+   */
   announceTurn(yours: boolean, turn: number): void {
     if (getSettings().animationSpeed === "instant") return;
-    this.turnBanner.textContent = yours ? `Your Turn ${turn}` : `Rival's Turn ${turn}`;
+    this.turnBanner.innerHTML =
+      `<span class="turn-banner-text">${yours ? "Your Turn" : "Rival's Turn"}</span>` +
+      `<span class="turn-banner-num num">${turn}</span>`;
     this.turnBanner.className = `turn-banner ${yours ? "yours" : "theirs"}`;
     this.turnBanner.hidden = false;
+    // A reflow between the reset and the class, so a second handover inside the
+    // same second replays the wipe instead of being swallowed by an in-flight one.
+    void this.turnBanner.offsetWidth;
     this.turnBanner.classList.add("show");
-    window.setTimeout(() => {
+    window.clearTimeout(this.turnBannerTimer);
+    this.turnBannerTimer = window.setTimeout(() => {
       this.turnBanner.classList.remove("show");
-      window.setTimeout(() => {
+      this.turnBannerTimer = window.setTimeout(() => {
         this.turnBanner.hidden = true;
-      }, 320);
-    }, 1100);
+      }, 170);
+    }, 220);
   }
+
+  private turnBannerTimer = 0;
 
   // -------------------------------------------------------------------------
   // Turn timer

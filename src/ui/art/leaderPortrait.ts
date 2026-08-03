@@ -28,6 +28,34 @@
  * set wears it and some will wear it for months — and nothing here invents art
  * to cover it up.
  *
+ * ## Four edges, and a floor
+ *
+ * The cut used to be available on three sides. There was `fadeRight`,
+ * `fadeLeft` and `fadeBottom` and no `fadeTop`, so every screen that used this
+ * painter drew its leader with a razor line across the top of the frame —
+ * measured on the queue at 1280×720, luminance went 20.3 → 168.8 across two
+ * pixels at y=88, which is a head removed by a straight edge on the longest
+ * wait screen in the game. Both callers had tried to compensate with a CSS
+ * `mask-image` on the element, which cannot work: the canvas is `object-fit:
+ * cover`, so the mask ramps over the *box* while the art scrolls underneath it.
+ * The cut has to happen in the space the art is drawn in.
+ *
+ * `reflect` is the other half of the same complaint. A figure that casts
+ * nothing is standing in front of the room rather than in it, and a wireframe
+ * floor with an unaffected cut-out on top of it is the clearest possible
+ * statement that the two layers have never met. Hearthstone frame 60 has no
+ * object anywhere that touches the mat without darkening it.
+ *
+ * ## Why the plate is kept and the element is not
+ *
+ * Downscaling a 4K painting into a 1120×1680 backing store is the most
+ * expensive thing any front-door screen does, and until now every screen did it
+ * from scratch — the same leader is the play screen's hero, the lobby's face,
+ * the figure on the queue and the person beside the sign-in form. The finished
+ * plate is therefore memoised by everything that changes a pixel, and a caller
+ * gets a fresh element with that plate blitted into it. See `plates` for the
+ * measurement that made this worth doing.
+ *
  * ## Why the canvas repaints itself
  *
  * `getCardArt` answers `null` until the PNG has decoded, so a portrait built on
@@ -67,6 +95,34 @@ export interface PortraitOptions {
   fadeLeft?: number;
   /** Fade the bottom edge, for a portrait standing on a floor rather than in a box. */
   fadeBottom?: number;
+  /**
+   * And the same on the top — which did not exist, and was the whole defect.
+   *
+   * Three edges feathered and the fourth did not, so every caller of this
+   * function painted its leader with a razor line across the top of the frame.
+   * On the queue that line landed mid-figure: measured at 1280×720, luminance
+   * went 20.3 → 168.8 across two pixels at y=88, which is a head cut off by a
+   * straight edge on the game's longest wait screen. Callers were compensating
+   * with a CSS `mask-image` on the element, which cannot work — the canvas is
+   * `object-fit: cover`, so the mask ramps over the *box* while the art scrolls
+   * underneath it, and the ramp lands wherever the crop happens to have put the
+   * hairline. Cutting in the same space the art is drawn in is the only version
+   * that follows the figure.
+   */
+  fadeTop?: number;
+  /**
+   * A mirror of the lower edge, cast below the figure, as a fraction of the
+   * total height.
+   *
+   * The queue's leader was standing *in front of* a wireframe floor rather than
+   * on it, because nothing she did affected the ground: no reflection, no
+   * contact. Hearthstone frame 60 has no object anywhere that touches the mat
+   * without darkening it. The mirror is drawn from the already-finished plate,
+   * so it inherits the key light, the Current wash and the side cuts for free,
+   * and it is capped low enough (12% is the value the callers use) to read as a
+   * damp floor rather than as a second copy of the art.
+   */
+  reflect?: number;
   /** Overall darkening, for art used as a backdrop behind type. */
   dim?: number;
   className?: string;
@@ -75,6 +131,67 @@ export interface PortraitOptions {
 /** Device pixels per CSS pixel, capped: a 3x phone does not need a 3x portrait. */
 function ratio(): number {
   return Math.min(typeof devicePixelRatio === "number" ? devicePixelRatio : 1, 2);
+}
+
+/**
+ * One halved copy of a painting, kept, so the second crop of it is cheap.
+ *
+ * The card art is authored large — 2048 to 4096 pixels square — and a single
+ * `drawImage` from that straight down to a 560px plate is the most expensive
+ * call in the front door: measured 38.1ms for one leader on an RTX 2060, inside
+ * a screen factory that runs on the main thread between the seal and the exit
+ * animation. Halving in steps is both faster and better looking than one big
+ * minification (the browser samples four texels per step instead of missing
+ * most of them), and the halved copy is worth keeping because the *same*
+ * painting is cropped four different ways across this domain — the lobby's
+ * portrait, the play screen's hero, the queue's figure, the sign-in leader.
+ * Whichever screen paints first pays; the rest read.
+ *
+ * Keyed by card and by the size bucket asked for, so a 456px portrait and a
+ * 560px hero share one mip and a thumbnail somewhere else does not force them
+ * both through a smaller one.
+ */
+const MIP_LIMIT = 8;
+const mips = new Map<string, HTMLCanvasElement>();
+
+function mipFor(cardId: string, art: HTMLImageElement, needPx: number): CanvasImageSource {
+  // Nothing to gain until the source is at least four times the target: below
+  // that a single minification is already sampling most of the pixels.
+  if (art.width < needPx * 4) return art;
+  const bucket = 2 ** Math.ceil(Math.log2(needPx * 2));
+  const key = `${cardId}|${bucket}`;
+  const hit = mips.get(key);
+  if (hit) {
+    mips.delete(key);
+    mips.set(key, hit);
+    return hit;
+  }
+
+  let source: CanvasImageSource = art;
+  let w = art.width;
+  let h = art.height;
+  let made: HTMLCanvasElement | null = null;
+  while (w > bucket * 2) {
+    const step = document.createElement("canvas");
+    step.width = Math.max(1, Math.round(w / 2));
+    step.height = Math.max(1, Math.round(h / 2));
+    const pen = step.getContext("2d");
+    if (!pen) break;
+    pen.imageSmoothingQuality = "high";
+    pen.drawImage(source, 0, 0, step.width, step.height);
+    source = step;
+    made = step;
+    w = step.width;
+    h = step.height;
+  }
+  if (!made) return art;
+
+  mips.set(key, made);
+  if (mips.size > MIP_LIMIT) {
+    const oldest = mips.keys().next().value;
+    if (oldest !== undefined) mips.delete(oldest);
+  }
+  return made;
 }
 
 /**
@@ -177,14 +294,121 @@ function finish(
     g.addColorStop(1, "rgba(0,0,0,1)");
     cut(g);
   }
+  if (options.fadeTop) {
+    const g = ctx.createLinearGradient(0, H * options.fadeTop, 0, 0);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,1)");
+    cut(g);
+  }
 }
 
 /**
- * The leader, art only, in a 3:4 crop.
+ * The floor the figure is standing on, drawn from the figure.
  *
- * Returns a canvas that repaints itself once when the painting arrives. Every
- * front-door screen that shows a leader calls this and nothing else.
+ * Two marks, in this order. A soft ellipse where the feet meet the ground —
+ * §1's "anything sitting on top of anything else casts", and the cheapest thing
+ * that turns a cut-out into an object — and then the lower band of the plate
+ * mirrored below it and taken down to a dozen per cent, so the ground has the
+ * figure's own colour in it rather than a generic smudge.
+ *
+ * The mirror is a self-copy: `drawImage` reads the canvas it is writing to,
+ * which is legal and is the only way to get a reflection that already carries
+ * the key light, the Current wash and the side cuts applied above. It is cut
+ * with the same `destination-out` ramp the edges use, so the reflection ends in
+ * transparency rather than in a guessed background colour.
  */
+function ground(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  W: number,
+  footY: number,
+  bandH: number,
+  dpr: number
+): void {
+  const H = footY + bandH;
+  if (bandH < 2) return;
+
+  // The cast, first, so the reflection lies over its near edge the way a wet
+  // floor does rather than sitting on top of the shadow like a decal.
+  ctx.save();
+  ctx.globalCompositeOperation = "multiply";
+  const cast = ctx.createRadialGradient(W / 2, footY, 0, W / 2, footY, W * 0.42);
+  cast.addColorStop(0, "rgba(2,1,6,0.85)");
+  cast.addColorStop(0.55, "rgba(2,1,6,0.34)");
+  cast.addColorStop(1, "rgba(2,1,6,0)");
+  ctx.translate(W / 2, footY);
+  ctx.scale(1, 0.26);
+  ctx.translate(-W / 2, -footY);
+  ctx.fillStyle = cast;
+  ctx.fillRect(0, footY - W * 0.5, W, W);
+  ctx.restore();
+
+  // The mirror. Source is the band immediately above the contact line, in
+  // device pixels because that is what the backing store is measured in.
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 0.5;
+  ctx.translate(0, (footY + bandH) * dpr);
+  ctx.scale(1, -1);
+  ctx.drawImage(
+    canvas,
+    0,
+    (footY - bandH) * dpr,
+    W * dpr,
+    bandH * dpr,
+    0,
+    0,
+    W * dpr,
+    bandH * dpr
+  );
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-out";
+  const fade = ctx.createLinearGradient(0, footY, 0, H);
+  fade.addColorStop(0, "rgba(0,0,0,0.42)");
+  fade.addColorStop(0.5, "rgba(0,0,0,0.86)");
+  fade.addColorStop(1, "rgba(0,0,0,1)");
+  ctx.fillStyle = fade;
+  ctx.fillRect(0, footY, W, bandH);
+  ctx.restore();
+}
+
+/**
+ * Painted plates, kept, so the second visit is a blit.
+ *
+ * The play screen builds its hero portrait at 560×840 logical — 1120×1680 in
+ * device pixels — inside the screen factory, and the screen factory runs between
+ * the moment the outgoing screen is sealed and the moment the exit animation
+ * starts. Measured on a real click of PLAY on an RTX 2060: one 87ms long task
+ * 39ms after the click, first visible change at +447ms, screens swapped at
+ * +533ms, and three of the navigation's 93 frames over 33ms. §3a budgets
+ * 260–420ms for a routine navigation and calls anything over 500ms an obstacle.
+ *
+ * Downscaling a 4K painting is the expensive part of that, and it is exactly the
+ * kind of work that should be paid once: the same leader is the hero of the play
+ * screen, the face on the lobby, the figure on the queue and the person on the
+ * sign-in form, and every one of those was repainting from the source PNG. The
+ * map holds the finished plate keyed by everything that changes what is drawn;
+ * a caller gets a fresh element with the plate blitted into it, which is one
+ * `drawImage` between two same-sized canvases.
+ *
+ * Bounded, because a deck builder that previews eleven leaders at four sizes
+ * would otherwise hold forty-four full-resolution plates for the life of the
+ * tab. Least-recently-used, same policy as `texture.ts`.
+ */
+const PLATE_LIMIT = 12;
+const plates = new Map<string, HTMLCanvasElement>();
+
+function keepPlate(key: string, plate: HTMLCanvasElement): void {
+  plates.delete(key);
+  plates.set(key, plate);
+  if (plates.size > PLATE_LIMIT) {
+    const oldest = plates.keys().next().value;
+    if (oldest !== undefined) plates.delete(oldest);
+  }
+}
+
 export function paintLeaderPortrait(card: CardDef, options: PortraitOptions = {}): HTMLCanvasElement {
   const W = Math.round(options.width ?? 456);
   const H = Math.round(W * (options.aspect ?? 4 / 3));
@@ -200,16 +424,88 @@ export function paintLeaderPortrait(card: CardDef, options: PortraitOptions = {}
 
   const palette = CURRENT_PALETTE[card.current];
 
-  const paint = (): void => {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, W, H);
+  /**
+   * The figure gets the canvas minus the floor.
+   *
+   * `reflect` does not shrink the art; it reserves a band at the bottom of the
+   * plate for what the art throws onto the ground, so the crop the caller asked
+   * for still frames the same part of the painting and the reflection is extra
+   * room rather than a bite out of the subject.
+   */
+  const bandH = Math.round(H * (options.reflect ?? 0));
+  const figureH = H - bandH;
+
+  /**
+   * Everything that changes a pixel, and nothing that does not.
+   *
+   * Read fresh on every paint, never hoisted. The last term is whether the
+   * painting has decoded yet, and that flips from false to true partway through
+   * this canvas's life — `getCardArt` answers `null` until the PNG is ready, and
+   * `onArtLoaded` repaints. Computing the key once at construction captures
+   * "placeholder" forever, so the repaint looks up the plate it just drew and
+   * blits the placeholder back over itself. Measured as a leader that never
+   * stopped being procedural on a screen whose art was sitting decoded in the
+   * cache.
+   */
+  const keyNow = (): string =>
+    [
+      card.id,
+      canvas.width,
+      canvas.height,
+      bias,
+      options.scrim ?? 0.88,
+      options.dim ?? 0,
+      options.fadeTop ?? 0,
+      options.fadeLeft ?? 0,
+      options.fadeRight ?? 0,
+      options.fadeBottom ?? 0,
+      options.reflect ?? 0,
+      getCardArt(card) ? "art" : "placeholder",
+    ].join("|");
+
+  const render = (): HTMLCanvasElement => {
+    const plate = document.createElement("canvas");
+    plate.width = canvas.width;
+    plate.height = canvas.height;
+    const pen = plate.getContext("2d");
+    if (!pen) return plate;
+    pen.scale(dpr, dpr);
 
     const art = getCardArt(card);
-    if (art) coverInto(ctx, art, art.width, art.height, W, H, bias);
-    else drawPlaceholderArt(ctx, { x: 0, y: 0, w: W, h: H }, card.current, card.name);
+    /**
+     * Clipped, because cover-fit overflows by design. `coverInto` scales the
+     * painting until it covers the box, which means it is taller than the box
+     * unless the aspects happen to agree — without a clip the overflow lands in
+     * the reflection band and the floor is a second unfaded copy of the art.
+     */
+    pen.save();
+    pen.beginPath();
+    pen.rect(0, 0, W, figureH);
+    pen.clip();
+    if (art) {
+      const source = mipFor(card.id, art, Math.max(canvas.width, canvas.height));
+      const sw = typeof source === "object" && "width" in source ? Number(source.width) : art.width;
+      const sh = typeof source === "object" && "height" in source ? Number(source.height) : art.height;
+      coverInto(pen, source, sw, sh, W, figureH, bias);
+    } else {
+      drawPlaceholderArt(pen, { x: 0, y: 0, w: W, h: figureH }, card.current, card.name);
+    }
+    finish(pen, W, figureH, options, palette);
+    pen.restore();
 
-    finish(ctx, W, H, options, palette);
+    if (bandH > 0) ground(pen, plate, W, figureH, bandH, dpr);
+    return plate;
+  };
+
+  const paint = (): void => {
+    const key = keyNow();
+    let plate = plates.get(key);
+    if (!plate) plate = render();
+    // Set either way, so the LRU order reflects use rather than creation.
+    keepPlate(key, plate);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(plate, 0, 0);
   };
 
   paint();

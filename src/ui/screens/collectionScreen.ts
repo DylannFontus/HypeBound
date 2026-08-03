@@ -6,7 +6,7 @@
 import type { CardDef, ContentIndex, CurrentId, FactionId, KeywordId, Rarity, CardType } from "../../engine/types";
 import type { Screen } from "../shell";
 import { collectibleCards } from "../../engine/content";
-import { hoverCard, parseCardText, renderCardToCanvas } from "../cardRenderer/renderCard";
+import { hoverCard, parseCardText, renderCardToCanvas, tiltCard } from "../cardRenderer/renderCard";
 import { CURRENT_PALETTE, FACTION_COLOR, RARITY_STYLE, hexToRgba } from "../cardRenderer/palette";
 import { craftCard, dismantleCard, getProfile, profileStore, toggleFavorite, toggleLock } from "../../save/profile";
 import { loreFor } from "../../game/cardLore";
@@ -250,9 +250,92 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   }
   const cells = new Map<string, Cell>();
 
+  /**
+   * What a screen reader is told a tile is, since a canvas tells it nothing.
+   *
+   * The card face is a bitmap: every word on it — the name, the cost, the stats,
+   * the rarity — is pixels, so without this the accessibility tree holds two
+   * hundred and forty-five identical unlabelled buttons. The order is the order
+   * a player would say it in.
+   */
+  function cellLabel(card: CardDef): string {
+    const stats = (card as { attack?: number; health?: number });
+    const numbers =
+      typeof stats.attack === "number" && typeof stats.health === "number"
+        ? `, ${stats.attack} attack, ${stats.health} health`
+        : typeof stats.health === "number"
+          ? `, ${stats.health} health`
+          : "";
+    return `${card.name}. ${RARITY_STYLE[card.rarity].label.toLowerCase()} ${card.type}, ${CURRENT_PALETTE[card.current].label}, cost ${card.cost}${numbers}`;
+  }
+
+  /**
+   * Arrow-key navigation across the grid. A row's worth is resolved at the
+   * moment of the press, so the same four keys work at every breakpoint —
+   * seven tiles a row at 1600px, four on a phone in landscape.
+   */
+  const ARROW_STEP: Record<string, number> = {
+    ArrowLeft: -1,
+    ArrowRight: 1,
+    ArrowUp: -Infinity,
+    ArrowDown: Infinity,
+  };
+
+  let roving: HTMLElement | null = null;
+
+  function setRoving(next: HTMLElement | null): void {
+    if (roving === next) return;
+    if (roving) roving.tabIndex = -1;
+    roving = next;
+    if (roving) roving.tabIndex = 0;
+  }
+
+  function shownCells(): HTMLElement[] {
+    if (!grid) return [];
+    return [...grid.querySelectorAll<HTMLElement>(".card-cell:not([hidden])")];
+  }
+
+  function walk(from: HTMLElement, step: number): void {
+    const cells = shownCells();
+    const at = cells.indexOf(from);
+    if (at < 0) return;
+    const delta = Number.isFinite(step) ? step : Math.sign(step) * gridColumns();
+    const target = cells[Math.max(0, Math.min(cells.length - 1, at + delta))];
+    if (!target || target === from) return;
+    setRoving(target);
+    target.focus();
+    target.scrollIntoView({ block: "nearest", behavior: motionEnabled() ? "smooth" : "auto" });
+  }
+
   function buildCell(card: CardDef): Cell {
+    /**
+     * A `div` with a role rather than a `button`, and the reason is the canvas.
+     *
+     * A tile is a 168px card bitmap with three absolutely-positioned overlays on
+     * it; a real `<button>` brings a UA stylesheet, a baseline, a default
+     * `overflow`, and `display: inline-block` semantics that all have to be
+     * fought back to `position: relative` before the layout works again. The
+     * accessibility contract is the same either way — a role, a tab stop, a
+     * label and the two keys that activate it — and before this, measured, a
+     * hundred and twenty Tab presses from a cold load never landed on a card at
+     * all, because `.card-cell` was a bare `div` with no `tabindex` and no role.
+     */
     const root = document.createElement("div");
     root.className = "card-cell";
+    root.setAttribute("role", "button");
+    /**
+     * A roving tab stop, not two hundred and forty-five of them.
+     *
+     * Giving every tile `tabindex="0"` makes the grid reachable and then makes
+     * everything *after* the grid unreachable in practice: a player who wants
+     * the filter's Clear button below it would press Tab two hundred and
+     * forty-five times to get there, and one who wants the two-hundredth card
+     * would press it two hundred times. The grid is one stop; the arrow keys
+     * walk it, which is what the ARIA grid pattern says and what a card game
+     * played on a pad does anyway.
+     */
+    root.tabIndex = -1;
+    root.setAttribute("aria-label", cellLabel(card));
     const canvas = renderCardToCanvas(card, 168, {});
     root.appendChild(canvas);
 
@@ -281,12 +364,88 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
      */
     root.addEventListener("pointerenter", () => hoverCard(canvas, true));
     root.addEventListener("pointerleave", () => hoverCard(canvas, false));
+    /**
+     * Keyboard focus lights the card exactly as the pointer does. §5 asks for
+     * every state to be designed, and a keyboard player who can reach a tile but
+     * gets a ring around a card that has not woken up is being shown the cheaper
+     * half of the interaction.
+     */
+    root.addEventListener("focus", () => {
+      hoverCard(canvas, true);
+      setRoving(root);
+    });
+    root.addEventListener("blur", () => hoverCard(canvas, false));
 
-    root.addEventListener("click", () => {
+    const open = (): void => {
       audio.play("sfx.ui.click");
+      // the canvas, not the cell: the cell reserves 18px under the card for the
+      // count pill, and a FLIP measured against that lands the detail card low
       openDetail(card, canvas);
+    };
+    root.addEventListener("click", open);
+    root.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+        // Space scrolls a grid by default, which is the last thing a player
+        // pressing it on a focused tile means by it
+        event.preventDefault();
+        open();
+        return;
+      }
+      const step = ARROW_STEP[event.key];
+      if (step === undefined) return;
+      event.preventDefault();
+      walk(root, step);
     });
     return { root, canvas, count, fav, lock, shown: true };
+  }
+
+  /**
+   * The entrance cascade, keyed off the grid rather than off the array index.
+   *
+   * `stagger(arriving, { step: 12, max: 280 })` divided its 280ms ceiling across
+   * every arriving tile, and a full collection has 245 of them — so the measured
+   * `--enter-delay` on the first ten cells came out 0, 1, 2, 3, 5, 6, 7, 8, 9,
+   * 10ms and the entire visible grid landed inside about twenty-one
+   * milliseconds. That is one pop, not a cascade, and §3a names the 30–60ms
+   * cascade as the single biggest perceived-quality gap between a hobby menu and
+   * a shipped one. The ceiling was not too low; dividing it by the wrong number
+   * was the bug. Tiles below the fold are not on screen, so spending the budget
+   * on them buys nothing and starves the ones that are.
+   *
+   * So the delay is a *diagonal* wave: `(row + column) × step`. Three things
+   * fall out of that and all three are wanted. It is a true 30–60ms cascade in
+   * reading order for anything the player can see. It completes in
+   * `(rows + columns) × step` rather than `count × step`, so a 7-wide viewport
+   * showing three rows finishes in about a third of a second whether the
+   * collection holds twenty cards or two hundred and forty-five. And the wave
+   * travels from the top-left, which is where the key light is — the grid
+   * arrives lit-corner-first, the same direction every rim highlight in the game
+   * runs.
+   *
+   * The column count comes from the resolved `grid-template-columns`, which is a
+   * list of pixel values once layout has run; the fallback matters only on the
+   * very first paint of a cold mount, where seven is the desktop count.
+   */
+  const CASCADE_STEP = 38;
+  const CASCADE_MAX = 460;
+
+  function gridColumns(): number {
+    if (!grid || typeof getComputedStyle !== "function") return 7;
+    const template = getComputedStyle(grid).gridTemplateColumns;
+    const count = template.split(" ").filter((part) => part.trim().length > 0).length;
+    return count > 0 ? count : 7;
+  }
+
+  function cascade(arriving: HTMLElement[]): void {
+    if (!motionEnabled()) {
+      stagger(arriving, { step: 0, max: 0 });
+      return;
+    }
+    const columns = gridColumns();
+    for (const [index, node] of arriving.entries()) {
+      const wave = Math.floor(index / columns) + (index % columns);
+      node.style.setProperty("--enter-delay", `${Math.min(CASCADE_MAX, wave * CASCADE_STEP)}ms`);
+    }
   }
 
   function render(): void {
@@ -331,15 +490,10 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       }
     }
 
-    /**
-     * 12ms rather than the default 45.
-     *
-     * A cascade is a wave when it lands inside a set-piece and a queue when it
-     * does not; 245 tiles at 45ms would be an eleven-second entrance. `stagger`
-     * compresses to fit the ceiling on its own, and 280ms is the ceiling that
-     * keeps a filter feeling like a re-flow rather than a load.
-     */
-    if (arriving.length > 0) stagger(arriving, { step: 12, max: 280 });
+    if (arriving.length > 0) cascade(arriving);
+
+    // the grid's single tab stop has to be a tile that is actually on it
+    if (!roving || roving.hidden || !roving.isConnected) setRoving(shownCells()[0] ?? null);
 
     const ownedTotal = allCards.filter((c) => (profile.collection[c.id] ?? 0) > 0).length;
     if (summary) {
@@ -361,6 +515,39 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
    */
   type DetailTab = "effect" | "story";
   let detailTab: DetailTab = "effect";
+
+  /**
+   * The detail leaves the way it arrived, which it previously did not.
+   *
+   * Opening runs a FLIP out of the tile the player pressed — measured, 178ms of
+   * real travel with never a second card on screen. Closing was
+   * `detail.hidden = true`: a hard cut, on the one surface in the screen with
+   * the most elaborate entrance in it. §3a is explicit that everything that
+   * appears has an entrance *and* everything that leaves has an exit, and a cut
+   * after a shared-element grow is worse than a cut after nothing, because the
+   * player has just been taught that this object moves.
+   *
+   * The exit is the entrance's own vocabulary reversed rather than a second
+   * idea: the overlay drops back through the scale it rose from, on the leave
+   * easing, which is sharper than the arrival — things go faster than they come,
+   * §3. `hidden` still lands, just at the end; the class is cleared first so a
+   * re-open never inherits a half-run animation.
+   */
+  let closing = 0;
+
+  function closeDetail(): void {
+    if (!detail || detail.hidden) return;
+    window.clearTimeout(closing);
+    if (!motionEnabled()) {
+      detail.hidden = true;
+      return;
+    }
+    detail.classList.add("cd-leaving");
+    closing = window.setTimeout(() => {
+      detail.classList.remove("cd-leaving");
+      detail.hidden = true;
+    }, DUR.ui - 40);
+  }
 
   function openDetail(card: CardDef, from?: HTMLElement): void {
     if (!detail) return;
@@ -402,9 +589,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     closeBtn.className = "cd-close";
     closeBtn.type = "button";
     closeBtn.innerHTML = icon("close", { label: "Close" });
-    closeBtn.addEventListener("click", () => {
-      detail.hidden = true;
-    });
+    closeBtn.addEventListener("click", () => closeDetail());
     head.appendChild(closeBtn);
 
     // -- the card, tilted ----------------------------------------------------
@@ -413,13 +598,29 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
     const tilt = document.createElement("div");
     tilt.className = "cd-tilt";
-    tilt.appendChild(renderCardToCanvas(card, 420, { premium: card.rarity === "legendary", phase: 0.3 }));
+    /**
+     * No `phase` here.
+     *
+     * The literal `0.3` this used to pass was the tell the audit named for a
+     * dead foil: nothing advanced it, so no card in HYPEBOUND ever shimmered.
+     * `cardClock` has driven the phase since, which made the argument harmless
+     * and left it lying in the file to mislead the next reader — a constant that
+     * looks like it sets something and is overwritten before the first paint.
+     */
+    const cardCanvas = renderCardToCanvas(card, 420, { premium: card.rarity === "legendary" });
+    tilt.appendChild(cardCanvas);
     artWrap.appendChild(tilt);
 
     /**
      * The tilt follows the pointer and returns to a resting angle that is
      * deliberately not square-on. A card lying flat reads as a picture of a
      * card; the whole point of this screen is that it is the object.
+     *
+     * The same two numbers go to the renderer as well as to the transform. A
+     * card that turns while its sheen keeps its own schedule reads as a light
+     * playing over a picture; a card whose sheen moves *because* it turned reads
+     * as a surface catching the light, and it is the same dx and dy either way —
+     * they were being computed and half-used.
      */
     const REST_Y = 17;
     const REST_X = 9;
@@ -432,8 +633,12 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       const dx = (event.clientX - box.left) / box.width - 0.5;
       const dy = (event.clientY - box.top) / box.height - 0.5;
       setTilt(REST_Y + dx * 26, REST_X - dy * 18);
+      tiltCard(cardCanvas, dx, dy);
     });
-    artWrap.addEventListener("pointerleave", () => setTilt(REST_Y, REST_X));
+    artWrap.addEventListener("pointerleave", () => {
+      setTilt(REST_Y, REST_X);
+      tiltCard(cardCanvas, 0, 0);
+    });
 
     /**
      * The clicked tile grows into the detail card — §3a's own worked example.
@@ -653,7 +858,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
         window.removeEventListener("keydown", onKey);
         return;
       }
-      if (event.key === "Escape") detail.hidden = true;
+      if (event.key === "Escape") closeDetail();
       else if (event.key === "ArrowLeft") step(-1);
       else if (event.key === "ArrowRight") step(1);
       else return;
@@ -664,7 +869,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     detail.addEventListener(
       "click",
       (event) => {
-        if (event.target === detail) detail.hidden = true;
+        if (event.target === detail) closeDetail();
       },
       { once: true }
     );
