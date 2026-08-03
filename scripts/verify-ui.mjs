@@ -68,7 +68,7 @@ async function main() {
   const browser = await chromium.launch({
     executablePath,
     headless: true,
-    args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--no-sandbox"],
+    args: ["--enable-unsafe-swiftshader", "--no-sandbox"],
   });
 
   const context = await browser.newContext({
