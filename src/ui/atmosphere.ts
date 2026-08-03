@@ -34,6 +34,22 @@
  * That matters here more than anywhere, because the room changes at exactly the
  * moment the screen transition is already asking for the frame budget.
  *
+ * ## The room has a ceiling, and it is lower than the furniture
+ *
+ * The first version of this layer was lighter and more chromatic than the panels
+ * in front of it — measured on `#uikit`, the top-left key came out at L*22.4 /
+ * C*37.2 against a card face at L*17.2 / C*24.5, and a card's face and the wash
+ * directly behind it were inside one luminance level of each other. That is not
+ * a backdrop, it is a fifth panel, and it is the exact failure AAA bar §2 names:
+ * separation being carried by z-index alone. Every room light is now mixed
+ * toward a cool near-neutral before it is used and every alpha is capped, so no
+ * part of the world is ever lighter or more saturated than the furniture
+ * standing on it. The numbers live in `transitions.css` §1.1, where the
+ * gradients that consume them are, and the long note there says how they were
+ * chosen. `ROOMS` still decides colour and intensity; it no longer decides how
+ * loud the backdrop is allowed to be, because that is a property of the *stack*
+ * rather than of any one room.
+ *
  * ## Everything here is transform, opacity or a static paint
  *
  * The drift, the breath, the sweep and the motes are all CSS animations on
@@ -43,6 +59,28 @@
  * last thing that should own one. The grid translates by exactly one cell so the
  * loop is seamless; the mote layers translate by exactly one tile for the same
  * reason.
+ *
+ * ## Why there is a second plane, in front of everything
+ *
+ * The layer above is architecturally correct and, for most of the session, was
+ * invisible. Thirty-nine screens still paint their own opaque `.ambient-bg` and
+ * will keep doing so until the migration wave reaches them, so the world sat
+ * behind a full-viewport plate: photographing `#missions` frozen, and then again
+ * with `.atmosphere { display: none }`, produced a mean pixel delta of 0.000 —
+ * deleting the entire world changed not one pixel. Fading that plate during a
+ * navigation, which `transitions.css` §2.6 does, buys about 200ms of visible
+ * world per route change and leaves the destination dead. §3a's requirement is
+ * that the screen is alive *at rest*, and the reference games meet it by moving
+ * a lit environment behind the UI the whole time.
+ *
+ * `.atmosphere-fore` is the answer that does not require touching forty-nine
+ * screens: a thin plane mounted **after `#app`**, carrying the near mote field,
+ * the specular crawl and a low vignette. It is in front of whatever backdrop a
+ * screen happens to paint, so every route gets a living fourth depth plane
+ * whether or not it has been migrated. It is deliberately thin — motes at a
+ * quarter alpha and a sweep peaking at five percent — because it is over
+ * content, and it is driven by the same `--atm-strength` as the layer behind,
+ * so high contrast turns it down and reduced motion removes it outright.
  *
  * ## Nothing is fetched
  *
@@ -147,6 +185,8 @@ export type TravelKind =
 export interface Atmosphere {
   /** The persistent layer itself. Exposed for tests and for nothing else. */
   readonly root: HTMLElement;
+  /** The thin plane in front of `#app`. Exposed for the same reason. */
+  readonly fore: HTMLElement;
   /** Light the room a route belongs to. A no-op if we are already in it. */
   enterRoom(room: AtmosphereRoom): void;
   /** Nudge the world in the direction the player just travelled. */
@@ -366,19 +406,64 @@ export function mountAtmosphere(host: HTMLElement | null = null): Atmosphere {
   const slotB = buildRoomSlot();
   slotA.classList.add("is-front");
 
+  /**
+   * The deep plane, and why it is an element rather than two more rules.
+   *
+   * The grid and the far mote field are the two layers that are meant to read
+   * as *furthest away*, and for the first version of this module the only thing
+   * making that true was their position in the stack. AAA bar §2 is explicit
+   * that stacking is not depth — separation has to come from blur, desaturation,
+   * scale and parallax — and measured against a card face the backdrop was
+   * lighter, more chromatic and moving on exactly the same transform as
+   * everything else in the world.
+   *
+   * `transitions.css` gives this wrapper a permanent 7% oversize, a blur on its
+   * two children and a counter-move on every navigation, so it travels at about
+   * 60% of the wash's rate and the wash at about 40% of the screen's. It has to
+   * be a wrapper because both children already animate `transform` for their own
+   * reasons; hanging a second transform animation on either would mean restating
+   * a 26-second breathe every time somebody changes screen, which restarts it
+   * from wherever it was and visibly jumps.
+   */
+  const deep = layer("atm-deep");
   const grid = layer("atm-grid");
   const motesFar = layer("atm-motes atm-motes-far");
+  deep.append(grid, motesFar);
+
   const motesMid = layer("atm-motes atm-motes-mid");
   const motesNear = layer("atm-motes atm-motes-near");
   const sweep = layer("atm-sweep");
   const vignette = layer("atm-vignette");
 
-  body.append(slotA, slotB, grid, motesFar, motesMid, motesNear, sweep, vignette);
+  body.append(slotA, slotB, deep, motesMid, motesNear, sweep, vignette);
   root.append(body);
   parent.insertBefore(root, parent.firstChild);
 
   /**
-   * Grain, immediately rather than on an idle callback.
+   * The near plane, appended **last** so it lands after `#app`.
+   *
+   * `#app` is `position: fixed`, which makes it a stacking context of its own,
+   * so nothing inside a screen — not the mulligan at z-index 70, not the shop
+   * reveal at 60 — can paint over a sibling of `#app` with a higher z-index.
+   * That is exactly what is wanted: this is a lens over the whole window, not a
+   * layer inside the page. `#rotate-overlay` at 9999 still clears it.
+   *
+   * Its own body element exists for the same reason the back layer's does: one
+   * transform can move the whole plane if a future set-piece wants to, and the
+   * pause switch has one thing to talk to.
+   */
+  const fore = layer("atmosphere-fore");
+  fore.setAttribute("aria-hidden", "true");
+  const foreBody = layer("atm-fore-body");
+  const foreMotes = layer("atm-motes atm-fore-motes");
+  const foreSweep = layer("atm-sweep atm-fore-sweep");
+  foreBody.append(foreMotes, foreSweep, layer("atm-fore-vignette"));
+  fore.append(foreBody);
+  parent.appendChild(fore);
+
+  /**
+   * Grain, immediately rather than on an idle callback, and written onto the
+   * **document root** rather than onto this layer.
    *
    * It is a 96px noise tile — a few milliseconds — and it is painted *by* the
    * wash rather than as a layer of its own, so there is nothing to fade in and
@@ -387,10 +472,21 @@ export function mountAtmosphere(host: HTMLElement | null = null): Atmosphere {
    * gradient, which is the whole point of having it. The low tier skips it: the
    * one device that cannot afford a repeating background image is the one that
    * is already choosing between this and the board.
+   *
+   * The property used to live on `.atmosphere`, which meant only the four
+   * layers inside this element could reach it. The one other surface in the
+   * game that is a full-screen field of nothing — `transitions.css`'s menu veil,
+   * which now holds opaque over a heavy route's constructor for as long as that
+   * takes — sits inside `#app` and could not, so the largest flat area a player
+   * ever sees was the one place with no dirt on it. Inheriting from the root
+   * costs nothing (it is a string, resolved only where it is used) and means
+   * there is one grain in the build rather than a second one generated by
+   * whoever needs it next. §1: reality has dirt, and it has the *same* dirt
+   * everywhere or the eye reads two materials.
    */
   if (tier !== "low") {
     const grain = grainTile(96, 0.055, 0x1d4b);
-    if (grain) root.style.setProperty("--grain-src", `url("${grain}")`);
+    if (grain) document.documentElement.style.setProperty("--grain-src", `url("${grain}")`);
   }
 
   let room: AtmosphereRoom | null = null;
@@ -436,6 +532,25 @@ export function mountAtmosphere(host: HTMLElement | null = null): Atmosphere {
       node.style.setProperty("--mote-src", `url("${src}")`);
       node.classList.add("is-ready");
     }
+    /**
+     * The front plane's dust, at every tier including low.
+     *
+     * A fourth tile rather than a reuse of one of the three above: the front
+     * layer sits at a different scale and a different tilt, and repeating the
+     * same forty specks in front of and behind the UI is the one arrangement
+     * where the eye finds the repeat immediately. Eleven motes in a 340px tile
+     * is around eighty on screen at 1600x900 — dust, not weather, but enough of
+     * it that a burst capture of a static route is never two identical frames.
+     * The low tier keeps it because this is the only thing making an unmigrated
+     * route move at all, and one tiled transform is the cheapest possible way to
+     * say so; what low drops is the sweep, in `transitions.css`, which is the
+     * full-screen gradient.
+     */
+    const foreSrc = moteTile(0x7c41, MOTE_TILE_PX, 11);
+    if (foreSrc) {
+      foreMotes.style.setProperty("--mote-src", `url("${foreSrc}")`);
+      foreMotes.classList.add("is-ready");
+    }
   });
 
   /**
@@ -461,6 +576,7 @@ export function mountAtmosphere(host: HTMLElement | null = null): Atmosphere {
 
   const api: Atmosphere = {
     root,
+    fore,
     enterRoom(next: AtmosphereRoom): void {
       if (next === room) return;
       room = next;
@@ -481,14 +597,25 @@ export function mountAtmosphere(host: HTMLElement | null = null): Atmosphere {
       root.dataset["travel"] = kind;
     },
     setPaused(paused: boolean): void {
-      if (paused) root.dataset["paused"] = "true";
-      else delete root.dataset["paused"];
+      if (paused) {
+        root.dataset["paused"] = "true";
+        fore.dataset["paused"] = "true";
+      } else {
+        delete root.dataset["paused"];
+        delete fore.dataset["paused"];
+      }
     },
     dispose(): void {
       body.removeEventListener("animationend", clearTravel);
       body.removeEventListener("animationcancel", clearTravel);
       document.removeEventListener("visibilitychange", visibility);
       root.remove();
+      fore.remove();
+      // The grain outlives this element now that it lives on the root, so it
+      // has to be taken back explicitly — a test that mounts and disposes twice
+      // would otherwise leave a 30 KB data URI on the document for the rest of
+      // the process.
+      document.documentElement.style.removeProperty("--grain-src");
       if (mounted === api) mounted = null;
     },
   };

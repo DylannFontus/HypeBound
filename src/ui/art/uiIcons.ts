@@ -24,9 +24,9 @@
  * `currentColor` only, with 2px of optical padding so nothing touches the box.
  * Nothing here is fetched, nothing is a font, nothing is a PNG.
  *
- * 107 drawings under 122 names. Thirteen lobby destinations, the fourteen modes
+ * 109 drawings under 124 names. Thirteen lobby destinations, the fourteen modes
  * on the play screen, four currencies, the fourteen things the battle HUD counts
- * or offers, the sixteen keyword pips, eight status badges, thirty-seven generic
+ * or offers, the sixteen keyword pips, eight status badges, thirty-nine generic
  * controls and one deliberately ugly `missing`. The extra fifteen names are
  * aliases — see `ALIAS`.
  *
@@ -48,11 +48,17 @@
  * enough: a `data:` URI, a canvas draw, a test asserting on geometry. It emits
  * the same artwork with the paths written out.
  *
- * ## Sizing: `1em`, as an attribute
+ * ## Sizing: `1em`, as an attribute, and one weight at three optical sizes
  *
  * Icons are sized in `em` so they track `--ui-scale` — the accessibility screen
  * lets a player scale the whole interface from one custom property, and an icon
  * pinned to 16px would be the one thing on the screen that refuses to grow.
+ *
+ * The stroke does *not* scale linearly with the box, and `ICON_OPTICAL` is why.
+ * A single-weight set blown up to a destination tile's 56px paints a line 2.3×
+ * heavier, proportionally, than the one this set was signed off at; the ramp
+ * thins it back. It is one number tapering, not two weights — see the long note
+ * on `ICON_OPTICAL`.
  *
  * The box is set by a class in a stylesheet this module injects, not by an
  * inline `style`. Inline styles win over everything and would make the icons
@@ -80,6 +86,19 @@
  * Lurking hood was the Scorched flame with a hole in it, and the discard pile was
  * — unmistakably, embarrassingly — the download icon.
  *
+ * Round 4 caught two more, and both are the same lesson a third time: a mark is
+ * separated from its neighbours by its **outline** or not at all. `kw-spotlight`
+ * and `mode-lab` were both a narrow top widening into a splayed cone over a
+ * horizontal rule; `st-shielded`'s specular sat two thirds of a pixel from its
+ * own rim and read as a thickening of the stroke rather than as a second mark.
+ * Both are redrawn where they are declared and both say what changed.
+ *
+ * **And the sheet is not enough on its own, because a destination tile draws its
+ * mark at 40–64px.** The whole set now has to be looked at twice — once at 24
+ * where it was authored, and once at the size the lobby's nine pills will use
+ * when somebody finally makes them objects rather than pills. The gallery
+ * carries both, side by side, with the same marks in the same order.
+ *
  * Where `docs/design/05-keyword-glossary.md` names a pip shape, that name is
  * followed. Four deviate and each says so where it is drawn: the shape the
  * glossary asks for is legible on a card at 96px and mud at 24.
@@ -104,6 +123,66 @@ export const ICON_GRID = 24;
  * and still has body at 48.
  */
 export const ICON_STROKE = 1.75;
+
+/**
+ * The same weight, at three optical sizes — and why that is not two weights.
+ *
+ * A stroke authored on a 24 grid is a *ratio*, not a thickness: 1.75/24 is
+ * 7.3% of the box, so the same symbol painted at 56px lands a 4.1px line and at
+ * 120px a 8.8px one. That is the failure this file's own header warns about, in
+ * the other direction — an icon reads as clip-art when its line weight is wrong
+ * for its size, and 7.3% is wrong the moment the box stops being a UI icon and
+ * starts being an *object* on a tile. Every set that ships at more than one
+ * size deals with this: SF Symbols has optical weights, Material has grades,
+ * and a designer using a single-weight set at 56px reaches for the stroke
+ * slider without thinking about it.
+ *
+ * The round-4 stills verdict named "nine identical pills with a small centred
+ * icon" the flattest thing in any frame. A destination tile that fixes that
+ * draws its mark at 40–64px rather than at 20, and until now the set had
+ * nothing to say about that range — a lobby builder would have got a
+ * proportionally 2.3× heavier line than the contact sheet was signed off on.
+ *
+ * §7 of the AAA bar asks for "a single stroke weight", and this keeps that
+ * promise where it is actually made: **two icons at the same size are never
+ * drawn at different weights.** What changes is only how the one weight tapers
+ * as the box grows, from one table, so the family stays a family across a 5×
+ * size range instead of only at 24px:
+ *
+ *     16px  ui       1.17px painted   7.3% of box
+ *     24px  ui       1.75px           7.3%
+ *     40px  display  2.25px           5.6%
+ *     56px  display  3.15px           5.6%
+ *     64px  hero     2.93px           4.6%
+ *    120px  hero     5.50px           4.6%
+ *
+ * The taper is the same shape type uses: display type tightens its tracking as
+ * it grows for exactly this reason (§4), and nobody calls that two typefaces.
+ */
+export const ICON_OPTICAL = {
+  /** 14–32px. The size the whole set was drawn and signed off at. */
+  ui: ICON_STROKE,
+  /** 33–56px. Tile marks, empty-state glyphs, mode cards. */
+  display: 1.35,
+  /** 57px and up. Destination heroes, watermarks, splash marks. */
+  hero: 1.1,
+} as const satisfies Record<string, number>;
+
+export type IconOptical = keyof typeof ICON_OPTICAL;
+
+/**
+ * Which rung a given rendered size wants.
+ *
+ * Exported because the interesting callers are the ones that compute their icon
+ * size — a tile that scales with `--ui-scale`, the gallery's own size ladder —
+ * and because a builder who has to remember two thresholds will get one of them
+ * wrong. `icon()` calls this for you whenever `size` is a number.
+ */
+export function opticalFor(px: number): IconOptical {
+  if (px >= 57) return "hero";
+  if (px >= 33) return "display";
+  return "ui";
+}
 
 /**
  * Optical padding, in grid units, kept clear on every side.
@@ -277,8 +356,22 @@ const ART = {
   /** Replay Theater — a screen with a play mark on it. Not the bare triangle. */
   "mode-replays": `<rect x="3" y="4.4" width="18" height="13" rx="2.4"/><path d="M10.2 9.2 L14.8 11.9 L10.2 14.6 Z"/><path d="M12 17.4 V20.6 M8.6 20.6 H15.4"/>`,
 
-  /** The Lab — a flask. Build any board, break anything, nothing counts. */
-  "mode-lab": `<path d="M9.6 3.4 V9.2 L5 17.6 Q3.9 20.6 7.1 20.6 H16.9 Q20.1 20.6 19 17.6 L14.4 9.2 V3.4"/><path d="M8.4 3.4 H15.6 M6.8 15.4 H17.2"/>`,
+  /**
+   * The Lab — a flask. Build any board, break anything, nothing counts.
+   *
+   * The first draft had a 4.8-unit neck, shoulders that started at y=9.2 and a
+   * liquid line at y=15.4, and beside `attack` at 24px that is the same
+   * picture: a narrow vertical body 4.6 units wide, a wider base, and one
+   * crossbar 1.6 units away from the sword's crossguard at 13.8. Two marks
+   * separate at 24px by their outline or not at all.
+   *
+   * So the waist is where they are pulled apart. The neck is down to 3.2 units
+   * — thinner than the sword's blade rather than the same width — the shoulders
+   * break at y=8.4 and splay to 14.8 units at the floor, which makes the
+   * silhouette a cone rather than a rod on a plinth, and the liquid drops to
+   * y=17, a full 3.2 units clear of the crossguard.
+   */
+  "mode-lab": `<path d="M10.4 3.4 V8.4 L4.6 18.2 Q3.5 20.8 6.6 20.8 H17.4 Q20.5 20.8 19.4 18.2 L13.6 8.4 V3.4"/><path d="M9 3.4 H15 M6.3 17 H17.7"/>`,
 
   /** Weekly Boss — a skull. */
   "mode-boss": `<path d="M5.6 13.6 C5.6 7.8 8.4 4.6 12 4.6 C15.6 4.6 18.4 7.8 18.4 13.6 V15.6 Q18.4 17.6 16.4 17.6 H7.6 Q5.6 17.6 5.6 15.6 Z"/><circle cx="9.2" cy="12.3" r="1.9" fill="currentColor" stroke="none"/><circle cx="14.8" cy="12.3" r="1.9" fill="currentColor" stroke="none"/><path d="M8.9 17.6 V20.2 M12 17.6 V20.6 M15.1 17.6 V20.2"/>`,
@@ -305,16 +398,49 @@ const ART = {
   // -- the battle HUD -------------------------------------------------------
 
   /**
-   * Cards in hand — three cards fanned about the bottom of the front one.
+   * Cards in hand — one card with two more fanned out from behind it.
    *
-   * Two things had to be true before this stopped reading as a tiara. The pivot
-   * is the front card's own bottom edge, not a point far below the box, because
-   * a distant pivot swings the cards sideways instead of tilting them. And the
-   * back cards are shorter than the front one — three equal cards fanned equally
-   * give three equal peaks, which is a crown; one tall card with two lower ones
-   * behind it is a hand.
+   * This was the worst mark in the set and it was drawn as three whole
+   * transparent rounded rectangles stacked on the same pivot. Every stroke of
+   * every card ran straight through the other two, so the interior filled with a
+   * lattice: at 24px it closed into a solid blob, and at 48px it resolved into a
+   * dome with an A-shaped tangle inside it — which is the same picture as
+   * `mode-draft`, the domed helm with a crossbar. Two of the most-used icons in
+   * the game, one of them in the battle HUD where a player reads under pressure,
+   * sharing a silhouette: precisely the failure this module's header says the set
+   * was rebuilt to remove.
+   *
+   * **Nothing crosses the front card now.** There is no fill to occlude with —
+   * every symbol here is stroke-only on `currentColor` and giving one path a
+   * background colour would make it the one mark in the set that cannot sit on an
+   * arbitrary surface — so the back cards are drawn as partial paths that stop
+   * exactly where the front card's outline begins. `deck` above already works
+   * this way and it is the best card mark in the set. The front card's interior
+   * is therefore empty, which is what a card looks like.
+   *
+   * The geometry, so it can be corrected rather than re-guessed. Both back cards
+   * are 5.0 × 13.6 rectangles rotated ±30° about (12, 20.4) — the front card's
+   * bottom-centre, because a pivot far below the box swings the cards sideways
+   * instead of tilting them. At 30° each back card's inner edge disappears behind
+   * the front card at (8.4, 9.15) and its outer edge disappears again at
+   * (8.4, 19.15), so what survives is **two corners and three edges**: a short
+   * stub of the inner edge, the top-outer corner, the whole top edge, the
+   * top-outer corner again and a long run down the outer edge. That is the
+   * difference between this and the two drafts before it, both of which
+   * terminated a single corner on the same straight edge and therefore drew a
+   * triangle — at 24px, a pair of wings on a bowtie.
+   *
+   * The fan is wider than the old ±24° because at 24° the corners did not clear
+   * the front card's silhouette at all, and the back cards are narrower and
+   * shorter than the front one for the reason the first version of this comment
+   * gave and got right: three equal cards fanned equally give three equal peaks,
+   * which is a crown; one tall card with two lower ones behind it is a hand.
+   *
+   * Beside the helm at 24px it shares no outline. The helm is a dome on two legs
+   * with a crossbar inside it; this is a flat-topped card with two shoulders
+   * angling down and out, and its interior is empty.
    */
-  hand: `<rect x="8.2" y="8.6" width="7.6" height="9.8" rx="1.5" transform="rotate(-24 12 18.4)"/><rect x="8.2" y="8.6" width="7.6" height="9.8" rx="1.5" transform="rotate(24 12 18.4)"/><rect x="7.8" y="4.8" width="8.4" height="13.6" rx="1.7"/>`,
+  hand: `<path d="M8.4 9.15 L8.07 8.58 A1.4 1.4 0 0 0 6.16 8.07 L4.25 9.17 A1.4 1.4 0 0 0 3.74 11.08 L8.4 19.15"/><path d="M15.6 9.15 L15.93 8.58 A1.4 1.4 0 0 1 17.84 8.07 L19.75 9.17 A1.4 1.4 0 0 1 20.26 11.08 L15.6 19.15"/><rect x="8.4" y="5.4" width="7.2" height="15" rx="1.5"/>`,
 
   /** Cards in deck — a card with the stack behind it showing at the top-right. */
   deck: `<rect x="3.2" y="7.4" width="12.6" height="13" rx="1.8"/><path d="M6.1 7.4 V6.1 A1.7 1.7 0 0 1 7.8 4.4 H17 A1.7 1.7 0 0 1 18.7 6.1 V17.5"/>`,
@@ -384,14 +510,37 @@ const ART = {
   "kw-viral": `<path d="M3.6 12 H11"/><path d="M11 12 L17.9 6.4"/><path d="M13.9 6.4 H17.9 V10.4"/><path d="M11 12 L17.9 17.6"/><path d="M13.9 17.6 H17.9 V13.6"/>`,
 
   /**
-   * Spotlight — a lamp, a beam and the pool it throws.
+   * Spotlight — a lamp, a beam and the pool it throws, and the lamp leans.
    *
    * The first draft closed the cone into a solid trapezoid and became a bucket;
    * the second stopped the beams just above the pool and the ellipse's top arc
    * closed the shape again into a lampshade. The beams have to land exactly on
    * the pool's widest points — then the eye reads cone, floor, light.
+   *
+   * The third draft was symmetrical, and that is what the round-4 review caught:
+   * a narrow top widening into a splayed cone with a horizontal rule across the
+   * bottom is *also* `mode-lab`. The flask's shoulders are this mark's beams and
+   * the flask's liquid line is this mark's pool, and the two were the only pair
+   * of thirty tested that failed at a true 24px. Worse, `mode-lab` had already
+   * spent three passes moving *to* a cone silhouette to get away from `attack`,
+   * so the collision was arrived at from both sides.
+   *
+   * The whole rig is now rotated about −28°: the head is an asymmetric
+   * quadrilateral leaning to the right, the left beam runs almost vertically
+   * while the right one runs at 45°, and the pool is a tilted ellipse in the
+   * bottom-right rather than a level rule across the bottom. **A flask cannot
+   * lean** — it is a vessel and its liquid line is horizontal by definition — so
+   * the two marks are now separated by the one property that survives being shrunk
+   * to 24px, which is the outline. The pool stays (a spotlight without a floor is
+   * a torch), and the beams still land exactly on its widest points, which are
+   * now its rotated major-axis ends rather than its left and right edges.
+   *
+   * Every coordinate below is the unrotated rig put through a −28° rotation
+   * about (8.6, 5.0) and then shifted (−0.6, +0.5) to sit inside the 2px optical
+   * padding; they are literals for the reason the file's header gives, and this
+   * paragraph is how to regenerate them rather than re-guess them.
    */
-  "kw-spotlight": `<path d="M9.4 3.4 H14.6 L15.8 6.6 H8.2 Z"/><path d="M8.8 7.8 L4.6 18 M15.2 7.8 L19.4 18"/><ellipse cx="12" cy="18" rx="7.4" ry="2.9"/>`,
+  "kw-spotlight": `<path d="M5.5 5 L9 3.2 L11.6 5.4 L5.9 8.4 Z"/><path d="M6.4 9.2 L8.2 19 M12 6.2 L19.1 13.2"/><ellipse cx="13.6" cy="16.1" rx="6.2" ry="2.4" transform="rotate(-28 13.6 16.1)"/>`,
 
   /**
    * Parasocial — the glossary's heart bisected by a chain link.
@@ -493,8 +642,25 @@ const ART = {
    */
   "st-scorched": `<path d="M12.4 3 C12.4 6.6 14.6 8.2 16.2 10 C17.7 11.7 18.6 13.2 18.6 15 C18.6 18.4 15.7 21 12 21 C8.3 21 5.4 18.4 5.4 15 C5.4 12.4 6.8 10.6 8.6 8.6 C8.8 10.2 9.4 11.2 10.4 11.8 C11.2 9.2 10.8 5.6 12.4 3 Z"/>`,
 
-  /** Shielded — a bubble, told from every other circle by its specular. */
-  "st-shielded": `<circle cx="12" cy="12" r="8.7"/><path d="M6.1 10.2 A6.8 6.8 0 0 1 10.4 5.6"/>`,
+  /**
+   * Shielded — a bubble, told from every other circle by its specular.
+   *
+   * The specular used to sit at radius 6.2–6.6 inside an 8.7 outline. Two 1.75
+   * strokes take 1.75 of that 2.2-unit gap, so at 24px the highlight ran within
+   * two thirds of a pixel of the rim and the whole mark read as a plain ring
+   * with one thick side — the round-4 review's softer note, and correct. The set
+   * has seven other circles (`emote`, `timer`, `info`, `help`, `st-cancelled`,
+   * `kw-flow`, `clout`) and a ring that is only a ring is indistinguishable from
+   * all of them at a glance.
+   *
+   * So the highlight moves inboard to radius 5.0 — 3.7 units clear of the rim,
+   * which is two clean pixels of dark between the two strokes at 24px — and it
+   * becomes **two** arcs, a long one and a short one, which is the universal
+   * glass idiom and the thing no other circle in the set does. Both sit in the
+   * upper left, because the key light is at 315° everywhere and a bubble lit
+   * from the bottom-right would be the one object in the game with its own sun.
+   */
+  "st-shielded": `<circle cx="12" cy="12" r="8.7"/><path d="M7.15 10.79 A5 5 0 0 1 9.73 7.55"/><path d="M10.37 7.27 A5 5 0 0 1 12 7"/>`,
 
   /** Cancelled — a circle with a strike through it. */
   "st-cancelled": `<circle cx="12" cy="12" r="8.7"/><path d="M6 18 L18 6"/>`,
@@ -511,8 +677,26 @@ const ART = {
    */
   "st-lurking": `<path d="M3.2 12 C5.8 7.6 8.8 5.4 12 5.4 C15.2 5.4 18.2 7.6 20.8 12 C18.2 16.4 15.2 18.6 12 18.6 C8.8 18.6 5.8 16.4 3.2 12 Z"/><circle cx="12" cy="12" r="2.8"/><path d="M4.6 19.4 L19.4 4.6"/>`,
 
-  /** Warded — a diamond with an inner notch. */
-  "st-warded": `<path d="M12 3.2 L20.8 12 L12 20.8 L3.2 12 Z"/><path d="M9.4 9.8 L12 12.4 L14.6 9.8"/>`,
+  /**
+   * Warded — a shield with a bite taken out of its upper right.
+   *
+   * It was a rhombus with a small inner V, and the rhombus is the busiest
+   * outline in the set: `diamond` is a plain one, `hype` is one with a girdle,
+   * `kw-overload` is one with a zigzag. Hype and Overload sharing a silhouette
+   * is argued for where they are drawn — they are the same resource, locked —
+   * but Warded had no such argument, and it is a status pip that sits on a
+   * character in the same HUD that shows the Hype counter. Four marks that are
+   * one shape differing by an interior stroke is exactly the failure this set
+   * was rebuilt to remove.
+   *
+   * So it is off the rhombus entirely, and the change is to the *silhouette*
+   * rather than to the contents: Warded means one incoming effect is absorbed,
+   * and a shield with a chunk missing from the corner the hit landed on says
+   * that in one outline. Deliberately no interior line at all — `armour` is a
+   * shield with a horizontal band, and the moment this one gains a bar the two
+   * are back to being told apart by their insides.
+   */
+  "st-warded": `<path d="M12 3.4 L16.4 5 L14.8 8.4 L19.4 9.9 V12.4 C19.4 16.7 16.2 19.7 12 20.8 C7.8 19.7 4.6 16.7 4.6 12.4 V6.2 Z"/>`,
 
   /** Weakened — a down chevron over a floor. The bar is what makes it not a chevron. */
   "st-weakened": `<path d="M6 8.8 L12 14.8 L18 8.8"/><path d="M6.4 19 H17.6"/>`,
@@ -570,6 +754,42 @@ const ART = {
 
   /** Rarity pips, and anything that wants a neutral marker. */
   diamond: `<path d="M12 3.2 L20.8 12 L12 20.8 L3.2 12 Z"/>`,
+
+  /**
+   * A plain filled pip — and the only mark here that is not a picture of
+   * anything.
+   *
+   * It is in the set because the alternative is `•`, and a Unicode bullet is
+   * the precise thing this module was built to delete: it renders at whatever
+   * size and weight the OS font decides, it is not `currentColor` in a font
+   * that has opinions, and it sits on a different baseline in every face. Four
+   * things a destination tile wants want a pip and none of them wants a number
+   * — an unread marker where the count is not worth printing, a "you have not
+   * seen this" dot, a carousel position, a separator between two bits of meta.
+   *
+   * 4.2 rather than something daintier because a pip has to survive being the
+   * smallest thing on the screen; nothing else in the set is a solid disc, so
+   * there is no size at which it can be confused with anything.
+   */
+  dot: `<circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none"/>`,
+
+  /**
+   * On air. A pip broadcasting in both directions.
+   *
+   * The set could say "new" (`glimmer`), "unread" (`dot`), "soon" (`timer`) and
+   * "finished" (`check`), and had no way at all to say *happening right now* —
+   * which for a game about streamers is the single most native word in its
+   * vocabulary. Four of the nine lobby destinations want it (Events, Inbox,
+   * Hype Wave, Missions), and a tile that can say "LIVE" with a mark instead of
+   * a coloured dot is a tile that is not signalling by colour alone (§6).
+   *
+   * Arcs on **both** sides, deliberately. One-sided arcs are `volume`, and a
+   * dot with waves coming off one edge is a speaker no matter what it is
+   * labelled. Radii 2.0 / 5.2 / 9.0 with a ±50° span keep two clear pixels of
+   * dark between each ring at 24px and hold the outer arc's left extreme at
+   * x=3, exactly on the padding line.
+   */
+  live: `<circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M8.66 15.98 A5.2 5.2 0 0 1 8.66 8.02"/><path d="M15.34 15.98 A5.2 5.2 0 0 0 15.34 8.02"/><path d="M6.21 18.89 A9 9 0 0 1 6.21 5.11"/><path d="M17.79 18.89 A9 9 0 0 0 17.79 5.11"/>`,
 
   /** Doomscroll treasure. A domed lid, because a flat one is a shoebox. */
   chest: `<rect x="3.2" y="10.6" width="17.6" height="9.6" rx="1.4"/><path d="M3.2 10.6 A11 11 0 0 1 20.8 10.6"/><rect x="10.4" y="12.4" width="3.2" height="3.8" rx="0.9"/>`,
@@ -724,17 +944,46 @@ export function statusIcon(statusId: string): IconId | undefined {
 // Markup
 // ---------------------------------------------------------------------------
 
+/** The custom property one instance uses to ask for a different rung. */
+export const ICON_STROKE_VAR = "--hb-icon-stroke";
+
 /**
- * The presentation the whole set shares, written once onto each `<symbol>`.
+ * The presentation shared by every drawing, with one number left open.
  *
  * On the symbol rather than on the `<svg>` host, because a host attribute is
  * only an *inherited* value inside the shadow tree a `<use>` builds — and an
  * inherited value loses to anything a page stylesheet says about `svg path`. A
  * specified attribute on the symbol wins, which is what keeps the set at one
  * stroke weight even on a screen whose CSS has opinions.
+ *
+ * That is also what made the optical ramp look impossible: a specified
+ * attribute is specified for every instance at once, so one sprite could only
+ * ever have one weight, and a second sprite is a second icon set with all the
+ * drift that implies.
+ *
+ * `var()` inside a presentation attribute is the way out, and it is the *only*
+ * value in this string that is not a constant. A presentation attribute is
+ * parsed as a CSS declaration, and custom properties inherit across the shadow
+ * boundary a `<use>` builds — so `--hb-icon-stroke` set on the host element
+ * reaches the cloned geometry, per instance, from one sprite. Verified in a
+ * real browser rather than assumed: the same symbol at a 96px box measured 8,
+ * 6 and 16 device pixels of line under three different values of the property.
+ *
+ * The host also carries a plain numeric `stroke-width` matching the rung it
+ * asked for. That is not belt and braces for its own sake — if an engine ever
+ * rejects `var()` in a presentation attribute the declaration is invalid at
+ * computed-value time, `stroke-width` falls back to its inherited value, and
+ * the inherited value is the host's. The fallback lands on the right number
+ * instead of on the SVG default of 1.
  */
 const SYMBOL_ATTRS =
-  `fill="none" stroke="currentColor" stroke-width="${ICON_STROKE}" stroke-linecap="round" stroke-linejoin="round"`;
+  `fill="none" stroke="currentColor" stroke-width="var(${ICON_STROKE_VAR}, ${ICON_STROKE})" ` +
+  `stroke-linecap="round" stroke-linejoin="round"`;
+
+/** The same presentation with the stroke and the ink resolved — for `data:` URIs. */
+function flatAttrs(stroke: number, colour: string): string {
+  return `fill="none" stroke="${colour}" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round"`;
+}
 
 /**
  * The stylesheet that gives an icon its box.
@@ -756,9 +1005,21 @@ const SYMBOL_ATTRS =
  * outer edge of a stroke that sits on the viewBox boundary — every icon here is
  * measured to stay 2px inside it, so there is nothing legitimate to clip.
  */
+/*
+ * The optical rungs ship as classes rather than as inline styles for the reason
+ * the paragraph above gives: at (0,1,0) a host can say
+ * `.lobby-nav-icon .hb-icon{--hb-icon-stroke:1.2}` and win, which an inline
+ * `style` would make impossible. `ui` deliberately has no class — it is the
+ * `var()` fallback baked into every symbol, so the default costs no markup and
+ * an icon with no opinion is always the signed-off weight.
+ */
 const ICON_CSS =
   `.${ICON_CLASS}{display:inline-block;width:1em;height:1em;` +
-  `vertical-align:-0.125em;flex:0 0 auto;overflow:visible}`;
+  `vertical-align:-0.125em;flex:0 0 auto;overflow:visible}` +
+  (Object.entries(ICON_OPTICAL) as [IconOptical, number][])
+    .filter(([rung]) => rung !== "ui")
+    .map(([rung, stroke]) => `.${ICON_CLASS}-${rung}{${ICON_STROKE_VAR}:${stroke}}`)
+    .join("");
 
 const XMLNS = "http://www.w3.org/2000/svg";
 
@@ -809,12 +1070,43 @@ export interface IconOptions {
    * set scaling with `--ui-scale`.
    */
   size?: number | string;
+  /**
+   * Which rung of the optical ramp to draw at.
+   *
+   * Left alone this is `"auto"`, which reads the numeric `size` and picks with
+   * `opticalFor()`. It has to be stated explicitly in the one case the markup
+   * cannot answer for itself — an icon sized by CSS rather than by `size`, which
+   * is the *preferred* way to size an icon and therefore not a rare case:
+   *
+   *     icon("collection", { class: "dest-mark", optical: "hero" })
+   *
+   * The other way round works too and is often tidier: set
+   * `--hb-icon-stroke` on any ancestor and every icon under it moves rung.
+   */
+  optical?: IconOptical | "auto";
   /** Anything else — `data-*`, `id`, `title`. Values are escaped. */
   attrs?: Record<string, string>;
 }
 
-function hostAttributes(options: IconOptions | undefined): string {
-  const classes = options?.class ? `${ICON_CLASS} ${options.class}` : ICON_CLASS;
+/**
+ * The rung an instance ends up on.
+ *
+ * A number in `size` is a promise about the rendered box, so it is enough to
+ * choose with. A string is not — `1.4em` and `var(--x)` are both legal there and
+ * neither can be resolved without a layout — so a CSS-sized icon stays on `ui`
+ * unless the caller says otherwise. Silently guessing at a rung from a string
+ * would be worse than not ramping at all: it would put two icons of the same
+ * size at two weights, which is the one thing §7 actually forbids.
+ */
+function opticalOf(options: IconOptions | undefined): IconOptical {
+  const asked = options?.optical;
+  if (asked && asked !== "auto") return asked;
+  return typeof options?.size === "number" ? opticalFor(options.size) : "ui";
+}
+
+function hostAttributes(options: IconOptions | undefined, optical: IconOptical): string {
+  const rung = optical === "ui" ? "" : ` ${ICON_CLASS}-${optical}`;
+  const classes = options?.class ? `${ICON_CLASS}${rung} ${options.class}` : `${ICON_CLASS}${rung}`;
   let out = ` class="${escapeAttribute(classes)}" viewBox="0 0 ${ICON_GRID} ${ICON_GRID}" focusable="false"`;
 
   if (options?.size !== undefined) {
@@ -844,8 +1136,12 @@ function hostAttributes(options: IconOptions | undefined): string {
 export function icon(id: IconId, options?: IconOptions): string {
   installIconSprite();
   const target = resolve(id);
+  const optical = opticalOf(options);
   const title = options?.label ? `<title>${escapeAttribute(options.label)}</title>` : "";
-  return `<svg${hostAttributes(options)}>${title}<use href="#${SYMBOL_PREFIX}${target}"/></svg>`;
+  return (
+    `<svg${hostAttributes(options, optical)} stroke-width="${ICON_OPTICAL[optical]}">` +
+    `${title}<use href="#${SYMBOL_PREFIX}${target}"/></svg>`
+  );
 }
 
 /**
@@ -857,8 +1153,12 @@ export function icon(id: IconId, options?: IconOptions): string {
  */
 export function iconInline(id: IconId, options?: IconOptions): string {
   const target = resolve(id);
+  const optical = opticalOf(options);
   const title = options?.label ? `<title>${escapeAttribute(options.label)}</title>` : "";
-  return `<svg xmlns="${XMLNS}"${hostAttributes(options)} ${SYMBOL_ATTRS}>${title}${ART[target]}</svg>`;
+  return (
+    `<svg xmlns="${XMLNS}"${hostAttributes(options, optical)} ` +
+    `${SYMBOL_ATTRS}>${title}${ART[target]}</svg>`
+  );
 }
 
 /**
@@ -887,15 +1187,59 @@ export function iconElement(id: IconId, options?: IconOptions): SVGSVGElement {
  *
  * Percent-encoded rather than base64: it stays readable in devtools and is
  * shorter for markup this repetitive.
+ *
+ * The stroke is resolved to a number here rather than left as `var()`, and that
+ * is the whole reason this function does not just call `iconInline`. A `data:`
+ * URI is a document with no cascade reaching into it, so a `var()` would always
+ * take its fallback — which is exactly wrong for the case this signature now
+ * serves. A destination tile's watermark is the same drawing at 160px, and at
+ * 160px the `ui` rung paints an 11.7px line: a blot, not a mark. `size` picks
+ * the rung, the same way it does for `icon()`, so a caller asking for a big
+ * watermark gets a big watermark rather than a big mistake.
  */
-export function iconDataUri(id: IconId, color = "#ffffff", size = ICON_GRID): string {
+export function iconDataUri(
+  id: IconId,
+  color = "#ffffff",
+  size = ICON_GRID,
+  optical: IconOptical | "auto" = "auto"
+): string {
   const target = resolve(id);
-  const attrs = SYMBOL_ATTRS.replace("currentColor", color);
+  const rung = optical === "auto" ? opticalFor(size) : optical;
+  const attrs = flatAttrs(ICON_OPTICAL[rung], color);
   const svg =
     `<svg xmlns="${XMLNS}" viewBox="0 0 ${ICON_GRID} ${ICON_GRID}" width="${size}" height="${size}" ${attrs}>` +
     `${ART[target].replace(/currentColor/g, color)}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
+
+/**
+ * The two `data:` marks module A's checkbox draws, emitted from the real artwork.
+ *
+ * Round 4: `--tick` and `--tick-off` in `foundation.css` are a second icon set
+ * living inside module A — the same idea as `check` but a different path
+ * (`m5 13 4.5 4.5L19 6.5`), at a different weight (2.75 against 1.75), with the
+ * ink baked in as `#ffffff` and `#8e88a4` and none of this set's 2px of optical
+ * padding. Photographed side by side at 4× they are plainly two different hands,
+ * and the baked colour is the exact failure the chevron comment forty lines
+ * above it condemns: a tinted checkbox gets a white tick.
+ *
+ * The fix belongs in module A's file and module A owns it. What module C can do
+ * — and this is the whole of it — is stop the redraw being *necessary*: these
+ * are the correct strings, generated from the same paths as every other mark, so
+ * the repair there is a paste rather than a fourth attempt at drawing a tick.
+ * The gallery photographs both hands at 6× so the difference is a picture rather
+ * than a paragraph, and so that the day module A lands the fix, the same photo
+ * shows one hand instead of two.
+ *
+ * Deliberately *not* installed onto `:root` from here. Writing another module's
+ * custom properties out of a JS boot step would win over its stylesheet
+ * silently, which is a worse failure than the one it fixes — the next person to
+ * edit `foundation.css` would change the tick and watch nothing happen.
+ */
+export const FORM_TICKS: Readonly<Record<"tick" | "tickOff", string>> = Object.freeze({
+  tick: iconDataUri("check", "#ffffff"),
+  tickOff: iconDataUri("check", "#8e88a4"),
+});
 
 // ---------------------------------------------------------------------------
 // Installing the sprite

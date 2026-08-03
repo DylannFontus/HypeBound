@@ -28,12 +28,16 @@ import { fileURLToPath } from "node:url";
 import {
   LIGHT_RIG,
   MATERIAL_AMPLITUDE,
+  MATERIAL_FACE,
   bevelStrip,
   contactShadow,
   cssAngleToWorld,
   currentGlow,
   fadeStrip,
+  grainContrast,
+  grainContrastOf,
   grainDataUri,
+  grainTier,
   installTextureVars,
   lightPosition,
   noiseTexture,
@@ -43,6 +47,32 @@ import {
   softMaskDataUri,
   worldToCssAngle,
 } from "../src/ui/art/texture";
+
+const TIERS = ["hero", "panel", "chip", "well"] as const;
+
+const FOUNDATION = fileURLToPath(new URL("../src/ui/theme/foundation.css", import.meta.url));
+
+/** The stylesheet, or null while module A has not landed. See the note below. */
+function foundationCss(): string | null {
+  return existsSync(FOUNDATION) ? readFileSync(FOUNDATION, "utf8") : null;
+}
+
+/** sRGB hex to WCAG relative luminance. */
+function luminance(hex: string): number {
+  const value = hex.replace("#", "");
+  const channel = (pair: string): number => {
+    const c = parseInt(pair, 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return (
+    0.2126 * channel(value.slice(0, 2)) + 0.7152 * channel(value.slice(2, 4)) + 0.0722 * channel(value.slice(4, 6))
+  );
+}
+
+function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
 
 describe("LIGHT_RIG", () => {
   it("states the contract's angle", () => {
@@ -121,6 +151,147 @@ describe("LIGHT_RIG", () => {
 describe("material amplitudes", () => {
   it("are the contract's four values on one scale", () => {
     expect(MATERIAL_AMPLITUDE).toEqual({ hero: 1, panel: 0.55, chip: 0.35, well: 0.7 });
+  });
+});
+
+/**
+ * The three things the two halves of the rig kept disagreeing about.
+ *
+ * Everything below reads the real stylesheet rather than a copy of its numbers,
+ * for the same reason the `--light-angle` check does: a test that restates the
+ * value it is checking proves only that somebody typed it twice. All of them are
+ * skipped rather than failed while `foundation.css` is absent, because this
+ * module ships ahead of module A and a red test for a file another builder has
+ * not landed tells nobody anything they can act on.
+ */
+describe("the seam between module B's arithmetic and module A's stylesheet", () => {
+  /**
+   * The DOM cast has to fall where `shadowOffset()` says it does. It did not:
+   * both layers of `--mat-cast` were authored as `0 Npx`, so every raised object
+   * on the page shadowed as if the key light were directly overhead while the
+   * gallery printed a horizontal throw in its light readout one card above.
+   */
+  it("throws the CSS cast sideways at exactly shadowOffset's ratio", () => {
+    const css = foundationCss();
+    if (css === null) return;
+    const unit = shadowOffset(1);
+    const wanted = unit.x / unit.y;
+
+    // The soft drop and the tight contact, in the order they appear in --mat-cast.
+    const drop = /calc\(([0-9.]+)px \* var\(--mat-amp\) \* var\(--cast-lift\)\) calc\(([0-9.]+)px \* var\(--mat-amp\) \* var\(--cast-lift\)\)/.exec(
+      css
+    );
+    expect(drop, "--mat-cast must declare a two-axis soft drop").not.toBeNull();
+    expect(Number(drop?.[1]) / Number(drop?.[2])).toBeCloseTo(wanted, 3);
+
+    const contact = /calc\(([0-9.]+)px \* var\(--cast-lift\)\) calc\(([0-9.]+)px \* var\(--cast-lift\)\)/.exec(css);
+    expect(contact, "--mat-cast must declare a two-axis contact shadow").not.toBeNull();
+    expect(Number(contact?.[1]) / Number(contact?.[2])).toBeCloseTo(wanted, 3);
+
+    // And the pressed state's inner shade, which falls the same way.
+    const press = /--press-cast: inset ([0-9.]+)px ([0-9.]+)px/.exec(css);
+    expect(press, ".act:active must declare a two-axis --press-cast").not.toBeNull();
+    expect(Number(press?.[1]) / Number(press?.[2])).toBeCloseTo(wanted, 2);
+  });
+
+  /**
+   * Grain is a contrast, not an alpha. The assertion is on the *ratio* between
+   * the four rendered amplitudes rather than on the amounts, because the amounts
+   * are an answer that will change the next time a fill is retuned and the ratio
+   * is the requirement that must not. 1.75% on the hero against 22.0% on the
+   * well is what this replaced.
+   */
+  it("renders the four plates at the same high-pass fraction of their own faces", () => {
+    const ratios = TIERS.map(grainContrastOf);
+    expect(Math.max(...ratios) / Math.min(...ratios)).toBeLessThan(1.5);
+    for (const ratio of ratios) {
+      expect(ratio).toBeGreaterThan(0.03);
+      expect(ratio).toBeLessThan(0.1);
+    }
+  });
+
+  /**
+   * And the measurements have to still follow from the amounts.
+   *
+   * `contrast` is read off the rendered page rather than computed, which is the
+   * honest way round — but a hand-recorded measurement rots the moment somebody
+   * edits an amount and does not re-shoot. So: the model's prediction for the
+   * grain, added in quadrature to the plate's own recorded dither floor, must
+   * land within a fifth of what was measured. Change an amount without
+   * re-measuring and this goes red.
+   */
+  it("keeps each recorded measurement consistent with the amount that produced it", () => {
+    for (const tier of TIERS) {
+      const { amount, baseline, contrast } = grainTier(tier);
+      const modelled = grainContrast(amount, MATERIAL_FACE[tier]);
+      const predicted = Math.hypot(modelled, baseline);
+      expect(Math.abs(predicted - contrast) / contrast, `${tier} grain measurement is stale`).toBeLessThan(0.2);
+    }
+  });
+
+  it("keeps the four faces in the value structure the materials claim", () => {
+    expect(MATERIAL_FACE.hero).toBeGreaterThan(MATERIAL_FACE.chip);
+    expect(MATERIAL_FACE.chip).toBeGreaterThan(MATERIAL_FACE.panel);
+    expect(MATERIAL_FACE.panel).toBeGreaterThan(MATERIAL_FACE.well);
+  });
+
+  /**
+   * Four materials, four tiles, no sharing. The shared recipe's own
+   * `var(--mat-grain, var(--tex-grain-mid, none))` fallback does not count here,
+   * because it is written with a comma rather than a colon — only a material
+   * actually claiming a tile matches.
+   */
+  it("gives each material its own rank's grain and no other's", () => {
+    const css = foundationCss();
+    if (css === null) return;
+    const claimed = [...css.matchAll(/--mat-grain: var\((--tex-grain-[a-z]+),/g)].map((m) => m[1]);
+    expect(new Set(claimed)).toEqual(
+      new Set(["--tex-grain-hero", "--tex-grain-mid", "--tex-grain-chip", "--tex-grain-well"])
+    );
+    expect(claimed.length, "no rank may be claimed twice").toBe(4);
+  });
+
+  /**
+   * The hero's label against the hero's own plate, in both contrast modes.
+   *
+   * This is the defect that comes back the moment somebody retunes the gradient:
+   * `.mat-hero` shipped `color: #fff` on a light-violet plate and measured
+   * 2.71:1 by pipette, and `data-contrast="high"` made it *worse* by dropping the
+   * darkest stop — the one setting whose entire purpose is legibility handing the
+   * primary action a lighter plate. The ink is now `--text-invert`; the check is
+   * that every stop of every hero fill clears 4.5:1 against it, and that turning
+   * high contrast on never makes a stop worse.
+   */
+  it("holds .mat-hero's ink above 4.5:1 on every stop, in both contrast modes", () => {
+    const css = foundationCss();
+    if (css === null) return;
+
+    const inkMatch = /--text-invert:\s*(#[0-9a-fA-F]{6})/.exec(
+      readFileSync(fileURLToPath(new URL("../src/ui/theme/base.css", import.meta.url)), "utf8")
+    );
+    expect(inkMatch, "base.css must define --text-invert").not.toBeNull();
+    const ink = inkMatch?.[1] ?? "#000000";
+
+    expect(/\.mat-hero\s*\{[^}]*color: var\(--ink-hero\)/.test(css), ".mat-hero must ink from --ink-hero").toBe(true);
+    expect(/--ink-hero:\s*var\(--text-invert\)/.test(css), "--ink-hero must resolve to --text-invert").toBe(true);
+
+    // The default fill names palette tokens; the high-contrast one is literal.
+    const palette = readFileSync(fileURLToPath(new URL("../src/ui/theme/base.css", import.meta.url)), "utf8");
+    const token = (name: string): string => new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`).exec(palette)?.[1] ?? "#000000";
+    const defaultStops = [token("accent-bright"), token("accent"), token("accent-hot")];
+
+    const highFill = /:root\[data-contrast="high"\]\s*\{[\s\S]*?--fill-hero:[^;]*?linear-gradient\(([^;]*)\);/.exec(css);
+    expect(highFill, "high contrast must restate --fill-hero").not.toBeNull();
+    const highStops = [...(highFill?.[1] ?? "").matchAll(/#[0-9a-fA-F]{6}/g)].map((m) => m[0]);
+    expect(highStops.length).toBeGreaterThan(1);
+
+    for (const stop of defaultStops) expect(contrastRatio(stop, ink)).toBeGreaterThanOrEqual(4.5);
+    for (const stop of highStops) expect(contrastRatio(stop, ink)).toBeGreaterThanOrEqual(4.5);
+
+    // The whole point of the setting: it may not be the worse of the two.
+    const worstDefault = Math.min(...defaultStops.map((s) => contrastRatio(s, ink)));
+    const worstHigh = Math.min(...highStops.map((s) => contrastRatio(s, ink)));
+    expect(worstHigh).toBeGreaterThanOrEqual(worstDefault);
   });
 });
 

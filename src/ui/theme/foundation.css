@@ -86,6 +86,29 @@
 @property --press-cast  { syntax: "*"; inherits: false; }
 @property --r-self      { syntax: "*"; inherits: false; }
 
+/* The two edge alphas, and the reason they are separate from `--mat-amp`.
+   `--mat-amp` says how far a surface floats; these two say how hard its edges
+   read, and the two are not the same number because the same alpha over a
+   bright fill and over a near-black one produces wildly different contrast.
+   §3 sets them per material so the *rendered* ladder matches the declared one. */
+@property --rim-a       { syntax: "<number>"; inherits: false; initial-value: 0.06; }
+@property --lip-a       { syntax: "<number>"; inherits: false; initial-value: 0.63; }
+
+/* And the two the specular band reads, for the same reason and one more: they
+   are the *only* knob the hover rule in §5 changes, so a value leaking into a
+   nested control would light it at its parent's amplitude instead of its own.
+   The initials are the panel's, because an unranked surface falls through to
+   `--fill-panel`. See the long note in §3 for why these are per material at all. */
+@property --sheen-alpha { syntax: "<number>"; inherits: false; initial-value: 0.03; }
+@property --sheen-hover { syntax: "<number>"; inherits: false; initial-value: 0.06; }
+
+/* The in-world progress meter of the loading state. `--meter-x` has to be a
+   registered percentage for the same reason `--sheen-x` does: an unregistered
+   custom property cannot be animated, and the meter is an animation on it. */
+@property --meter-x     { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
+@property --mat-meter   { syntax: "*"; inherits: false; }
+@property --mat-veil    { syntax: "*"; inherits: false; }
+
 /* -------------------------------------------------------------------------
    1. Tokens
    ------------------------------------------------------------------------- */
@@ -134,10 +157,70 @@
   --dur-sheen: 140ms;
   --dur-press: 80ms;
 
+  /* The idle crawl, and why it is two numbers rather than one.
+     §3a wants "a specular sweep crossing a panel every few seconds" and "a
+     breathing glow on the primary action" — the same mechanism at two speeds.
+     The hero is the faster of the pair because it is the thing the player is
+     being asked to press, and because a hero and the panel it sits on running
+     the same period would sweep together, which is one big flash rather than
+     light moving through a room. 6.2 against 8.6 shares no short multiple, so
+     the two drift apart and stay apart. */
+  --dur-sheen-hero: 6200ms;
+  --dur-sheen-panel: 8600ms;
+  /* And a third for the chip. 6.2 · 8.6 · 11.4 share no short common multiple —
+     the first coincidence of all three is past two minutes — so a chip lying on
+     a panel beside a hero never sweeps with either of them. */
+  --dur-sheen-chip: 11400ms;
+
+  /* A loading meter crosses its control roughly once a second. Slower and the
+     control looks stalled; faster and it reads as a barber's pole. 760ms is
+     also short enough that a 90ms burst catches it in six distinct places,
+     which is the difference between "it animates" and "we can prove it does". */
+  --dur-meter: 760ms;
+
+  /**
+   * ---- how far the loading state darkens its own plate --------------------
+   *
+   * A token rather than a literal in §5 because it is the one number in the
+   * loading state that carries a contrast requirement, and §10 has to be able
+   * to move it.
+   *
+   * A loading `.mat-hero` turns its ink over — dark ink cannot survive a veiled
+   * plate, so the type goes light — and light type then needs the plate under it
+   * dark enough. At the old 0.34 it was not: measured on the gallery's loading
+   * specimen, the lightest pixel under the label gave **4.05:1** in the default
+   * theme and **3.54:1** with the high-contrast setting on. Worse under the
+   * setting that exists to help, because that setting lightens `--fill-hero` —
+   * correctly, for the dark ink every other hero state wears.
+   *
+   * 0.54 clears the floor at the default — 0.47 was measured at 4.47:1, three
+   * hundredths short, which is exactly the sort of miss that only a real-pixel
+   * reading catches — and §10 raises it to 0.68 so that turning high contrast on
+   * raises the ratio rather than eroding it.
+   *
+   * Halving a plate's brightness is also, simply, what "busy" looks like. It is
+   * the part of the state that survives a still frame and reduced motion, where
+   * the meter and the shimmer do not.
+   */
+  --load-veil: 0.54;
+
+  /* ---- the shape of light travelling ------------------------------------
+     Not one of module D's three, and deliberately near-linear. A specular
+     wipe is light crossing a surface at constant speed; run it on
+     `--ease-arrive` and 80% of the travel happens in the first sixth of the
+     duration, so the band is parked off-plate for all but about eleven
+     milliseconds and nobody ever sees it. The slight ease at each end is only
+     there to stop the band appearing and vanishing on a hard edge. */
+  --ease-sweep: cubic-bezier(0.36, 0.1, 0.64, 0.9);
+
   /* ---- material amplitudes ---------------------------------------------
      One scale. A hero and a chip run the same recipe at different strengths,
      which is what makes them read as the same substance at different ranks
-     instead of as two unrelated designs. */
+     instead of as two unrelated designs.
+
+     Amplitude governs the *cast* — how far a thing floats. The rendered
+     contrast of its edges is set separately, per material, in §3; see the
+     long note there for why one number cannot do both jobs. */
   --amp-hero: 1;
   --amp-panel: 0.55;
   --amp-chip: 0.35;
@@ -148,33 +231,106 @@
      tokens so a rule that cannot add a class can still inline the material:
      set `--mat-fill: var(--fill-chip); --mat-amp: var(--amp-chip)` and add
      `.mat`. Re-tinting (a Current-coloured chip, a faction plate) is the same
-     move with a different gradient. */
+     move with a different gradient.
+
+     The four values are a value structure, not four shades of the same dark.
+     Squint at the A1 comparison row and it has to resolve into four masses:
+     hero (luma ~155), chip (~48), panel (~30), well (~13). Chip sits above
+     panel on purpose — a chip is an object lying *on* a panel, so it is nearer
+     the light. The first draft had panel at 24 and well at 13, which is the
+     same object twice as far as the eye is concerned. */
   --fill-hero: linear-gradient(var(--light-sweep), var(--accent-bright) 0%, var(--accent) 48%, var(--accent-hot) 100%);
-  --fill-panel: linear-gradient(var(--light-sweep), rgb(40 29 71 / 0.94) 0%, rgb(17 11 31 / 0.96) 100%);
-  --fill-chip: linear-gradient(var(--light-sweep), rgb(54 40 92 / 0.92) 0%, rgb(29 21 52 / 0.94) 100%);
+  /**
+   * And the ink that goes on it, which is a token because the plate and the ink
+   * are one decision and must never be changed apart.
+   *
+   * This was `#fff` and it measured **2.71:1** on a 12.48px/600 label sampled
+   * against a real plate of rgb(216,122,221) — below the 4.5:1 floor the same
+   * file holds its *disabled* state to, on the material the contract reserves
+   * for "PLAY, confirm, claim". The perverse proof was one row over in the
+   * gallery: the disabled copy of that identical button measured 12.10:1, so the
+   * label a player could not press was four and a half times more legible than
+   * the one they could. The `text-shadow` under it was the acknowledgement that
+   * it needed help, and a blurred shadow is the one remedy §4 lists that WCAG
+   * does not count.
+   *
+   * There were two ways out. Darkening the plate until white holds costs the
+   * value structure: the hero has to be the lightest mass on the screen (face
+   * ~163 against chip 58, panel 39, well 13) and a stop set dark enough for
+   * white lands it at ~75, level with the chip, which fails §6 to fix §4.
+   * Turning the ink over costs nothing and is what the reference actually does —
+   * MTG Arena's primary Play button is a saturated plate with near-black ink for
+   * precisely this reason, and a bright neon plate with dark ink is the register
+   * a nightlife game is in anyway.
+   *
+   * `--text-invert` is already in `base.css` for exactly this job. Measured
+   * against the three stops it gives 10.3:1, 6.3:1 and 7.1:1, and it gets
+   * *better* under high contrast rather than worse — see §10, where the same
+   * setting used to hand the primary action a lighter plate.
+   */
+  --ink-hero: var(--text-invert);
+  --fill-panel: linear-gradient(var(--light-sweep), rgb(50 37 85 / 0.95) 0%, rgb(20 13 37 / 0.96) 100%);
+  --fill-chip: linear-gradient(var(--light-sweep), rgb(72 55 116 / 0.93) 0%, rgb(38 28 66 / 0.95) 100%);
   /* The well inverts it: darkest at the top-left, because that is where the
      lip of a recess casts. */
   --fill-well: linear-gradient(var(--light-sweep), rgb(2 1 6 / 0.72) 0%, rgb(22 15 42 / 0.5) 100%);
 
   /* ---- grain ------------------------------------------------------------
-     Module B owns `--tex-grain` / `--tex-grain-size` and the half-scale
-     `--tex-grain-fine` pair, and injects them as a `:root` rule at boot.
-     Nothing is declared for them here on purpose: every use site asks with a
-     `none` fallback instead, so the surfaces are correct before the texture
-     arrives and dirtier — better — once it lands, and there is no ordering
-     race between two modules declaring the same name.
+     Module B owns `--tex-grain-hero`, `--tex-grain-mid`, `--tex-grain-chip`
+     and `--tex-grain-well` — one tile per material rank, each with its own
+     `-size` companion — and injects them as a `:root` rule at boot. Nothing is
+     declared for them here on purpose: every use site asks with a `none`
+     fallback instead, so the surfaces are correct before the texture arrives
+     and dirtier — better — once it lands, and there is no ordering race
+     between two modules declaring the same name.
 
-     Large surfaces take the coarse grain, one noise cell per CSS pixel.
-     Chips and form controls take the fine one, because at chip size the
-     coarse tile stops reading as film and starts reading as dirt. */
+     **There is one tile per rank because grain is a contrast, not an alpha.**
+     This is the same mistake, one background layer down, that §3 below already
+     diagnosed and fixed for the rim and the lip. One tile at one amount over
+     four faces of 163 / 58 / 39 / 13 renders at 1.75% / 4.3% / 7.7% / 22.0% of
+     the plate it is sitting on — so the hero looked like clean CSS and the well
+     looked like sensor noise on an underexposed photograph, and the two were
+     supposed to be the same substance cut at different ranks. Module B solves
+     each amount backwards from the face so all four land at 5.5%; all this file
+     has to do is point each material at the tile that belongs to it.
+
+     `--tex-grain` and `--tex-grain-fine` still exist as aliases of the mid and
+     well tiles. Nothing in this file asks for them any more, but they are the
+     names on the two public examples in module B's header and on anything a
+     screen wrote against them before the split, and an alias costs one line
+     where a fifth bitmap would cost another PNG encode at boot. */
 
   /* ---- focus -----------------------------------------------------------
      Inner stroke in the accent, outer halo in near-black. The halo is what
      makes the ring legible when the thing behind it happens to be light —
      an accent-only ring on a pale surface is the classic failure. Width
      still comes from `--focus-width`, which the accessibility screen drives. */
+  /* The halo used to be opaque and two pixels wider than the outline it was
+     supposed to back. A solid box-shadow spread does not respect the gap it
+     sits in: at the default width it reached 7px out from a control whose
+     `.field-group` gap is 4px, so tabbing into the first field of a form
+     sliced the bottom half off the words above it. An indicator that erases
+     the label of the thing it is indicating is worse than no indicator. It is
+     now clamped to the outline's own outer edge (§6) and translucent, so
+     anything it does happen to overlap stays readable. */
+  /* The halo now sits *inside* the gap rather than outside the outline, and
+     that is what turns one stroke into two. Flush with the outline's outer edge
+     it was a dark band drawn onto a page that is already near-black, so at 3x
+     magnification there was no second stroke at all — a correct, accessible,
+     radius-following ring that looked like a browser default that happened to
+     be purple. Occupying the 2px moat between the control and the accent it
+     reads dark-then-bright-then-page, on a dark plate and a light one alike,
+     and it costs no extra reach, so `.field-group`'s clearance in §8 is still
+     computed against the same number.
+     Opaque enough to be a stroke now that it is a stroke; it only ever covers
+     the control's own margin, never a neighbour's label. */
   --focus-ink: var(--accent-bright);
-  --focus-halo: rgb(4 2 10 / 0.92);
+  --focus-halo: rgb(3 1 8 / 0.88);
+  /* And the reason the ring exists visually rather than merely legibly. A flat
+     lilac outline is an outline; the same outline with twelve pixels of its own
+     colour bleeding off it is a lit filament, which is the register this game
+     is in. No spread, so it cannot occlude anything — it is light, not paint. */
+  --focus-bloom: rgb(217 165 255 / 0.35);
   --focus-gap: 2px;
 
   /* ---- scrollbars ------------------------------------------------------- */
@@ -190,14 +346,53 @@
   --hairline-lit: rgb(255 255 255 / 0.13);
 
   /* ---- the select chevron ----------------------------------------------
-     A `data:` SVG cannot resolve `currentColor` — a background image is its
-     own document and knows nothing about the text colour of the element it
-     is painted on. So the colour is baked in, and the whole url is a token
-     with a high-contrast variant below rather than a literal buried in a
-     rule. 24px grid, 1.75px stroke: module C's language, so the chevron
-     drawn here and an icon drawn there are the same hand. */
-  --chevron: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23b3aad4'%20stroke-width='1.75'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m7%2010%205%205%205-5'/%3E%3C/svg%3E");
+     Drawn, not embedded, and this is a correction of the previous version.
+
+     It used to be a `data:` SVG with `stroke='%23b3aad4'` baked into it, on the
+     reasoning that a background image is its own document and cannot resolve
+     `currentColor`. That reasoning is true and the conclusion was still wrong:
+     it made the chevron the one mark in the entire interface that cannot follow
+     the text colour, the accent, or the colour-blind modes, while all 107 icons
+     in module C are `currentColor` only. A high-contrast variant existed and
+     nothing else did — so on any select a screen tints, the chevron would be a
+     grey smudge beside a white label.
+
+     A mask would be the tidy answer and there is nowhere to put it: `mask-image`
+     masks the whole element, and `<select>` renders no pseudo-element to hang a
+     second layer on. So the mark is built out of two gradient arms instead. Each
+     is a hard-stopped diagonal band in a 5x5 box — one at 45° and one at -45° —
+     and together they are a chevron that paints in `currentColor` for free and
+     inherits every mode, every tint and every accessibility switch without
+     anybody having to remember it exists.
+
+     1.8px of band against module C's 1.75px stroke: the extra fiftieth is the
+     antialiasing a diagonal gradient edge loses against a vector one. The ends
+     are cut by the box rather than rounded, which is the one thing this gives
+     up against the SVG, and at 22px it reads as a crisp terminal rather than as
+     a different hand.
+
+     `--chevron-ink` is the one line a screen overrides. It sits back from the
+     label at 76% rather than matching it, because a dropdown arrow as loud as
+     the option name is a dropdown arrow competing with it. */
+  --chevron-ink: color-mix(in srgb, currentColor 76%, transparent);
+  --chevron-arm-l: linear-gradient(
+    45deg,
+    transparent calc(50% - 0.9px),
+    var(--chevron-ink) calc(50% - 0.9px) calc(50% + 0.9px),
+    transparent calc(50% + 0.9px)
+  );
+  --chevron-arm-r: linear-gradient(
+    -45deg,
+    transparent calc(50% - 0.9px),
+    var(--chevron-ink) calc(50% - 0.9px) calc(50% + 0.9px),
+    transparent calc(50% + 0.9px)
+  );
   --tick: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23ffffff'%20stroke-width='2.75'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m5%2013%204.5%204.5L19%206.5'/%3E%3C/svg%3E");
+  /* The same mark in a dead grey. A checkbox that is both checked and disabled
+     has to keep saying "checked" — dropping the tick, which is what a plain
+     fill override does, leaves the player looking at a control that is
+     indistinguishable from an unchecked one. */
+  --tick-off: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%238e88a4'%20stroke-width='2.75'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m5%2013%204.5%204.5L19%206.5'/%3E%3C/svg%3E");
 
   /* ---- native chrome ----------------------------------------------------
      `color-scheme: dark` is the cheapest line in this file and one of the
@@ -208,11 +403,38 @@
      idea for any checkbox or radio that somehow escapes the kit below. */
   color-scheme: dark;
   accent-color: var(--accent);
+}
 
-  /* Firefox reads these as inherited properties, so declaring them once on
-     the root is genuinely global — see §7. */
-  scrollbar-width: thin;
-  scrollbar-color: var(--scroll-thumb) transparent;
+/**
+ * One scrollbar mechanism per engine, and the reason this is behind `@supports`.
+ *
+ * `scrollbar-width` and `scrollbar-color` used to be declared here unconditionally
+ * beside the forty lines of `::-webkit-scrollbar` styling in §7, on the reasoning
+ * that each engine would take the half it understands. That stopped being true in
+ * **Chrome 121**: a non-initial `scrollbar-width` or `scrollbar-color` now makes
+ * Chromium ignore the `::-webkit-scrollbar-*` pseudo-elements entirely for that
+ * scroller. Since Chromium is what ships to GitHub Pages, the effect was that the
+ * hand-tuned 315°-lit thumb, its inset rim, its lip and its hover state were
+ * forty lines of dead CSS on the only engine that mattered — and every scroller
+ * in the app measured an `offsetWidth - clientWidth` gutter of 0 or 2px, which is
+ * an overlay scrollbar, which is to say no visible affordance at all. The
+ * gallery's own `.kit-scroll` specimen, whose entire job is to show the
+ * scrollbar off, rendered a clipped paragraph with nothing on its right edge.
+ *
+ * `selector(::-webkit-scrollbar)` is the cheapest honest question: Chromium
+ * answers yes and keeps the pseudo-element block that was designed for it,
+ * Firefox answers no and gets the standard properties, and neither engine is
+ * handed two mechanisms and left to pick. §7 asks for a scrollbar styled to
+ * match; a scrollbar nobody can see also removes the only thing telling a player
+ * the list continues.
+ */
+@supports not selector(::-webkit-scrollbar) {
+  :root {
+    /* Firefox reads these as inherited properties, so declaring them once on
+       the root is genuinely global. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--scroll-thumb) transparent;
+  }
 }
 
 /* -------------------------------------------------------------------------
@@ -249,6 +471,54 @@
   --bg: var(--bg-deep);
 }
 
+/**
+ * A third repair, and the largest: the faintest ink could not be read on any of
+ * the four surfaces this module ships.
+ *
+ * `--text-faint` was `#7e759e`. Measured from real pixels on `#uikit`, against
+ * the plates the materials below actually render:
+ *
+ *     on a nested `.mat-panel` .................. 3.48:1
+ *     on a `.mat-panel` tile's sub-line ......... 3.49:1
+ *     on a `.mat-panel` caption ................. 3.64:1
+ *     on a `.mat-well` .......................... 4.24:1
+ *
+ * Four surfaces, four failures, against a 4.5:1 floor that the same file already
+ * holds its *disabled* state to. It is the colour §4 gives `.t-label` — the
+ * smallest, most-repeated role in the game, on every panel header, every stat
+ * caption and every field note — and it is also what `::placeholder` and
+ * `.field-note` wear in §8. There is no plate in the system dark enough to save
+ * it: 4.5:1 against `#7e759e` needs a face below luminance 0.0047, which is
+ * L\* 4.3, darker than `.mat-well`. A palette value that is illegal on every
+ * material is a broken token, not a design choice, and it belongs in this
+ * section with `--line` and `--muted`.
+ *
+ * `#a49cc2` is the lightest place it has to reach and no lighter: it is set by
+ * the single hardest pairing in the system, which is faint type on a `.mat-chip`
+ * standing on the chip's own specular band at its hover peak — 4.78:1, measured
+ * with the band pinned under the glyphs rather than caught at a lucky phase.
+ * Everything darker than a chip clears it with room in the same frame: 5.09:1 on
+ * a nested panel, 5.14:1 on a field note, 5.72:1 on a caption, 6.60:1 on a well.
+ *
+ * **The cost is real and is the smaller of the two.** In L\* the ink ladder goes
+ * from 94.0 / 71.6 / 51.4 to 94.0 / 71.6 / 66.2, so the step from `--text-dim`
+ * to `--text-faint` narrows from 20 to 5.4. That is still a visible step, and
+ * colour is one of four signals §A3 asks a role to carry: `.t-label` is also
+ * smaller, heavier, uppercase and tracked +0.08em. Losing fifteen levels of
+ * tonal separation between two roles that already differ four other ways is a
+ * cheaper price than a role nobody with ordinary eyesight can read.
+ *
+ * `:root:root` for the same reason as `--font-display` in §4 — this file is
+ * `@import`ed at the top of `base.css`, so a plain `:root` here loses the
+ * source-order tie. It is deliberately *not* stronger than that: `base.css`
+ * raises this token again under `data-contrast="high"` (to `#b9b0d8`, which is
+ * lighter still), and that rule has to keep winning, so the setting that exists
+ * to help carries on improving the ratio rather than being clamped by a repair.
+ */
+:root:root {
+  --text-faint: #a49cc2;
+}
+
 /* -------------------------------------------------------------------------
    3. Materials
    -------------------------------------------------------------------------
@@ -260,57 +530,242 @@
    drop and one contact shadow in this file, and the difference between a hero
    and a chip is a number.
 
-   Layer order, top to bottom: the specular wipe (parked off-canvas at rest),
-   module B's grain, the fill gradient. `soft-light` is the blend mode for the
-   grain because it is correct whether B hands us alpha-speckle or opaque grey
-   noise — mid-grey under soft-light is a no-op, so the surface cannot be
-   washed out by a texture that turns out to be denser than expected.
+   Layer order, top to bottom: the loading meter (absent unless the state asks
+   for it), the specular wipe (parked off-canvas at rest), module B's grain, an
+   optional darkening veil, the fill gradient.
 
-   The two-pixel contact shadow at the end of the box-shadow list is the one
-   people skip and it is the one that matters. A panel with a 26px drop and no
-   contact shadow floats; the same panel with a tight dark line under its
-   bottom edge is *sitting on* something. That is the whole difference between
-   a rectangle and an object. It is also the only ingredient that does not
-   scale linearly with amplitude: a chip and a hero plate are touching the
-   same surface, so the line where they meet it is nearly as dark for both.
-   Amplitude governs how far a thing floats, not how hard it presses. */
+   ## Two things this recipe got wrong the first time, and both were visible
 
+   **The border was one colour on all four sides.** `border: 1px solid
+   rgba(255,255,255,α)` puts a rim light on the bottom and right edges of every
+   raised surface, which is a panel lit from all four directions at once. It is
+   the single loudest "this is a CSS box, not an object" tell there is: open any
+   frame of `hearthstone_frames/` and every framed thing on screen has a lit
+   side and a side that terminates in shadow, and not one of them carries a pale
+   outline the whole way round. Measured on the old rule, `.mat-panel`'s bottom
+   border came out at 32.8 against a face of 25.4 — the *unlit* edge was lighter
+   than the surface it bounded. The border is now four values: lit on top and
+   left, dark on bottom and right, the same light vector as everything else.
+
+   **The rim and the lip were specified as alpha, not as contrast.** White at
+   0.2 over the hero's bright magenta is +20 levels; the same alpha over the
+   panel's near-black fill is +45. Black at 0.45 over the hero is -57; over the
+   panel it is -11. So the "one recipe at four ranks" was rendering as four
+   unrelated recipes, and the rim-to-lip ratio ran from 0.35 on the hero to 7.35
+   on the panel — a 21x spread across surfaces the contract says differ only by
+   a number. `--rim-a` and `--lip-a` fix that by being tuned *per material
+   against that material's own face value*, so all three raised materials come
+   out at the same ~0.7 rim-to-lip ratio and the amplitude ladder (hero 1.0 >
+   well 0.7 > panel 0.55 > chip 0.35) is finally what you actually see:
+
+     material   face   rim delta   lip delta   ratio
+     hero        155        +21.6       -30.7    0.70
+     well         13        +20.6        -9.9      —   (inverted; see below)
+     panel        30        +13.5       -18.7    0.72
+     chip         48         +8.5       -12.0    0.71
+
+   Amplitude still owns the cast — how far a thing floats — because that is
+   geometry rather than contrast and it scales cleanly. The two-pixel contact
+   shadow at the end of the box-shadow list is the one people skip and it is the
+   one that matters: a panel with a 26px drop and no contact shadow floats, and
+   the same panel with a tight dark line under its bottom edge is *sitting on*
+   something.
+
+   ## The grain blends `normal`, and the old `soft-light` was the bug
+
+   Soft-light against a near-black fill compresses noise to nothing: it is a
+   contrast operation, and there is no contrast to work with at luma 25. The
+   measured result was a 0.85-of-255 mean difference between the gallery's GRAIN
+   ON and GRAIN OFF plates — a pair a viewer cannot tell apart at 1:1, which
+   means every surface in the game was still mathematically smooth, which is the
+   §1 failure the texture exists to prevent. Module B already hands us signed
+   noise (white grains and black grains, both mostly transparent), and that form
+   is designed to need no blend mode at all: under ordinary compositing a white
+   grain at alpha a lifts a dark face by a·(255-face), which is the whole point.
+   Overlay and hard-light were both considered; overlay takes the multiply
+   branch below 50% luma and is just as dead on a dark base. */
+
+/**
+ * ## The band is derived from the key light, not authored beside it
+ *
+ * The wipe used to be `linear-gradient(105deg, …)`, which puts the band fifteen
+ * degrees off vertical while every static edge in this file obeys 315°. Scrubbed
+ * frame by frame it was plainly visible and plainly not square to the light,
+ * which is two suns again — the one gradient in the file that opted out of
+ * `--light-sweep`.
+ *
+ * The first repair wrote `calc(var(--light-sweep) + 90deg)` and claimed 225°
+ * puts the highlight square to the key. It does the opposite, and the geometry
+ * is worth writing down because it is the sort of thing that gets "fixed" back
+ * every other round:
+ *
+ *   - a `linear-gradient(Adeg, …)` varies its colour *along* A; its bands — the
+ *     lines of constant colour, which is what a viewer sees as the streak — lie
+ *     **perpendicular** to A;
+ *   - `--light-sweep` is 135°, the direction the key light travels (top-left to
+ *     bottom-right), so the fill's own iso-luminance lines already run `/`;
+ *   - at 225° the bands run `\`, i.e. *along* the light's own axis. That is a
+ *     streak lying down the direction of travel, which is a second light source
+ *     raking the plate, not the key crossing it;
+ *   - at 135° — no offset at all — the bands run `/`, square to the key and
+ *     parallel to the iso-luminance lines the fill already paints. As the band
+ *     travels the plate reads as the key brightening across it, which is the
+ *     one-sun answer.
+ *
+ * **`+ 90deg` and `- 90deg` render identically**, so a sign flip is not a fix
+ * and never was: 45° and 225° are the same axis, and the stops below are
+ * symmetric about 50%, so the two gradients are the same image. Measured on a
+ * 240×200 plate painted at each angle, the two differ by at most one level in
+ * one channel anywhere (dither), mean 0.02 of 255; fit the ridge of peak
+ * luminance through both and each returns a slope of +1.0 — the same `\`. At
+ * 135° the same fit returns −1.0. The only change that moves the streak is
+ * dropping the offset.
+ *
+ * ## And it runs at rest, faintly, forever
+ *
+ * The same layer does two jobs. At rest it is a long, low crawl of light across
+ * the plate — §3a asks for "a specular sweep crossing a panel every few seconds"
+ * and a "breathing glow on the primary action", and a change map of this page
+ * once found exactly three moving things on it, none of them a surface. On hover
+ * `--sheen-hover` takes over and the same band crosses in 140ms, so a hover
+ * reads as a hard, fast catch of light rather than as more of the ambient. One
+ * layer, one keyframe, two amplitudes.
+ *
+ * ## Both amplitudes are per material, and the `* var(--mat-amp)` is gone
+ *
+ * It used to be one `--sheen-alpha: 0.07` multiplied by the amplitude, and that
+ * inverted the prominence of the whole page. 0.07 × 1.0 over the hero's face of
+ * ~150 lifts it by about seven levels; 0.07 × 0.55 over the panel's face of ~31
+ * lifts it by about seven and a half. Almost the same *absolute* lift, which
+ * against their own faces is 4.4% on the hero and 19% on the panel — so the one
+ * element per screen that is meant to be the loudest thing at rest was the
+ * quietest, and every panel behind it out-breathed it. Exactly the same
+ * constant-alpha root cause as the grain, and as the rim and lip before it.
+ *
+ * The multiplier is dropped and each material sets its own knob against its own
+ * face. White at alpha a lifts a face F by a·(255 − F), so each knob is tuned
+ * against the plate it will actually land on rather than against a single
+ * number: hero 0.14, panel 0.030, chip 0.020.
+ *
+ * ## An equal *fraction* of face is not an equal amount of light
+ *
+ * The first tuning aimed all three at a·(255 − F)/F ≈ 6.5% of their own face,
+ * which is the right instinct and the wrong unit. sRGB is already gamma-encoded,
+ * so 6.5% of a face at luma 31 is +2 levels and 6.5% of a face at luma 148 is
+ * +9.6 — and perceptually those are not the same event at all. Measured over a
+ * 9.4-second burst of 22 frames, the panel's plate mean travelled 3.3 L* and the
+ * hero's travelled **1.22 L\***: the one element per screen that is supposed to
+ * be the loudest thing at rest was, again, the quietest, and on the panel a
+ * critic needed a 20× amplified frame difference to find the crawl at all.
+ *
+ * So the knobs are tuned in L\* instead — the unit a viewer's eye actually
+ * works in — at roughly ΔL\* 3 at the band's peak on every raised material, and
+ * the stops widen from 42/50/58 to 30/50/70 so the ramp covers a real part of
+ * the plate. A 16%-wide band on a 1570px card is a hairline passing; a 40%-wide
+ * one is light moving through a room, which is the sentence §3a actually wrote.
+ *
+ * The ceiling on all three is contrast, not taste: the band lightens the plate,
+ * every dark material carries light type, and §4's faintest role has to survive
+ * standing on the band's peak. The chip is the binding case — it is the lightest
+ * of the three dark plates — which is why its knob is the smallest of the three
+ * rather than scaled with the others.
+ */
 .mat,
 .mat-hero,
 .mat-panel,
 .mat-chip,
-.mat-well {
-  --sheen-alpha: 0.22;
+.mat-well,
+.empty {
+  /* The unranked default is the panel's, because `--mat-fill` falls through to
+     `--fill-panel` and a knob has to be tuned against the plate it will land on. */
+  --sheen-alpha: 0.03;
+  --sheen-hover: 0.06;
   background-image:
+    var(--mat-meter, none),
     linear-gradient(
-      105deg,
-      transparent 42%,
-      rgb(255 255 255 / calc(var(--sheen-alpha) * var(--mat-amp))) 50%,
-      transparent 58%
+      var(--light-sweep),
+      transparent 30%,
+      rgb(255 255 255 / var(--sheen-alpha)) 50%,
+      transparent 70%
     ),
-    var(--mat-grain, var(--tex-grain, none)),
+    var(--mat-grain, var(--tex-grain-mid, none)),
+    var(--mat-veil, none),
     var(--mat-fill, var(--fill-panel));
-  background-repeat: no-repeat, repeat, no-repeat;
-  background-size: 240% 100%, var(--mat-grain-size, var(--tex-grain-size, auto)), 100% 100%;
-  background-position: var(--sheen-x) 0, 0 0, 0 0;
-  background-blend-mode: normal, soft-light, normal;
+  background-repeat: no-repeat, no-repeat, repeat, no-repeat, no-repeat;
+  background-size:
+    34% 2px,
+    240% 100%,
+    var(--mat-grain-size, var(--tex-grain-mid-size, auto)),
+    100% 100%,
+    100% 100%;
+  background-position: var(--meter-x) calc(100% - 2px), var(--sheen-x) 0, 0 0, 0 0, 0 0;
+  background-blend-mode: normal, normal, normal, normal, normal;
   background-color: transparent;
-  border: 1px solid rgb(255 255 255 / calc(0.1 * var(--mat-amp)));
+  /**
+   * `border-box`, and this one line is why the edge treatment works at all.
+   *
+   * `background-origin` defaults to the *padding* box, so a `100% 100%` fill
+   * stops at the inside of the border and the border ring is transparent —
+   * which means a border colour composites over whatever is *behind* the
+   * element rather than over its own surface. Measured before this line
+   * existed: the hero's top border came out at 88 against a face of 149,
+   * because 22% white over the near-black card behind it is dark. The rim was
+   * a function of the backdrop, so the same plate on two different parents had
+   * two different edges. With `border-box` the fill runs under the border and
+   * the bevel is part of the object, which is the only version of this that
+   * survives being moved.
+   */
+  background-origin: border-box;
+  border-style: solid;
+  border-width: 1px;
+  /**
+   * top, right, bottom, left — the light is at the top-left, forever.
+   *
+   * The border is the *outer* pixel of a two-pixel bevel and carries the full
+   * amplitude; the insets below are the inner pixel at 55% of it. That order
+   * matters: a bevel is brightest where it turns hardest into the light, which
+   * is its outside corner. Brighter on the inside is what a groove looks like.
+   */
+  border-color:
+    rgb(255 255 255 / calc(var(--rim-a) * var(--rim-boost)))
+    rgb(0 0 0 / calc(var(--lip-a) * 0.55))
+    rgb(0 0 0 / var(--lip-a))
+    rgb(255 255 255 / calc(var(--rim-a) * 0.5 * var(--rim-boost)));
   border-radius: var(--r-self, var(--r-panel));
   color: var(--text);
 
   /* Read this top to bottom as light falling from the top-left:
      lit rim on the top edge, a weaker one on the left, the unlit lip at the
-     bottom, a weaker one on the right, the soft cast, then the contact. */
+     bottom, a weaker one on the right, the soft cast, then the contact.
+     Each inset sits one pixel inside the border that agrees with it, at just
+     over half its strength, so the edge falls off inward instead of stopping.
+
+     **Both cast layers throw sideways as well as down, at 0.62 of the drop.**
+     They used to be `0 Npx` — no horizontal component at all — which is a key
+     light directly overhead, on a page whose every rim, lip, border and gradient
+     says the light is at the top-left. Measured luma just outside the left edge
+     of a panel against just outside its right edge came out at +0.5: no
+     asymmetry, i.e. no direction. Meanwhile module B's `shadowOffset()` has
+     always returned a horizontal throw, and the gallery prints
+     `shadowOffset(10) → x 4.4, y 7.1` in its light readout — and then every
+     plate underneath it contradicted the readout.
+
+     6.2 : 10 and 1.24 : 2 are that same 0.62, which is `SHADOW_THROW_RATIO` in
+     `texture.ts`; the light-rig test reads the ratio back out of this file so the
+     two halves of the rig cannot drift apart again. The horizontal throw is
+     shorter than the vertical on purpose — see the note on `shadowOffset`: a UI
+     panel sits a millimetre above its backing, and a full 45° cast reads as a
+     sticker peeled off the screen. */
   --mat-cast:
     var(--press-cast, 0 0 rgb(0 0 0 / 0)),
-    inset 0 1px 0 rgb(255 255 255 / calc(0.2 * var(--mat-amp) * var(--rim-boost))),
-    inset 1px 0 0 rgb(255 255 255 / calc(0.07 * var(--mat-amp) * var(--rim-boost))),
-    inset 0 -1px 0 rgb(0 0 0 / calc(0.45 * var(--mat-amp))),
-    inset -1px 0 0 rgb(0 0 0 / calc(0.22 * var(--mat-amp))),
-    0 calc(10px * var(--mat-amp) * var(--cast-lift)) calc(26px * var(--mat-amp) * var(--cast-lift))
+    inset 0 1px 0 rgb(255 255 255 / calc(var(--rim-a) * 0.55 * var(--rim-boost))),
+    inset 1px 0 0 rgb(255 255 255 / calc(var(--rim-a) * 0.28 * var(--rim-boost))),
+    inset 0 -1px 0 rgb(0 0 0 / calc(var(--lip-a) * 0.55)),
+    inset -1px 0 0 rgb(0 0 0 / calc(var(--lip-a) * 0.3)),
+    calc(6.2px * var(--mat-amp) * var(--cast-lift)) calc(10px * var(--mat-amp) * var(--cast-lift))
+      calc(26px * var(--mat-amp) * var(--cast-lift))
       calc(-6px * var(--mat-amp)) rgb(0 0 0 / calc(0.55 * var(--mat-amp))),
-    0 calc(2px * var(--cast-lift)) calc(3px * var(--cast-lift)) -1px
+    calc(1.24px * var(--cast-lift)) calc(2px * var(--cast-lift)) calc(3px * var(--cast-lift)) -1px
       rgb(0 0 0 / calc(0.3 + 0.3 * var(--mat-amp)));
   box-shadow: var(--mat-cast);
 }
@@ -326,43 +781,250 @@
  * The background half of the recipe is inherited from the rule above
  * unchanged, which is the point: a well is the same substance seen from the
  * other side, not a different one.
+ *
+ * Its border inverts with it — dark on the top and left where the lip of the
+ * recess blocks the light, lit on the bottom and right where the floor of it
+ * catches. The lit hairline along the bottom-right is the only strong signal a
+ * near-black recess has, so it carries a little more than the panel's, which is
+ * also where the well sits on the amplitude ladder.
+ *
+ * It takes the *well* grain, which is the quietest of module B's four by a long
+ * way — amount 0.012 against the hero's 0.199. At luma 13 there is almost no
+ * plate to disturb: the old shared tile lifted the surface by up to twelve
+ * levels, nearly doubling it, and a recess that sparkles is not a recess, it is
+ * an underexposed photograph. Sixteen times less alpha over sixteen times less
+ * face is the same dirt on the same substance, which is the whole argument.
+ *
+ * ## And it publishes the shade its contents have to wear
+ *
+ * `box-shadow: inset` paints above an element's own background and *below* its
+ * children, so nothing placed inside a well ever received the well's recess
+ * shading. A progress rail's fill was therefore a flat gradient ribbon pasted
+ * into the groove with no lip falling across its top edge — the recess stopped
+ * existing wherever it was occupied, which on a meter is most of the time. In
+ * `hearthstone_frames/frame_00003` the mana crystals sit *in* the tray with the
+ * tray's shadow crossing their tops; that is the difference.
+ *
+ * Materials are barred from pseudo-elements here (see the file header), so the
+ * shading is published as an ordinary inheriting custom property instead and the
+ * contents composite it themselves — `.well-fill` in §5a is the primitive that
+ * does. `--mat-amp` is substituted at *this* element, so what inherits down is
+ * the well's own 0.7 already folded in rather than a child's default 0.55.
+ *
+ * It is a plain vertical gradient rather than one along `--light-sweep`, and
+ * that is deliberate: a 135° gradient on a 400×12 progress rail runs almost
+ * horizontally and puts the lip on the left *end* instead of the top *edge*. The
+ * well's own cast makes the same split — `inset 0 2px 5px` carries the lip and a
+ * weaker `inset 2px 0 5px -3px` carries the side — so the fill mirrors it with a
+ * vertical gradient plus a one-pixel inset on its left.
  */
-.mat-well {
+.mat-well,
+.empty {
   --mat-amp: var(--amp-well);
   --mat-fill: var(--fill-well);
-  --sheen-alpha: 0.1;
+  --rim-a: 0.085;
+  --lip-a: 0.75;
+  --mat-grain: var(--tex-grain-well, none);
+  --mat-grain-size: var(--tex-grain-well-size, auto);
+  /* A recess does not catch a moving highlight and this material does not
+     animate, so the band is parked off-plate forever; the knob is here only so
+     that a well re-tinted by a screen cannot inherit a raised material's. */
+  --sheen-alpha: 0.004;
+  --sheen-hover: 0.012;
+  --well-shade: linear-gradient(
+    180deg,
+    rgb(0 0 0 / calc(0.5 * var(--mat-amp))) 0%,
+    rgb(0 0 0 / calc(0.16 * var(--mat-amp))) 18%,
+    transparent 42%
+  );
   --r-self: var(--r-field);
-  border-color: rgb(0 0 0 / calc(0.55 * var(--mat-amp)));
+  border-color:
+    rgb(0 0 0 / var(--lip-a))
+    rgb(255 255 255 / calc(var(--rim-a) * 0.5 * var(--rim-boost)))
+    rgb(255 255 255 / calc(var(--rim-a) * var(--rim-boost)))
+    rgb(0 0 0 / calc(var(--lip-a) * 0.55));
   --mat-cast:
     inset 0 2px 5px -1px rgb(0 0 0 / calc(0.62 * var(--mat-amp))),
     inset 2px 0 5px -3px rgb(0 0 0 / calc(0.45 * var(--mat-amp))),
-    inset 0 -1px 0 rgb(255 255 255 / calc(0.1 * var(--mat-amp) * var(--rim-boost))),
-    inset -1px 0 0 rgb(255 255 255 / calc(0.05 * var(--mat-amp) * var(--rim-boost)));
+    inset 0 -1px 0 rgb(255 255 255 / calc(var(--rim-a) * 0.55 * var(--rim-boost))),
+    inset -1px 0 0 rgb(255 255 255 / calc(var(--rim-a) * 0.28 * var(--rim-boost)));
 }
 
 .mat-hero {
   --mat-amp: var(--amp-hero);
   --mat-fill: var(--fill-hero);
+  /* Bright fill, so the rim has little headroom above it and the lip has a
+     great deal below. Both are tuned to land at the same ~0.7 ratio as the
+     dark plates rather than at the alpha that happens to look right here. */
+  --rim-a: 0.24;
+  --lip-a: 0.22;
+  /* The loudest grain in the system, on the lightest plate, so that it lands at
+     the same 5.5% of face as the quietest grain on the darkest one. */
+  --mat-grain: var(--tex-grain-hero, none);
+  --mat-grain-size: var(--tex-grain-hero-size, auto);
+  --sheen-alpha: 0.14;
+  --sheen-hover: 0.28;
   --r-self: var(--r-panel);
-  border-color: rgb(255 255 255 / 0.34);
-  color: #fff;
-  /* Text on a saturated plate always gets a shadow. Never raw. */
-  text-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+  /* Dark ink on a bright plate wants the light *above* it, not a blur under it.
+     One pixel of white at 22% is a letterpress crown — the same trick as the
+     material's own lit rim, at type scale — and unlike a drop shadow it is
+     adding contrast rather than admitting there is not enough. */
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.22);
+}
+
+/**
+ * The ink is declared three times, and that is not a typo.
+ *
+ * `--ink-hero` (§1) exists because on this one material the plate and the ink
+ * are a single decision: the plate is the lightest mass on the page, so the ink
+ * has to be dark, and any ink that is not dark fails outright. A plain
+ * `.mat-hero { color: … }` is specificity 0,1,0 and loses to the first consumer
+ * who writes `.some-thing.mat-hero { color: #fff }` — which is not a
+ * hypothetical. This project's own gallery does exactly that, and the result was
+ * measured at **2.70:1** in the default theme and **1.88:1** with the
+ * high-contrast setting on, because that setting correctly makes the hero plate
+ * *lighter* and white ink correspondingly worse. The one control the bar calls
+ * "the most-used button style in the game" was the least legible thing on the
+ * page, and the setting that exists to help was making it worse.
+ *
+ * So the ink wins by weight. Three classes beats the two a consumer will
+ * realistically write, and it is deliberately louder than the rest of the file
+ * so that reading it raises the question the comment then answers.
+ *
+ * **The override point is `--ink-hero`, not `color`.** A screen that genuinely
+ * needs different ink on a hero — a re-tinted plate, a faction colour — sets the
+ * token, and gets the token's guarantee: it is paired with the plate, it follows
+ * the high-contrast rule in §10, and the states below re-point it rather than
+ * fighting it. That is why disabled and loading set `--ink-hero` instead of
+ * `color`; a `color` declaration in either would now lose to this rule and the
+ * two states would silently keep the resting ink.
+ */
+.mat-hero,
+.mat-hero.mat-hero.mat-hero {
+  color: var(--ink-hero);
+}
+
+/**
+ * Type roles inside a hero follow the hero's ink.
+ *
+ * `.t-label` and `.t-body` name their own colours, and both of those colours are
+ * light — written for a dark plate, which every other material is. Dropped on a
+ * hero they would be pale-on-pale, and the failure would arrive with whichever
+ * screen first put a label inside a primary action rather than here where it can
+ * be seen. Two classes rather than `:where()` so this out-specifies §4, which is
+ * declared later in the file.
+ */
+.mat-hero :is(.t-display, .t-heading, .t-body, .t-label, .num) {
+  color: inherit;
 }
 
 .mat-panel {
   --mat-amp: var(--amp-panel);
   --mat-fill: var(--fill-panel);
+  --rim-a: 0.06;
+  --lip-a: 0.63;
+  --mat-grain: var(--tex-grain-mid, none);
+  --mat-grain-size: var(--tex-grain-mid-size, auto);
+  /* +6.2 of a face at 48, which is ΔL* 2.6 at the band's peak. */
+  --sheen-alpha: 0.03;
+  --sheen-hover: 0.06;
   --r-self: var(--r-panel);
 }
 
 .mat-chip {
   --mat-amp: var(--amp-chip);
   --mat-fill: var(--fill-chip);
-  --mat-grain: var(--tex-grain-fine, none);
-  --mat-grain-size: var(--tex-grain-fine-size, auto);
+  --rim-a: 0.041;
+  --lip-a: 0.25;
+  --mat-grain: var(--tex-grain-chip, none);
+  --mat-grain-size: var(--tex-grain-chip-size, auto);
+  /* The smallest of the three raised knobs, and the only one set by a limit
+     rather than by taste: the chip is the lightest dark plate in the system, so
+     it is where §4's faintest role has the least headroom. At 0.020 the band's
+     peak still leaves `--text-faint` at 4.67:1; at the 0.030 the panel gets it
+     would be 4.31:1 and the smallest type in the game would fail on the
+     smallest object in the game. */
+  --sheen-alpha: 0.02;
+  --sheen-hover: 0.032;
   --r-self: var(--r-chip);
   padding: 2px var(--sp-3);
+}
+
+/**
+ * Idle light, and the reason it is here rather than on a `.alive` opt-in class.
+ *
+ * A ten-frame change map of `#uikit` over 1.1s, and another over 9s, found
+ * exactly three things moving on the whole page: the motes, the two demo
+ * specimens that force their own animation, and one progress rail. Every
+ * surface in the game was perfectly still, and the PLAY hero varied by three
+ * luminance levels across nine seconds — all of it the wash behind it. §3a's
+ * "the screen is alive at rest" was being answered by the backdrop alone, which
+ * is the half of the requirement that does not need a material to exist.
+ *
+ * The mechanism was already here and gated to hover and loading. Running it at
+ * rest costs one animation and no new layer, because the band is a background
+ * layer every material already paints.
+ *
+ * **The delay is negative on purpose.** A positive delay would hold fifteen
+ * plates at the first keyframe and then start them all together anyway; a
+ * negative one drops each plate at a different point in a cycle that is
+ * *already running*, so the page is mid-sweep on its first frame and no two
+ * neighbours ever cross at once. `--cascade-i` is the reading-order index
+ * `transitions.css` §2.7 already writes onto the first eight children of every
+ * structural container, and `--enter-delay` is what `stagger()` writes; between
+ * them almost everything on a real screen lands on a different phase, and
+ * anything that does not is at least on a different period from the plate
+ * behind it.
+ *
+ * `.mat-well` is deliberately excluded. A recess does not catch a moving
+ * highlight — that is the whole reason its rim and lip are inverted — and a
+ * hundred sockets and progress tracks quietly sweeping is the sort of ambient
+ * motion that turns into visual noise rather than into life.
+ *
+ * **`.mat-chip` is not excluded, and used to be by omission.** In the A1
+ * comparison row — the one place on the page built to prove the four are one
+ * family — HERO and PANEL both carried visible diagonal sweeps across a 6.7s
+ * idle burst and CHIP sat between them as a perfectly dead rectangle. An
+ * argument was made for the well and none at all for the chip; a material that
+ * is alive in two ranks and dead in the third is three materials. It gets a
+ * third period, and `.chip-static` is the opt-out for the places where a
+ * currency counter at 24px genuinely should hold still — a row of eight badges
+ * on one screen is the case that wants it, and it is a caller's judgement rather
+ * than a default.
+ */
+.mat-hero {
+  animation: hb-sheen var(--dur-sheen-hero) var(--ease-sweep)
+    calc((var(--enter-delay, 0ms) + var(--cascade-i, 0) * 210ms) * -3.1) infinite;
+}
+
+.mat-panel {
+  animation: hb-sheen var(--dur-sheen-panel) var(--ease-sweep)
+    calc((var(--enter-delay, 0ms) + var(--cascade-i, 0) * 290ms) * -2.7) infinite;
+}
+
+.mat-chip {
+  animation: hb-sheen var(--dur-sheen-chip) var(--ease-sweep)
+    calc((var(--enter-delay, 0ms) + var(--cascade-i, 0) * 170ms) * -2.3) infinite;
+}
+
+.mat-chip.chip-static {
+  animation: none;
+}
+
+/**
+ * The low tier does not get it, and this is the one place in this file where
+ * that is a frame-budget call rather than a taste one. `--sheen-x` drives
+ * `background-position`, which is a paint rather than a compositor property, so
+ * every plate running the crawl repaints once a frame. On a desktop that is
+ * nothing; on the phone that is already choosing between the board and the
+ * backdrop, fifteen full-width panels repainting at 30fps is the difference
+ * between the floor holding and not. The hero keeps it — there is one of those
+ * per screen and it is the thing being pressed. The chip goes with the panel:
+ * adding a material to the crawl must not add anything to the phone's budget.
+ */
+:root[data-gfx-tier="low"] .mat-panel,
+:root[data-gfx-tier="low"] .mat-chip {
+  animation: none;
 }
 
 /* Radius utilities. A material picks a sensible default for its rank; these
@@ -376,6 +1038,51 @@
 .r-field  { border-radius: var(--r-field);  --r-self: var(--r-field); }
 .r-nested { border-radius: var(--r-nested); --r-self: var(--r-nested); }
 
+/**
+ * The thing that sits *in* a well: a meter's fill, a socketed object, a knob.
+ *
+ * This is the other half of `--well-shade`, and it exists because `box-shadow:
+ * inset` paints below an element's children. A `.mat-well` shades its own
+ * surface beautifully and shades nothing that is put into it, so the moment a
+ * progress rail had a value it stopped being a groove and became a flat coloured
+ * ribbon lying on top of one. The rails on this project's own gallery were the
+ * proof: three of them, and the two with a value on them read as painted-on
+ * stripes.
+ *
+ * Three layers make it an object in a hole rather than a rectangle over one:
+ *
+ *  1. the well's inherited lip shadow, as the topmost background layer, so the
+ *     recess keeps existing across whatever is filling it;
+ *  2. its own lit crown — one pixel of white on its top edge, painted above the
+ *     shade because a box-shadow inset outranks a background — which is the
+ *     object's own surface catching the key light;
+ *  3. a dark hairline down its left side, matching the horizontal half of the
+ *     well's cast, and a soft dark line under it where it meets the floor.
+ *
+ * The fill gradient itself is a knob: `--fill-meter` defaults to the hero ramp
+ * because a meter is usually showing progress toward something good, and a
+ * screen that wants a Current's colour or a danger red sets one property.
+ *
+ * `border-radius: inherit` rather than a token, because the fill is always the
+ * shape of the groove it is in and the groove has already chosen.
+ */
+.well-fill {
+  border-radius: inherit;
+  background-image:
+    var(--well-shade, linear-gradient(180deg, rgb(0 0 0 / 0.35) 0%, rgb(0 0 0 / 0.11) 18%, transparent 42%)),
+    var(
+      --fill-meter,
+      linear-gradient(var(--light-sweep), var(--accent-bright) 0%, var(--accent) 55%, var(--accent-hot) 100%)
+    );
+  background-repeat: no-repeat, no-repeat;
+  background-size: 100% 100%, 100% 100%;
+  background-position: 0 0, 0 0;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    inset 1px 0 0 rgb(0 0 0 / 0.28),
+    inset 0 -1px 0 rgb(0 0 0 / 0.3);
+}
+
 /* -------------------------------------------------------------------------
    4. Type roles
    -------------------------------------------------------------------------
@@ -384,14 +1091,91 @@
    list — and squinting at a screen built that way resolves into one grey
    mass, which is §6 of the bar failing before anything else gets a chance.
 
-   The faces are the two stacks already in `base.css`. Nothing is downloaded:
-   the privacy screen promises this build fetches nothing and that promise is
-   not negotiable for a typeface. */
+   ## Why the display role is a face we ship and the body role is not
+
+   The first version of this file pointed both roles at Segoe UI. It fixed a
+   real bug in doing so — `base.css` names `"Segoe UI Semibold"`, which is a
+   *single face* rather than a family, and a single face ignores `font-weight`
+   entirely, so "HYPEBOUND" at 48px measured 556.95px wide at 400, 500, 600, 700
+   and 800 identically and `.t-display`'s 700 was rendering the same Semibold as
+   `.t-heading`'s 600. Naming the family got the weight axis working: measured,
+   400 → 278.02px, 700 → 296.14px, 800 → 308.48px on the same string. A real
+   hierarchy.
+
+   A real hierarchy built out of nothing, though, because both roles were then
+   the same typeface — so the single most brand-carrying decision in the game
+   was "whatever Windows ships". Hearthstone's title is Belwe, MTG Arena's is
+   Beleren, Gwent's is Halisa; putting "The foundation, photographed" in Segoe UI
+   Bold beside any of the three answers the one-sentence test in §0 before a
+   viewer has read a word. That is a ceiling on every screen in the game, and it
+   is not one more polish pass can lift.
+
+   So the display and heading roles are now **Chivo**, and the body and label
+   roles stay on Segoe UI. Two hands, which is what §4's "real hierarchy" is
+   actually asking for.
+
+   ## The rules this obeys, because a font is where they are easiest to break
+
+   A3 permits exactly two kinds of face: "self-hosted OFL **or** already on the
+   device". This is the first kind. `chivo-latin-wght.woff2` is committed to the
+   repository beside this file, `OFL.txt` next to it, and Vite bundles it as an
+   ordinary same-origin asset. There is no CDN link, no Google Fonts stylesheet,
+   no npm dependency and nothing fetched from a third party — the privacy screen
+   promises this build reaches nobody and keeps working offline, and a font is
+   the classic way that promise gets broken by accident.
+
+   It is the Latin subset of the variable face, wght only: 33 KB for the whole
+   200–900 axis, against roughly 20 KB *per weight* for statics. Three static
+   weights would have cost more and given less.
+
+   `local()` comes first so a machine that already has Chivo installed skips the
+   download entirely, and the Segoe UI chain stays behind it in
+   `--font-display`, so if the file ever fails to arrive the game degrades to
+   precisely what it looked like before this paragraph was written rather than
+   to Times. `font-display: swap` for the same reason: text is readable on the
+   first frame either way.
+
+   Chivo was chosen over the other obvious OFL candidates on two measurements
+   rather than on taste. Its digits are the same width at every weight *without*
+   `tnum` — measured spread 0.0 across 0–9 at 100px, where Bricolage Grotesque
+   is 31.8 and Unbounded 40.5 — which matters because this face lands on
+   ninety-two sites including a battle HUD full of counters, some of which do
+   not ask for tabular figures. And it sets between 0.97x and 1.07x the width of
+   Segoe UI on real strings from the game, where Unbounded is 1.31x to 1.46x;
+   this phase is additive and does not get to reflow forty-nine screens to
+   accommodate a typeface.
+
+   `:root:root` because this file is `@import`ed at the top of `base.css`, so a
+   plain `:root` here loses the source-order tie. Same trick, same reason, as
+   the focus ring in §6. */
+
+@font-face {
+  font-family: "Chivo";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src:
+    local("Chivo"),
+    url("./fonts/chivo-latin-wght.woff2") format("woff2");
+  /* The subset that is actually in the file. Naming it means a string of
+     Vietnamese or Cyrillic falls straight through to the fallback stack instead
+     of rendering as notdef boxes out of a font that does not contain it. */
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root:root {
+  --font-display: "Chivo", "Segoe UI", "Trebuchet MS", system-ui, sans-serif;
+}
 
 .t-display {
   font-family: var(--font-display);
   font-size: var(--fs-3xl);
-  font-weight: 700;
+  /* 800 rather than 700. The old number was chosen when the display face was
+     the OS UI font and 800 bought nothing over 700 on it; Chivo's axis runs to
+     900 and the extra hundred is where the wordmark stops being a heading. */
+  font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.04;
   color: var(--text);
@@ -432,11 +1216,28 @@
  * reflows the row when it ticks from 9 to 10 is a defect, and it is the kind
  * of defect that only shows up in the one frame where it matters.
  *
- * `tabular-nums` does the work when the font has the feature; Segoe UI does.
- * `--digits` is the belt for the braces: set it to the widest value the slot
- * will ever hold and the box stops moving even if the whole stack has fallen
- * through to something without `tnum`. `1ch` is the width of a zero, which in
- * a tabular face is the width of every digit.
+ * `tabular-nums` does the work when the font has the feature; Segoe UI does,
+ * and so does Chivo — which is one of the two reasons Chivo is the display face
+ * rather than one of the other three candidates. Its figures are the same width
+ * at every weight even *without* the feature, which is the belt this rule's
+ * braces almost never have to catch.
+ * `--digits` is the belt for the braces: it stops the box moving even if the
+ * whole stack has fallen through to something without `tnum`.
+ *
+ * **`--digits` counts characters, not digits, and that is a correction.** It
+ * used to be documented as a digit count, and the rule reserved one `1ch` cell
+ * per digit — but `format.ts` groups thousands, so the separator was
+ * unreserved. Measured with `--digits: 6`, the span was 51.75px holding "9" and
+ * 55.22px holding "999,999": one declared slot, two widths, so a counter
+ * declared for six digits still jumped 3.5px the first time it crossed 100,000.
+ * Set it to the character count of the widest value the slot will ever hold,
+ * separators and sign included — "999,999" is seven, "-128" is four. A comma is
+ * narrower than a digit, so counting it as a whole cell over-reserves slightly,
+ * which is the safe direction: the slot is never too small and therefore never
+ * moves.
+ *
+ * `1ch` is the width of a zero, which in a tabular face is the width of every
+ * digit.
  *
  * `inline-block` is deliberate — it is what makes `min-width` mean anything,
  * and it stops a long figure breaking across two lines mid-number.
@@ -488,21 +1289,61 @@
  * The wipe is a one-shot animation rather than a transition on purpose. A
  * transition would run backwards when the pointer leaves, and light does not
  * un-sweep. When the animation ends `--sheen-x` returns to its parked 150%,
- * which is off the right-hand edge, so there is nothing to clean up.
+ * which is well off the left-hand edge, so there is nothing to clean up.
+ *
+ * The border is *not* restated here. `--rim-boost` already doubles both the lit
+ * border and the lit inset, so a hover brightens the top-left edges and leaves
+ * the bottom-right ones in shadow. The old rule overwrote all four sides with
+ * one pale colour, which lit the underside of everything the pointer touched.
  */
 @media (hover: hover) {
   .act:hover:not(:disabled):not([aria-disabled="true"]):not([data-state="loading"]) {
     transform: translateY(-2px) scale(1.015);
     --rim-boost: 2;
     --cast-lift: 0.55;
-    border-color: rgb(255 255 255 / calc(0.18 * var(--mat-amp) + 0.1));
-    animation: hb-sheen var(--dur-sheen) var(--ease-arrive) 1;
+    /* Roughly three times the resting amplitude, per material rather than as one
+       number: `--sheen-hover` is twice that material's resting knob, the same
+       way `--sheen-alpha` is tuned per plate. A single 0.22 here would be +23
+       levels on the hero and +49 on the panel, which is a hover that flashes
+       hardest on the surface the pointer is least likely to be over.
+
+       Twice, and not more, because the band lightens the plate and the plate
+       carries light type. Measured with the band parked at the centre of a
+       hovered chip — the tightest pairing in the system — 2x leaves §4's
+       faintest role at 4.78:1 and 2.6x takes it under the floor. The hero is the
+       exception in both directions, since its ink is dark and a brighter plate
+       only helps it: the same frame measures 7.2:1 there.
+       The idle crawl and the hover catch are the same band on the same layer;
+       what separates them is that one of them is light you notice and the other
+       is light you only miss when it stops. */
+    --sheen-alpha: var(--sheen-hover, 0.06);
+    animation: hb-sheen var(--dur-sheen) var(--ease-sweep) 1;
   }
 }
 
+/**
+ * The travel, and why the numbers are 100 and 0 rather than 150 and -110.
+ *
+ * The band is painted into a background layer 240% of the element wide, so a
+ * `background-position` of X% puts the band's centre at (120 - 1.4·X)% of the
+ * element. It is therefore only *on* the plate between X=90% and X=10%, and the
+ * old keyframes spent the rest of their range walking it through empty space —
+ * with `--ease-arrive`, which passes 90% at t=8ms and 10% at t=20ms. An 11ms
+ * window: under one frame at 60fps and reliably skipped at the 30fps floor. A
+ * filmstrip sampled every 20ms across the whole animation never once caught it.
+ *
+ * 100% and 0% put the band just off each edge and spend the entire duration
+ * crossing the visible part, which is what a sweep is.
+ */
 @keyframes hb-sheen {
-  from { --sheen-x: 150%; }
-  to { --sheen-x: -110%; }
+  from { --sheen-x: 100%; }
+  to { --sheen-x: 0%; }
+}
+
+/** The loading meter's travel: left edge of the band to right edge of the box. */
+@keyframes hb-meter {
+  from { --meter-x: 0%; }
+  to { --meter-x: 100%; }
 }
 
 /**
@@ -516,7 +1357,13 @@
   transform: scale(0.985);
   --cast-lift: 0;
   --rim-boost: 0.4;
-  --press-cast: inset 0 2px 6px rgb(0 0 0 / calc(0.5 * var(--mat-amp) + 0.15));
+  /* Offset to the bottom-right like every other shadow in the file. A pressed
+     control is a recess for as long as the finger is on it, and a recess's shade
+     collects under the lip the light cannot reach — which, with a key at 315°,
+     is the top-left, so the *shadow* is thrown down and to the right at the same
+     0.62 : 1 the drop and the contact use. `0 2px` was a press lit from directly
+     overhead on a page that is lit from the corner. */
+  --press-cast: inset 1.24px 2px 6px rgb(0 0 0 / calc(0.5 * var(--mat-amp) + 0.15));
   transition-duration: var(--dur-press);
   animation: none;
 }
@@ -529,39 +1376,190 @@
  * sets `opacity: 0.42`, which takes the label from #f2eeff to roughly 2.6:1
  * against the panel behind it — below the 4.5:1 floor, on the control that is
  * most likely to be the one the player is trying to understand ("why can't I
- * press this?"). Here the fill desaturates and darkens, the border loses its
- * rim, `filter: saturate()` drains any icon inside so the state is not
- * signalled by colour alone, and the text steps to `--text-dim`, which holds
- * about 7:1 on the disabled fill.
+ * press this?").
+ *
+ * ## The first version left the material family, and that was the bug
+ *
+ * Measured, the old plate came out at a mean RGB of (26.5, 25.5, 30.1) —
+ * effectively neutral grey — against a panel at (44, 34, 69) and a hero at
+ * (155, 96, 196). It read as a hole punched in the card rather than as the same
+ * substance unavailable, and side by side with `.mat-well` it was
+ * indistinguishable, so "disabled" and "empty socket" were the same material.
+ * In Hearthstone a disabled button is still lit metal; it is just dimmer.
+ *
+ * Two things caused it and both are fixed here. The fill was authored on a
+ * near-neutral (30, 27, 42), and then `filter: saturate(0.22)` — which applies
+ * to the element's own background, not only to the icon it was aimed at —
+ * finished the job. So the fill is now unambiguously on the panel's violet
+ * axis, with enough chroma to *survive* the filter, and the filter is at 0.7:
+ * dimmed, not drained. The icon still needs the harder version, so it gets its
+ * own rule below rather than dragging the plate down with it.
+ *
+ * The amplitude moves off 0.22 to 0.3 as well. Not for the float — for the
+ * separation: 0.22 sat close enough to `.mat-well`'s inverted 0.7 rendering
+ * that the two states collided at a glance.
+ *
+ * `--text-dim` on the lit end of this fill measures about 6.8:1, and rises
+ * toward the unlit end.
  */
 .act:disabled,
 .act[aria-disabled="true"],
 .act[data-state="disabled"] {
   cursor: not-allowed;
   transform: none;
-  --mat-amp: 0.22;
-  --mat-fill: linear-gradient(var(--light-sweep), rgb(30 27 42 / 0.92) 0%, rgb(15 13 22 / 0.94) 100%);
-  border-color: rgb(255 255 255 / 0.1);
+  --mat-amp: 0.3;
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(52 34 78 / 0.94) 0%, rgb(24 16 40 / 0.95) 100%);
+  /* Re-tuned against the disabled fill's own face so the edge keeps the same
+     shape as every other material, one rank further down. Restating
+     `border-color` here would flatten the four sides back to one. */
+  --rim-a: 0.028;
+  --lip-a: 0.38;
+  /* And the grain has to come down with the fill, for the same reason the rim
+     and the lip do. A disabled hero keeps `.mat-hero`'s tile unless this says
+     otherwise, and that tile is authored for a face of 148 — dropped onto this
+     one at 35 it renders at four times the intended contrast and the dead
+     button becomes the noisiest object on the card. The disabled fill sits
+     within a few levels of `--fill-panel`, so it takes the panel's grain. */
+  --mat-grain: var(--tex-grain-mid, none);
+  --mat-grain-size: var(--tex-grain-mid-size, auto);
   color: var(--text-dim);
   text-shadow: none;
-  filter: saturate(0.22);
+  /* Dimmed, not drained. See above — this filter is on the whole element, so
+     every tenth of it comes off the plate as well as off the artwork. */
+  filter: saturate(0.7);
+  animation: none;
 }
 
 /**
- * Loading is a shimmer crossing the surface, or an in-world meter. It is
+ * A disabled hero has left the bright plate behind, so it has to leave the dark
+ * ink behind with it.
+ *
+ * The rule above says `color: var(--text-dim)` and on every other material that
+ * is the whole job; on a hero it is outranked by the ink rule in §3, which
+ * carries three classes on purpose. So the hero re-points the token instead —
+ * which is also why this is its own rule rather than one more line up there.
+ * `--ink-hero` inherits, and setting it on *any* disabled control would hand a
+ * dim ink to a live hero that happened to be nested inside a disabled panel.
+ *
+ * Measured on the disabled plate, `--text-dim` gives 7.05:1.
+ */
+.mat-hero.act:disabled,
+.mat-hero.act[aria-disabled="true"],
+.mat-hero.act[data-state="disabled"] {
+  --ink-hero: var(--text-dim);
+}
+
+/**
+ * The icon is where the hard desaturation belongs.
+ *
+ * A4 asks a disabled control to change its fill *and* its border *and* its
+ * icon, and an icon that carries its own colour — a gold currency mark, a
+ * Current-tinted pip — does not follow `color`. Scoping the drain to the
+ * artwork is what lets the plate stay a member of the material family while the
+ * thing inside it plainly stops being live.
+ */
+.act:disabled :where(svg, img, .hb-icon),
+.act[aria-disabled="true"] :where(svg, img, .hb-icon),
+.act[data-state="disabled"] :where(svg, img, .hb-icon) {
+  filter: saturate(0.2) brightness(0.82);
+}
+
+/**
+ * Loading is a shimmer crossing the surface **and** an in-world meter. It is
  * never a spinner — a spinner is an admission that the interface has nothing
  * to say about what is happening, and it belongs to a different game.
  *
- * Same wipe as the hover, looped slowly. Reduced motion swaps it for a
- * static dimmed plate below, because a permanent looping highlight is
- * precisely the kind of thing that setting exists to stop.
+ * It used to be the wipe alone, and the wipe alone does not survive a saturated
+ * fill: a 22% white band over `.mat-hero`'s magenta-to-lilac gradient is
+ * invisible, and nine 4x captures of a loading hero pill 90ms apart were the
+ * same picture. The tell was that under reduced motion the state read *better*,
+ * because the static fallback actually dimmed the plate. So the dim is now
+ * unconditional and there is a second signal that does not depend on motion at
+ * all:
+ *
+ *  - `--mat-veil` darkens the plate by `--load-veil`. A veil layer rather than a
+ *    `filter: brightness()` because a filter takes the label down with the
+ *    surface, and the label is the thing the player is reading.
+ *  - `--mat-meter` is a bright band travelling along the bottom edge, one pixel
+ *    up from the border so a pill's corner radius cannot clip it. It moves by
+ *    `background-position`, which is what keeps it a paint rather than a
+ *    layout, and it is a meter rather than a spinner: something is crossing the
+ *    control, in the world, in the game's own accent.
+ *  - the wipe stays, at `linear`, for the reason given on `hb-sheen`.
+ *
+ * Reduced motion removes both animations and parks the meter part-way across,
+ * because a permanent looping highlight is precisely what that setting exists
+ * to stop — and a control that says nothing is worse than one that says "part
+ * way through" and holds still.
  */
 .act[data-state="loading"],
 .act.is-loading {
   cursor: progress;
   pointer-events: none;
   transform: none;
-  animation: hb-sheen calc(var(--dur-setpiece) * 2) var(--ease-in-out) infinite;
+  --mat-amp: 0.34;
+  --rim-a: 0.05;
+  --lip-a: 0.42;
+  /* Louder than rest and stated absolutely rather than per material, because
+     here the wipe is a *signal* rather than ambience: every loading control
+     should read as busy at the same strength, whatever it is made of.
+
+     0.09 rather than the 0.12 this started at, and the reason is a layer-order
+     trap worth naming: the veil sits *under* the wipe in the stack at the top of
+     §3, so the wipe composites at full strength onto the darkened plate rather
+     than being darkened with it. On a hero that made deepening the veil almost
+     useless — 0.47 and 0.54 both measured 4.4:1 under the label, because the
+     band was adding back the twenty levels the veil had just taken off. The lift
+     is absolute (a·(255 − F)), so it is largest exactly where the plate is
+     darkest, which is the opposite of what the number was chosen for. At 0.09
+     over a veiled plate the wipe is still +14 levels and plainly a signal. */
+  --sheen-alpha: 0.09;
+  /**
+   * The veil reads its depth from `--load-veil` (§1) rather than naming an
+   * alpha, and the declaration deliberately is *not* here.
+   *
+   * §10 has to be able to deepen it, and a custom property set on this element
+   * would beat the one it inherits from `:root` — so a `--load-veil: 0.54` on
+   * this rule would quietly make the high-contrast override dead code. The
+   * plate's own darkening is one of the two things keeping a loading hero
+   * legible; see the token's note for the measurements.
+   */
+  --mat-veil: linear-gradient(rgb(4 2 10 / var(--load-veil)), rgb(4 2 10 / var(--load-veil)));
+  --mat-meter: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0) 0%,
+    var(--accent-bright) 30%,
+    #ffffff 50%,
+    var(--accent-bright) 70%,
+    rgb(255 255 255 / 0) 100%
+  );
+  animation:
+    hb-sheen calc(var(--dur-setpiece) * 2) linear infinite,
+    hb-meter var(--dur-meter) linear infinite;
+}
+
+/**
+ * The one state where the hero's ink turns back over, and it has to.
+ *
+ * `.mat-hero` is dark ink on a bright plate (§3). Loading veils that plate by
+ * `--load-veil`, and no ink dark enough to read on the unveiled plate can reach
+ * 4.5:1 against what is left. Measured, a loading hero kept on the resting
+ * `--ink-hero` lands at 1.8:1 against the darkest pixel under its own label,
+ * which is worse than the defect this whole change set exists to remove.
+ *
+ * So the ink follows the plate: the surface went dark, the type goes light. That
+ * is the same rule the rest of the file already obeys, applied to a state rather
+ * than to a material, and it is honest to look at — a control that has dimmed
+ * *and* flipped its type is unmistakably not the one you can press.
+ *
+ * It re-points `--ink-hero` rather than declaring `color`, for the reason given
+ * on the ink rule in §3: that rule now carries three classes and a `color` here
+ * would lose to it.
+ */
+.mat-hero.act[data-state="loading"],
+.mat-hero.act.is-loading {
+  --ink-hero: var(--text);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
 }
 
 /**
@@ -584,13 +1582,102 @@
 .skeleton {
   border-radius: var(--r-self, var(--r-field));
   background-image:
-    linear-gradient(105deg, transparent 42%, rgb(255 255 255 / 0.1) 50%, transparent 58%),
+    linear-gradient(
+      var(--light-sweep),
+      transparent 30%,
+      rgb(255 255 255 / 0.1) 50%,
+      transparent 70%
+    ),
     var(--fill-well);
   background-repeat: no-repeat, no-repeat;
   background-size: 240% 100%, 100% 100%;
   background-position: var(--sheen-x) 0, 0 0;
   box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.5);
-  animation: hb-sheen calc(var(--dur-setpiece) * 2) var(--ease-in-out) infinite;
+  /* `linear` for the same reason the wipe is: an eased shimmer spends most of
+     its cycle parked off the plate, which is a skeleton that does not shimmer. */
+  animation: hb-sheen calc(var(--dur-setpiece) * 2) linear infinite;
+}
+
+/**
+ * The other half of "nothing has arrived": content that never will.
+ *
+ * `.skeleton` covers the wait. Nothing covered the answer — and §5 names it
+ * alongside the six interaction states: "Empty states are designed too. 'You own
+ * no cards' is a moment to be charming, not a blank grid." Without a primitive,
+ * every one of the forty-nine screens invents its own, which is the exact
+ * failure this module exists to prevent. The precedent for module A owning it is
+ * already set: `.skeleton` is not in the contract's A-row either, and it is here
+ * because §5 asked for it.
+ *
+ * It is a *material*, not a layout helper — it appears in the `.mat-well` rule
+ * in §3 as well as here — so `class="empty"` on its own is already a lit,
+ * grained, recessed box and a screen cannot get half of it. Recessed rather than
+ * raised because an empty state is a socket with nothing in it, and because the
+ * one thing that must stay raised is the action inside it.
+ *
+ * The lit patch behind the icon is what stops it reading as a disabled panel: a
+ * recess with a light in it is a place something is *meant* to go. It rides on
+ * `--mat-veil`, which is a layer the material recipe already paints and nothing
+ * else here uses, so the composition costs no extra background layer.
+ *
+ * Expected shape, and the gallery photographs exactly this:
+ *
+ *   <div class="empty">
+ *     <span class="hb-icon">…</span>
+ *     <h3 class="t-heading">Nothing here yet</h3>
+ *     <p class="t-body">One sentence that is charming rather than apologetic.</p>
+ *     <button class="mat-hero act r-chip">Open the shop</button>
+ *   </div>
+ */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  /* Enough air that it reads as a considered state rather than as a message,
+     and not so much that it cannot be dropped into a 200px-tall filter result.
+     A consumer filling a whole collection grid adds its own room. */
+  padding: var(--sp-5);
+  text-align: center;
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+  --mat-veil: radial-gradient(
+    52% 44% at 50% 30%,
+    color-mix(in srgb, var(--accent) 13%, transparent),
+    transparent 72%
+  );
+}
+
+/* Sized here rather than by the caller, because "the icon is too small" is the
+   single most common way a hand-rolled empty state ends up looking like an
+   error. 2.5rem tracks `--ui-scale` like every other icon in the game. */
+.empty > :is(svg, img, .hb-icon) {
+  font-size: 2.5rem;
+  width: 1em;
+  height: 1em;
+  color: var(--text-faint);
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.5));
+}
+
+.empty > .t-heading {
+  margin: 0;
+}
+
+/* The line under the heading is the charming one, so it gets a measure. Past
+   about 46 characters a centred paragraph stops being a sentence and starts
+   being a block, and a block in the middle of an empty grid reads as an error
+   message. */
+.empty > .t-body {
+  margin: 0;
+  max-width: 46ch;
+  font-size: var(--fs-sm);
+}
+
+.empty > .act {
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) var(--sp-5);
+  font-weight: 600;
 }
 
 /* -------------------------------------------------------------------------
@@ -621,6 +1708,32 @@
    outline is the one focus indicator that cannot be clipped by an ancestor's
    `overflow: hidden`. Width still comes from `--focus-width`, so the thin /
    medium / thick setting keeps working.
+
+   **The halo is inside the gap, not outside the outline.** It used to spread
+   two pixels further than the outline — `calc(--focus-width + --focus-gap +
+   2px)`, an opaque 7px box-shadow at the default width and 9px on "thick" —
+   while the outline's own outer edge only reached 5px. Combined with
+   `.field-group`'s 4px gap that meant tabbing into the first field of a form
+   painted near-black over the bottom half of the words above it: a 6x
+   before/after pair shows "DECK NAME" intact when blurred and sliced in two
+   when focused.
+
+   Pulling it flush with the outline fixed the erasure and created a second
+   problem, which is that a dark band drawn immediately outside a bright ring,
+   on a page that is already near-black, is not a band at all. At 3x
+   magnification the ring was a single flat lilac stroke — correct, accessible,
+   radius-following, and indistinguishable from a browser default somebody had
+   tinted. A5 asks for two strokes and §5 asks for the one indicator that is on
+   screen every time somebody plays with a keyboard to be *beautiful*.
+
+   So the dark stroke moved into the 2px moat between the control and the
+   accent, where it has the control's own surface on one side and the ring on
+   the other and therefore reads as a stroke on every backdrop, light or dark;
+   and a spreadless 12px bloom in the accent sits outside the outline so the
+   ring emits rather than outlines. Total occluding reach is unchanged at
+   `--focus-width + --focus-gap`, so `.field-group`'s clearance calculation in
+   §8 is still computed against the right number and even the thick setting
+   cannot reach a label.
    ------------------------------------------------------------------------- */
 
 /**
@@ -640,9 +1753,14 @@
   border-radius: var(--r-self, var(--radius-sm));
   outline: var(--focus-width) solid var(--focus-ink);
   outline-offset: var(--focus-gap);
+  /* Read outward: the element's own bevel, the dark moat filling the gap, the
+     accent outline sitting against it, then the bloom. Three of the four are
+     box-shadows and only the moat has spread, so the ring's occluding reach is
+     still exactly `--focus-width + --focus-gap`. */
   box-shadow:
     var(--mat-cast, 0 0 rgb(0 0 0 / 0)),
-    0 0 0 calc(var(--focus-width) + var(--focus-gap) + 2px) var(--focus-halo);
+    0 0 0 var(--focus-gap) var(--focus-halo),
+    0 0 12px var(--focus-bloom);
 }
 
 /**
@@ -672,9 +1790,10 @@
 
    So these are unclassed. In WebKit the `::-webkit-scrollbar` pseudo-elements
    have no specificity of their own, so `.scroll`'s existing rules still win
-   where they exist and these only fill the gaps. In Firefox `scrollbar-width`
-   and `scrollbar-color` are inherited properties, which is why declaring them
-   once on `:root` in §1 covers every scroller in the app at once.
+   where they exist and these only fill the gaps. Firefox never sees this block
+   at all — it gets `scrollbar-width` and `scrollbar-color` from the `@supports`
+   in §1, and the two mechanisms are now mutually exclusive by construction
+   rather than by hope. The long note there says why that mattered.
 
    The thumb is lit from the top-left like everything else. */
 
@@ -757,16 +1876,31 @@
   -webkit-appearance: none;
   min-height: 40px;
   padding: var(--sp-2) var(--sp-3);
-  border: 1px solid rgb(0 0 0 / 0.55);
+  /* A field is a well, so its border reads like one: the lip that blocks the
+     light is on the top-left, the floor that catches it on the bottom-right.
+     Same four-value form and the same reasoning as `.mat-well` in §3 — a
+     uniform outline is a recess lit from every direction at once. The hover
+     and focus rules below deliberately flatten it to one accent colour,
+     because at that point it is a state and not a material. */
+  border-style: solid;
+  border-width: 1px;
+  border-color: rgb(0 0 0 / 0.62) rgb(255 255 255 / 0.05) rgb(255 255 255 / 0.09) rgb(0 0 0 / 0.4);
   border-radius: var(--r-field);
   --r-self: var(--r-field);
   --mat-amp: var(--amp-well);
   color: var(--text);
   background-color: transparent;
-  background-image: var(--tex-grain-fine, none), var(--fill-well);
+  background-image: var(--tex-grain-well, none), var(--fill-well);
   background-repeat: repeat, no-repeat;
-  background-size: var(--tex-grain-fine-size, auto), 100% 100%;
-  background-blend-mode: soft-light, normal;
+  background-size: var(--tex-grain-well-size, auto), 100% 100%;
+  /* Same reason as §3: the fill has to run under the border or the border
+     colour composites over whatever is behind the field. */
+  background-origin: border-box;
+  /* `normal`, not `soft-light` — see the long note in §3. Module B's grain is
+     signed (white grains and black grains, both mostly transparent) and is
+     designed to composite straight; soft-light against a near-black well
+     multiplies it away to about one level of 255. */
+  background-blend-mode: normal, normal;
   --mat-cast:
     inset 0 2px 5px -1px rgb(0 0 0 / 0.55),
     inset 2px 0 5px -3px rgb(0 0 0 / 0.4),
@@ -780,11 +1914,43 @@
     outline-offset var(--dur-micro) var(--ease-arrive);
 }
 
+/**
+ * The textarea, and the one native widget that survived the sweep.
+ *
+ * `resize: vertical` hands Chrome permission to draw `::-webkit-resizer` — two
+ * grey diagonal lines in the bottom-right corner of every description box, at
+ * 8x plainly the browser's hand rather than the game's. §A6 says no route may
+ * render an OS widget and §7 calls this class of thing a tear in the world, and
+ * it was the only hit in a nine-route native-widget sweep.
+ *
+ * The affordance is worth keeping, so the grip is drawn rather than deleted:
+ * three incised diagonals in the same `--hairline-dark` over `--hairline-lit`
+ * pairing the dividers use, which means it is lit from the top-left like
+ * everything else and it follows the high-contrast switch for free.
+ */
 :where(textarea),
 .textarea {
   min-height: calc(var(--sp-7) + var(--sp-6));
   line-height: 1.5;
   resize: vertical;
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      var(--hairline-dark) 0 1px,
+      var(--hairline-lit) 1px 2px,
+      transparent 2px 4px
+    ),
+    var(--tex-grain-well, none),
+    var(--fill-well);
+  background-repeat: no-repeat, repeat, no-repeat;
+  background-size: 10px 10px, var(--tex-grain-well-size, auto), 100% 100%;
+  background-position: right 4px bottom 4px, 0 0, 0 0;
+  background-blend-mode: normal, normal, normal;
+}
+
+:where(textarea)::-webkit-resizer,
+.textarea::-webkit-resizer {
+  display: none;
 }
 
 /**
@@ -834,8 +2000,23 @@
 .select:disabled {
   cursor: not-allowed;
   color: var(--text-dim);
-  border-color: rgb(255 255 255 / 0.08);
-  background-image: none, linear-gradient(var(--light-sweep), rgb(30 27 42 / 0.7), rgb(18 16 26 / 0.7));
+  /* Black, not white. A dead control that *gains* edge contrast reads as the
+     live one; see the note on `.switch:disabled`. */
+  border-color: rgb(0 0 0 / 0.5);
+  /* One layer, and every list restated to match it — the textarea rule above
+     paints three, and a two-image list against a three-value `background-size`
+     would hand the fill the grain's tile size. */
+  background-image: linear-gradient(var(--light-sweep), rgb(30 27 42 / 0.7), rgb(18 16 26 / 0.7));
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-position: 0 0;
+  background-blend-mode: normal;
+  /* A select is the exception: the escalated rule below out-specifies this one
+     on `background-image`, deliberately and for the affordance argument given
+     there, so a dead dropdown would otherwise keep a live surface. It reads the
+     fill through `--select-surface` instead, which nothing out-specifies. Two
+     layers, because the rule that consumes it counts four. */
+  --select-surface: none, linear-gradient(var(--light-sweep), rgb(30 27 42 / 0.7), rgb(18 16 26 / 0.7));
   --rim-boost: 0;
 }
 
@@ -891,7 +2072,7 @@ select.field {
   text-overflow: ellipsis;
   /* The surface, held in a custom property so the escalated rule below can
      put the chevron on top of it without having to know what it is. */
-  --select-surface: var(--tex-grain-fine, none), var(--fill-well);
+  --select-surface: var(--tex-grain-well, none), var(--fill-well);
 }
 
 /**
@@ -908,11 +2089,15 @@ select.field {
 :root:root select,
 :root:root .select {
   padding-right: calc(var(--sp-3) + 22px);
-  background-image: var(--chevron), var(--select-surface, var(--fill-well));
-  background-repeat: no-repeat, repeat, no-repeat;
-  background-size: 22px 22px, var(--tex-grain-fine-size, auto), 100% 100%;
-  background-position: right var(--sp-2) center, 0 0, 0 0;
-  background-blend-mode: normal, soft-light, normal;
+  background-image: var(--chevron-arm-l), var(--chevron-arm-r), var(--select-surface, var(--fill-well));
+  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
+  background-size: 5px 5px, 5px 5px, var(--tex-grain-well-size, auto), 100% 100%;
+  /* The two arms abut: the left one occupies 14–19px in from the right edge and
+     the right one 9–14px, so their inner corners meet at 14px and the join is a
+     point rather than a gap. The mark is 10px wide centred 14px in, which
+     leaves 20px of clearance to the text at the padding above. */
+  background-position: right 14px center, right 9px center, 0 0, 0 0;
+  background-blend-mode: normal, normal, normal, normal;
 }
 
 :where(select) option,
@@ -936,6 +2121,38 @@ select.field {
  * engines disagree about it; a background image is boringly portable and it
  * also gives us `background-size` to animate, which is where the little
  * scale-in on check comes from.
+ *
+ * ## Except that it did not, for the first version of this file
+ *
+ * The sentence above was a description of an intention. `:checked` *added* the
+ * tick and the hero fill to `background-image`, and `background-image` is not
+ * an animatable property — so toggling a box hard-cut the tick, the dot, the
+ * dash and the entire magenta fill in one frame. `getAnimations()` on a
+ * freshly-ticked control returned four border colours and a box-shadow and
+ * nothing else. §3a says nothing pops, and this is the control a settings
+ * screen has thirty of.
+ *
+ * The fix is to keep the layer list **identical in every state** and to drive
+ * the state with `background-size`, which does interpolate. All four layers are
+ * always painted; three of them are simply zero-sized until they are wanted, and
+ * they grow from the centre on `--ease-overshoot`, so the tick scales in while
+ * the hero fill blooms out underneath it. The switch already worked this way —
+ * `getAnimations()` confirms `background-position-x` running for 260ms on the
+ * spring — and it is the model the rest of the kit now follows.
+ *
+ * The four layers, front to back:
+ *
+ *   `--check-mark`  the tick, or the radio's dot. Scales 0 → 100% from centre.
+ *   `--check-dash`  indeterminate's bar. Scales on X only; it is a bar, and a
+ *                   bar that grows in both directions is a blob.
+ *   `--check-fill`  the lit surface under the mark. 0 → 100%, so the colour
+ *                   blooms out from behind the tick rather than switching on.
+ *   `--check-base`  the well. Always 100%; this is the control itself.
+ *
+ * Every state below changes those four custom properties and the four sizes,
+ * and nothing else touches `background-image`. That is what keeps disabled,
+ * checked-and-disabled and indeterminate from each accidentally deleting a
+ * layer the state after them needs.
  */
 :where(input[type="checkbox"], input[type="radio"]),
 .checkbox {
@@ -957,24 +2174,32 @@ select.field {
   border: 1px solid rgb(0 0 0 / 0.6);
   border-radius: calc(var(--check-size) * 0.3);
   --r-self: calc(var(--check-size) * 0.3);
+  --check-mark: var(--tick);
+  --check-dash: linear-gradient(var(--accent-bright), var(--accent-bright));
+  --check-fill: var(--fill-hero);
+  --check-base: var(--fill-well);
   background-color: transparent;
-  background-image: var(--fill-well);
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 100% 100%;
+  background-image: var(--check-mark), var(--check-dash), var(--check-fill), var(--check-base);
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+  background-position: center, center, center, 0 0;
+  background-size: 0% 0%, 0 2px, 0% 0%, 100% 100%;
   box-shadow:
     inset 0 2px 4px -1px rgb(0 0 0 / 0.6),
     inset 0 -1px 0 rgb(255 255 255 / 0.08);
   transition:
+    background-size var(--dur-micro) var(--ease-overshoot),
     background-color var(--dur-micro) var(--ease-arrive),
     border-color var(--dur-micro) var(--ease-arrive),
     box-shadow var(--dur-micro) var(--ease-arrive),
     outline-offset var(--dur-micro) var(--ease-arrive);
 }
 
+/* The dot is the radio's mark; everything else about the two controls is the
+   same object with a different corner radius. */
 :where(input[type="radio"]) {
   border-radius: 50%;
   --r-self: 50%;
+  --check-mark: radial-gradient(circle at 50% 50%, #fff 0 22%, transparent 24%);
 }
 
 @media (hover: hover) {
@@ -984,11 +2209,10 @@ select.field {
   }
 }
 
-:where(input[type="checkbox"]):checked,
+:where(input[type="checkbox"], input[type="radio"]):checked,
 .checkbox:checked {
   border-color: rgb(255 255 255 / 0.4);
-  background-image: var(--tick), var(--fill-hero);
-  background-size: 100% 100%, 100% 100%;
+  background-size: 100% 100%, 0 2px, 100% 100%, 100% 100%;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.4),
     inset 0 -1px 0 rgb(0 0 0 / 0.35),
@@ -996,33 +2220,43 @@ select.field {
     0 0 14px rgb(181 108 255 / 0.4);
 }
 
-:where(input[type="radio"]):checked {
-  border-color: rgb(255 255 255 / 0.4);
-  background-image:
-    radial-gradient(circle at 50% 50%, #fff 0 22%, transparent 24%),
-    var(--fill-hero);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.4),
-    0 1px 3px rgb(0 0 0 / 0.5),
-    0 0 14px rgb(181 108 255 / 0.4);
-}
-
-/* Indeterminate is a real third state and it must not look like "off". */
+/**
+ * Indeterminate is a real third state and it must not look like "off".
+ *
+ * The dash grows on X only and keeps its 2px height throughout: it is a bar,
+ * and a bar that scales in both axes arrives as a blob and then stretches. Half
+ * the control's width, so it grows with the 44px touch size the same way the
+ * tick does.
+ */
 :where(input[type="checkbox"]):indeterminate,
 .checkbox:indeterminate {
   border-color: rgb(255 255 255 / 0.3);
-  background-image:
-    linear-gradient(var(--accent-bright), var(--accent-bright)),
-    var(--fill-well);
-  background-size: 10px 2px, 100% 100%;
+  background-size: 0% 0%, calc(var(--check-size) * 0.5) 2px, 0% 0%, 100% 100%;
 }
 
 :where(input[type="checkbox"], input[type="radio"]):disabled,
 .checkbox:disabled {
   cursor: not-allowed;
-  border-color: rgb(255 255 255 / 0.1);
-  background-image: linear-gradient(var(--light-sweep), rgb(30 27 42 / 0.8), rgb(18 16 26 / 0.8));
-  filter: saturate(0.2);
+  border-color: rgb(0 0 0 / 0.5);
+  --check-mark: var(--tick-off);
+  --check-fill: linear-gradient(var(--light-sweep), rgb(56 51 74 / 0.9), rgb(32 29 46 / 0.9));
+  --check-base: linear-gradient(var(--light-sweep), rgb(30 27 42 / 0.8), rgb(18 16 26 / 0.8));
+  --check-dash: linear-gradient(rgb(142 136 164), rgb(142 136 164));
+  box-shadow: inset 0 2px 4px -1px rgb(0 0 0 / 0.55);
+}
+
+/**
+ * Checked *and* disabled is a real state and it has to keep saying "checked".
+ * An earlier version of the disabled rule replaced `background-image` outright,
+ * which took the tick with it — so a locked-on option rendered as an empty box,
+ * the one thing a tick box must never do. Now that every state swaps custom
+ * properties rather than the layer list, "disabled" can say *what the material
+ * is* and leave "which layers are showing" entirely to `:checked`. Grey tick,
+ * grey fill, and the glow comes off below: dimmer than the live control on
+ * every axis and still legible as on.
+ */
+:where(input[type="radio"]):disabled {
+  --check-mark: radial-gradient(circle at 50% 50%, rgb(142 136 164) 0 22%, transparent 24%);
 }
 
 /* --- switch -------------------------------------------------------------- */
@@ -1097,10 +2331,41 @@ select.field {
     0 0 16px rgb(181 108 255 / 0.35);
 }
 
+/**
+ * Disabled, and why a bare `filter: saturate()` was worse than nothing.
+ *
+ * Desaturating a light lilac on a dark panel *raises* its apparent lightness,
+ * so `filter: saturate(0.2)` left the dead knob brighter than the live one two
+ * rows above it — and the old rule swapped the switch's black border for a
+ * white one, so the dead control also gained edge contrast. The two loudest
+ * things in the form panel were the two controls the player cannot touch.
+ *
+ * So it gets the treatment `.act:disabled` already gets: the knob goes to a
+ * dark neutral, the glow comes off, the track flattens, and the black border
+ * stays black. `.field-row:has(:disabled)` dims the label beside it, because a
+ * disabled control whose label is typographically identical to a live one is
+ * signalling by colour alone.
+ */
 .switch:disabled {
   cursor: not-allowed;
-  filter: saturate(0.2);
-  border-color: rgb(255 255 255 / 0.1);
+  border-color: rgb(0 0 0 / 0.6);
+  background-image:
+    radial-gradient(
+      circle at calc(var(--switch-h) / 2) 50%,
+      rgb(150 145 165) 0 var(--knob-r),
+      rgb(96 90 118 / 0.9) var(--knob-r) calc(var(--knob-r) + 1px),
+      transparent calc(var(--knob-r) + 1.5px)
+    ),
+    linear-gradient(var(--light-sweep), rgb(28 25 38 / 0.9), rgb(16 14 24 / 0.9));
+  background-position: 0 0, 0 0;
+  box-shadow:
+    inset 0 2px 4px -1px rgb(0 0 0 / 0.65),
+    inset 0 -1px 0 rgb(255 255 255 / 0.04);
+}
+
+/* Position is the only thing a locked-on switch keeps from `:checked`. */
+.switch:checked:disabled {
+  background-position: calc(var(--switch-w) - var(--switch-h)) 0, 0 0;
 }
 
 /* --- slider -------------------------------------------------------------- */
@@ -1112,10 +2377,36 @@ select.field {
  * pseudo-element as a parse error. Hence the duplication below. It is not an
  * oversight.
  *
- * `--slider-fill` is a hook for the filled portion of the track, because
- * WebKit has no `::-webkit-range-progress` and there is no CSS-only way to
- * know the value. A caller that sets it on input gets a two-tone track; one
- * that does not gets a clean well, which is still correct.
+ * ## `--slider-fill`, and why the stylesheet no longer ships alone
+ *
+ * WebKit has no `::-webkit-range-progress` and there is no CSS-only way to read
+ * an input's value, so the filled portion of the track has to come from a custom
+ * property. That was left as "a hook a caller can set", and the consequence was
+ * that **every slider in the game rendered with an empty track on the engine we
+ * ship to.** All six Settings sliders measured `--slider-fill` unset — six
+ * identical black rails with a knob floating on them and no indication of value
+ * — because the only thing in the codebase that ever wrote the property was the
+ * gallery specimen. Firefox got a real fill free from `::-moz-range-progress`;
+ * Chromium, which is what GitHub Pages serves, did not.
+ *
+ * A6 binds the form kit to the elements rather than to an opt-in class precisely
+ * so that the markup nobody is going to touch this week is still correct, and a
+ * hook only a caller can honour fails that test. So the sync ships with the
+ * stylesheet: `Shell` installs a delegated `input`/`change` listener and sweeps
+ * every range it mounts, writing `--slider-fill` from the element's own
+ * value/min/max. It lives there because the shell is the one thing that sees
+ * every screen arrive; it is about ten lines and it makes all six Settings
+ * sliders and every future one correct with no consumer edits at all.
+ *
+ * ## The groove is 12px, not 8
+ *
+ * At 8px, with 1px of that spent on the bottom rim and the inset shadow
+ * compressed into what is left, the track rendered as a hairline: on `#settings`
+ * it measured about 4 visible pixels of groove, at which the recess does not
+ * read and the control looks like a horizontal rule with a dot on it. 12px is
+ * enough for the lip shadow at the top, the floor, and the lit hairline at the
+ * bottom to be three distinguishable things, which is the minimum for a well to
+ * be a well.
  */
 :where(input[type="range"]),
 .slider {
@@ -1123,38 +2414,64 @@ select.field {
   -webkit-appearance: none;
   width: 100%;
   min-height: 0;
-  height: var(--slider-h, 22px);
+  height: var(--slider-h, 24px);
   padding: 0;
   border: none;
   background: transparent;
   box-shadow: none;
   cursor: pointer;
+  --slider-track-h: 12px;
   --r-self: var(--r-chip);
 }
 
+/**
+ * The two-tone track. Three background layers, read back to front: the well
+ * itself, the accent ramp clipped at `--slider-fill`, and the recess lip laid
+ * across both — the same `--well-shade` treatment `.well-fill` gives anything
+ * else sitting in a groove, so a half-full slider and a half-full progress rail
+ * are the same object at two sizes.
+ *
+ * The fill is a ramp rather than a flat `var(--accent)`, brightest at the left
+ * where it emerges. On a horizontal bar that is the only place a two-stop
+ * gradient can put the light and still agree with a key at the top-left.
+ */
 :where(input[type="range"])::-webkit-slider-runnable-track,
 .slider::-webkit-slider-runnable-track {
-  height: 8px;
+  height: var(--slider-track-h, 12px);
   border-radius: var(--r-chip);
   background:
-    linear-gradient(90deg, var(--accent) 0 var(--slider-fill, 0%), transparent var(--slider-fill, 0%)),
+    linear-gradient(180deg, rgb(0 0 0 / 0.42) 0%, rgb(0 0 0 / 0.13) 22%, transparent 48%),
+    linear-gradient(
+      90deg,
+      var(--accent-bright) 0%,
+      var(--accent) var(--slider-fill, 0%),
+      transparent var(--slider-fill, 0%)
+    ),
     var(--fill-well);
-  box-shadow: inset 0 2px 3px -1px rgb(0 0 0 / 0.65), inset 0 -1px 0 rgb(255 255 255 / 0.07);
+  box-shadow:
+    inset 0 2px 4px -1px rgb(0 0 0 / 0.7),
+    inset 2px 0 4px -3px rgb(0 0 0 / 0.5),
+    inset 0 -1px 0 rgb(255 255 255 / 0.1);
 }
 
 :where(input[type="range"])::-moz-range-track,
 .slider::-moz-range-track {
-  height: 8px;
+  height: var(--slider-track-h, 12px);
   border-radius: var(--r-chip);
   background: var(--fill-well);
-  box-shadow: inset 0 2px 3px -1px rgb(0 0 0 / 0.65), inset 0 -1px 0 rgb(255 255 255 / 0.07);
+  box-shadow:
+    inset 0 2px 4px -1px rgb(0 0 0 / 0.7),
+    inset 2px 0 4px -3px rgb(0 0 0 / 0.5),
+    inset 0 -1px 0 rgb(255 255 255 / 0.1);
 }
 
 :where(input[type="range"])::-moz-range-progress,
 .slider::-moz-range-progress {
-  height: 8px;
+  height: var(--slider-track-h, 12px);
   border-radius: var(--r-chip);
-  background: linear-gradient(var(--light-sweep), var(--accent-bright), var(--accent));
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 0.42) 0%, rgb(0 0 0 / 0.13) 22%, transparent 48%),
+    linear-gradient(90deg, var(--accent-bright), var(--accent));
 }
 
 :where(input[type="range"])::-webkit-slider-thumb,
@@ -1162,7 +2479,7 @@ select.field {
   -webkit-appearance: none;
   width: 18px;
   height: 18px;
-  margin-top: -5px;
+  margin-top: calc((var(--slider-track-h, 12px) - 18px) / 2);
   border: none;
   border-radius: 50%;
   background: radial-gradient(circle at 34% 30%, #ffffff 0 22%, var(--accent-bright) 45%, var(--accent) 100%);
@@ -1193,10 +2510,70 @@ select.field {
   transform: scale(1.14);
 }
 
+/**
+ * Same argument as the switch, and the slider was the worse offender: the
+ * disabled thumb kept its `#ffffff` core and its `0 0 12px` accent glow through
+ * `filter: saturate(0.2)`, which made it the brightest object in the whole form
+ * panel — brighter than the live thumb. The core drops to a dead pewter, the
+ * glow goes entirely, and the filled portion of the track is zeroed so a dead
+ * slider is not also showing a value in the accent colour.
+ *
+ * Two engines, four rules: WebKit and Gecko each treat the other's
+ * pseudo-element as a parse error and drop the whole selector list, so these
+ * cannot be merged. See the note at the top of the slider block.
+ */
+/**
+ * The fill is *not* zeroed here any more, and that is not an oversight.
+ *
+ * It used to be, on the reasoning that a dead slider should not show a value in
+ * the accent colour — but the shell writes `--slider-fill` as an inline style
+ * and an inline style outranks every selector, so the declaration had become a
+ * lie that happened not to matter. It happened not to matter because both
+ * disabled track rules below replace `background` outright and therefore never
+ * consume the property at all. Saying it here as well would only mean the next
+ * person to read this rule believes something that is no longer true.
+ */
 :where(input[type="range"]):disabled,
 .slider:disabled {
   cursor: not-allowed;
-  filter: saturate(0.2);
+}
+
+/* Gecko draws the filled portion as its own pseudo-element, so a dead slider
+   there needs it drained explicitly — otherwise the one control the player
+   cannot touch is the only one still painted in the accent. */
+:where(input[type="range"]):disabled::-moz-range-progress,
+.slider:disabled::-moz-range-progress {
+  background: linear-gradient(var(--light-sweep), rgb(72 66 92 / 0.9), rgb(46 42 62 / 0.9));
+}
+
+:where(input[type="range"]):disabled::-webkit-slider-runnable-track,
+.slider:disabled::-webkit-slider-runnable-track {
+  background: linear-gradient(var(--light-sweep), rgb(26 23 36 / 0.9), rgb(14 12 20 / 0.9));
+  box-shadow: inset 0 2px 3px -1px rgb(0 0 0 / 0.7);
+}
+
+:where(input[type="range"]):disabled::-moz-range-track,
+.slider:disabled::-moz-range-track {
+  background: linear-gradient(var(--light-sweep), rgb(26 23 36 / 0.9), rgb(14 12 20 / 0.9));
+  box-shadow: inset 0 2px 3px -1px rgb(0 0 0 / 0.7);
+}
+
+:where(input[type="range"]):disabled::-webkit-slider-thumb,
+.slider:disabled::-webkit-slider-thumb {
+  background: radial-gradient(circle at 34% 30%, rgb(190 185 205) 0 22%, rgb(152 145 174) 45%, rgb(120 112 150) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 1px 2px rgb(0 0 0 / 0.6),
+    0 0 0 1px rgb(0 0 0 / 0.55);
+}
+
+:where(input[type="range"]):disabled::-moz-range-thumb,
+.slider:disabled::-moz-range-thumb {
+  background: radial-gradient(circle at 34% 30%, rgb(190 185 205) 0 22%, rgb(152 145 174) 45%, rgb(120 112 150) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    0 1px 2px rgb(0 0 0 / 0.6),
+    0 0 0 1px rgb(0 0 0 / 0.55);
 }
 
 /* --- the label wrapper --------------------------------------------------- */
@@ -1208,10 +2585,19 @@ select.field {
  * thing laid out for a checkbox or a switch, where the label belongs beside
  * the control and the whole row should be clickable.
  */
+/**
+ * The gap is not a spacing decision, it is the focus ring's clearance.
+ *
+ * `var(--sp-1)` is 4px and the ring reaches `--focus-width + --focus-gap` — 5px
+ * at the default, 7px on the "thick" accessibility setting — so a label sitting
+ * one gap above a field was inside the ring of that field, and the halo painted
+ * over it. The floor is derived from the same two tokens the ring is, so the
+ * two cannot drift: turn the ring up and the labels move out of its way.
+ */
 .field-group {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
+  gap: max(var(--sp-1), calc(var(--focus-width) + var(--focus-gap) + 2px));
   min-width: 0;
 }
 .field-group > .t-label { margin: 0; }
@@ -1226,6 +2612,12 @@ select.field {
   gap: var(--sp-2);
   min-height: 32px;
   cursor: pointer;
+}
+/* The label says it too. A dead control beside live-looking text is a state
+   signalled by the control's colour alone, which §6 rules out. */
+.field-row:has(:disabled) {
+  cursor: not-allowed;
+  color: var(--text-faint);
 }
 
 /* -------------------------------------------------------------------------
@@ -1306,16 +2698,25 @@ select.field {
 :root[data-reduced-motion="true"] .act:hover,
 :root[data-reduced-motion="true"] .act[data-state="loading"],
 :root[data-reduced-motion="true"] .act.is-loading,
-:root[data-reduced-motion="true"] .skeleton {
+:root[data-reduced-motion="true"] .skeleton,
+/* The idle crawl from §3 is the most decorative thing in the file and the one
+   that never stops, which is precisely what this setting exists to remove. The
+   `--dur-sheen: 0ms` above would already have neutered it, but a rule that
+   depends on a duration token happening to be zero is a rule that breaks the
+   first time somebody gives the sheen its own token. Say it. */
+:root[data-reduced-motion="true"] .mat-hero,
+:root[data-reduced-motion="true"] .mat-panel,
+:root[data-reduced-motion="true"] .mat-chip {
   animation: none;
 }
 
-/* Motion is not the only signal for either state: loading still dims and
-   stops taking pointer events, and the skeleton is still a visible well. */
+/* Motion is not the only signal for either state — and since the fix to §5 it
+   never was: loading dims the plate unconditionally, stops taking pointer
+   events and paints a meter. All this setting has to do is stop the meter
+   moving and leave it somewhere that reads as "part way through". */
 :root[data-reduced-motion="true"] .act[data-state="loading"],
 :root[data-reduced-motion="true"] .act.is-loading {
-  --mat-amp: 0.3;
-  color: var(--text-dim);
+  --meter-x: 42%;
 }
 
 /* The reduced-motion transform is dropped rather than shortened. Under this
@@ -1330,27 +2731,105 @@ select.field {
  * suggestions, the grain comes off — 5–8% noise is exactly the sort of
  * low-amplitude decoration this setting exists to remove — and the focus ring
  * goes white with a heavier halo.
+ *
+ * ## The one rule this block is held to
+ *
+ * **Every ratio this setting touches must go up.** Not "stay legal" — up. It is
+ * the only test a declaration in here has to pass, and it is the test the block
+ * kept failing: measured on `#uikit`, turning the setting on used to take the
+ * hero's label from 2.70:1 to **1.88:1** and a loading hero from 4.05:1 to
+ * **3.54:1**. Both had the same shape — this block lightens `--fill-hero`, which
+ * is right for the dark ink §3 puts on it and catastrophic for any light ink
+ * that survives on top of it — and both are fixed at the source rather than
+ * here: the ink is now defended (§3) and the loading veil is a token (§5) that
+ * this block deepens below.
  */
 :root[data-contrast="high"] {
-  --fill-hero: linear-gradient(var(--light-sweep), var(--accent-bright), var(--accent));
+  /**
+   * The hero goes **brighter** here, and getting that backwards was a real
+   * defect rather than a stylistic one.
+   *
+   * This rule used to read `linear-gradient(var(--light-sweep),
+   * var(--accent-bright), var(--accent))` — it dropped the darkest of the three
+   * stops, so the one setting whose entire purpose is legibility handed the
+   * primary action a *lighter* plate under white text and took its measured
+   * contrast from 2.71:1 down to 2.47:1. Now that the ink is dark (§3), lighter
+   * is the correct direction and this rule can say so out loud: `#e6c4ff →
+   * #c88cff` measures 11.9:1 and 7.9:1 against `--ink-hero`, against 10.3 / 6.3
+   * / 7.1 at the default. Higher on every stop, which is the only test this
+   * declaration has to pass.
+   */
+  --fill-hero: linear-gradient(var(--light-sweep), #e6c4ff, #c88cff);
   --fill-panel: linear-gradient(var(--light-sweep), rgb(14 9 26 / 0.99), rgb(8 5 16 / 0.99));
   --fill-chip: linear-gradient(var(--light-sweep), rgb(26 18 46 / 0.99), rgb(16 11 30 / 0.99));
   --fill-well: linear-gradient(var(--light-sweep), rgb(0 0 0 / 0.94), rgb(4 2 10 / 0.94));
-  /* Both of module B's grains, not just the coarse one. This is removed here
-     rather than in `texture.ts` because a `:root[data-…]` selector
+  /**
+   * The loading veil deepens with the plate it is covering.
+   *
+   * `--fill-hero` above is *lighter* here — correct, because every other hero
+   * state wears dark ink — and loading is the one state that turns the ink over
+   * (§5). Left at the default 0.47 the two changes fight: the plate goes up, the
+   * ink stays white, and the measured worst pixel under the label came out at
+   * 3.54:1 with the setting on against 4.05:1 with it off. Turning the veil up
+   * with the fill keeps the arithmetic pointing the same way, and this is the one
+   * declaration in the block that exists purely to preserve that direction.
+   */
+  --load-veil: 0.68;
+  /* All four of module B's grains and both of its aliases, not just the one
+     name that happened to be in use when this rule was written. It is removed
+     here rather than in `texture.ts` because a `:root[data-…]` selector
      out-specifies the plain `:root` rule that module injects — which is
      precisely why it injects a rule rather than writing an inline style, an
      inline style being the one thing no selector can out-rank. */
   --tex-grain: none;
   --tex-grain-fine: none;
+  --tex-grain-hero: none;
+  --tex-grain-mid: none;
+  --tex-grain-chip: none;
+  --tex-grain-well: none;
   --hairline-dark: rgb(0 0 0 / 0.9);
   --hairline-lit: rgb(255 255 255 / 0.45);
   --focus-ink: #ffffff;
-  --focus-halo: rgb(0 0 0 / 1);
+  /* Heavier than the default halo, but not opaque. Fully opaque is how the
+     ring came to erase whatever it overlapped, and this is the setting where
+     that hurt most because it hurt hardest. */
+  --focus-halo: rgb(0 0 0 / 0.95);
+  /* White ink wants a white bloom, and a stronger one — this is the setting
+     where the ring is doing the most work. */
+  --focus-bloom: rgb(255 255 255 / 0.42);
   --scroll-thumb: rgb(220 212 255 / 0.9);
-  --chevron: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23ffffff'%20stroke-width='2.25'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m7%2010%205%205%205-5'/%3E%3C/svg%3E");
+  /* The chevron needs no override any more. It is drawn in `currentColor`, and
+     `currentColor` under this setting is already the brightened text colour, so
+     the arrow follows the label it belongs to for free — which was the whole
+     reason for taking it off a `data:` URI. All that is left to say is that it
+     should be heavier, and that is one number. */
+  --chevron-ink: currentColor;
 }
 
+/* A hair thicker under high contrast: 2.3px of band against the default 1.8.
+   Restated rather than tokenised because the two arms are the only place the
+   number appears, and a `--chevron-weight` token would be one indirection for
+   two use sites. */
+:root[data-contrast="high"] {
+  --chevron-arm-l: linear-gradient(
+    45deg,
+    transparent calc(50% - 1.15px),
+    var(--chevron-ink) calc(50% - 1.15px) calc(50% + 1.15px),
+    transparent calc(50% + 1.15px)
+  );
+  --chevron-arm-r: linear-gradient(
+    -45deg,
+    transparent calc(50% - 1.15px),
+    var(--chevron-ink) calc(50% - 1.15px) calc(50% + 1.15px),
+    transparent calc(50% + 1.15px)
+  );
+}
+
+/* The one place the directional border is deliberately flattened. Everywhere
+   else a uniform pale outline is the defect §3 exists to remove; here it is the
+   requirement — somebody who has turned this on needs every surface to have a
+   findable boundary on all four sides, and "the bottom edge is in shadow" is a
+   depth cue rather than an edge. */
 :root[data-contrast="high"] .mat,
 :root[data-contrast="high"] .mat-hero,
 :root[data-contrast="high"] .mat-panel,

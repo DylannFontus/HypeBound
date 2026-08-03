@@ -164,10 +164,21 @@ export function lightPosition(distance = 18): THREE.Vector3 {
  * the vertical component, and a full 45° cast on a panel reads as a sticker
  * peeled off the screen. 0.62 keeps the direction unmistakably top-left-lit
  * while keeping the panel attached to the page.
+ *
+ * `foundation.css` §3 mirrors this ratio into the DOM cast — the `6.2px` beside
+ * every `10px` and the `1.24px` beside every `2px` in `--mat-cast`. It did not,
+ * for one round: both shadow layers were `0 Npx`, so every raised object on the
+ * page shadowed as if the key light were directly overhead, and the gallery
+ * printed `shadowOffset(10) → x 4.4, y 7.1` in its light readout and then
+ * contradicted it on every plate below. `tests/texture-light-rig.test.ts` now
+ * reads the ratio back out of the stylesheet, because that is the sort of thing
+ * that only stays fixed if something is checking.
  */
+export const SHADOW_THROW_RATIO = 0.62;
+
 export function shadowOffset(distance: number): { x: number; y: number } {
   return {
-    x: -LIGHT_RIG.screen.x * distance * 0.62,
+    x: -LIGHT_RIG.screen.x * distance * SHADOW_THROW_RATIO,
     y: -LIGHT_RIG.screen.y * distance,
   };
 }
@@ -195,6 +206,58 @@ export const MATERIAL_AMPLITUDE: Readonly<Record<MaterialTier, number>> = Object
 /** Accepts a tier name or a raw amplitude, because callers have both. */
 export function amplitudeOf(tier: MaterialTier | number = "panel"): number {
   return typeof tier === "number" ? clamp(tier, 0, 2) : MATERIAL_AMPLITUDE[tier];
+}
+
+/**
+ * How light each material's face actually renders, 0–255, measured off the
+ * gallery's A1 comparison row at 1× rather than derived from the gradient stops.
+ *
+ * This exists because the four materials are a *value structure* — hero far
+ * lighter than chip, chip above panel, panel above well — and every decoration
+ * laid on top of them (grain, the specular crawl, a rim) is a delta against that
+ * value. A decoration specified as one alpha for all four is therefore four
+ * different decorations, and the darker the plate the louder it lands: white at
+ * alpha a lifts a face of luma F by a·(255 − F), which is 92a on the hero and
+ * 242a on the well. That is a 2.6× spread before anybody has made a decision.
+ *
+ * So these numbers are the denominator. `--rim-a` and `--lip-a` in module A §3
+ * were already tuned against them by hand; `grainContrast` below does the same
+ * arithmetic for the grain so the four tiles can be *derived* rather than
+ * guessed, and `tests/texture-light-rig.test.ts` asserts the four land within
+ * 1.5× of each other.
+ */
+export const MATERIAL_FACE: Readonly<Record<MaterialTier, number>> = Object.freeze({
+  hero: 148,
+  panel: 31,
+  chip: 48,
+  well: 13,
+});
+
+/**
+ * The empirical constant tying a grain's *peak* alpha to the high-pass standard
+ * deviation it actually produces on a plate.
+ *
+ * The RMS swing of a symmetric signed grain over a face F is
+ * sqrt((255−F)²/2 + F²/2). Dividing the measured SD of each rendered plate by
+ * `amount · swing(face)` gives 0.333 on the hero, 0.316 on the panel and 0.315
+ * on the chip, and 0.32 splits them. The residual scatter is the ^1.25 shaping
+ * in `grainCanvas` and the particular high-pass kernel used — this is a
+ * calibration, not a derivation, and it is good to about ±10%, which is an order
+ * of magnitude tighter than the defect it exists to prevent.
+ */
+const GRAIN_GAIN = 0.32;
+
+/**
+ * The rendered contrast of a grain of peak alpha `amount` over a face of luma
+ * `face`, expressed as a fraction of that face — which is the only form in which
+ * "the four materials are one substance" is a checkable statement.
+ *
+ * §1 of the AAA bar asks for texture at "2–6% opacity"; read against the face
+ * rather than against nothing, that is this number, and 4% is the middle of it.
+ */
+export function grainContrast(amount: number, face: number): number {
+  const swing = Math.sqrt(0.5 * (255 - face) ** 2 + 0.5 * face ** 2);
+  return (GRAIN_GAIN * amount * swing) / face;
 }
 
 // ---------------------------------------------------------------------------
@@ -1457,28 +1520,147 @@ export function scaledAsset(
 // ---------------------------------------------------------------------------
 
 /**
- * The two grains CSS uses, and the sizes they should be drawn at.
+ * One grain per material rank, and the reason it is four tiles rather than one.
  *
- * `--tex-grain` is a 128px tile shown at its natural size: one noise cell per
- * CSS pixel, the classic film grain, and the right choice for large surfaces
- * and for displays at 1×.
+ * This shipped as two tiles — a coarse one at amount 0.06 and a "fine" one at
+ * 0.1 shown at half size — and both of those decisions were wrong for the same
+ * reason the rim and the lip were wrong before module A §3 fixed them: **the
+ * grain was specified as an alpha and it needs to be specified as a contrast.**
  *
- * `--tex-grain-fine` is the same construction shown at half size, so each cell
- * is half a CSS pixel — which resolves to exactly one device pixel on a 2×
- * display and averages into a soft haze on a 1× one. Its amount is higher
- * because that averaging costs contrast; the two end up reading at the same
- * strength, which is the whole point of shipping both. Use the fine one on
- * chips, fields and anything small enough that the coarse grain reads as dirt.
+ * Measured on an ordinary 1× monitor, the two tiles produced almost identical
+ * high-pass amplitudes on all four plates — SD 2.85 / 2.48 / 3.02 / 2.88 — while
+ * the faces underneath them run 163 / 58 / 39 / 13. Against its own plate that
+ * is 1.75% on the hero, 4.3% on the chip, 7.7% on the panel and 22.0% on the
+ * well: a 12.6× spread, and at 4× it was 1.1% against 25%. Crop the same patch
+ * out of each and stack them and the hero is clean CSS while the well is a
+ * salt-and-pepper field that reads as sensor noise rather than as dirt on a
+ * surface. Texture is the one ingredient §1 names as the difference between a
+ * real surface and a gradient, and it was the ingredient the family agreed on
+ * least.
  *
- * Both must be paired with their size variable:
+ * So each rank gets its own tile, its amount solved backwards from
+ * `grainContrast` and then **checked against the rendered page**, because a
+ * model is a way of getting close and a pipette is the thing a critic will use.
+ * `contrast` below is that measurement: the high-pass SD of the whole plate
+ * divided by its own mean luma, taken off the gallery's A1 comparison row at 1×
+ * with the animations pinned and the centred label excluded from the crop. The
+ * test asserts those four stay within 1.5× of each other, and separately that
+ * each one still agrees with the model, so an amount cannot be edited without
+ * the measurement being redone.
  *
- *     background-image: var(--tex-grain);
- *     background-size: var(--tex-grain-size);
+ * **The target is 6.5%, which is roughly where the panel already was.** Of the
+ * four, the panel was the one a reviewer looking at cropped patches called
+ * correct; the arithmetic middle of the four was about 4%, and taking everything
+ * to 4% would have quietened the one plate nobody had a complaint about, on a
+ * page whose grain-on/grain-off pair has already failed once for being too
+ * subtle to tell apart at 1:1. 6.5% leaves the panel where it was, brings the
+ * hero up by a factor of nearly four and takes the well down by two thirds.
+ *
+ * **The well is the exception and the reason is not the grain.** With
+ * `--mat-grain: none` the well plate *still* measures a high-pass ratio of 8.2%,
+ * because Chromium dithers its near-black gradient and its inset recess shadow,
+ * and one level of dither over a face of thirteen is 8%. That is a floor no
+ * amount can get under — the same dither is 0.8% on the hero, where the face is
+ * eleven times higher. So the well is given a token 0.008 whose own contribution
+ * is about 3.4% of face, landing the total at 8.7%: within 1.4× of the other
+ * three, which is as close as the engine allows, and the remaining gap is
+ * substrate rather than decoration.
+ *
+ * ## Every tile is shown at one cell per CSS pixel, and that is the other fix
+ *
+ * The old `--tex-grain-fine` was a 128px tile displayed at 64px, on the
+ * reasoning that half-size cells "average down". They average down at 1× and
+ * they do not average at all from 2× upward, where each cell lands on a whole
+ * device pixel — so the fine grain was quietly twice as loud on every retina
+ * display, and the two materials that used it (`.mat-chip`, `.mat-well`) are the
+ * two darkest in the system, where loud grain hurts most. Display size now
+ * always equals tile size, so `amount` means the same thing on every display and
+ * the only knob left is the one that is tuned.
+ *
+ * The chip and well tiles are 64px rather than 128px purely to keep the boot
+ * cost down: they land on small objects where a 64px repeat cannot be seen at
+ * one to two percent contrast, and four 128px tiles would be four PNG encodes
+ * and a quarter of a megabyte of base64 in a `<style>` element.
+ *
+ * Each name must be paired with its size variable:
+ *
+ *     background-image: var(--tex-grain-chip);
+ *     background-size: var(--tex-grain-chip-size);
+ *
+ * ## The amounts are the peak, and the peak is rare
+ *
+ * `amount` is the alpha of the *loudest* grain in the tile, not the average one.
+ * The field is triangular noise raised to the 1.25 power, so the mean absolute
+ * value lands near a quarter of the peak. That is why the hero's 0.225 is not a
+ * 22% haze over the PLAY button — it is a sparse scatter of strong grains on a
+ * plate bright enough to swallow them, which is exactly what the hero needed and
+ * never had.
+ *
+ * `baseline` is what the plate measures with the grain layer switched off: the
+ * dither and banding the fill and the shadows produce on their own. It is
+ * recorded because it is the thing that explains the well, and because
+ * subtracting it in quadrature is the only way to compare the *grain* across
+ * four substrates that are not equally quiet to begin with.
  */
-const GRAIN_VARS = [
-  { name: "--tex-grain", size: 128, amount: 0.05, clump: 0, display: 128, seed: GRAIN_DEFAULTS.seed },
-  { name: "--tex-grain-fine", size: 128, amount: 0.08, clump: 0, display: 64, seed: GRAIN_DEFAULTS.seed ^ 0x9e3779b9 },
-] as const;
+export interface GrainTier {
+  /** The custom property module A points a material at. */
+  name: string;
+  /** Tile size in pixels, always also the display size — see above. */
+  tile: number;
+  /** Peak alpha of the loudest grains. */
+  amount: number;
+  /** Measured high-pass ratio of the plate with the grain off. */
+  baseline: number;
+  /** Measured high-pass ratio of the plate as it ships. */
+  contrast: number;
+}
+
+const GRAIN_TIERS: Readonly<Record<MaterialTier, GrainTier>> = Object.freeze({
+  hero: { name: "--tex-grain-hero", tile: 128, amount: 0.225, baseline: 0.008, contrast: 0.066 },
+  panel: { name: "--tex-grain-mid", tile: 128, amount: 0.04, baseline: 0.02, contrast: 0.065 },
+  chip: { name: "--tex-grain-chip", tile: 64, amount: 0.068, baseline: 0.014, contrast: 0.067 },
+  well: { name: "--tex-grain-well", tile: 64, amount: 0.008, baseline: 0.082, contrast: 0.087 },
+});
+
+/** The whole table, for the gallery and for the test that keeps it honest. */
+export function grainTier(tier: MaterialTier): GrainTier {
+  return GRAIN_TIERS[tier];
+}
+
+/**
+ * What each rank's plate actually measures, as a fraction of its own face —
+ * grain, dither and all, which is what a pipette sees.
+ */
+export function grainContrastOf(tier: MaterialTier): number {
+  return GRAIN_TIERS[tier].contrast;
+}
+
+/** The tier tiles, plus the two legacy names every existing rule still asks for. */
+const GRAIN_VARS = (
+  ["hero", "panel", "chip", "well"] as const
+).map((tier) => ({
+  name: GRAIN_TIERS[tier].name,
+  size: GRAIN_TIERS[tier].tile,
+  amount: GRAIN_TIERS[tier].amount,
+  clump: 0,
+  display: GRAIN_TIERS[tier].tile,
+  seed: GRAIN_DEFAULTS.seed ^ seedFrom(tier),
+}));
+
+/**
+ * `--tex-grain` and `--tex-grain-fine` are kept as aliases rather than deleted.
+ *
+ * They are the names in the two rules module A has not migrated and in anything
+ * a screen wrote against them, and an alias costs one line of CSS where a fifth
+ * bitmap would cost another PNG encode. `--tex-grain` points at the mid tile
+ * because an unclassified surface falls through to `--fill-panel`, and
+ * `--tex-grain-fine` at the well tile because every remaining use of it is a
+ * field, which is a well.
+ */
+const GRAIN_ALIASES: readonly { name: string; of: MaterialTier }[] = [
+  { name: "--tex-grain", of: "panel" },
+  { name: "--tex-grain-fine", of: "well" },
+];
 
 const STYLE_ID = "hb-texture-vars";
 
@@ -1523,6 +1705,11 @@ export function installTextureVars(): void {
     declarations.push(`  ${grain.name}-size: ${grain.display}px;`);
   }
   if (declarations.length === 0) return;
+  for (const alias of GRAIN_ALIASES) {
+    const target = GRAIN_TIERS[alias.of].name;
+    declarations.push(`  ${alias.name}: var(${target});`);
+    declarations.push(`  ${alias.name}-size: var(${target}-size);`);
+  }
 
   const style = document.getElementById(STYLE_ID) ?? document.createElement("style");
   style.id = STYLE_ID;
