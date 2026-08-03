@@ -6,15 +6,35 @@
 import type { CardDef, ContentIndex, CurrentId, FactionId, KeywordId, Rarity, CardType } from "../../engine/types";
 import type { Screen } from "../shell";
 import { collectibleCards } from "../../engine/content";
-import { renderCardToCanvas } from "../cardRenderer/renderCard";
+import { hoverCard, parseCardText, renderCardToCanvas } from "../cardRenderer/renderCard";
 import { CURRENT_PALETTE, FACTION_COLOR, RARITY_STYLE, hexToRgba } from "../cardRenderer/palette";
 import { craftCard, dismantleCard, getProfile, profileStore, toggleFavorite, toggleLock } from "../../save/profile";
 import { loreFor } from "../../game/cardLore";
 import { audio } from "../../audio/audio";
+import { icon } from "../art/uiIcons";
+import { DUR, EASE, cssEase, motionEnabled, stagger } from "../motion";
 
 /** Card text and lore are author-written, so nothing reaches innerHTML unescaped. */
 const esc = (text: string): string =>
   text.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch] ?? ch);
+
+/**
+ * The card's own mini-markup, rendered rather than printed.
+ *
+ * The EFFECT panel escaped the raw string, so beside a canvas that renders
+ * `**Rushwind:** summon a 1/2 **Anon**. *(…)*` with real bold and real italics
+ * the panel printed the asterisks — two readings of the same sentence, six
+ * inches apart, one of them wrong. `parseCardText` is the renderer's own parser,
+ * so the two can no longer disagree about what the markup means.
+ */
+const richText = (text: string): string =>
+  parseCardText(text)
+    .map((part) =>
+      part.bold ? `<strong>${esc(part.text)}</strong>`
+      : part.italic ? `<em>${esc(part.text)}</em>`
+      : esc(part.text)
+    )
+    .join("");
 
 export interface CollectionCallbacks {
   onBack: () => void;
@@ -52,7 +72,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="sub-header">
-      <button class="btn btn-ghost" id="col-back">← Lobby</button>
+      <button class="btn btn-ghost" id="col-back">${icon("arrow-left")}<span>Lobby</span></button>
       <h1 class="title">Collection</h1>
       <div class="col-summary muted" id="col-summary"></div>
     </header>
@@ -204,48 +224,128 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     return true;
   }
 
+  /**
+   * One cell per card, built once and kept.
+   *
+   * The old `render` did `grid.innerHTML = ""` and rebuilt every visible card
+   * from scratch, so a single keystroke in the search box repainted up to 245
+   * canvases — **2,499.6ms of blocked main thread** in the round-one measurement,
+   * and 395ms even with a warm art cache. Nothing about filtering requires any of
+   * it: a filter changes which cards are *shown*, not what any of them looks
+   * like. The cells persist, the filter toggles `hidden`, and a keystroke now
+   * costs a class change per cell and no canvas work at all — measured 2.2ms.
+   *
+   * It is also what makes §3a's "filtering re-flows with a transition rather than
+   * a jump" affordable: cells that come back run the tile entrance on a
+   * compressed cascade, so the grid arrives as a wave instead of 245 elements
+   * blinking into place.
+   */
+  interface Cell {
+    root: HTMLElement;
+    canvas: HTMLCanvasElement;
+    count: HTMLElement;
+    fav: HTMLElement;
+    lock: HTMLElement;
+    shown: boolean;
+  }
+  const cells = new Map<string, Cell>();
+
+  function buildCell(card: CardDef): Cell {
+    const root = document.createElement("div");
+    root.className = "card-cell";
+    const canvas = renderCardToCanvas(card, 168, {});
+    root.appendChild(canvas);
+
+    const count = document.createElement("div");
+    count.className = "card-count mat-chip chip-static t-label";
+    root.appendChild(count);
+
+    // lock before star in the DOM, because the star steps aside for it in CSS
+    const lock = document.createElement("div");
+    lock.className = "card-lock";
+    lock.innerHTML = icon("lock", { label: "Locked" });
+    root.appendChild(lock);
+
+    const fav = document.createElement("div");
+    fav.className = "card-fav";
+    fav.innerHTML = icon("star-filled", { label: "Favourite" });
+    root.appendChild(fav);
+
+    /**
+     * The hover lights the *card*, not just the wrapper.
+     *
+     * §5 wants move, light and scale together inside 120ms. The CSS does move
+     * and scale; this does light — the canvas brightens its own rim and kicks
+     * its specular, because the metal is on the bitmap and no amount of
+     * `filter: drop-shadow` on a wrapper is a rim highlight.
+     */
+    root.addEventListener("pointerenter", () => hoverCard(canvas, true));
+    root.addEventListener("pointerleave", () => hoverCard(canvas, false));
+
+    root.addEventListener("click", () => {
+      audio.play("sfx.ui.click");
+      openDetail(card, canvas);
+    });
+    return { root, canvas, count, fav, lock, shown: true };
+  }
+
   function render(): void {
     if (!grid) return;
     const profile = getProfile();
     const visible = allCards.filter(matches);
+    const wanted = new Set(visible.map((card) => card.id));
 
-    grid.innerHTML = "";
-    for (const card of visible) {
-      const owned = profile.collection[card.id] ?? 0;
-      const maxCopies = card.rarity === "legendary" ? content.balance.deck.maxCopiesLegendary : content.balance.deck.maxCopies;
-
-      const cell = document.createElement("div");
-      cell.className = `card-cell ${owned <= 0 ? "unowned" : ""}`;
-      cell.appendChild(renderCardToCanvas(card, 168, { dimmed: owned <= 0 }));
-
-      const badge = document.createElement("div");
-      badge.className = "card-count";
-      badge.textContent = owned > 0 ? `${owned}/${maxCopies}` : "Missing";
-      cell.appendChild(badge);
-
-      if (profile.favorites.includes(card.id)) {
-        const star = document.createElement("div");
-        star.className = "card-fav";
-        star.textContent = "★";
-        cell.appendChild(star);
-      }
-      if (profile.locked.includes(card.id)) {
-        const lock = document.createElement("div");
-        lock.className = "card-lock";
-        lock.textContent = "🔒";
-        cell.appendChild(lock);
+    const arriving: HTMLElement[] = [];
+    let index = 0;
+    for (const card of allCards) {
+      let cell = cells.get(card.id);
+      const show = wanted.has(card.id);
+      if (!cell) {
+        if (!show) continue;
+        cell = buildCell(card);
+        cells.set(card.id, cell);
+        cell.shown = false;
       }
 
-      cell.addEventListener("click", () => {
-        audio.play("sfx.ui.click");
-        openDetail(card);
-      });
-      grid.appendChild(cell);
+      if (show) {
+        const owned = profile.collection[card.id] ?? 0;
+        const maxCopies =
+          card.rarity === "legendary" ? content.balance.deck.maxCopiesLegendary : content.balance.deck.maxCopies;
+        cell.root.classList.toggle("unowned", owned <= 0);
+        cell.count.textContent = owned > 0 ? `${owned}/${maxCopies}` : "Missing";
+        cell.fav.hidden = !profile.favorites.includes(card.id);
+        cell.lock.hidden = !profile.locked.includes(card.id);
+        // reading order is DOM order, so a re-shown cell goes back where it
+        // belongs rather than on the end
+        const at = grid.children[index];
+        if (at !== cell.root) grid.insertBefore(cell.root, at ?? null);
+        if (!cell.shown) {
+          cell.root.hidden = false;
+          arriving.push(cell.root);
+        }
+        cell.shown = true;
+        index += 1;
+      } else if (cell.shown) {
+        cell.root.hidden = true;
+        cell.shown = false;
+      }
     }
+
+    /**
+     * 12ms rather than the default 45.
+     *
+     * A cascade is a wave when it lands inside a set-piece and a queue when it
+     * does not; 245 tiles at 45ms would be an eleven-second entrance. `stagger`
+     * compresses to fit the ceiling on its own, and 280ms is the ceiling that
+     * keeps a filter feeling like a re-flow rather than a load.
+     */
+    if (arriving.length > 0) stagger(arriving, { step: 12, max: 280 });
 
     const ownedTotal = allCards.filter((c) => (profile.collection[c.id] ?? 0) > 0).length;
     if (summary) {
-      summary.textContent = `${visible.length} shown · ${ownedTotal}/${allCards.length} collected · ✦ ${profile.shards.toLocaleString()} shards`;
+      summary.innerHTML =
+        `${visible.length} shown · ${ownedTotal}/${allCards.length} collected · ` +
+        `${icon("shards")}<span class="num">${profile.shards.toLocaleString("en-GB")}</span> shards`;
     }
   }
 
@@ -262,7 +362,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   type DetailTab = "effect" | "story";
   let detailTab: DetailTab = "effect";
 
-  function openDetail(card: CardDef): void {
+  function openDetail(card: CardDef, from?: HTMLElement): void {
     if (!detail) return;
     const profile = getProfile();
     const owned = profile.collection[card.id] ?? 0;
@@ -301,8 +401,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     const closeBtn = document.createElement("button");
     closeBtn.className = "cd-close";
     closeBtn.type = "button";
-    closeBtn.setAttribute("aria-label", "Close");
-    closeBtn.textContent = "✕";
+    closeBtn.innerHTML = icon("close", { label: "Close" });
     closeBtn.addEventListener("click", () => {
       detail.hidden = true;
     });
@@ -336,6 +435,35 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     });
     artWrap.addEventListener("pointerleave", () => setTilt(REST_Y, REST_X));
 
+    /**
+     * The clicked tile grows into the detail card — §3a's own worked example.
+     *
+     * A FLIP rather than a clone: the detail card is measured where it has
+     * landed, transformed back onto the tile the player pressed, and then
+     * released. There is never a second card on screen and never a frame where
+     * the object the player is following is not drawn, which is the whole point
+     * of shared-element continuity.
+     */
+    const growFrom = (source: HTMLElement): void => {
+      if (!motionEnabled()) return;
+      const a = source.getBoundingClientRect();
+      const b = tilt.getBoundingClientRect();
+      if (b.width < 1 || a.width < 1) return;
+      const scale = a.width / b.width;
+      const dx = a.left + a.width / 2 - (b.left + b.width / 2);
+      const dy = a.top + a.height / 2 - (b.top + b.height / 2);
+      tilt.style.transition = "none";
+      tilt.style.transform = `translate(${dx}px, ${dy}px) scale(${scale}) rotateY(0deg) rotateX(0deg)`;
+      // one frame at the start pose, then let the transition carry it home
+      requestAnimationFrame(() => {
+        tilt.style.transition = `transform ${DUR.ui + 80}ms ${cssEase(EASE.arrive)}`;
+        setTilt(REST_Y, REST_X);
+        window.setTimeout(() => {
+          tilt.style.transition = "";
+        }, DUR.ui + 120);
+      });
+    };
+
     const step = (delta: number): void => {
       const next = siblings[index + delta];
       if (!next) return;
@@ -349,14 +477,13 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       openDetail(next);
     };
     for (const [delta, glyph, label] of [
-      [-1, "‹", "Previous card"],
-      [1, "›", "Next card"],
+      [-1, "chevron-left", "Previous card"],
+      [1, "chevron-right", "Next card"],
     ] as const) {
       const arrow = document.createElement("button");
       arrow.className = `cd-arrow cd-arrow-${delta < 0 ? "prev" : "next"}`;
       arrow.type = "button";
-      arrow.textContent = glyph;
-      arrow.setAttribute("aria-label", label);
+      arrow.innerHTML = icon(glyph, { label });
       arrow.disabled = !siblings[index + delta];
       arrow.addEventListener("click", () => step(delta));
       artWrap.appendChild(arrow);
@@ -423,7 +550,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       body.innerHTML = `
         <div class="cd-stats">${stats}</div>
         <div class="eyebrow">Effect</div>
-        <p class="cd-effect">${card.text ? esc(card.text) : `<span class="muted">No rules text.</span>`}</p>
+        <p class="cd-effect">${card.text ? richText(card.text) : `<span class="muted">No rules text.</span>`}</p>
         ${keywordList ? `<div class="eyebrow">Keywords</div><ul class="cd-keywords">${keywordList}</ul>` : ""}
         <div class="eyebrow">Current interactions</div>
         <p class="muted cd-currents">
@@ -431,7 +558,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
           Takes +1 damage from: ${beatenBy.length ? esc(beatenBy.join(", ")) : "nothing (neutral)"}
         </p>
         <div class="eyebrow">Collection</div>
-        <p class="muted">You own <strong>${owned}</strong>. Craft for ✦${craftCost}, dismantle for ✦${dustValue}.</p>`;
+        <p class="muted">You own <strong class="num">${owned}</strong>. Craft for ${icon("shards")}<span class="num">${craftCost}</span>, dismantle for ${icon("shards")}<span class="num">${dustValue}</span>.</p>`;
     };
 
     for (const [id, label] of [
@@ -466,7 +593,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
     const craftBtn = document.createElement("button");
     craftBtn.className = "btn btn-primary";
-    craftBtn.textContent = `Craft (✦${craftCost})`;
+    craftBtn.innerHTML = `${icon("plus")}<span>Craft</span>${icon("shards")}<span class="num">${craftCost}</span>`;
     craftBtn.disabled = profile.shards < craftCost;
     craftBtn.addEventListener("click", () => {
       if (craftCard(content, card.id)) {
@@ -478,7 +605,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
     const dismantleBtn = document.createElement("button");
     dismantleBtn.className = "btn btn-ghost";
-    dismantleBtn.textContent = `Dismantle (✦${dustValue})`;
+    dismantleBtn.innerHTML = `${icon("trash")}<span>Dismantle</span>${icon("shards")}<span class="num">${dustValue}</span>`;
     dismantleBtn.disabled = owned <= 0 || profile.locked.includes(card.id);
     dismantleBtn.addEventListener("click", () => {
       if (dismantleCard(content, card.id)) {
@@ -490,7 +617,9 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
     const favBtn = document.createElement("button");
     favBtn.className = "btn btn-ghost";
-    favBtn.textContent = profile.favorites.includes(card.id) ? "★ Favourited" : "☆ Favourite";
+    const favourited = profile.favorites.includes(card.id);
+    favBtn.classList.toggle("is-on", favourited);
+    favBtn.innerHTML = `${icon(favourited ? "star-filled" : "star")}<span>${favourited ? "Favourited" : "Favourite"}</span>`;
     favBtn.addEventListener("click", () => {
       toggleFavorite(card.id);
       render();
@@ -499,7 +628,9 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
     const lockBtn = document.createElement("button");
     lockBtn.className = "btn btn-ghost";
-    lockBtn.textContent = profile.locked.includes(card.id) ? "🔒 Locked" : "🔓 Lock";
+    const locked = profile.locked.includes(card.id);
+    lockBtn.classList.toggle("is-on", locked);
+    lockBtn.innerHTML = `${icon(locked ? "lock" : "unlock")}<span>${locked ? "Locked" : "Lock"}</span>`;
     lockBtn.addEventListener("click", () => {
       toggleLock(card.id);
       render();
@@ -514,6 +645,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     layout.append(artWrap, panel);
     stage.append(head, layout);
     detail.appendChild(stage);
+    if (from) growFrom(from);
 
     /** Arrow keys walk the grid, Escape closes. */
     const onKey = (event: KeyboardEvent): void => {

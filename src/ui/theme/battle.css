@@ -4,11 +4,20 @@
 
 .battle-screen { background: var(--bg-void); }
 
-/* The board reserves the upper area; the hand owns the strip beneath it, so
-   the play area is never covered by the player's own cards. */
 /* The board fills the whole screen. The hand OVERLAPS its lower margin rather
    than occupying a reserved strip — exactly as the reference does — and the
-   cards hang off the bottom edge, small until hovered. */
+   cards hang off the bottom edge, small until hovered.
+
+   `--board-inset-top` and `--board-inset-bottom` are written onto :root by
+   scene.ts on every resize. They are the bands the camera framing deliberately
+   keeps clear of the leaders, so anything the HUD floats over the board can be
+   positioned against the real numbers instead of a guess. They are absent until
+   a board exists, so every use needs a fallback.
+
+   Every drop shadow below is offset 4.4:7.1 rather than straight down, because
+   the key light is at 315° everywhere in this game and a card in the hand is
+   two inches from a card on the mat. See LIGHT_RIG / shadowOffset in
+   src/ui/art/texture.ts — this is the same ratio, spelled out in CSS. */
 :root {
   --hand-card-height: 17.5vh;
 }
@@ -45,7 +54,7 @@
   transform-origin: 50% 100%;
   transform: rotate(var(--tilt, 0deg)) translateY(var(--lift, 0px));
   transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast) var(--ease-out);
-  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.65));
+  filter: drop-shadow(4.4px 7.1px 18px rgba(0, 0, 0, 0.65));
   /* `backwards`, NOT `both`: with `both` the finished animation keeps applying
      its final keyframe, and because CSS animations outrank normal declarations
      that permanently defeats the :hover transform below. */
@@ -73,7 +82,7 @@
      translate moves the card out from under the cursor and hover oscillates. */
   transform: rotate(0deg) translateY(calc(var(--hand-card-height) * -0.3)) scale(1.85);
   z-index: 200 !important;
-  filter: drop-shadow(0 22px 38px rgba(0, 0, 0, 0.85));
+  filter: drop-shadow(9.6px 15.6px 38px rgba(0, 0, 0, 0.85));
 }
 
 .hand-card.playable canvas {
@@ -84,14 +93,14 @@
 
 .hand-card.unplayable {
   cursor: default;
-  filter: grayscale(0.55) brightness(0.55) drop-shadow(0 8px 14px rgba(0, 0, 0, 0.6));
+  filter: grayscale(0.55) brightness(0.55) drop-shadow(3.5px 5.7px 14px rgba(0, 0, 0, 0.6));
 }
 
 /* An unaffordable card still enlarges on hover — you need to read the cards you
    cannot pay for yet. It stays desaturated and refuses to drag instead. */
 .hand-card.unplayable:hover {
   transform: rotate(0deg) translateY(calc(var(--hand-card-height) * -0.3)) scale(1.8);
-  filter: grayscale(0.45) brightness(0.78) drop-shadow(0 20px 34px rgba(0, 0, 0, 0.8));
+  filter: grayscale(0.45) brightness(0.78) drop-shadow(8.8px 14.1px 34px rgba(0, 0, 0, 0.8));
 }
 
 .hand-card.dragging {
@@ -115,7 +124,7 @@
   top: 0;
   z-index: 300;
   pointer-events: none;
-  filter: drop-shadow(0 22px 34px rgba(0, 0, 0, 0.75));
+  filter: drop-shadow(9.6px 15.6px 34px rgba(0, 0, 0, 0.75));
 }
 
 .hand-drag-ghost canvas {

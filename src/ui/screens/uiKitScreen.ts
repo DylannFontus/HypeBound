@@ -450,7 +450,13 @@ const KIT_CSS = `
      a number, because the hover amplitude is now per material — one alpha across
      four faces is a hover that flashes hardest on the darkest plate. */
   --sheen-alpha: var(--sheen-hover, 0.032);
-  animation: hb-sheen calc(var(--dur-sheen) * 9) var(--ease-sweep) infinite;
+}
+
+/* The catch itself is on the band, which since foundation.css §3's frame-time
+   repair is the plate's own \`::after\` rather than one of its background
+   layers. */
+.kit-force-hover.act::after {
+  animation: hb-sheen-pass calc(var(--dur-sheen) * 9) var(--ease-sweep) infinite;
 }
 
 /* Forced press — mirrors \`.act:active\` in foundation.css §5. */
@@ -1644,9 +1650,9 @@ export function createUiKitScreen(): Screen {
    * resting change, and the one to look at if that number has not moved.
    */
   const TRACKS: readonly { label: string; ink: string; read: () => number }[] = [
-    { label: "--sheen-x · .mat-hero (6.2s)", ink: "#ff6fae", read: () => sheenOf(".mat-hero") },
-    { label: "--sheen-x · .mat-panel (8.6s)", ink: "#d9a5ff", read: () => sheenOf(".kit-idle-plate") },
-    { label: "--sheen-x · .mat-chip (11.4s)", ink: "#ffcc66", read: () => sheenOf(".kit-chip-demo") },
+    { label: "band · .mat-hero (6.2s)", ink: "#ff6fae", read: () => sheenOf(".mat-hero") },
+    { label: "band · .mat-panel (8.6s)", ink: "#d9a5ff", read: () => sheenOf(".kit-idle-plate") },
+    { label: "band · .mat-chip (11.4s)", ink: "#ffcc66", read: () => sheenOf(".kit-chip-demo") },
     { label: "world · front specular (9.5s)", ink: "#52c8ff", read: () => driftOf(".atm-fore-sweep") },
     { label: "world · near dust (7.5s)", ink: "#4fe3d0", read: () => driftOf(".atm-fore-motes") },
     { label: "this screen's crawl (7.4s)", ink: "#8f6cff", read: () => crawlPhase() },
@@ -1675,7 +1681,7 @@ export function createUiKitScreen(): Screen {
        <span class="kit-cap">resting sheen, 1× (α 0.009)</span>
        <span class="kit-cap">the same band, ×14 (α 0.13)</span>
      </div>
-     <p class="kit-note">Both plates are running the <em>same</em> <code>hb-sheen</code> at the same phase;
+     <p class="kit-note">Both plates are running the <em>same</em> <code>hb-sheen-pass</code> at the same phase;
      only <code>--sheen-alpha</code> differs, the way the ×6 grain cells only differ by
      <code>background-size</code>. At 1× the band lifts a panel face by about 1.8 of 255, which is why it
      needs a magnifier beside it to be believed.</p>
@@ -2258,10 +2264,22 @@ export function createUiKitScreen(): Screen {
   const history: number[][] = TRACKS.map(() => []);
   let stopTrace: (() => void) | null = null;
 
-  /** The material crawl's phase, straight off a registered custom property. */
+  /**
+   * The material crawl's phase, read off the band itself.
+   *
+   * It used to read `--sheen-x` from the plate, because the band used to be a
+   * background layer moved by `background-position`. That cost 27ms a frame on
+   * the lobby and `foundation.css` §3 replaced it with an `::after` moved by
+   * `translate`; the phase now lives in the pseudo-element's own transform, and
+   * reading the old property would plot three flat lines on the one chart in the
+   * game whose entire purpose is that a flat line means a dead layer.
+   */
   function sheenOf(selector: string): number {
     const el = root.querySelector<HTMLElement>(selector);
-    return el ? parseFloat(getComputedStyle(el).getPropertyValue("--sheen-x")) || 0 : 0;
+    if (!el) return 0;
+    const value = getComputedStyle(el, "::after").translate;
+    if (!value || value === "none") return 0;
+    return parseFloat(value) || 0;
   }
 
   /*

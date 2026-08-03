@@ -355,7 +355,10 @@ function boot(): void {
    * unreachable rather than broken.
    */
   shell.register("signin", () =>
-    createSignInScreen({
+    // `content` so the screen can stand the player's own leader on its stage —
+    // the same portrait the lobby and the queue show, rather than a form
+    // floating in a void.
+    createSignInScreen(content, {
       onBack: () => shell.navigate("play"),
       onSignedIn: () => void afterSignIn(),
     })

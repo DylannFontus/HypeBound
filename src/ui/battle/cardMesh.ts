@@ -5,6 +5,25 @@
  * the shared card renderer, so a card looks identical in the collection, the
  * hand and on the board. Textures are cached by a key describing everything
  * that can change the artwork, since re-rendering a card is expensive.
+ *
+ * ## Why a board card is more than a quad with a picture on it
+ *
+ * It used to be exactly that, and it read exactly like that: three enemy cards
+ * lying on the mat looked like stickers on wallpaper — identical brightness, no
+ * ground contact, no glow spill onto the surface underneath despite carrying
+ * saturated Cinder-orange and Tide-blue frames. The comment on the rim promised
+ * "physical thickness under raking light" and described something that could not
+ * happen: the rim was 0.02 world units, which projected to about a sixth of a
+ * pixel, and it was set to `metalness: 0.7` in a build with no environment map
+ * anywhere in it, so it threw away 70% of its diffuse response in exchange for a
+ * specular return that had nothing to reflect.
+ *
+ * Three things fix it, and none of them touches the face texture: a painted
+ * contact shadow so the card sits *on* something, a rim thick enough to catch
+ * the key light at 315°, and a small additive pool of the card's own Current
+ * colour bleeding onto the mat beneath it. The reference does the same three
+ * things to a board minion and none of them to a hand card, which is why they
+ * are attached here by `kind` rather than to every card object.
  */
 
 import * as THREE from "three";
@@ -12,8 +31,10 @@ import type { CardDef, CharacterInstance, CurrentId } from "../../engine/types";
 import { CARD_H, CARD_W, renderCard } from "../cardRenderer/renderCard";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { BOARD } from "./scene";
+import { groundShadow } from "./board";
 import { getCardArt, onArtLoaded } from "../art/artLoader";
-import { drawEmblem, hexToRgb, type CardBackStyle } from "../cosmetics/emblem";
+import { renderCardBackToCanvas } from "../cardRenderer/renderCardBack";
+import type { CardBackStyle } from "../cosmetics/emblem";
 
 // ---------------------------------------------------------------------------
 // Texture cache
@@ -169,28 +190,17 @@ export function getCardBackTexture(back: CardBackStyle | null): THREE.CanvasText
   const cached = cardBackTextures.get(key);
   if (cached) return cached;
 
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 358;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    const [r, g, b] = hexToRgb(style.color);
-    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    grad.addColorStop(0, `rgb(${Math.round(r * 0.34)}, ${Math.round(g * 0.34)}, ${Math.round(b * 0.42)})`);
-    grad.addColorStop(0.5, "#160b2c");
-    grad.addColorStop(1, "#0b0518");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.55)`;
-    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.18)`;
-    ctx.lineWidth = 3;
-    drawEmblem(ctx, style.emblem, canvas.width / 2, canvas.height / 2);
-
-    ctx.strokeStyle = `rgba(${Math.min(255, r + 60)}, ${Math.min(255, g + 60)}, ${Math.min(255, b + 60)}, 0.35)`;
-    ctx.lineWidth = 6;
-    ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
-  }
+  /**
+   * The drawing lives in `cardRenderer` and not here, and that is the point.
+   *
+   * A back built next to the three.js mesh is a back nobody compares to a front,
+   * which is how it stayed a 256×358 wireframe — a vertical gradient, four
+   * stroked diamonds and one square-cornered `strokeRect` — while the face grew
+   * a lit frame band, grain, a section through its border and a contact shadow.
+   * The two are now the same object flipped over, because they are built from
+   * the same primitives in the same folder at the same size.
+   */
+  const canvas = renderCardBackToCanvas(style);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -209,10 +219,38 @@ export interface CardObjectUserData {
   seat: number;
 }
 
+/**
+ * The pool of coloured light a lit card throws onto the floor it is lying on.
+ *
+ * One bitmap for every card on the board: it is tinted per-Current by the
+ * material's `color`, which costs a uniform instead of a texture.
+ */
+let spillTexture: THREE.CanvasTexture | null = null;
+function getSpillTexture(): THREE.CanvasTexture {
+  if (spillTexture) return spillTexture;
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    grad.addColorStop(0, "rgba(255,255,255,0.5)");
+    grad.addColorStop(0.42, "rgba(255,255,255,0.2)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+  }
+  spillTexture = new THREE.CanvasTexture(canvas);
+  spillTexture.colorSpace = THREE.SRGBColorSpace;
+  return spillTexture;
+}
+
 export class CardObject extends THREE.Group {
   readonly front: THREE.Mesh;
   readonly back: THREE.Mesh;
   private readonly rim: THREE.Mesh;
+  private readonly grounding: THREE.Object3D[] = [];
   private currentKey = "";
   private lastFaceState: CardFaceState = {};
   private readonly unsubscribeArt: () => void;
@@ -236,33 +274,52 @@ export class CardObject extends THREE.Group {
     const frontGeometry = new THREE.PlaneGeometry(w, h);
     this.front = new THREE.Mesh(
       frontGeometry,
-      new THREE.MeshBasicMaterial({ map: getCardTexture(card), transparent: true, toneMapped: false })
+      new THREE.MeshBasicMaterial({ map: getCardTexture(card), transparent: true })
     );
-    this.front.position.z = 0.011;
+    /**
+     * Clear of the rim's top face, which is the whole reason this number is
+     * written down. The rim is a solid box 0.06 deep, so its faces are at
+     * ±0.03; the front lived at 0.011 back when the box was 0.02 deep, and
+     * thickening the edge without moving the face buried every card on the
+     * board under a slab of its own Current colour.
+     */
+    this.front.position.z = 0.034;
     this.add(this.front);
 
     const backGeometry = new THREE.PlaneGeometry(w, h);
     this.back = new THREE.Mesh(
       backGeometry,
-      new THREE.MeshBasicMaterial({ map: getCardBackTexture(backFor(userData.seat)), transparent: true, toneMapped: false })
+      new THREE.MeshBasicMaterial({ map: getCardBackTexture(backFor(userData.seat)), transparent: true })
     );
     this.back.rotation.y = Math.PI;
-    this.back.position.z = -0.011;
+    this.back.position.z = -0.034;
     this.add(this.back);
 
-    // thin edge so the card has physical thickness under raking light
+    /**
+     * The edge of the card, thick enough to see.
+     *
+     * 0.06 world units is roughly 2.5 screen pixels at the framing this board
+     * uses, which is the smallest edge that still reads as a bevel rather than
+     * as an aliasing artefact. Metalness comes down from 0.7 to 0.35 now that
+     * there is an environment to reflect: a card edge is lacquered card stock,
+     * not chrome, and the remaining specular comes from the studio map rather
+     * than from throwing away diffuse.
+     */
     const palette = CURRENT_PALETTE[card.current as CurrentId];
     this.rim = new THREE.Mesh(
-      new THREE.BoxGeometry(w * 1.005, h * 1.005, 0.02),
+      new THREE.BoxGeometry(w * 1.022, h * 1.022, 0.06),
       new THREE.MeshStandardMaterial({
         color: palette.lo,
         emissive: palette.key,
-        emissiveIntensity: 0.28,
-        roughness: 0.42,
-        metalness: 0.7,
+        emissiveIntensity: 0.14,
+        roughness: 0.38,
+        metalness: 0.35,
+        envMapIntensity: 1.2,
       })
     );
     this.add(this.rim);
+
+    if (userData.kind === "board") this.ground(w, h, palette.key);
 
     // repaint when this card's art finishes loading
     this.unsubscribeArt = onArtLoaded((cardId) => {
@@ -273,6 +330,46 @@ export class CardObject extends THREE.Group {
     });
 
     this.setFaceUp(faceUp);
+  }
+
+  /**
+   * Put the card on the ground: a contact shadow under it and its own colour
+   * spilling out from underneath.
+   *
+   * Both are parented to the card rather than left on the board, which is the
+   * unusual choice and the deliberate one. A shadow left behind on the mat would
+   * have to be found, moved and re-sorted every time a card slid along a row,
+   * and it would sit still while the card lunged. Parented, the whole object
+   * moves as one thing — and because a card only ever lies flat or lifts
+   * straight up, the shadow never falls anywhere it should not.
+   *
+   * The offsets are in the card's own space, where +Z is world up: the mat is at
+   * y=0 and a board card at y=0.02, so -0.014 puts the shadow six thousandths of
+   * a unit above the floor. Close enough to touch, far enough not to z-fight
+   * with a surface that does not write depth.
+   */
+  private ground(w: number, h: number, accent: string): void {
+    const shadow = groundShadow(w * 1.05, h * 1.05, { lift: 5, opacity: 0.5, space: "card" });
+    shadow.position.z = -0.014;
+    this.add(shadow);
+    this.grounding.push(shadow);
+
+    const spill = new THREE.Mesh(
+      new THREE.PlaneGeometry(w * 2.1, h * 1.75),
+      new THREE.MeshBasicMaterial({
+        map: getSpillTexture(),
+        color: new THREE.Color(accent),
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false,
+      })
+    );
+    spill.position.z = -0.012;
+    spill.renderOrder = 2;
+    this.add(spill);
+    this.grounding.push(spill);
   }
 
   setFaceUp(faceUp: boolean): void {
@@ -323,5 +420,13 @@ export class CardObject extends THREE.Group {
     this.back.geometry.dispose();
     this.rim.geometry.dispose();
     (this.rim.material as THREE.Material).dispose();
+    for (const object of this.grounding) {
+      const mesh = object as THREE.Mesh;
+      mesh.geometry?.dispose();
+      // The maps are memoised in module B and shared by every card on the
+      // board, so the material goes and the bitmap stays.
+      (mesh.material as THREE.Material | undefined)?.dispose();
+    }
+    this.grounding.length = 0;
   }
 }

@@ -94,13 +94,17 @@
 @property --rim-a       { syntax: "<number>"; inherits: false; initial-value: 0.06; }
 @property --lip-a       { syntax: "<number>"; inherits: false; initial-value: 0.63; }
 
-/* And the two the specular band reads, for the same reason and one more: they
-   are the *only* knob the hover rule in §5 changes, so a value leaking into a
-   nested control would light it at its parent's amplitude instead of its own.
+/* And the two the specular band reads. These two *do* inherit, and they are the
+   only pair here that does. The band is a `::after` since the frame-time repair
+   in §3, and a pseudo-element is a child for inheritance — under `inherits:
+   false` every band in the game would read the 0.03 initial instead of its own
+   rank's knob, which is the whole tuning gone. The leak the old setting guarded
+   against cannot happen: all four materials declare both knobs on themselves, so
+   a nested chip restates its own before it can read the panel's.
    The initials are the panel's, because an unranked surface falls through to
    `--fill-panel`. See the long note in §3 for why these are per material at all. */
-@property --sheen-alpha { syntax: "<number>"; inherits: false; initial-value: 0.03; }
-@property --sheen-hover { syntax: "<number>"; inherits: false; initial-value: 0.06; }
+@property --sheen-alpha { syntax: "<number>"; inherits: true; initial-value: 0.03; }
+@property --sheen-hover { syntax: "<number>"; inherits: true; initial-value: 0.06; }
 
 /* The in-world progress meter of the loading state. `--meter-x` has to be a
    registered percentage for the same reason `--sheen-x` does: an unregistered
@@ -669,6 +673,50 @@
  * standing on the band's peak. The chip is the binding case — it is the lightest
  * of the three dark plates — which is why its knob is the smallest of the three
  * rather than scaled with the others.
+ *
+ * ## The band is no longer a background layer, and that is a frame-rate fix
+ *
+ * It was one, and it halved the frame rate of the game's home screen. `--sheen-x`
+ * drove `background-position`, which is a *paint* property: every plate running
+ * the crawl repainted its whole face once a frame, and twenty-one of them on the
+ * lobby is the entire screen repainting at 60Hz. Measured at 1600×900 on an
+ * RTX 2060 at dpr 1 — median frame time **40.0ms (25fps)**, p95 53.4ms, 97 of 110
+ * frames over 33ms. Switch off nothing but this one animation and the same page
+ * is **13.3ms (75fps)** with zero long frames; switch off *every* animation in
+ * the build and it is 13.3ms as well. The atmosphere, the motes, the grid drift,
+ * the sweeps, the bloom and the leader float together cost nothing measurable.
+ * One background-position was the whole deficit, and §9's "a beautiful effect
+ * that drops frames is a bug" and §3a's "transform, opacity and filter only" both
+ * name it exactly.
+ *
+ * So the band moved to its own `::after` layer and travels on `translate`, which
+ * the compositor owns. Nothing about the choreography changed: same three
+ * periods, same negative per-plate offsets, same easing, same alphas, same
+ * gradient along the same key axis.
+ *
+ * Three details make the swap invisible rather than merely cheap:
+ *
+ *  - **`z-index: -1` inside an isolated stacking context.** A positioned pseudo
+ *    paints *above* its host's text by default, and a white band over dark ink on
+ *    a bright hero drops the label's contrast — measured 7.4:1 to 3.9:1 at the
+ *    hover peak. `isolation: isolate` on the material puts the negative layer in
+ *    the one slot that is above the plate's own fill and below its content, which
+ *    is exactly where a background layer was, so every ratio tuned above still
+ *    holds to the level.
+ *  - **The band never leaves the plate.** It is 40% of the plate wide and travels
+ *    150% of its own width, so it goes from flush-left to flush-right and cannot
+ *    overhang a corner — which means no `overflow: hidden` on every material, and
+ *    therefore no badge, no watermark and no drop shadow gets clipped by a fix to
+ *    something else entirely. `border-radius: inherit` keeps its ends on the
+ *    plate's own curve. What replaces the old off-canvas run-up is an opacity
+ *    envelope: it fades up over the first 18% of the cycle and down over the last,
+ *    so light arrives and leaves rather than switching on at the edge.
+ *  - **`--sheen-alpha` and `--sheen-hover` now inherit.** They have to: a
+ *    pseudo-element is a child for inheritance, and a non-inheriting registered
+ *    property would hand every band the 0.03 initial regardless of rank. The leak
+ *    the old `inherits: false` guarded against cannot happen, because all four
+ *    materials declare both knobs on themselves — a nested chip re-states its own
+ *    before it can read its parent's.
  */
 .mat,
 .mat-hero,
@@ -680,26 +728,23 @@
      `--fill-panel` and a knob has to be tuned against the plate it will land on. */
   --sheen-alpha: 0.03;
   --sheen-hover: 0.06;
+  /* The band is a child now, so the plate has to be its containing block and has
+     to own a stacking context for `z-index: -1` to mean "under the type". */
+  position: relative;
+  isolation: isolate;
   background-image:
     var(--mat-meter, none),
-    linear-gradient(
-      var(--light-sweep),
-      transparent 30%,
-      rgb(255 255 255 / var(--sheen-alpha)) 50%,
-      transparent 70%
-    ),
     var(--mat-grain, var(--tex-grain-mid, none)),
     var(--mat-veil, none),
     var(--mat-fill, var(--fill-panel));
-  background-repeat: no-repeat, no-repeat, repeat, no-repeat, no-repeat;
+  background-repeat: no-repeat, repeat, no-repeat, no-repeat;
   background-size:
     34% 2px,
-    240% 100%,
     var(--mat-grain-size, var(--tex-grain-mid-size, auto)),
     100% 100%,
     100% 100%;
-  background-position: var(--meter-x) calc(100% - 2px), var(--sheen-x) 0, 0 0, 0 0, 0 0;
-  background-blend-mode: normal, normal, normal, normal, normal;
+  background-position: var(--meter-x) calc(100% - 2px), 0 0, 0 0, 0 0;
+  background-blend-mode: normal, normal, normal, normal;
   background-color: transparent;
   /**
    * `border-box`, and this one line is why the edge treatment works at all.
@@ -768,6 +813,51 @@
     calc(1.24px * var(--cast-lift)) calc(2px * var(--cast-lift)) calc(3px * var(--cast-lift)) -1px
       rgb(0 0 0 / calc(0.3 + 0.3 * var(--mat-amp)));
   box-shadow: var(--mat-cast);
+}
+
+/**
+ * The specular band, on its own layer, moved by `translate` and nothing else.
+ *
+ * Read the long note above §3's recipe for why this is not a background any
+ * more. What matters at the point of use is that **`::after` on a raised
+ * material now belongs to this file.** A consumer that wants a decorative pseudo
+ * on a `.mat-hero`, `.mat-panel` or `.mat-chip` must use `::before`, which is
+ * free and which nothing in this file touches.
+ *
+ * `.mat-well` is deliberately not in the list, for the same reason it was never
+ * in the animation list: a recess does not catch a moving highlight, which is
+ * the whole reason its rim and lip are inverted.
+ *
+ * Geometry, all of it chosen so the band cannot escape the plate:
+ *
+ *   width 40%, travel 0 → 150% of *its own* width = 60% of the plate. Left edge
+ *   0 → 60%, right edge 40% → 100%. Flush left to flush right, never past a
+ *   corner, so no material needs `overflow: hidden` and nothing that deliberately
+ *   overhangs one — a badge, a watermark, a cast shadow — is clipped by it.
+ *
+ * The gradient runs the full width of the band rather than 30/50/70 of a 240%
+ * layer, which lands the same 40%-of-plate ramp §3 asked for. `--sheen-alpha` is
+ * read here rather than on the host, and inherits down to reach this rule.
+ */
+.mat-hero::after,
+.mat-panel::after,
+.mat-chip::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    var(--light-sweep),
+    transparent 0%,
+    rgb(255 255 255 / var(--sheen-alpha)) 50%,
+    transparent 100%
+  );
 }
 
 /**
@@ -992,38 +1082,43 @@
  * on one screen is the case that wants it, and it is a caller's judgement rather
  * than a default.
  */
-.mat-hero {
-  animation: hb-sheen var(--dur-sheen-hero) var(--ease-sweep)
+.mat-hero::after {
+  animation: hb-sheen-pass var(--dur-sheen-hero) var(--ease-sweep)
     calc((var(--enter-delay, 0ms) + var(--cascade-i, 0) * 210ms) * -3.1) infinite;
 }
 
-.mat-panel {
-  animation: hb-sheen var(--dur-sheen-panel) var(--ease-sweep)
+.mat-panel::after {
+  animation: hb-sheen-pass var(--dur-sheen-panel) var(--ease-sweep)
     calc((var(--enter-delay, 0ms) + var(--cascade-i, 0) * 290ms) * -2.7) infinite;
 }
 
-.mat-chip {
-  animation: hb-sheen var(--dur-sheen-chip) var(--ease-sweep)
+.mat-chip::after {
+  animation: hb-sheen-pass var(--dur-sheen-chip) var(--ease-sweep)
     calc((var(--enter-delay, 0ms) + var(--cascade-i, 0) * 170ms) * -2.3) infinite;
 }
 
-.mat-chip.chip-static {
+.mat-chip.chip-static::after {
   animation: none;
 }
 
 /**
- * The low tier does not get it, and this is the one place in this file where
- * that is a frame-budget call rather than a taste one. `--sheen-x` drives
- * `background-position`, which is a paint rather than a compositor property, so
- * every plate running the crawl repaints once a frame. On a desktop that is
- * nothing; on the phone that is already choosing between the board and the
- * backdrop, fifteen full-width panels repainting at 30fps is the difference
- * between the floor holding and not. The hero keeps it — there is one of those
- * per screen and it is the thing being pressed. The chip goes with the panel:
- * adding a material to the crawl must not add anything to the phone's budget.
+ * The low tier keeps the panel and the chip, and that is a change.
+ *
+ * It used to lose both, and the reason given was honest and is now obsolete: the
+ * band drove `background-position`, so every plate running the crawl repainted
+ * once a frame, and fifteen full-width panels repainting on a phone that is
+ * already choosing between the board and the backdrop was the difference between
+ * the 30fps floor holding and not. It is a `translate` on a compositor layer now.
+ * The cost per plate is a layer rather than a raster, and the desktop measurement
+ * that forced the rewrite — 40.0ms to 13.3ms at 1600×900 with twenty-one of them
+ * on screen — is the same arithmetic the phone was being protected from.
+ *
+ * What the low tier still loses is the *count*: a tier that is short of memory
+ * should not hold ninety promoted layers, so the crawl is kept for the plates a
+ * player is looking at and dropped for the ones stacked inside a scroller.
  */
-:root[data-gfx-tier="low"] .mat-panel,
-:root[data-gfx-tier="low"] .mat-chip {
+:root[data-gfx-tier="low"] .mat-panel .mat-panel::after,
+:root[data-gfx-tier="low"] .mat-panel .mat-chip::after {
   animation: none;
 }
 
@@ -1317,7 +1412,16 @@
        what separates them is that one of them is light you notice and the other
        is light you only miss when it stops. */
     --sheen-alpha: var(--sheen-hover, 0.06);
-    animation: hb-sheen var(--dur-sheen) var(--ease-sweep) 1;
+  }
+
+  /* The catch itself runs on the band, which since §3's frame-time repair is the
+     host's `::after` rather than one of its background layers. Scoped to the
+     three raised materials rather than to `.act`, because `.act` is a behaviour
+     class that any screen may put on any element, and an unrelated `::after`
+     inheriting a 140ms translate on hover would be this file breaking a consumer
+     it has never heard of. */
+  :is(.mat-hero, .mat-panel, .mat-chip).act:hover:not(:disabled):not([aria-disabled="true"]):not([data-state="loading"])::after {
+    animation: hb-sheen-pass var(--dur-sheen) var(--ease-sweep) 1;
   }
 }
 
@@ -1338,6 +1442,28 @@
 @keyframes hb-sheen {
   from { --sheen-x: 100%; }
   to { --sheen-x: 0%; }
+}
+
+/**
+ * The band's own travel, and the two properties it is allowed to touch.
+ *
+ * `translate` and `opacity`, because those are the two the compositor can run
+ * without asking the main thread for a raster — §3a's non-negotiable, and the
+ * thing the version above got wrong at a cost of twenty-seven milliseconds a
+ * frame on the lobby.
+ *
+ * 0 → 150% is the whole plate: the band is 40% of the plate wide, so 150% of its
+ * own width carries its left edge from 0 to 60% and its right edge from 40% to
+ * 100%. The opacity envelope replaces the old off-canvas run-up — 18% in and 18%
+ * out, so the light arrives at the left edge and dies at the right rather than
+ * switching on and off there, and the band spends 64% of its cycle at full
+ * amplitude crossing the face.
+ */
+@keyframes hb-sheen-pass {
+  0% { translate: 0 0; opacity: 0; }
+  18% { opacity: 1; }
+  82% { opacity: 1; }
+  100% { translate: 150% 0; opacity: 0; }
 }
 
 /** The loading meter's travel: left edge of the band to right edge of the box. */
@@ -1533,9 +1659,15 @@
     var(--accent-bright) 70%,
     rgb(255 255 255 / 0) 100%
   );
-  animation:
-    hb-sheen calc(var(--dur-setpiece) * 2) linear infinite,
-    hb-meter var(--dur-meter) linear infinite;
+  animation: hb-meter var(--dur-meter) linear infinite;
+}
+
+/* The busy wipe, on the band rather than on the plate — see §3. Scoped to the
+   three raised materials for the same reason the hover catch is: `.act` is a
+   behaviour class and its `::after` may belong to somebody else. */
+:is(.mat-hero, .mat-panel, .mat-chip).act[data-state="loading"]::after,
+:is(.mat-hero, .mat-panel, .mat-chip).act.is-loading::after {
+  animation: hb-sheen-pass calc(var(--dur-setpiece) * 2) linear infinite;
 }
 
 /**
@@ -2698,16 +2830,25 @@ select.field {
 :root[data-reduced-motion="true"] .act:hover,
 :root[data-reduced-motion="true"] .act[data-state="loading"],
 :root[data-reduced-motion="true"] .act.is-loading,
-:root[data-reduced-motion="true"] .skeleton,
+:root[data-reduced-motion="true"] .skeleton {
+  animation: none;
+}
+
 /* The idle crawl from §3 is the most decorative thing in the file and the one
    that never stops, which is precisely what this setting exists to remove. The
-   `--dur-sheen: 0ms` above would already have neutered it, but a rule that
-   depends on a duration token happening to be zero is a rule that breaks the
-   first time somebody gives the sheen its own token. Say it. */
-:root[data-reduced-motion="true"] .mat-hero,
-:root[data-reduced-motion="true"] .mat-panel,
-:root[data-reduced-motion="true"] .mat-chip {
+   `--dur-sheen: 0ms` above would already have neutered the hover catch, but a
+   rule that depends on a duration token happening to be zero is a rule that
+   breaks the first time somebody gives the sheen its own token. Say it — and say
+   the opacity too, in its own rule rather than pooled with the four above: the
+   band's rest state is `opacity: 0` and its only visible state comes from a
+   keyframe, so `animation: none` alone is one edit away from pinning a white bar
+   to the left edge of every plate in the game. Pooling it would have set
+   `opacity: 0` on every loading control and every hovered one instead. */
+:root[data-reduced-motion="true"] .mat-hero::after,
+:root[data-reduced-motion="true"] .mat-panel::after,
+:root[data-reduced-motion="true"] .mat-chip::after {
   animation: none;
+  opacity: 0;
 }
 
 /* Motion is not the only signal for either state — and since the fix to §5 it

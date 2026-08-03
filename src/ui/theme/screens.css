@@ -59,52 +59,188 @@
 
 /* =========================================================================
    LOBBY
+   =========================================================================
+
+   The front door, and the one screen where every rule in the bar has to be
+   obeyed at once. Three things here are corrections rather than decoration and
+   are worth naming before the rules start.
+
+   **There is no `.ambient-bg` on this screen any more.** That element paints an
+   opaque `linear-gradient(180deg, var(--bg-deep), var(--bg-void))` at `z-index:
+   -1`, which is a full-viewport plate in front of `atmosphere.ts`'s persistent
+   world — so the lobby had two depth planes (wash, content) where the bar asks
+   for four, and the layer built to be the thing behind every menu was invisible
+   here. `.lobby-bg` below is what replaced it: leader-tinted light and a
+   vignette, all translucent, so the drifting grid, the mote field and the
+   specular crawl of the world show through and the lobby is a *room* rather
+   than a page with a gradient on it.
+
+   **Every vertical dimension is clamped against `vh`.** At 1280×720 the old
+   layout produced a scrollHeight of 822 in a 720 viewport with `overflow:
+   hidden` on both the screen and the body, which clipped 102px with no way to
+   reach it — the Inbox tile, badged with eight unread, was simply unreachable.
+   Nothing on this screen may have a fixed height any more, and the nav is a 3×3
+   rather than two columns of five rows so the grid's height is bounded by
+   construction rather than by luck.
+
+   **Below 1100px the rail moves rather than disappears.** `display: none` on
+   the rail deleted the record, the dailies and the news on a phone. It is an
+   off-canvas drawer now, opened by a badged button in the header, and the nav
+   becomes a snap-scrolling rail so all nine destinations stay reachable at
+   844×390.
    ========================================================================= */
 
-.lobby-screen { overflow: hidden; }
+/**
+ * The breath, registered so it can actually interpolate.
+ *
+ * An unregistered custom property is a string as far as animation is concerned:
+ * a keyframe on it flips discretely at 50% rather than travelling, which is a
+ * jump, not a breath. Measured before this line existed, the portrait's
+ * `getBoundingClientRect().top` was 124 for every one of 48 rAF samples — the
+ * animation was declared, running, and moving nothing. `inherits: true` because
+ * the stage sets it and both the portrait and its shadow read it, which is the
+ * whole point: one property, so the two cannot fall out of phase.
+ */
+@property --lift {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+.lobby-screen {
+  overflow: hidden;
+  /* The one accent this screen is allowed, mixed once so the tiles, the glow
+     and the portrait's rim cannot each pick their own version of it. */
+  --lobby-key: color-mix(in srgb, var(--lobby-accent) 70%, #ffffff);
+}
+
+/**
+ * The room's own light, over the persistent world rather than instead of it.
+ *
+ * Four layers, and the two at the bottom are the ones the previous version did
+ * not have: §6 asks for a value structure that resolves into masses when you
+ * squint, and three radials all anchored to the *top* of the viewport gave the
+ * lobby one bright band across the top quarter and a black hole below it. The
+ * floor wash and the vignette give the composition a bottom.
+ */
+/*
+ * The element itself never moves and never paints; both jobs belong to its two
+ * pseudo-elements, and that is a measurement rather than a preference.
+ *
+ * A `scale()` or a negative inset on this element is *scrollable overflow* on
+ * the screen that contains it, and the screen is `overflow: hidden`. With the
+ * pulse on the box itself the lobby reported a scrollHeight of 902 against a
+ * clientHeight of 900 — two pixels of unreachable content produced by a
+ * decorative layer, on the exact measurement the audit used to prove the screen
+ * did not fit. Clipped here, the whole rig can move as far as it likes.
+ */
+.lobby-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
 
 .lobby-bg::before {
   content: "";
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(60% 55% at 28% 55%, color-mix(in srgb, var(--lobby-accent) 26%, transparent), transparent 70%),
-    radial-gradient(50% 50% at 78% 30%, color-mix(in srgb, var(--lobby-faction) 20%, transparent), transparent 72%);
-  animation: lobby-pulse 9s var(--ease-in-out) infinite;
+    radial-gradient(58% 62% at 24% 42%, color-mix(in srgb, var(--lobby-accent) 26%, transparent), transparent 72%),
+    radial-gradient(46% 50% at 79% 24%, color-mix(in srgb, var(--lobby-faction) 18%, transparent), transparent 74%),
+    radial-gradient(90% 46% at 50% 104%, rgb(28 18 58 / 0.72), transparent 70%),
+    radial-gradient(120% 92% at 50% 46%, transparent 46%, rgb(2 1 6 / 0.55) 100%);
+  animation: lobby-pulse 11s var(--ease-in-out) infinite;
 }
 
 @keyframes lobby-pulse {
-  0%, 100% { opacity: 0.75; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.04); }
+  0%, 100% { opacity: 0.82; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.025); }
 }
 
 :root[data-reduced-motion="true"] .lobby-bg::before { animation: none; }
 
-/* sweeping light bars, like a venue rig */
-.lobby-glow {
+/* The venue rig: two slow bars of light raking the room, on periods that share
+   no short multiple so they never cross twice in the same place. */
+.lobby-bg::after {
+  content: "";
   position: absolute;
-  inset: 0;
-  pointer-events: none;
+  inset: -20% -30%;
   background:
-    linear-gradient(75deg, transparent 38%, color-mix(in srgb, var(--lobby-accent) 12%, transparent) 42%, transparent 46%),
-    linear-gradient(105deg, transparent 58%, rgba(82, 200, 255, 0.08) 62%, transparent 66%);
-  animation: lobby-sweep 14s linear infinite;
+    linear-gradient(74deg, transparent 37%, color-mix(in srgb, var(--lobby-key) 13%, transparent) 41%, transparent 45%),
+    linear-gradient(104deg, transparent 57%, rgb(82 200 255 / 0.07) 61%, transparent 65%);
+  animation: lobby-sweep 17s var(--ease-in-out) infinite alternate;
 }
 
 @keyframes lobby-sweep {
-  to { transform: translateX(6%); }
+  from { transform: translateX(-3%); }
+  to { transform: translateX(5%); }
 }
 
-:root[data-reduced-motion="true"] .lobby-glow { animation: none; }
+:root[data-reduced-motion="true"] .lobby-bg::after { animation: none; }
 
+/* ---- header rail --------------------------------------------------------- */
+
+/**
+ * §2 wants a midground plane of structural furniture, and this screen had none:
+ * the identity chip, the wordmark and the currencies floated in the wash with
+ * nothing holding them. The plate is a separate element rather than a
+ * background on `.lobby-top` so the divider under it can fade at both ends
+ * (§7) without a second pseudo-element on a flex container that already needs
+ * its own.
+ */
 .lobby-top {
   position: relative;
+  z-index: 3;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-4);
-  padding: var(--sp-4) var(--sp-5);
-  z-index: 2;
+  padding: var(--sp-2) var(--sp-5);
+  min-height: clamp(58px, 8.2vh, 78px);
+}
+
+/**
+ * The plate is absolutely positioned, so everything standing on it has to be
+ * positioned too.
+ *
+ * Painting order puts positioned elements above non-positioned ones regardless
+ * of source order, so an `inset: 0` plate declared first still covers a plain
+ * `<button>` declared after it. Measured the hard way: the identity chip and
+ * both currency chips vanished behind their own header, and the two elements
+ * that survived — the cog and the wordmark — were the two that happened to
+ * carry `position` already.
+ */
+.lobby-top > :not(.lobby-top-plate) {
+  position: relative;
+  z-index: 1;
+}
+
+.lobby-top-plate {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--light-sweep), rgb(46 33 80 / 0.5) 0%, rgb(14 9 27 / 0.62) 100%),
+    var(--tex-grain-mid, none);
+  background-size: 100% 100%, var(--tex-grain-mid-size, auto);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.055),
+    0 6px 16px -6px rgb(0 0 0 / 0.7);
+  backdrop-filter: blur(14px);
+}
+
+/* The divider, ramping to nothing across the outer 14% at each end. */
+.lobby-top-plate::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hairline-lit) 14%, var(--hairline-lit) 86%, transparent);
 }
 
 .lobby-identity {
@@ -112,16 +248,14 @@
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-2);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  transition: border-color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
+  --r-self: var(--r-chip);
+  border-radius: var(--r-chip);
+  text-align: left;
 }
-.lobby-identity:hover { border-color: var(--glass-border-bright); transform: translateY(-1px); }
 
 .lobby-avatar {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -129,74 +263,156 @@
   font-size: var(--fs-lg);
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 40%, #000));
-  box-shadow: 0 0 18px color-mix(in srgb, var(--c) 55%, transparent);
+  flex: 0 0 auto;
+  background: linear-gradient(var(--light-sweep), color-mix(in srgb, var(--c) 82%, #ffffff), color-mix(in srgb, var(--c) 45%, #000));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45),
+    0 2px 6px rgb(0 0 0 / 0.55),
+    0 0 16px color-mix(in srgb, var(--c) 45%, transparent);
 }
 
-.lobby-identity-text { text-align: left; }
-.lobby-name { font-weight: 600; font-size: var(--fs-sm); }
-.lobby-level { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); color: var(--text-faint); }
-.lobby-xp { display: block; width: 90px; height: 5px; border-radius: var(--radius-pill); background: rgba(255,255,255,0.12); overflow: hidden; }
-.lobby-xp-fill { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-hot)); border-radius: inherit; }
+.lobby-identity-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lobby-name { font-weight: 600; font-size: var(--fs-sm); line-height: 1.2; }
+.lobby-level { display: flex; align-items: center; gap: var(--sp-2); }
+.lobby-level-num { color: var(--text-faint); }
 
-.lobby-currencies { display: flex; align-items: center; gap: var(--sp-3); }
+/**
+ * The XP track, which used to be an unlabelled 90×5 grey line reading as a
+ * broken control at level 1. It is a real recess now — `.mat-well` plus
+ * `.well-fill`, so the lip of the groove falls across the fill rather than the
+ * fill being pasted on top of it — it is notched into ten segments so progress
+ * is countable at a glance, and the number is on the chip rather than hidden in
+ * a tooltip.
+ */
+.lobby-xp {
+  display: block;
+  position: relative;
+  width: 78px;
+  height: 8px;
+  --r-self: var(--r-chip);
+  border-radius: var(--r-chip);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
 
-.currency {
+.lobby-xp-fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  transition: width var(--dur-setpiece) var(--ease-arrive);
+}
+
+/* Ten notches, drawn over the fill so the segments read whatever the value. */
+.lobby-xp::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(10% - 1px),
+    rgb(0 0 0 / 0.55) calc(10% - 1px) 10%
+  );
+  pointer-events: none;
+}
+
+/* `--text-dim`, not `--text-faint`.
+   Measured against the *lit* stop of `--fill-chip` — which is what this label
+   is standing on, not the chip's mean face — the faint role comes out at
+   4.16:1, under the 4.5 floor. The dim role clears it at 6.3:1 and the label is
+   still quieter than the level beside it. */
+.lobby-xp-read {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.lobby-currencies { display: flex; align-items: center; gap: var(--sp-2); }
+
+.lobby-currency {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-4);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  font-variant-numeric: tabular-nums;
   font-size: var(--fs-sm);
+  line-height: 1;
 }
+
+.lobby-currency-mark { display: inline-flex; font-size: 17px; }
+.lobby-currency-mark.clout { color: var(--accent-cool); }
+.lobby-currency-mark.shards { color: var(--accent-gold); }
+.lobby-currency-value { font-weight: 600; --num-align: right; }
+
+.lobby-cog,
+.lobby-rail-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* 44 is the touch floor §13 and `verify:mobile` both hold every interactive
+     element to, and an icon button is the one control that always wants to be
+     smaller than it is allowed to be. */
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 19px;
+  color: var(--text-dim);
+}
+
+/* On a 40px button the tile badge would sit squarely on the mark. It hangs off
+   the corner instead, which is also where it sits on the tiles. */
+.lobby-rail-toggle .lobby-nav-badge {
+  top: -5px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  font-size: 10px;
+}
+
+.lobby-cog:hover,
+.lobby-rail-toggle:hover { color: var(--text); }
+
+/* The drawer button only exists where the rail cannot be a column. */
+.lobby-rail-toggle { display: none; }
+
 /**
- * The wordmark in the lobby header.
+ * The wordmark.
  *
- * Absolutely positioned so it is centred on the header rather than being a
- * third item in a two-item flex row — dropping it into the flow would push the
- * identity block and the currencies apart and change a layout that already
- * works at every width.
- *
- * `display: none` until `has-brand-wordmark` says the file exists, and hidden
- * again below 900px where the header is tight and the game's name is the least
- * useful thing competing for the space.
+ * It used to vanish entirely below 900px, which left the game's front door with
+ * no brand mark at all on a phone. It scales instead — the header is a flex row
+ * with two known-width ends, so a `clamp` against `vw` always has somewhere to
+ * go — and only steps out below 640px, where the two chips genuinely meet in
+ * the middle.
  */
-.lobby-wordmark {
-  display: none;
-}
+.lobby-wordmark { display: none; }
+
 html.has-brand-wordmark .lobby-wordmark {
   display: block;
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(21vw, 260px);
-  height: 34px;
+  width: clamp(118px, 17vw, 232px);
+  height: clamp(20px, 3.4vh, 32px);
   background-image: var(--brand-wordmark);
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
-  opacity: 0.92;
+  opacity: 0.94;
   pointer-events: none;
 }
-@media (max-width: 900px) {
-  html.has-brand-wordmark .lobby-wordmark {
-    display: none;
-  }
+
+@media (max-width: 640px) {
+  html.has-brand-wordmark .lobby-wordmark { display: none; }
 }
 
-/**
- * Interface icons, by the same mechanism as the currencies above.
- *
- * The glyph stays in the markup and keeps holding the box; when a file exists
- * the class turns the text transparent and paints the picture behind it. Size
- * is deliberately *not* set here — every host (`.lobby-nav-icon`, a missions
- * heading, a stat row) already sizes its own glyph, and overriding that would
- * make eight icons the same size in eight places that are not.
- */
+/* ---- legacy raster interface icons --------------------------------------
+   Kept because eight other screens still hang PNGs on these hooks. Nothing in
+   the lobby uses them any more: every mark on this screen is a `uiIcons`
+   drawing on the 24px grid at one stroke weight, which is what replaced three
+   unrelated art languages (Unicode glyphs, mismatched rasters, and one
+   full-colour 3D trophy that was the most saturated pixel on the screen). */
+
 .ui-icon {
   display: inline-block;
   background-repeat: no-repeat;
@@ -239,6 +455,18 @@ html.has-icon-ui-streak .ui-icon-streak {
   background-image: var(--icon-ui-streak);
 }
 
+.currency {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius-pill);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-sm);
+}
+
 .currency-icon { font-size: var(--fs-md); }
 .currency-icon.clout { color: var(--accent-cool); }
 .currency-icon.shards { color: var(--accent-gold); }
@@ -251,12 +479,6 @@ html.has-icon-ui-streak .ui-icon-streak {
  * So a screen needs no change, there is nothing to re-render when a file
  * finishes loading, and with no file at all these rules simply never match —
  * which is the game exactly as it shipped.
- *
- * The class and the url are both set by `installIconStyles()` in
- * `src/ui/art/iconAssets.ts`. The url has to come from JavaScript because
- * `base: "./"` means a `url()` written here would resolve against this
- * stylesheet rather than the page, and break wherever the game is not served
- * from a root.
  */
 .currency-icon {
   display: inline-block;
@@ -285,160 +507,1166 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
   background-image: var(--icon-currency-backstage-token);
 }
 
+/* ---- body ---------------------------------------------------------------- */
+
+/*
+ * `position: relative` with **no** `z-index`, deliberately.
+ *
+ * A `z-index` here would make this a stacking context, and the rail — which is
+ * a child — becomes an off-canvas drawer below 1100px that has to sit *above*
+ * the scrim, and the scrim is this element's sibling. Trapped inside a context
+ * at z-index 1 the rail could never out-rank a sibling at 4, so opening the
+ * drawer blurred the drawer. Positioned-with-auto still paints above the
+ * z-index: 0 backdrop, which is all this needed the property for.
+ */
 .lobby-body {
   position: relative;
-  z-index: 1;
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(320px, 0.9fr) minmax(260px, 0.8fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1fr) minmax(0, 0.82fr);
   gap: var(--sp-5);
-  padding: 0 var(--sp-5) var(--sp-4);
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
   min-height: 0;
-  align-items: center;
+  align-items: stretch;
 }
 
+/* ---- the leader stage ---------------------------------------------------- */
+
 .lobby-stage {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--sp-4);
   min-height: 0;
+  --lift: 0px;
 }
 
-.lobby-leader-art canvas {
-  border-radius: var(--radius);
-  filter: drop-shadow(0 24px 48px rgba(0, 0, 0, 0.7));
-  animation: leader-float 6s var(--ease-in-out) infinite;
+/**
+ * A portrait, not a shrunken trading card.
+ *
+ * `renderCardToCanvas(leader, 300)` used to sit here: a 300px card with a cost
+ * pip, a LEADER type line, four rarity diamonds, a 30-health pip that means
+ * nothing in a menu and rules copy at roughly 8px, cropping the art to a 200px
+ * window. §2 asks the content plane to be the thing the player is reading, at
+ * the right scale, and §4 does not consider illegible body copy a hierarchy.
+ * What is here is art only, at 3:4, in a material frame lit by the same key as
+ * everything else.
+ */
+.lobby-portrait {
+  position: relative;
+  --portrait-h: min(55vh, 528px);
+  width: min(100%, calc(var(--portrait-h) * 0.75));
+  height: var(--portrait-h);
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+  overflow: hidden;
+  flex: 0 1 auto;
+  translate: 0 calc(var(--lift) * -1);
+  transition: translate var(--dur-ui) var(--ease-arrive);
 }
 
-@keyframes leader-float {
-  0%, 100% { transform: translateY(0) rotate(-0.6deg); }
-  50% { transform: translateY(-12px) rotate(0.6deg); }
+.lobby-portrait-frame {
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  overflow: hidden;
 }
 
-:root[data-reduced-motion="true"] .lobby-leader-art canvas { animation: none; }
+.lobby-portrait-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 
-.lobby-leader-info { text-align: center; }
-.lobby-leader-name { font-family: var(--font-display); font-size: var(--fs-2xl); margin: var(--sp-1) 0; }
+/* The rim: light caught on the top and left edges of the glass, a lip on the
+   bottom and right. Drawn over the art rather than under it, because a frame
+   the art can cover is not a frame. */
+.lobby-portrait-gloss {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    var(--light-sweep),
+    rgb(255 255 255 / 0.14) 0%,
+    transparent 26%,
+    transparent 74%,
+    rgb(0 0 0 / 0.3) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.16),
+    inset 1px 0 0 rgb(255 255 255 / 0.08),
+    inset 0 -1px 0 rgb(0 0 0 / 0.55),
+    inset 0 0 44px -12px color-mix(in srgb, var(--lobby-key) 55%, transparent);
+}
+
+.lobby-portrait-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  text-align: center;
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+}
+.lobby-portrait-empty .t-body { max-width: 22ch; font-size: var(--fs-sm); }
+.lobby-portrait-empty-mark {
+  display: inline-flex;
+  font-size: 46px;
+  color: var(--accent-bright);
+  opacity: 0.55;
+  margin-bottom: var(--sp-2);
+}
+
+/**
+ * The cast, decoupled from the thing casting it.
+ *
+ * The old float welded a `drop-shadow` filter to the card's own transform, so
+ * the shadow rose and rotated with the card — a light bolted to the object it
+ * lights, which is the sort of thing nobody can name and everybody feels. This
+ * is an ellipse on the floor. It stays where it is; as `--lift` rises it only
+ * softens and shrinks, which is what a shadow does when a thing lifts off a
+ * surface.
+ */
+.lobby-portrait-cast {
+  width: min(72%, 300px);
+  height: 20px;
+  margin-top: calc(-14px + var(--lift) * 0.5);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.62), transparent 78%);
+  filter: blur(6px);
+  scale: calc(1 - var(--lift) / 90) 1;
+  opacity: calc(1 - var(--lift) / 60);
+  transition: scale var(--dur-ui) var(--ease-arrive), opacity var(--dur-ui) var(--ease-arrive);
+  flex: 0 0 auto;
+}
+
+/* The breath. One property drives the portrait and its shadow, so they cannot
+   fall out of step, and the amplitude is under 3% of the portrait's height. */
+.lobby-stage.is-breathing { animation: lobby-breathe 6.4s var(--ease-in-out) infinite; }
+
+@keyframes lobby-breathe {
+  0%, 100% { --lift: 0px; }
+  50% { --lift: 11px; }
+}
+
+:root[data-reduced-motion="true"] .lobby-stage.is-breathing { animation: none; }
+
+.lobby-leader-info { text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
+.lobby-faction { letter-spacing: 0.16em; }
+.lobby-leader-name {
+  font-size: clamp(1.4rem, 2.9vh, 2.2rem);
+  margin: 0;
+  line-height: 1.1;
+}
 .lobby-leader-title { color: var(--text-dim); font-size: var(--fs-sm); font-style: italic; }
 .lobby-current-badge {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  margin-top: var(--sp-3);
+  margin-top: var(--sp-2);
   padding: var(--sp-1) var(--sp-4);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  font-size: var(--fs-xs);
-  letter-spacing: 0.1em;
 }
-.lobby-current-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); }
+.lobby-current-badge .t-label { color: var(--text-dim); letter-spacing: 0.12em; }
+.lobby-current-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #fff, var(--c) 62%);
+  box-shadow: 0 0 9px var(--c), inset 0 -1px 0 rgb(0 0 0 / 0.4);
+}
 
-.lobby-actions { display: flex; flex-direction: column; gap: var(--sp-4); align-items: stretch; }
+/* ---- the actions column -------------------------------------------------- */
+
+.lobby-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-4);
+  min-height: 0;
+}
+
+/**
+ * PLAY.
+ *
+ * `.mat-hero` carries the plate, the rim, the lip, the contact shadow, the
+ * grain and the resting specular crawl; `.act` carries the six states. What is
+ * left for this rule is the *object*: its size, its accent bloom on the floor
+ * beneath it, and the fact that it is the only thing on the screen allowed to
+ * be this saturated.
+ */
+.lobby-play {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  min-height: clamp(58px, 10vh, 98px);
+  padding: 0 var(--sp-6);
+  font-family: var(--font-display);
+  font-size: clamp(1.15rem, 2.4vh, 1.75rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+  /**
+   * The bloom, as a shadow rather than as a pseudo-element, and that is a
+   * consequence of a fix somewhere else.
+   *
+   * It was an `inset 8% 4% -18%` `::before` at `z-index: -1`, which worked
+   * because a `.mat-hero` created no stacking context and a negative layer
+   * therefore painted behind the plate itself. `foundation.css` §3 now isolates
+   * every material so the specular band can sit above the fill and below the
+   * type — and inside an isolated context, `z-index: -1` paints *above* the
+   * plate's own background. The bloom would have moved from under the button to
+   * on top of it. A spread shadow composites outside the border box by
+   * definition, so it cannot be caught by anything the element does to its own
+   * stacking, and it costs one shadow instead of a blurred layer.
+   *
+   * `--mat-cast` is restated first because it is the material's, not this
+   * screen's, and replacing it would delete the whole bevel.
+   */
+  box-shadow:
+    var(--mat-cast),
+    0 12px 44px -10px color-mix(in srgb, var(--accent-hot) 55%, transparent);
+  transition:
+    transform var(--dur-micro) var(--ease-overshoot),
+    box-shadow var(--dur-micro) var(--ease-arrive);
+}
+
+@media (hover: hover) {
+  .lobby-play:hover:not(:disabled) {
+    box-shadow:
+      var(--mat-cast),
+      0 14px 56px -10px color-mix(in srgb, var(--accent-hot) 75%, transparent);
+  }
+}
+
+/**
+ * The face, and the reason the grain was reading as damage.
+ *
+ * The plate was a pure hue ramp — 217,165,255 to 181,108,255 to 255,95,162 —
+ * with a rim, a lip and a noise tile on top and nothing else. Grain over a
+ * mathematically smooth ramp has nothing to be the texture *of*, so at 1× it
+ * reads as dither or as a JPEG artefact rather than as a surface; the same
+ * grain over a plate that already has form reads as the form having a finish.
+ *
+ * Three layers, all along the one key vector: a broad specular sheet in the
+ * top-left where the light lands, a soft occlusion in the bottom-right corner
+ * where it does not, and a hairline of lit haze along the top edge that is the
+ * plate's own gloss rather than a border. `z-index: -1` inside the material's
+ * isolated context puts all three above the fill and below the label, which is
+ * the same slot the specular band uses.
+ */
+.lobby-play::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.2) 0%, rgb(255 255 255 / 0) 34%),
+    radial-gradient(78% 150% at 14% -30%, rgb(255 255 255 / 0.26), transparent 62%),
+    radial-gradient(70% 130% at 92% 130%, rgb(52 8 44 / 0.34), transparent 66%);
+}
+/* The play triangle is a stroked outline like every other drawing in the set,
+   and an outline inside a hero reads as a hollow arrow rather than a button.
+   Thickening the stroke to three fills the shape without a second drawing —
+   `--hb-icon-stroke` is the knob module C exposes for exactly this. */
+.lobby-play-mark { display: inline-flex; font-size: 0.92em; opacity: 0.88; }
+/* Two classes: the icon host carries its own `--hb-icon-stroke` from the
+   optical-rung class, so an ancestor cannot out-rank it. */
+.lobby-play-mark .hb-icon { --hb-icon-stroke: 3.2; }
+.lobby-play-word { line-height: 1; }
+
+/* ---- the active deck ----------------------------------------------------- */
 
 .lobby-deck-widget {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
   text-align: left;
-  padding: var(--sp-4);
-  border-radius: var(--radius);
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  transition: border-color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
+  padding: var(--sp-3) var(--sp-4);
+  min-height: clamp(62px, 9.6vh, 94px);
+  --r-self: var(--r-tile);
+  border-radius: var(--r-tile);
+  flex: 0 0 auto;
 }
-.lobby-deck-widget:hover { border-color: var(--accent); transform: translateY(-2px); }
-.lobby-deck-name { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 600; }
-.lobby-deck-meta { font-size: var(--fs-sm); }
 
-.lobby-nav { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
-.lobby-nav-btn { flex-direction: column; gap: var(--sp-1); min-height: 76px; padding: var(--sp-3); font-size: var(--fs-sm); }
-.lobby-nav-icon { font-size: var(--fs-xl); }
+.lobby-deck-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  font-size: 21px;
+  color: var(--accent-bright);
+  border-radius: var(--r-field);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.09), rgb(0 0 0 / 0.24));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), inset 0 -1px 0 rgb(0 0 0 / 0.4);
+}
 
-.lobby-rail { display: flex; flex-direction: column; gap: var(--sp-3); max-height: 100%; overflow: hidden; }
-.lobby-card { padding: var(--sp-4); }
-.lobby-record { display: flex; justify-content: space-between; margin-top: var(--sp-2); }
-.record-stat { display: flex; flex-direction: column; align-items: center; }
-.record-value { font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 700; }
-.record-label { font-size: var(--fs-xs); color: var(--text-faint); }
+.lobby-deck-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.lobby-deck-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lobby-deck-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+.lobby-deck-meta .num { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700; }
 
-.mission-list { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
-.mission { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-sm); }
-.mission-progress { color: var(--accent-cool); font-variant-numeric: tabular-nums; }
-.lobby-news p { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); }
-/* the lobby's news card is a button now — it opens the article it is showing */
+/* ---- the nine destinations ----------------------------------------------- */
+
+/**
+ * A 3×3, and every part of that is load-bearing.
+ *
+ * Nine tiles in two columns is five rows, and five rows is what ran the grid
+ * 102px past the bottom of a 720p viewport. Three columns is one row shorter
+ * than four would leave ragged, it divides nine exactly, and it gives each tile
+ * a landscape aspect — which is what makes room for a label *and* a hint
+ * instead of the single centred word that a round-4 critic called "the flattest
+ * thing in any frame I captured".
+ */
+.lobby-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: clamp(58px, 10.8vh, 106px);
+  gap: var(--sp-3);
+  min-height: 0;
+}
+
+.lobby-nav-btn {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-content: center;
+  justify-items: start;
+  row-gap: 1px;
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+  --r-self: var(--r-tile);
+  border-radius: var(--r-tile);
+  /*
+   * Two animations, restated together on purpose.
+   *
+   * `animation` is a shorthand, so declaring an entrance here used to silently
+   * delete `.mat-panel`'s resting specular crawl and nine tiles went dead — the
+   * crawl had to be restated on the same line. It does not any more: since the
+   * frame-time repair in `foundation.css` §3 the crawl lives on the material's
+   * own `::after`, on its own `animation` property, where an entrance on the host
+   * cannot reach it. `--enter-delay` still inherits down to the band, so the nine
+   * tiles still sweep at nine different phases.
+   */
+  animation: lobby-tile-rise 340ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+}
+
+@keyframes lobby-tile-rise {
+  from { opacity: 0; translate: 0 16px; }
+  to { opacity: 1; translate: none; }
+}
+
+:root[data-reduced-motion="true"] .lobby-nav-btn,
+:root[data-gfx-tier="low"] .lobby-nav-btn { animation: none; }
+
+/* The destination's own colour, as light in the corner the key comes from
+   rather than as a border. One hue per tile, at an alpha low enough that the
+   nine still read as one family. */
+/**
+ * The tile's picture, and why it is not a picture of its own icon any more.
+ *
+ * Each of the nine used to carry its own 24px nav mark blown up to 158% of the
+ * tile's height — roughly seven times its optical size — as a watermark. It was
+ * the same trick nine times, and two of the nine failed on their own terms: the
+ * Mastery medal at that size reads as a plunger, and the Merch Drops gift is
+ * warm gold and became the brightest thing in the grid, out-valuing its own
+ * label. An icon authored on a 24px grid at 1.75px stroke does not become an
+ * illustration by being scaled — the stroke weight that makes it legible small
+ * makes it thin and papery large, and the joins that read as corners open into
+ * gaps.
+ *
+ * So the destination's identity is carried by three things that scale honestly:
+ * the hue, a wash lit from the key corner, and a fine 45° hatch that gives the
+ * plate a weave under the material's own grain. Identification is the *mark*, at
+ * the size it was drawn for, standing in a lit plate at the head of the tile.
+ * Nine tiles, nine hues, one recipe — and no tile can be brighter than its own
+ * label by accident, because the alpha is the same for all nine.
+ */
+.lobby-nav-wash {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    /* the weave: 3px of the tile's own hue every 7px along the light axis */
+    repeating-linear-gradient(
+      var(--light-sweep),
+      color-mix(in srgb, var(--tile-accent) 7%, transparent) 0 1px,
+      transparent 1px 7px
+    ),
+    /* the bounce off the unlit corner, so the plate has two ends */
+    radial-gradient(64% 84% at 104% 112%, color-mix(in srgb, var(--tile-accent) 20%, transparent), transparent 70%),
+    /* the key */
+    radial-gradient(96% 130% at 4% -6%, color-mix(in srgb, var(--tile-accent) 30%, transparent), transparent 74%);
+  opacity: 0.78;
+  transition: opacity var(--dur-micro) var(--ease-arrive);
+}
+
+.lobby-nav-btn:hover .lobby-nav-wash { opacity: 1; }
+
+/**
+ * Hover lights the tile *in its own colour*.
+ *
+ * `.act` already moves it, doubles the rim, tightens the contact shadow and
+ * sends a specular band across it in 140ms. What it cannot know is that each of
+ * these nine has a hue — so the last ingredient is a hairline of that hue on
+ * the silhouette and a bloom of it on the floor underneath. `--mat-cast` is
+ * restated first so the material's own shadow stack survives.
+ */
+@media (hover: hover) {
+  .lobby-nav-btn:hover:not(:disabled) {
+    box-shadow:
+      var(--mat-cast),
+      inset 0 0 0 1px color-mix(in srgb, var(--tile-accent) 42%, transparent),
+      0 10px 26px -12px color-mix(in srgb, var(--tile-accent) 70%, transparent);
+  }
+}
+
+/**
+ * The mark, in a plate, at the size it was drawn for.
+ *
+ * The same recess `.mode-plate` uses one screen over, so the two grids of
+ * destinations in this game are made of the same object rather than of two
+ * ideas about what a destination looks like. Spanning both rows puts it beside
+ * the label and the hint rather than above them, which is what buys the label
+ * its full width back now the watermark is gone.
+ */
+.lobby-nav-mark {
+  grid-row: 1;
+  margin-bottom: 3px;
+  display: grid;
+  place-items: center;
+  width: clamp(26px, 3.8vh, 34px);
+  height: clamp(26px, 3.8vh, 34px);
+  font-size: clamp(15px, 2.2vh, 19px);
+  border-radius: var(--r-field);
+  color: color-mix(in srgb, var(--tile-accent) 76%, #ffffff);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.1), rgb(0 0 0 / 0.3));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45),
+    0 2px 5px -2px rgb(0 0 0 / 0.6);
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--tile-accent) 20%, transparent));
+  transition: color var(--dur-micro) var(--ease-arrive), box-shadow var(--dur-micro) var(--ease-arrive);
+}
+
+.lobby-nav-btn:hover .lobby-nav-mark {
+  color: color-mix(in srgb, var(--tile-accent) 34%, #ffffff);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45),
+    0 2px 5px -2px rgb(0 0 0 / 0.6),
+    0 0 0 1px color-mix(in srgb, var(--tile-accent) 34%, transparent);
+}
+
+.lobby-nav-label {
+  grid-row: 2;
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+  position: relative;
+}
+
+.lobby-nav-hint {
+  grid-row: 3;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  position: relative;
+}
+
+/**
+ * The badge, pinned rather than accidental.
+ *
+ * It used to be `margin-left: auto` inside a `flex-direction: column` button,
+ * which is not a corner pin at all — it became a third stacked row and landed
+ * half off the bottom-right curve of the lozenge. It is an object now: a rimmed
+ * disc with a contact shadow, tabular figures, and an overshoot entrance so it
+ * arrives rather than pops.
+ */
+.lobby-nav-badge {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-chip);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  --num-align: center;
+  background: radial-gradient(circle at 35% 28%, #ff9ede, var(--accent-hot) 68%);
+  border: 1px solid rgb(0 0 0 / 0.55);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    0 2px 6px rgb(0 0 0 / 0.6);
+  animation: lobby-badge-pop 260ms var(--ease-overshoot) calc(var(--enter-delay, 0ms) + 160ms) backwards;
+}
+
+@keyframes lobby-badge-pop {
+  from { opacity: 0; scale: 0.4; }
+  to { opacity: 1; scale: 1; }
+}
+
+:root[data-reduced-motion="true"] .lobby-nav-badge { animation: none; }
+
+/* ---- the rail ------------------------------------------------------------ */
+
+.lobby-rail {
+  display: flex;
+  flex-direction: column;
+  /* `safe` matters: a plain `center` on an overflowing flex column pushes the
+     first panel above the scroll origin, where it cannot be reached. */
+  justify-content: safe center;
+  gap: var(--sp-3);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
+/* Only the drawer has a head; as a column the rail needs no title bar. */
+.lobby-rail-head { display: none; }
+
+.lobby-card {
+  padding: var(--sp-4);
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+  flex: 0 0 auto;
+  /* Entrance only. The resting crawl is `.mat-panel::after`'s own animation
+     since foundation.css §3 moved it off `background-position`, so a shorthand
+     here no longer erases it. */
+  animation: lobby-tile-rise 340ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+}
+
+:root[data-reduced-motion="true"] .lobby-card,
+:root[data-gfx-tier="low"] .lobby-card { animation: none; }
+
+.lobby-record { display: flex; justify-content: space-between; margin-top: var(--sp-3); }
+.record-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+/* The figure and its unit are one line, in a row of their own: `.record-stat`
+   is a column, so a bare sibling `%` becomes its own row and the win rate reads
+   as two numbers stacked. */
+.record-figure { display: flex; align-items: baseline; }
+.record-value {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  line-height: 1;
+  --num-align: center;
+}
+.record-suffix {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-dim);
+  margin-left: -0.2ch;
+}
+.record-label { color: var(--text-faint); }
+
+/**
+ * The rail's dailies get their own names, and that is a bug fix rather than a
+ * style choice.
+ *
+ * They used to be `<li class="mission">`, which is the *missions screen's*
+ * class — `var(--glass)` plus a 1px lilac hairline plus 16px of padding. So
+ * every row in the lobby rail quietly picked up a fifth surface recipe from
+ * another screen, which is the "thirty objects, one material" defect arriving
+ * by inheritance instead of by copy-paste. A row here is not an object: the
+ * panel is the object and the rows are its contents.
+ */
+.lobby-mission-list {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.lobby-mission { display: flex; flex-direction: column; gap: var(--sp-1); }
+.lobby-mission-row { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-sm); }
+.lobby-mission-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-mission-count { color: var(--accent-cool); flex: 0 0 auto; }
+.lobby-mission.is-complete .lobby-mission-count { color: var(--success); }
+.lobby-mission-track {
+  display: block;
+  height: 6px;
+  --r-self: var(--r-chip);
+  border-radius: var(--r-chip);
+  overflow: hidden;
+}
+.lobby-mission-fill { display: block; height: 100%; border-radius: inherit; }
+
 .lobby-news { text-align: left; cursor: pointer; font: inherit; color: inherit; width: 100%; }
-.lobby-news:hover { border-color: var(--accent); }
-.lobby-news-title { margin-top: var(--sp-2); font-family: var(--font-display); font-size: var(--fs-sm); line-height: 1.35; }
-.lobby-news-new { color: var(--accent); }
+.lobby-news p { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); line-height: 1.45; }
+.lobby-news-title {
+  margin-top: var(--sp-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.lobby-news-new { color: var(--accent-bright); }
 
-.lobby-footer { padding: var(--sp-2) var(--sp-5) var(--sp-3); font-size: var(--fs-xs); text-align: center; }
-.lobby-footer code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; }
+.lobby-rail-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: rgb(3 1 8 / 0.5);
+  backdrop-filter: blur(4px);
+  animation: lobby-scrim-in var(--dur-ui) var(--ease-arrive) both;
+}
+.lobby-rail-scrim[hidden] { display: none; }
+
+@keyframes lobby-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---- responsive ----------------------------------------------------------
+   Nothing below deletes anything. The rail becomes a drawer, the grid becomes
+   a rail, and the portrait shrinks — every destination and every panel stays
+   reachable at 1280×720 and at 844×390, which §9 states as a hard floor rather
+   than as an aspiration. */
 
 @media (max-width: 1100px) {
-  .lobby-body { grid-template-columns: 1fr 1fr; }
-  .lobby-rail { display: none; }
+  .lobby-body { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
+  .lobby-rail-toggle { display: grid; }
+
+  .lobby-rail {
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(360px, 84vw);
+    padding: var(--sp-4);
+    gap: var(--sp-3);
+    background:
+      linear-gradient(var(--light-sweep), rgb(38 27 68 / 0.97) 0%, rgb(13 8 26 / 0.98) 100%),
+      var(--tex-grain-mid, none);
+    background-size: 100% 100%, var(--tex-grain-mid-size, auto);
+    box-shadow: -18px 0 44px rgb(0 0 0 / 0.6), inset 1px 0 0 rgb(255 255 255 / 0.06);
+    translate: 100% 0;
+    visibility: hidden;
+    transition: translate var(--dur-ui) var(--ease-arrive), visibility 0s linear var(--dur-ui);
+  }
+
+  .lobby-rail[data-open="true"] {
+    translate: 0 0;
+    visibility: visible;
+    transition: translate var(--dur-ui) var(--ease-arrive), visibility 0s;
+  }
+
+  .lobby-rail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--hairline-lit);
+  }
+
+  .lobby-rail-close {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-chip);
+    color: var(--text-dim);
+    font-size: 17px;
+  }
+  .lobby-rail-close:hover { color: var(--text); }
 }
+
+/* Phone landscape, and any desktop window short enough to have the same
+   problem. The nav becomes a snap-scrolling rail rather than a grid that runs
+   off the bottom of the viewport. */
+@media (max-width: 820px), (max-height: 540px) {
+  .lobby-top { min-height: 48px; padding: var(--sp-1) var(--sp-3); }
+  .lobby-avatar { width: 32px; height: 32px; font-size: var(--fs-md); }
+  .lobby-xp, .lobby-xp-read { display: none; }
+  .lobby-currency { padding: var(--sp-1) var(--sp-3); }
+  .lobby-cog, .lobby-rail-toggle { width: 44px; height: 44px; font-size: 18px; }
+
+  .lobby-body {
+    grid-template-columns: minmax(0, 0.62fr) minmax(0, 1fr);
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  }
+
+  .lobby-portrait { --portrait-h: min(44vh, 176px); }
+  .lobby-portrait-cast { height: 12px; margin-top: -8px; }
+  .lobby-leader-name { font-size: clamp(1rem, 4.4vh, 1.4rem); }
+  .lobby-leader-title, .lobby-current-badge { display: none; }
+
+  .lobby-actions { gap: var(--sp-3); }
+  .lobby-play { min-height: clamp(44px, 13vh, 62px); font-size: clamp(0.95rem, 3.6vh, 1.3rem); }
+  .lobby-deck-widget { min-height: 52px; padding: var(--sp-2) var(--sp-3); }
+  .lobby-deck-mark { width: 30px; height: 30px; font-size: 17px; }
+  .lobby-deck-name { font-size: var(--fs-md); }
+
+  .lobby-nav {
+    display: flex;
+    grid-auto-rows: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    padding-bottom: var(--sp-2);
+    gap: var(--sp-2);
+  }
+  .lobby-nav-btn {
+    flex: 0 0 clamp(112px, 26vw, 148px);
+    height: clamp(62px, 21vh, 92px);
+    scroll-snap-align: start;
+  }
+  .lobby-nav-hint { display: none; }
+}
+
 
 /* =========================================================================
    MODE SELECT
+   =========================================================================
+
+   Fourteen modes at three ranks: one hero that fills a column, four features
+   in a 2×2, and the tail as a list of rows. The old version was fourteen
+   identical `auto-fill` cards with `align-content: start`, which meant the
+   grid stopped after three and a half rows at 1600×900 and left a 340px band
+   of dead black across the bottom — and the wider the display, the more of it.
+   This layout is a three-column grid with `1fr` rows, so it fills whatever it
+   is given and the tail scrolls rather than the page overflowing.
    ========================================================================= */
 
-.mode-grid {
+.play-body {
+  position: relative;
+  z-index: 1;
   flex: 1 1 auto;
+  min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.15fr) minmax(0, 0.9fr);
   gap: var(--sp-4);
-  padding: var(--sp-5);
-  align-content: start;
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
 }
 
+.play-header .play-back { gap: var(--sp-2); padding: 0 var(--sp-4); }
+.play-deck {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+.play-deck .t-label { color: var(--text-faint); }
+.play-deck-name { font-family: var(--font-display); font-weight: 600; color: var(--text); }
+
+.mode-hero-slot { display: grid; min-height: 0; }
+.mode-features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  min-height: 0;
+}
+.mode-tail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-height: 0;
+}
+.mode-tail-head { padding: 0 var(--sp-1); }
+/* A grid rather than a flex column, so the rows share out whatever height the
+   column has instead of stacking at the top and leaving a dead band under
+   them — which is the same defect this screen used to have at the page level.
+   `minmax(54px, 1fr)` means they stretch when there is room and shrink to a
+   readable floor and scroll when there is not. */
+.mode-tail-list {
+  display: grid;
+  flex: 1 1 auto;
+  grid-auto-rows: minmax(54px, 1fr);
+  gap: var(--sp-2);
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* ---- the shared card ----------------------------------------------------- */
+
 .mode-card {
+  position: relative;
+  overflow: hidden;
+  text-align: left;
+  /* Entrance only — the crawl is the material's `::after`. */
+  animation: mode-card-rise 340ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+}
+
+@keyframes mode-card-rise {
+  from { opacity: 0; translate: 0 16px; }
+  to { opacity: 1; translate: none; }
+}
+
+:root[data-reduced-motion="true"] .mode-card,
+:root[data-gfx-tier="low"] .mode-card { animation: none; }
+
+/* The mode's own hue, arriving as light in the corner the key comes from. */
+.mode-wash {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(74% 108% at 4% 0%, color-mix(in srgb, var(--tile-accent) 26%, transparent), transparent 70%);
+  opacity: 0.8;
+  transition: opacity var(--dur-micro) var(--ease-arrive);
+}
+.mode-card:hover .mode-wash { opacity: 1; }
+
+.mode-watermark {
+  position: absolute;
+  color: var(--tile-accent);
+  opacity: 0.1;
+  pointer-events: none;
+  transition: opacity var(--dur-micro) var(--ease-arrive), translate var(--dur-ui) var(--ease-arrive);
+}
+.mode-card:hover .mode-watermark { opacity: 0.18; translate: -5px 0; }
+
+/* The icon plaque: a shallow recess with the mark lit inside it, which is what
+   the old flat 52px purple square wanted to be. */
+.mode-plate {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: var(--r-field);
+  color: color-mix(in srgb, var(--tile-accent) 78%, #ffffff);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.1), rgb(0 0 0 / 0.28));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45),
+    0 2px 5px -2px rgb(0 0 0 / 0.6);
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--tile-accent) 22%, transparent));
+}
+
+.mode-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mode-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.15;
+}
+.mode-blurb { font-size: var(--fs-sm); color: var(--text-dim); line-height: 1.35; }
+.mode-status {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--accent-cool);
+}
+
+/* ---- the hero ------------------------------------------------------------ */
+
+.mode-hero {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  align-content: stretch;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+  /* The one place on this screen allowed a second accent: the hero is lit by
+     its own hue from below as well as from the key, which is what separates it
+     from four tiles of the same material one rank down. */
+  --mat-amp: 0.8;
+}
+
+/**
+ * The picture on the poster, which used to be a nav glyph at seventeen times
+ * its optical size.
+ *
+ * Full-bleed inside the tile, faded out across the left where the type stands —
+ * the canvas cuts its own alpha (see `leaderPortrait.ts`) rather than being
+ * faded towards a guessed colour, so the plate's own fill, rim and grain show
+ * through the join and there is no rectangle on it anywhere. `-1` puts it under
+ * the content and above the material's fill, which is the same slot the specular
+ * band uses; `.mat-panel`'s `isolation: isolate` is what makes both of them
+ * legal without a z-index war.
+ *
+ * The type over it gets a real plate: a vertical scrim at the foot of the tile,
+ * because §4 is explicit that text over imagery is never raw.
+ */
+.mode-art {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mode-art-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 62% 26%;
+  transition: scale var(--dur-setpiece) var(--ease-arrive);
+}
+/* Secondary motion: the crop pushes in very slightly when the tile lifts, so
+   the picture reacts to the pointer rather than the frame moving over a still. */
+.mode-hero:hover .mode-art-canvas { scale: 1.035; }
+:root[data-reduced-motion="true"] .mode-hero:hover .mode-art-canvas { scale: 1; }
+
+.mode-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(0deg, rgb(6 3 14 / 0.92) 0%, rgb(6 3 14 / 0.55) 26%, transparent 58%);
+}
+
+.mode-hero .mode-plate { width: 58px; height: 58px; font-size: 30px; }
+.mode-hero .mode-name { font-family: var(--font-display); font-size: clamp(1.5rem, 3.4vh, 2.1rem); font-weight: 800; letter-spacing: -0.02em; }
+.mode-hero .mode-blurb { font-size: var(--fs-md); max-width: 34ch; }
+.mode-hero .mode-body { justify-content: flex-end; }
+.mode-hero .mode-status { font-size: var(--fs-sm); }
+.mode-cta .hb-icon { --hb-icon-stroke: 3.2; }
+
+/**
+ * The call to action, at the scale of the thing it is on.
+ *
+ * It was 130×46 inside a 515×783 tile — the biggest object on the screen with a
+ * button on it the size of a tag, which reads as a plate that has not been
+ * finished rather than as the one thing you are meant to press. Full column
+ * width and 58px tall, centred, with the mode's own hue under it as a glow so
+ * the hero and its button are lit by the same light.
+ */
+.mode-cta {
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
+  justify-content: center;
+  justify-self: stretch;
+  gap: var(--sp-2);
+  min-height: 58px;
+  padding: 0 var(--sp-6);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  border-radius: var(--r-panel);
+  color: var(--text-invert);
+  background: var(--fill-hero);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 0 -1px 0 rgb(0 0 0 / 0.24),
+    0 6px 10px -6px rgb(0 0 0 / 0.7),
+    0 4px 26px -4px color-mix(in srgb, var(--tile-accent) 70%, transparent);
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.22);
+  transition: box-shadow var(--dur-micro) var(--ease-arrive), translate var(--dur-micro) var(--ease-overshoot);
+}
+.mode-hero:hover .mode-cta {
+  translate: 0 -1px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.38),
+    inset 0 -1px 0 rgb(0 0 0 / 0.24),
+    0 6px 10px -6px rgb(0 0 0 / 0.7),
+    0 6px 34px -4px color-mix(in srgb, var(--tile-accent) 90%, transparent);
+}
+
+/* ---- the four features --------------------------------------------------- */
+
+/* The same composition as the hero, one rank down: mark in the lit corner,
+   picture in the middle, type standing on the floor of the tile. Four tiles
+   that echo the hero read as a set; four tiles with the type at the top and a
+   void underneath read as a grid that ran out of content. */
+.mode-feature {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: var(--sp-2);
   padding: var(--sp-4);
-  border-radius: var(--radius);
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  text-align: left;
-  transition: transform var(--dur-fast) var(--ease-snap), border-color var(--dur-fast), box-shadow var(--dur-fast);
+  --r-self: var(--r-tile);
+  border-radius: var(--r-tile);
 }
-.mode-card:not(:disabled):hover {
-  transform: translateY(-3px);
-  border-color: var(--accent);
-  box-shadow: var(--shadow), var(--glow-accent);
+.mode-feature .mode-watermark {
+  right: -4%;
+  top: 20%;
+  height: 44%;
+  width: auto;
 }
-.mode-card:disabled { opacity: 0.42; cursor: not-allowed; }
+.mode-feature .mode-plate { width: 42px; height: 42px; font-size: 22px; }
+.mode-feature .mode-name { font-size: var(--fs-lg); }
+.mode-feature .mode-body { grid-row: 3; }
+.mode-feature .mode-status { grid-row: 4; }
+.mode-feature .mode-blurb {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---- the tail ------------------------------------------------------------ */
+
+.mode-tail-list .mode-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 46px;
+  --r-self: var(--r-tile);
+  border-radius: var(--r-tile);
+}
+.mode-mark {
+  display: inline-flex;
+  font-size: 18px;
+  color: color-mix(in srgb, var(--tile-accent) 74%, #ffffff);
+}
+.mode-tail-list .mode-name { font-size: var(--fs-sm); }
+.mode-tail-list .mode-blurb {
+  font-size: var(--fs-xs);
+  /* Same measurement as `.lobby-xp-read`: a tail row is `.mat-chip`, and the
+     faint role on a chip's lit stop is 4.16:1. */
+  color: var(--text-dim);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mode-go {
+  display: inline-flex;
+  font-size: 15px;
+  color: var(--text-faint);
+  transition: translate var(--dur-micro) var(--ease-arrive), color var(--dur-micro) var(--ease-arrive);
+}
+.mode-tail-list .mode-card:hover .mode-go { translate: 3px 0; color: var(--text); }
+
+/* ---- unavailable --------------------------------------------------------- */
 
 /* Greyed, but usable — see the note on `ModeCard.explainer`.
    `03-screens-and-navigation.md` asks for a greyed entry that still explains
    itself, and forbids "disabled buttons that pretend to be temporarily broken".
    So this dims the tile without `:disabled`, which would take it out of the tab
    order and put the explanation out of reach of the people most likely to want
-   it. Dimmer than a live tile, brighter than a dead one. */
-.mode-card.mode-locked { opacity: 0.62; }
-.mode-card.mode-locked .mode-icon { filter: grayscale(0.7); }
-.mode-card.mode-locked:hover { opacity: 0.86; }
-/* Not `--success` (which marks a live mode) and not `--warning` (which would
-   read as a fault). Gold says "later", which is what this is. */
+   it. Dimmer than a live tile, brighter than a dead one — and dimmed by drained
+   colour and a flatter plate rather than by opacity alone, which §5 forbids. */
+.mode-card.mode-locked {
+  --tile-accent: #8e88a4;
+  --mat-amp: 0.3;
+  filter: saturate(0.5);
+}
+.mode-card.mode-locked .mode-name { color: var(--text-dim); }
+.mode-card.mode-locked:hover { filter: saturate(0.8); }
+/* Not `--success` (which used to mark a live mode) and not `--warning` (which
+   would read as a fault). Gold says "later", which is what this is. */
 .mode-locked .mode-status { color: var(--accent-gold); }
 
 /* Paragraphs inside the "coming online" explainer. */
 #online-body { display: flex; flex-direction: column; gap: var(--sp-2); text-align: left; max-width: 52ch; }
 #online-body p { font-size: var(--fs-sm); line-height: 1.5; }
 
-.mode-icon {
-  width: 52px; height: 52px;
-  display: grid; place-items: center;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, rgba(181,108,255,0.28), rgba(255,95,162,0.18));
-  font-size: var(--fs-xl);
-  flex: 0 0 auto;
+/* ---- responsive ---------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .play-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.85fr); }
+  .mode-tail { grid-column: 1 / -1; }
+  .mode-tail-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: var(--sp-2);
+    align-content: start;
+  }
 }
-.mode-body { flex: 1 1 auto; min-width: 0; }
-.mode-name { font-family: var(--font-display); font-weight: 600; font-size: var(--fs-lg); }
-.mode-blurb { font-size: var(--fs-sm); }
-.mode-status { font-size: var(--fs-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
-.mode-available .mode-status { color: var(--success); }
+
+/**
+ * Phone landscape: one column that scrolls, and every tile short enough that no
+ * row is ever cut through its own text at the fold.
+ *
+ * The rows are `auto` and the container scrolls, rather than the three sections
+ * competing for a fixed height — a `1fr` row in a 300px-tall grid squashes the
+ * hero and `overflow: hidden` then slices the call to action in half, which is
+ * the state the first pass shipped.
+ */
+@media (max-width: 820px), (max-height: 540px) {
+  .play-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3) var(--sp-3);
+    overflow-y: auto;
+  }
+  .mode-hero-slot { display: block; flex: 0 0 auto; }
+  .mode-features { flex: 0 0 auto; }
+  .mode-tail { flex: 0 0 auto; }
+
+  /* The hero becomes a wide banner: mark, words, and the whole tile as the
+     button, so there is no separate CTA to clip. */
+  .mode-hero {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    min-height: 78px;
+    /* A button is shrink-to-fit even as a grid container, and the slot around
+       it is a plain block here rather than a grid. */
+    width: 100%;
+  }
+  .mode-hero .mode-plate { width: 44px; height: 44px; font-size: 23px; }
+  .mode-hero .mode-name { font-size: 1.15rem; }
+  .mode-hero .mode-blurb { font-size: var(--fs-xs); max-width: none; }
+  /* The crop stays and the picture recentres: at this height the hero is a wide
+     row, so the head belongs nearer the left where the plate is, not two thirds
+     across a landscape frame. */
+  .mode-hero .mode-art-canvas { object-position: 46% 24%; }
+  .mode-hero .mode-cta { display: none; }
+  .mode-hero .mode-status { grid-column: 1 / -1; }
+
+  .mode-features {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: minmax(96px, auto);
+    gap: var(--sp-2);
+  }
+  .mode-feature { grid-template-rows: auto auto auto; padding: var(--sp-3); }
+  .mode-feature .mode-name { font-size: var(--fs-md); }
+  .mode-feature .mode-blurb { -webkit-line-clamp: 2; font-size: var(--fs-xs); }
+  .mode-feature .mode-plate { width: 34px; height: 34px; font-size: 18px; }
+  .mode-feature .mode-watermark { top: 8%; height: 56%; }
+  .mode-tail-list { overflow: visible; grid-auto-rows: minmax(48px, auto); }
+}
 
 /* Proper modal: a full-bleed scrim that centres its panel on both axes.
    `[hidden]` must be stated explicitly — an author `display` rule overrides it. */
@@ -533,30 +1761,120 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
   padding: var(--sp-1) var(--sp-2) var(--sp-5);
 }
 
+/**
+ * A tile is the card plus a strip of furniture underneath it, and the strip is
+ * the point.
+ *
+ * The count pill used to sit at `bottom: 6px; left: 50%`, dead centre on the
+ * card's own bottom edge, where it cut the collector line — `AFT · 124 · COMMON
+ * · HYPEBOUND` — clean in half on all 245 tiles and every deck-builder row. On
+ * the one screen where a player compares cards, the newest piece of printed
+ * furniture was invisible. Reserving 18px below the canvas and putting the chip
+ * in it means the pill is not on the card at all: nothing it can occlude, and
+ * the row below cannot collide with it either.
+ */
 .card-cell {
   position: relative;
+  padding-bottom: 18px;
   cursor: pointer;
-  transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast);
+  transition:
+    transform var(--dur-fast) var(--ease-snap),
+    filter var(--dur-fast);
+  /* the entrance §3a asks for; `stagger()` writes the delay, in reading order */
+  animation: card-tile-in 340ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
 }
 .card-cell:hover { transform: translateY(-8px) scale(1.03); z-index: 2; filter: drop-shadow(0 16px 32px rgba(0,0,0,0.6)); }
 .card-cell canvas { display: block; width: 100%; height: auto; border-radius: 10px; }
 
+/**
+ * Unowned, as a change of *material* rather than of alpha.
+ *
+ * The renderer used to be handed `dimmed: true`, which meant crafting a card
+ * repainted its canvas — 3.7ms, and one more reason the grid could not keep its
+ * cells. A11y §A4 bans an opacity-only disabled state anyway: this drops the
+ * saturation and the value, so an unowned card reads as *unpainted stock* rather
+ * than as a card behind frosted glass, and it flips on a class change.
+ */
+.card-cell.unowned canvas {
+  opacity: 0.68;
+  filter: saturate(0.3) brightness(0.76) contrast(0.94);
+}
+.card-cell.unowned:hover canvas { opacity: 0.9; filter: saturate(0.6) brightness(0.95); }
+:root[data-contrast="high"] .card-cell.unowned canvas { opacity: 0.85; filter: saturate(0.5); }
+
+/**
+ * Neighbours give way, very slightly (§3a).
+ *
+ * A tile that lifts while the grid stays rigid reads as a sticker peeling off a
+ * sheet. Two per cent down and a touch of desaturation on the cells either side
+ * is under a pixel of movement and is the difference between a hover and a
+ * hovered *row*.
+ */
+.card-cell:hover + .card-cell,
+.card-cell:has(+ .card-cell:hover) {
+  transform: scale(0.98);
+  filter: saturate(0.86) brightness(0.9);
+}
+
+@keyframes card-tile-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.965); }
+}
+
+/* Reduced motion keeps the fade and drops the travel; `stagger()` has already
+   written every delay as 0ms, so the whole grid arrives on one frame. */
+:root[data-reduced-motion="true"] .card-cell {
+  animation-duration: 90ms;
+  animation-name: card-tile-fade;
+}
+:root[data-reduced-motion="true"] .card-cell:hover + .card-cell,
+:root[data-reduced-motion="true"] .card-cell:has(+ .card-cell:hover) {
+  transform: none;
+}
+
+@keyframes card-tile-fade {
+  from { opacity: 0; }
+}
+
+/**
+ * All three pieces of collection metadata live *below* the card, not on it.
+ *
+ * The count pill bisected the collector line; the star sat on the Current
+ * cartouche and the padlock on the cost gem, both of them in the OS emoji font
+ * and both of them covering hardware the frame work had just built. Nothing the
+ * collection knows about a card — how many you own, whether you starred it,
+ * whether it is locked — is part of the card, so none of it is drawn on one.
+ * The strip is the 18px the cell already reserves.
+ */
 .card-count {
   position: absolute;
-  bottom: 6px; left: 50%;
-  transform: translateX(-50%);
-  padding: 2px 12px;
-  border-radius: var(--radius-pill);
-  background: rgba(5,3,11,0.9);
-  border: 1px solid var(--glass-border-bright);
+  bottom: 0; right: 2px;
+  padding: 1px 9px;
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  line-height: 1.3;
 }
-.card-cell.unowned .card-count { color: var(--danger); border-color: var(--danger); }
-.card-fav, .card-lock { position: absolute; top: 6px; font-size: var(--fs-sm); text-shadow: 0 2px 4px #000; }
-.card-fav { right: 8px; color: var(--accent-gold); }
-.card-lock { left: 8px; }
+.card-cell.unowned .card-count { color: var(--danger); }
+.card-fav, .card-lock {
+  position: absolute;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-chip);
+  background: rgba(9, 5, 20, 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
+    0 2px 5px rgba(0, 0, 0, 0.5);
+}
+.card-fav[hidden], .card-lock[hidden] { display: none; }
+.card-fav .hb-icon, .card-lock .hb-icon { width: 11px; height: 11px; }
+.card-lock { left: 2px; color: var(--text-dim); }
+.card-fav { left: 2px; color: var(--accent-gold); }
+/* the star steps aside when a lock is also showing, so neither stacks */
+.card-lock:not([hidden]) ~ .card-fav { left: 23px; }
 
 /* =========================================================================
    CARD DETAIL — the gallery's card inspector
@@ -1976,52 +3294,416 @@ button.story-card:not(:disabled):hover {
 
 /* =========================================================================
    STARTER — pick the deck you begin with
+   =========================================================================
+
+   Eleven faction plates and a detail stage, both bounded by the viewport. The
+   previous version was a list of identical dark rectangles carrying a 10px
+   coloured dot, in a `.starter-screen` with a bare `overflow-y: auto` — so it
+   overflowed at 1600x900 and at 1280x720 *and* got the OS scrollbar while doing
+   it, which §7 calls a tear in the world. Nothing scrolls here except the list,
+   and the list scrolls with the game's own thumb.
    ========================================================================= */
 
-.starter-screen { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
-.starter-head { padding: var(--sp-6) var(--sp-6) var(--sp-3); text-align: center; }
-.starter-sub { max-width: 60ch; margin: var(--sp-2) auto 0; font-size: var(--fs-sm); }
+.starter-screen { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.starter-head {
+  flex: 0 0 auto;
+  padding: clamp(var(--sp-3), 3.2vh, var(--sp-6)) var(--sp-6) var(--sp-3);
+  text-align: center;
+}
+.starter-head .title { font-size: clamp(1.5rem, 4vh, 2.6rem); margin: var(--sp-1) 0 0; }
+.starter-sub {
+  max-width: 62ch;
+  margin: var(--sp-2) auto 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  line-height: 1.5;
+}
 
 .starter-body {
   flex: 1 1 auto;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
   gap: var(--sp-5);
-  padding: var(--sp-4) var(--sp-6) var(--sp-6);
-  align-items: start;
+  padding: var(--sp-3) var(--sp-6) var(--sp-5);
+  align-items: stretch;
 }
 
-.starter-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
-.starter-option {
-  width: 100%;
+.starter-list-wrap { min-height: 0; display: flex; }
+.starter-list {
+  list-style: none;
+  margin: 0;
+  padding: 2px 4px 2px 2px;
   display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/**
+ * A faction plate: the leader's painting cropped behind the faction's own
+ * gradient, the Current named, and a tick that only the chosen one wears.
+ *
+ * The colour is on the *plate*, not on a dot, which is the difference between
+ * eleven rows that happen to have different accents and eleven objects you can
+ * tell apart at a glance with the labels covered.
+ */
+.starter-option {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-3);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
-  background: var(--glass);
-  color: var(--text);
-  cursor: pointer;
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 58px;
   text-align: left;
-  transition: border-color 0.16s ease, background 0.16s ease;
+  --r-self: var(--r-tile);
+  border-radius: var(--r-tile);
+  /* Entrance only — the crawl is the material's `::after`. */
+  animation: mode-card-rise 320ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
 }
-.starter-option:hover { background: rgba(255, 255, 255, 0.05); }
-.starter-option.selected { border-color: var(--c, var(--accent)); background: rgba(255, 255, 255, 0.07); }
-.starter-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: 0 0 auto; }
-.starter-option-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.starter-option-name { font-family: var(--font-display); }
-.starter-option-leader { font-size: var(--fs-xs); }
 
-.starter-detail { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); text-align: center; padding: var(--sp-5); }
-.starter-leader-name { font-family: var(--font-display); font-size: var(--fs-xl); margin: 0; }
-.starter-leader-title { font-size: var(--fs-sm); }
-.starter-leader-card { margin: var(--sp-3) 0; }
-.starter-identity { max-width: 52ch; font-size: var(--fs-sm); color: var(--text-dim); margin: 0; }
-.starter-actions { margin-top: var(--sp-4); }
+:root[data-reduced-motion="true"] .starter-option,
+:root[data-gfx-tier="low"] .starter-option { animation: none; }
 
-@media (max-width: 900px) {
-  .starter-body { grid-template-columns: 1fr; }
+.starter-plate {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: var(--r-field);
+  background-color: color-mix(in srgb, var(--f) 34%, #120b22);
+  background-size: cover;
+  background-position: center 22%;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5),
+    0 2px 5px -2px rgb(0 0 0 / 0.7);
+}
+
+/* The faction colour over the painting, so eleven images by different hands
+   still read as one set. Stronger where there is no painting yet, because the
+   gradient is then the whole plate. */
+.starter-plate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(var(--light-sweep), color-mix(in srgb, var(--f) 62%, transparent), color-mix(in srgb, var(--c) 40%, transparent));
+  mix-blend-mode: overlay;
+}
+.starter-plate.has-art::after { opacity: 0.7; }
+
+/**
+ * The crest, and why it sits on top of the painting rather than instead of it.
+ *
+ * Two of the eleven leaders have no painting yet, so nine plates were photo
+ * crops and two were flat swatches: one row set, two visual languages, and the
+ * difference read as "these two are broken" rather than as "these two are still
+ * being painted". Art coverage is never a defect and is never scored — but a
+ * *set* that only coheres once the last painting lands is a design that has
+ * outsourced its own consistency to a schedule.
+ *
+ * So the constant is the crest, at one optical size on all eleven, with the
+ * painting behind it as enrichment. `28px` of a 512px master, drawn by the
+ * browser rather than by `scaledAsset`, because eleven images at 28px on a
+ * screen shown once per account is not where the downsampling budget goes.
+ */
+.starter-plate-crest {
+  position: relative;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.85));
+}
+
+/* The faction colour, again, as light spilling onto the plate's own row, plus a
+   3px post of it down the row's lit edge. The post is the structural half of
+   §6's "never signal by colour alone" argument run backwards: the eleven rows
+   differed by an 11px word and nothing else, so the hue had nowhere to live
+   except in type. */
+.starter-option::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, var(--f) 0 3px, transparent 3px),
+    linear-gradient(90deg, color-mix(in srgb, var(--f) 24%, transparent), transparent 46%);
+  opacity: 0.5;
+  transition: opacity var(--dur-micro) var(--ease-arrive);
+}
+.starter-option:hover::before { opacity: 0.85; }
+.starter-option.selected::before { opacity: 1; }
+
+.starter-option.selected {
+  --rim-boost: 2.4;
+  --mat-amp: 0.85;
+  box-shadow: var(--mat-cast), inset 0 0 0 1px color-mix(in srgb, var(--f) 70%, transparent);
+}
+
+.starter-option-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; position: relative; }
+.starter-option-name { font-family: var(--font-display); font-weight: 600; line-height: 1.15; }
+.starter-option-leader { font-size: var(--fs-xs); color: var(--text-faint); }
+.starter-current {
+  position: relative;
+  color: color-mix(in srgb, var(--c) 55%, #ffffff);
+  /* Not 10px. Nothing in this game renders text below 11, which is the floor
+     `verify:mobile` asserts and the smallest size §4 will stand behind. */
+  font-size: var(--fs-xs);
+  letter-spacing: 0.14em;
+}
+.starter-tick {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  display: none;
+  font-size: 13px;
+  color: color-mix(in srgb, var(--f) 45%, #ffffff);
+}
+.starter-option.selected .starter-tick { display: inline-flex; }
+
+/* ---- the stage ----------------------------------------------------------- */
+
+/**
+ * The stage, which used to be 59% of the viewport holding a 210px trading card.
+ *
+ * Measured before this rewrite: 1172×720 of panel, a 210×279 canvas inside it,
+ * and 93% of the largest surface in the front door at flat fill. The card was
+ * `renderCardToCanvas` — cost pip, LEADER type line, a 30 health pip that means
+ * nothing outside a match, a rules box at about seven pixels and a collector
+ * line under six — standing in for a hero portrait.
+ *
+ * It is a two-column composition now: the leader painted at 560px and bled off
+ * the panel's left edge behind a soft mask, the faction's own hue behind him as
+ * a two-stop wash, and the name, title, identity and what the deck plays like as
+ * a column standing over the art's quiet side. `align-content` is `center` and
+ * the grid rows are `auto`, so a faction with a short tagline does not leave the
+ * confirm button floating in the middle of the panel.
+ */
+.starter-detail {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  align-items: stretch;
+  gap: var(--sp-4);
+  text-align: left;
+  padding: 0;
+  min-height: 0;
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+}
+
+/**
+ * The faction wash, and the reason it is anchored to the left.
+ *
+ * The old one was two radials centred on the panel, which is a vignette rather
+ * than a light: it told you nothing about which faction you were looking at
+ * because it was in the same place for all eleven. This one rises behind the
+ * portrait from the corner the key light comes from, so the hue is *behind the
+ * leader* and the right-hand column stays dark enough to read type on.
+ */
+.starter-detail-wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(72% 82% at 12% 6%, color-mix(in srgb, var(--f) 42%, transparent), transparent 74%),
+    radial-gradient(66% 48% at 26% 112%, color-mix(in srgb, var(--c) 26%, transparent), transparent 72%),
+    linear-gradient(100deg, transparent 34%, rgb(6 3 14 / 0.5) 78%);
+  transition: background var(--dur-setpiece) var(--ease-arrive);
+}
+
+/* The portrait's own column. It bleeds to the panel's left, top and bottom
+   edges; the canvas itself fades out to the right and along the floor, so there
+   is no rectangle anywhere on the join. */
+.starter-stage {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--r-panel) 0 0 var(--r-panel);
+  /* 128% so the crop keeps bleeding past the column's right edge and under the
+     text rather than stopping at the gutter. */
+  width: 128%;
+  display: flex;
+  align-items: flex-end;
+}
+.starter-portrait-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 18%;
+}
+
+.starter-detail-body {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-5) var(--sp-5) var(--sp-5) 0;
+  overflow: hidden;
+}
+
+/* The crest at hero scale, above the faction's name, so the identity is a mark
+   before it is a word. */
+.starter-detail-crest {
+  display: block;
+  width: clamp(38px, 6vh, 56px);
+  height: clamp(38px, 6vh, 56px);
+  margin-bottom: var(--sp-1);
+}
+.starter-detail-crest img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(2px 3px 6px rgb(0 0 0 / 0.7));
+}
+
+/**
+ * The three facts, which is what replaced the seven-pixel rules box.
+ *
+ * A definition list rather than three divs, because that is what it is, and
+ * because it gives a screen reader the pairing for free. `--f` down the left
+ * edge of each row is the same 3px post the list plates wear, so the two halves
+ * of the screen agree about where the faction colour lives.
+ */
+.starter-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2) var(--sp-4);
+  margin: var(--sp-2) 0 0;
+  width: 100%;
+  max-width: 46ch;
+}
+.starter-fact {
+  padding-left: var(--sp-3);
+  border-left: 2px solid color-mix(in srgb, var(--f) 55%, transparent);
+  min-width: 0;
+}
+.starter-fact-wide { grid-column: 1 / -1; }
+.starter-fact dt { color: var(--text-faint); letter-spacing: 0.12em; }
+.starter-fact dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.starter-fact-wide dd {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* If a painter throws, the stage keeps the wash and the text and loses only the
+   picture — see the note on `paintDetail`. Saying so in CSS as well as in the
+   catch means the degraded state is *designed* rather than accidental. */
+.starter-detail[data-degraded="true"] .starter-stage {
+  background: linear-gradient(var(--light-sweep), color-mix(in srgb, var(--f) 30%, #140c26), #0b0618);
+}
+
+/* The cross-fade that replaced the innerHTML rewrite. `backwards` fill only, so
+   the panel is handed back to its own styles the instant it lands. */
+.starter-detail.is-swapping > :not(.starter-detail-wash) {
+  animation: starter-swap var(--dur-ui) var(--ease-arrive) backwards;
+}
+
+@keyframes starter-swap {
+  from { opacity: 0; translate: 0 8px; }
+  to { opacity: 1; translate: none; }
+}
+
+:root[data-reduced-motion="true"] .starter-detail.is-swapping > * { animation: none; }
+
+.starter-detail-body > * { position: relative; }
+.starter-detail-faction { letter-spacing: 0.18em; }
+.starter-leader-name {
+  font-size: clamp(1.6rem, 4.4vh, 2.8rem);
+  margin: 0;
+  /* Type over a photograph never sits raw — §4. The plate here is the portrait's
+     own fade plus this, which is cheaper than a scrim and does not dull the art. */
+  text-shadow: 0 2px 10px rgb(4 2 10 / 0.8);
+}
+.starter-leader-title {
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+  font-style: italic;
+  text-shadow: 0 1px 6px rgb(4 2 10 / 0.8);
+}
+.starter-identity {
+  max-width: 44ch;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  margin: var(--sp-1) 0 0;
+  line-height: 1.5;
+}
+/* Full column width. §5's "the primary action is the widest thing in its panel"
+   is the one rule this button had never obeyed: it was a 44px stock pill, then a
+   58px one that wrapped its own label onto two lines. */
+.starter-actions { margin-top: var(--sp-4); width: 100%; }
+
+/**
+ * The most consequential button in the game, at hero scale.
+ *
+ * It used to carry `btn-lg`, a class no stylesheet defines, so it rendered as a
+ * stock 44px pill — the same size as Cancel. A class that does not exist is the
+ * quietest way for an intention to disappear.
+ */
+.starter-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 62px;
+  padding: 0 var(--sp-7);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.starter-confirm .hb-icon { --hb-icon-stroke: 3.2; }
+/* The label is a sentence with a faction name in it, and eleven faction names
+   are eleven lengths. Nowrap plus a shrink floor keeps the button one line for
+   the longest of them rather than letting the longest one reflow the panel. */
+.starter-confirm span { white-space: nowrap; }
+
+@media (max-width: 900px), (max-height: 620px) {
+  .starter-body {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-4) var(--sp-4);
+  }
+  .starter-head { padding: var(--sp-2) var(--sp-4) var(--sp-2); }
+  .starter-sub { display: none; }
+  .starter-option { min-height: 48px; }
+  .starter-plate { width: 34px; height: 34px; }
+  .starter-plate-crest { width: 22px; height: 22px; }
+  .starter-current { display: none; }
+  .starter-identity, .starter-fact-wide { display: none; }
+  .starter-detail { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--sp-2); }
+  .starter-detail-body { padding: var(--sp-3) var(--sp-3) var(--sp-3) 0; }
+  .starter-detail-crest { width: 32px; height: 32px; }
+  .starter-facts { grid-template-columns: minmax(0, 1fr); gap: var(--sp-1); margin-top: var(--sp-1); }
+  .starter-confirm { min-height: 48px; font-size: var(--fs-md); padding: 0 var(--sp-5); }
+  .starter-actions { margin-top: var(--sp-2); }
 }
 
 /* --- The Grand Tour ------------------------------------------------------ */
@@ -2196,18 +3878,10 @@ button.story-card:not(:disabled):hover {
 .mission-note { font-size: var(--fs-xs); }
 .missions-foot { font-size: var(--fs-sm); margin: 0; }
 
-/* the unclaimed-missions badge on the lobby's nav button */
-.lobby-nav-badge {
-  margin-left: auto;
-  min-width: 20px;
-  padding: 0 6px;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  color: #14101f;
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  text-align: center;
-}
+/* The lobby's unclaimed badge used to be defined here as `margin-left: auto`
+   inside a column-flex button — which is not a corner pin, it is a third
+   stacked row, and it landed the count half off the bottom-right curve of the
+   tile. The real object lives with the rest of the lobby in the LOBBY section. */
 
 @media (max-width: 700px) {
   .missions-list { grid-template-columns: 1fr; }
@@ -3750,62 +5424,736 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 /* ---------------------------------------------------------------------------
    Sign-in and the casual queue.
 
-   Both are text-first on purpose: the sign-in screen's job is as much to say
-   what an account is for as to collect one, and the queue screen's job is to
-   show a real number rather than an indeterminate spinner.
+   Both used to be a single 720px column of body copy: the sign-in screen was
+   four fifths legal text with the form as a footnote, and the queue — the
+   longest wait in the game — was the word "Connecting…" in a static panel with
+   two thirds of the viewport empty behind it. Neither is less honest now. The
+   sign-in essay is intact behind a disclosure with the three facts that change
+   a decision promoted onto a stage; the queue's real player count is bigger and
+   more prominent than it has ever been, and the sentence explaining why the
+   number is shown at all is still on the screen.
    --------------------------------------------------------------------------- */
 
-.signin-body,
-.queue-body {
-  display: flex;
-  flex-direction: column;
+/*
+ * `auto` rows, not `1fr`.
+ *
+ * A `1fr` row stretches both panels to the full height of the viewport, which
+ * on a 900px screen is two 720px slabs holding four lines of content each —
+ * bigger is not the same as more present. The rows take their height from what
+ * is in them and the whole block is centred instead, so the panels are the size
+ * of their contents and the composition sits in the middle of the frame.
+ */
+.signin-body {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 0 minmax(0, 1fr) minmax(340px, 0.78fr);
+  grid-template-rows: auto auto;
   gap: var(--sp-4);
-  padding: var(--sp-5);
-  max-width: 720px;
+  padding: var(--sp-3) var(--sp-6) var(--sp-5);
+  max-width: 1480px;
+  width: 100%;
   margin: 0 auto;
+  /* Content-sized rows, centred as a block. A `1fr` row stretches both panels
+     to the full height of the viewport, which on a 900px screen is two 700px
+     slabs holding six lines each — bigger is not the same as more present. The
+     portrait sets the height of the composition and the panels stand beside it. */
+  align-content: center;
+  align-items: center;
   overflow-y: auto;
 }
 
-.signin-panel,
-.queue-panel { padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3); }
-.signin-note,
-.queue-note { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); }
-.signin-note p,
-.queue-note p { font-size: var(--fs-sm); line-height: 1.55; }
-.signin-lead { line-height: 1.55; }
-
-.signin-form { display: flex; flex-direction: column; gap: var(--sp-3); }
-.signin-field { display: flex; flex-direction: column; gap: var(--sp-1); }
-.signin-field span { font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
-.signin-field input {
-  padding: var(--sp-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.28);
-  color: inherit;
-  font: inherit;
+/* The leader takes a real column only when there is a leader. An empty track at
+   `0` rather than a `display: none` on the element keeps the two panels in the
+   same grid areas in both cases, so nothing below has to know. */
+.signin-screen.has-leader .signin-body {
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr) minmax(340px, 0.78fr);
 }
-/* The focus ring is the same one `verify:a11y` measures elsewhere; an input
-   that lost it would be the only focusable thing on screen without one. */
-.signin-field input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-.signin-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+/**
+ * The room, at heavy blur, behind everything.
+ *
+ * The venue the player is signing in to reach. `filter: blur()` on a fixed
+ * backdrop is one composited layer that never invalidates, which is why it is a
+ * blurred *image* rather than a `backdrop-filter` on three panels — that would
+ * re-filter on every scroll and on every panel that moves.
+ */
+.signin-room {
+  position: absolute;
+  inset: -6% -4%;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  filter: blur(26px) saturate(0.8);
+  opacity: 0.78;
+  mask-image: radial-gradient(126% 108% at 26% 26%, #000 22%, transparent 84%);
+  -webkit-mask-image: radial-gradient(126% 108% at 26% 26%, #000 22%, transparent 84%);
+}
+.signin-room-art { width: 100%; height: 100%; object-fit: cover; }
 
-/* Announced through `role="status"`, so it must also be visible. */
-.signin-status { font-size: var(--fs-sm); line-height: 1.4; }
-.signin-status[data-tone="error"] { color: var(--warning); }
+/* Bled off the left edge of the viewport. A portrait with four visible sides is
+   a photograph on a wall; one that runs out of the frame is somebody standing in
+   the room. `-6vw` is the smallest offset that reliably clears the rounded
+   corner of the screen padding at every width this layout survives. */
+.signin-portrait {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  margin-left: -6vw;
+  min-width: 0;
+  min-height: min(64vh, 620px);
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+.signin-portrait-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 46% 14%;
+  /* The canvas cuts its own right and bottom edges; this ramps the top so the
+     head is not sliced by a horizontal line, and the left simply leaves frame. */
+  mask-image: linear-gradient(180deg, transparent 0%, #000 14%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 14%);
+  /* A portrait standing in a room, not a picture in a frame: no plate, no rim,
+     just the cast it throws on the floor of the composition. */
+  filter: drop-shadow(10px 16px 34px rgb(0 0 0 / 0.7));
+}
+
+.signin-back,
+.queue-back { gap: var(--sp-2); padding: 0 var(--sp-4); }
+
+/* ---- the stage ----------------------------------------------------------- */
+
+.signin-stage {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-6);
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+  min-height: 0;
+}
+
+.signin-stage-wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(64% 58% at 12% 4%, rgb(181 108 255 / 0.22), transparent 70%),
+    radial-gradient(70% 44% at 88% 104%, rgb(82 200 255 / 0.14), transparent 72%);
+}
+
+.signin-stage > * { position: relative; }
+.signin-stage-title { font-size: clamp(1.5rem, 3.6vh, 2.3rem); margin: 0; }
+
+.signin-points {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  max-width: 44ch;
+}
+.signin-points li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-3);
+  align-items: start;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.signin-points strong { color: var(--text); font-weight: 600; }
+.signin-point-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  font-size: 18px;
+  color: var(--accent-bright);
+  border-radius: var(--r-field);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.1), rgb(0 0 0 / 0.26));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), inset 0 -1px 0 rgb(0 0 0 / 0.42);
+}
+
+/* ---- the form ------------------------------------------------------------ */
+
+.signin-panel,
+.queue-panel {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-3);
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+}
+
+.signin-panel { grid-column: 3; grid-row: 1; }
+/* The disclosure runs under the stage and the form, not under the portrait: a
+   line of legal text set across a person's knees is not a layout. */
+.signin-note { grid-column: 2 / -1; grid-row: 2; }
+
+.signin-lead { line-height: 1.55; }
+.signin-form { display: flex; flex-direction: column; gap: var(--sp-4); }
+.signin-field { display: flex; flex-direction: column; gap: var(--sp-1); }
+.signin-field .t-label { color: var(--text-faint); }
+.signin-field .field { min-height: 46px; font-size: var(--fs-md); }
+
+.signin-actions { display: flex; flex-direction: column; gap: var(--sp-2); align-items: stretch; }
+
+/**
+ * The primary action is the widest thing in the panel, which it was not.
+ *
+ * "Sign in" used to be a ~100px pill sitting beside a ~245px ghost button, so
+ * the secondary action dominated the primary one — §6's "the most saturated
+ * thing on screen should be the thing that matters most", inverted. Arena's
+ * login CTA is the widest element in its panel; so is this one now.
+ */
+.signin-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 56px;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.signin-toggle {
+  align-self: center;
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid transparent;
+  transition: color var(--dur-micro) var(--ease-arrive), border-color var(--dur-micro) var(--ease-arrive);
+}
+.signin-toggle:hover { color: var(--text); border-color: var(--glass-border-bright); }
+
+/* Announced through `role="status"`, so it must also be visible — and it must
+   not be visible by colour alone, which is why there is a mark in front of it
+   and `aria-invalid` on the fields it refers to. */
+.signin-status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}
+.signin-status[hidden] { display: none; }
+.signin-status-mark { display: inline-flex; font-size: 16px; margin-top: 1px; }
+/* `--danger`, not `--warning`: amber is a caution and a rejected password is a
+   failure. The two were being signalled with the same colour. */
+.signin-status[data-tone="error"] { color: var(--danger); }
 .signin-status[data-tone="info"] { color: var(--text-faint); }
+.signin-status[data-tone="info"] .signin-status-mark { display: none; }
 
-.queue-state { font-family: var(--font-display); font-size: var(--fs-xl); }
-.queue-detail { font-size: var(--fs-sm); }
+/* One shake, 180ms, and only for people who have not asked for less motion —
+   the message and the marked fields carry the whole meaning without it. */
+.signin-panel.is-wrong { animation: signin-shake 180ms var(--ease-arrive) 1; }
+
+@keyframes signin-shake {
+  0%, 100% { translate: 0 0; }
+  25% { translate: -6px 0; }
+  60% { translate: 4px 0; }
+}
+
+:root[data-reduced-motion="true"] .signin-panel.is-wrong { animation: none; }
+
+/* ---- the disclosure ------------------------------------------------------ */
+
+/**
+ * Raised, not recessed, and that is the fix rather than a preference.
+ *
+ * It wore `.mat-well`, and a recess only reads as a recess when it is recessed
+ * *into* something. Sitting on the page background with nothing around it, the
+ * bar measured L 10.4 against a backdrop running 11.2-17.9 — the third surface
+ * on the screen was darker than the page it stood on and dissolved into it. As a
+ * panel it is an object on the floor of the composition, which is what it is.
+ */
+.signin-note {
+  align-self: start;
+  padding: var(--sp-3) var(--sp-4);
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+}
+.signin-note-summary {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  gap: var(--sp-2);
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+.signin-note-summary::-webkit-details-marker { display: none; }
+.signin-note[open] .signin-note-summary { color: var(--text); }
+.signin-note-mark {
+  display: inline-flex;
+  font-size: 15px;
+  transition: rotate var(--dur-micro) var(--ease-arrive);
+}
+.signin-note[open] .signin-note-mark { rotate: 90deg; }
+.signin-note-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  max-height: 34vh;
+  overflow-y: auto;
+  animation: starter-swap var(--dur-ui) var(--ease-arrive) backwards;
+}
+.signin-note-body p { margin: 0; font-size: var(--fs-sm); line-height: 1.55; color: var(--text-dim); }
+
+@media (max-width: 900px), (max-height: 560px) {
+  .signin-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    padding: var(--sp-3);
+    gap: var(--sp-3);
+    overflow-y: auto;
+    /* `center` in a scrolling grid puts the first row above the scroll origin,
+       where nothing can reach it — at 844×390 the EMAIL label was sliced off the
+       top with no way to scroll up to it. */
+    align-content: start;
+  }
+  .signin-stage { display: none; }
+  .signin-portrait { display: none; }
+  .signin-screen.has-leader .signin-body { grid-template-columns: minmax(0, 1fr); }
+  .signin-panel, .signin-note { grid-column: 1; grid-row: auto; }
+  .signin-panel { padding: var(--sp-4); }
+  .signin-form { gap: var(--sp-3); }
+  .signin-submit { min-height: 48px; font-size: var(--fs-md); }
+  .signin-note { grid-column: auto; }
+}
+
+/* ---------------------------------------------------------------------------
+   The queue.
+   --------------------------------------------------------------------------- */
+
+/**
+ * Full width, because the room is the screen.
+ *
+ * It used to be a 620px column centred in 1600px, which is the shape of a
+ * dialog rather than of a place — and a searchlight sweeping a 620px box in the
+ * middle of a black page is a widget with a spotlight drawn on it. The stage
+ * now runs the width of the viewport and the writing stands on it.
+ */
+.queue-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  width: 100%;
+  margin: 0 auto;
+}
+
+.queue-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  min-height: 0;
+}
+
+/* The note is the one thing on this screen that is a column of text, so it is
+   the one thing that is measured. */
+.queue-note { max-width: 92ch; margin: 0 auto; }
+
+.queue-stage > * { position: relative; }
+
+/**
+ * The searchlight.
+ *
+ * Two arcs on the same fixed 4s period, one trailing the other, sweeping a pair
+ * of rings around a crosshair. Fixed is the whole argument: the queue does not
+ * know when somebody will arrive, so nothing here may fill, tick down or
+ * accelerate. It says "still looking" for exactly as long as that is true.
+ *
+ * A conic gradient rotated by `transform` — one compositor property, no layout,
+ * no per-frame JavaScript. `data-state` stops it dead when the search does.
+ */
+.queue-searchlight {
+  position: relative;
+  width: 100%;
+  height: min(56vh, 460px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: var(--r-panel);
+  /* One clock for the whole room. The beam, the haze, the horizon, the leader's
+     breath and the rim light that comes up as the beam reaches him are all
+     multiples of this, so nothing in the place can drift out of phase with the
+     lamp. Four seconds, fixed, exactly as before. */
+  --queue-period: 4s;
+}
+
+/* The venue, at heavy blur, filling the back of the room. */
+.queue-room {
+  position: absolute;
+  inset: -8% -6% -4%;
+  filter: blur(18px) saturate(0.9);
+  opacity: 0.85;
+  mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 62%, transparent 94%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 62%, transparent 94%);
+}
+.queue-room-art { width: 100%; height: 100%; object-fit: cover; }
+
+/**
+ * The floor, in perspective, which is the thing that was missing.
+ *
+ * A repeating gradient laid flat with `rotateX` is a real ground plane for the
+ * price of one element: the lines converge because the plane recedes rather than
+ * because somebody drew them converging, so the vanishing point stays honest at
+ * every viewport. Masked to nothing at the horizon and at the near edge, so the
+ * plane has no ends.
+ */
+.queue-floor {
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  bottom: -16%;
+  height: 74%;
+  perspective: 340px;
+  perspective-origin: 50% 0%;
+  pointer-events: none;
+}
+.queue-floor::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: rotateX(70deg);
+  transform-origin: 50% 0%;
+  background:
+    repeating-linear-gradient(90deg, rgb(206 168 255 / 0.28) 0 1px, transparent 1px 56px),
+    repeating-linear-gradient(0deg, rgb(206 168 255 / 0.2) 0 1px, transparent 1px 56px),
+    linear-gradient(180deg, rgb(52 32 94 / 0.42), rgb(8 4 18 / 0.9));
+  mask-image: linear-gradient(180deg, transparent 0%, #000 24%, rgb(0 0 0 / 0.5) 76%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 24%, rgb(0 0 0 / 0.5) 76%, transparent 100%);
+}
+
+/* Where the floor meets the dark. A horizon is one line of light, and it is what
+   tells the eye that the plane is a plane. */
+.queue-horizon {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 44%;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(217 165 255 / 0.6) 24%, rgb(126 214 255 / 0.5) 64%, transparent);
+  filter: blur(1.5px);
+  animation: queue-horizon-breathe calc(var(--queue-period) * 2.75) var(--ease-in-out) infinite;
+}
+
+@keyframes queue-horizon-breathe {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.88; }
+}
+
+/**
+ * The lamp, and the two beams it throws across the floor.
+ *
+ * Still a conic gradient on a fixed period — that part was always right and it
+ * is the honest part: a light that never speeds up cannot imply progress it does
+ * not have. What changed is where it lands. The cone is laid on the floor plane
+ * with the same `rotateX` the grid uses, so it sweeps *the room* instead of
+ * spinning in mid-air, and it alternates between two bearings rather than
+ * rotating through 360°, because a searchlight sweeps back and forth and a full
+ * rotation is a radar dish. A radar dish is what this screen used to be.
+ */
+.queue-sweep {
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  bottom: -16%;
+  height: 74%;
+  perspective: 340px;
+  perspective-origin: 50% 0%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.queue-beam {
+  position: absolute;
+  inset: 0;
+  transform: rotateX(70deg);
+  transform-origin: 50% 0%;
+  background: conic-gradient(
+    from 0deg at 50% 0%,
+    transparent 0deg,
+    color-mix(in srgb, var(--accent-bright) 50%, transparent) 12deg,
+    color-mix(in srgb, var(--accent-bright) 12%, transparent) 30deg,
+    transparent 62deg,
+    transparent 360deg
+  );
+  mask-image: linear-gradient(180deg, transparent 0%, #000 24%, rgb(0 0 0 / 0.5) 78%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 24%, rgb(0 0 0 / 0.5) 78%, transparent 100%);
+  filter: blur(4px);
+  opacity: 0.92;
+  animation: queue-sweep-arc var(--queue-period) var(--ease-in-out) infinite alternate;
+}
+
+.queue-beam-b {
+  background: conic-gradient(
+    from 0deg at 50% 0%,
+    transparent 0deg,
+    color-mix(in srgb, var(--accent-cool) 32%, transparent) 16deg,
+    transparent 40deg,
+    transparent 360deg
+  );
+  animation-duration: calc(var(--queue-period) * 1.6);
+  animation-direction: alternate-reverse;
+  opacity: 0.6;
+}
+
+@keyframes queue-sweep-arc {
+  from { rotate: -32deg; }
+  to { rotate: 32deg; }
+}
+
+/* Air. Without something in it a beam is a coloured triangle on the floor rather
+   than light travelling through a room. */
+.queue-haze {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(56% 40% at 50% 54%, rgb(150 110 235 / 0.15), transparent 74%),
+    radial-gradient(92% 30% at 50% 102%, rgb(20 12 42 / 0.72), transparent 78%);
+  animation: queue-haze-drift calc(var(--queue-period) * 3.5) var(--ease-in-out) infinite;
+}
+
+@keyframes queue-haze-drift {
+  0%, 100% { opacity: 0.8; translate: -1% 0; }
+  50% { opacity: 1; translate: 1% 0; }
+}
+
+/**
+ * The plinth: somebody standing on the floor, breathing.
+ *
+ * The cast is a separate ellipse on the ground rather than a `drop-shadow` on
+ * the portrait, for the same reason the lobby's is — a shadow welded to the
+ * object it belongs to rises with that object, which is a light source bolted to
+ * the thing it lights. This one softens and spreads as the figure lifts.
+ */
+.queue-plinth {
+  position: absolute;
+  left: 50%;
+  bottom: 2%;
+  translate: -50% 0;
+  width: min(34vh, 300px);
+  height: min(58vh, 420px);
+  display: none;
+}
+.queue-searchlight.has-leader .queue-plinth { display: block; }
+
+.queue-leader {
+  position: absolute;
+  inset: 0;
+  animation: queue-breathe calc(var(--queue-period) * 1.75) var(--ease-in-out) infinite;
+}
+.queue-leader-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 10%;
+  mask-image: linear-gradient(180deg, transparent 0%, #000 12%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%);
+}
+
+@keyframes queue-breathe {
+  0%, 100% { translate: 0 0; scale: 1; }
+  50% { translate: 0 -6px; scale: 1.006; }
+}
+
+.queue-cast {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: -2%;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(3 1 8 / 0.8), transparent 78%);
+  filter: blur(6px);
+  animation: queue-cast-breathe calc(var(--queue-period) * 1.75) var(--ease-in-out) infinite;
+}
+
+@keyframes queue-cast-breathe {
+  0%, 100% { opacity: 0.9; scale: 1 1; }
+  50% { opacity: 0.64; scale: 1.07 0.88; }
+}
+
+/**
+ * The one secondary reaction, and the reason this is a place rather than a
+ * widget.
+ *
+ * The beam alternates on `--queue-period`; at each end of its arc it crosses the
+ * plinth. This is what that does to the figure standing there — a rim of the
+ * light's own colour comes up his lit side and goes again, on the same clock.
+ * §3 calls secondary motion "the single biggest gap between animated and alive",
+ * and one thing reacting to another thing is the whole of it.
+ */
+.queue-leader-lit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--accent-bright) 36%, transparent) 0%,
+    transparent 38%
+  );
+  mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 82%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 82%, transparent 100%);
+  opacity: 0;
+  animation: queue-lit var(--queue-period) var(--ease-in-out) infinite;
+}
+
+@keyframes queue-lit {
+  0% { opacity: 0.55; }
+  26% { opacity: 0; }
+  74% { opacity: 0; }
+  100% { opacity: 0.55; }
+}
+
+/* Stopped means stopped: a light still sweeping after the socket closed is the
+   interface lying about what it is doing. The room stays lit — it is a place,
+   and a place does not go out — but nothing in it moves. */
+.queue-searchlight[data-state="stopped"] .queue-beam,
+.queue-searchlight[data-state="found"] .queue-beam,
+.queue-searchlight[data-state="stopped"] .queue-leader-lit,
+:root[data-reduced-motion="true"] .queue-beam,
+:root[data-reduced-motion="true"] .queue-haze,
+:root[data-reduced-motion="true"] .queue-horizon,
+:root[data-reduced-motion="true"] .queue-leader,
+:root[data-reduced-motion="true"] .queue-cast { animation-play-state: paused; }
+:root[data-reduced-motion="true"] .queue-leader-lit { animation: none; opacity: 0.26; }
+.queue-searchlight[data-state="stopped"] .queue-beam { opacity: 0.22; }
+.queue-searchlight[data-state="found"] .queue-leader-lit {
+  animation: none;
+  opacity: 0.8;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--success) 44%, transparent) 0%, transparent 40%);
+}
+
+.queue-readout { text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
+.queue-state { font-size: clamp(1.25rem, 3.2vh, 2rem); }
+.queue-detail { font-size: var(--fs-sm); color: var(--text-dim); }
+
+.queue-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-5);
+  --r-self: var(--r-chip);
+  border-radius: var(--r-chip);
+  background: linear-gradient(var(--light-sweep), rgb(60 44 96 / 0.6), rgb(20 13 37 / 0.72));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5),
+    0 4px 14px -6px rgb(0 0 0 / 0.7);
+}
+.queue-count[hidden] { display: none; }
+.queue-count-value {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 4.4vh, 2.6rem);
+  font-weight: 800;
+  --num-align: center;
+  color: var(--accent-bright);
+}
+.queue-count .t-label { color: var(--text-faint); }
+.queue-record { color: var(--text-faint); }
+.queue-record[hidden] { display: none; }
+
+/* The offer, at the same radius as the panel it sits in rather than the 6px it
+   used to have — two disagreeing radii on nested boxes is §7's exact example. */
 .queue-offer {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-4);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--accent-gold);
-  background: rgba(0, 0, 0, 0.22);
+  padding: var(--sp-4) var(--sp-5);
+  max-width: 46ch;
+  text-align: center;
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+  animation: queue-offer-in var(--dur-setpiece) var(--ease-arrive) backwards;
 }
 .queue-offer[hidden] { display: none; }
-.queue-offer-text { font-size: var(--fs-sm); line-height: 1.55; }
+.queue-offer-head { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--accent-gold); }
+.queue-offer-text { font-size: var(--fs-sm); line-height: 1.55; margin: 0; color: var(--text-dim); }
+.queue-offer-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 var(--sp-5);
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+@keyframes queue-offer-in {
+  from { opacity: 0; translate: 0 14px; scale: 0.98; }
+  to { opacity: 1; translate: none; scale: 1; }
+}
+
+:root[data-reduced-motion="true"] .queue-offer { animation: none; }
+
+.queue-note {
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+}
+.queue-note p { margin: 0; font-size: var(--fs-sm); line-height: 1.55; color: var(--text-dim); }
+
+/**
+ * Short viewports: the stage stops centring and starts scrolling.
+ *
+ * With the AI offer on screen the stage wants roughly 390px of content in about
+ * 250px of room, and a centred flex column overflows *both* ways — measured at
+ * 844×390 the searchlight was behind the header and the offer's button was off
+ * the bottom. Anchored to the top with the column scrolling, everything stays
+ * reachable and the light simply gets smaller.
+ */
+@media (max-height: 540px) {
+  .queue-body {
+    grid-template-rows: auto;
+    padding: var(--sp-2) var(--sp-4) var(--sp-3);
+    overflow-y: auto;
+  }
+  .queue-stage { justify-content: flex-start; gap: var(--sp-2); }
+  .queue-searchlight { width: min(30vh, 118px); height: min(30vh, 118px); flex: 0 0 auto; }
+  .queue-count { margin-top: var(--sp-1); padding: var(--sp-1) var(--sp-4); }
+  .queue-offer { padding: var(--sp-3) var(--sp-4); gap: var(--sp-2); }
+  .queue-offer-btn { min-height: 44px; }
+  .queue-note { display: none; }
+}

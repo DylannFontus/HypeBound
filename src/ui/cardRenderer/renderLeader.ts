@@ -22,12 +22,41 @@
  * circle, so all eight leaders share one world footprint and only the edge
  * treatment changes — and because the shape carries the identity, the Current
  * survives greyscale, which the project's accessibility rules require.
+ *
+ * ## The coin takes its light from `material.ts` and owns none of its own
+ *
+ * It used to own all of it. A local `metalGradient` built a conic starting at
+ * 2.356 rad and a linear from (94,40) to (346,292), and said so in its own doc
+ * comment: "shadowed upper-left, specular lower-right". Measured on 460px coins
+ * with the gems suppressed, Cinder was 3.7:1 brighter at the bottom-right, Tide
+ * 28:1, and Halo's specular peaked at 310° on screen — against a card frame that
+ * is 31.8:1 brighter at the *top*-left. The coin sits directly above the hand
+ * for the whole of every match, so the board had two suns in one frame, which is
+ * the defect the bar says reads as amateur before a viewer can name it.
+ *
+ * There is nothing left here that decides where the light is. The ring is
+ * `bandFace` and `bandShelf` with the Current's own metal, which is the same
+ * pair of calls and the same stops the card rim makes, and both of them derive
+ * their direction from `TO_LIGHT`.
  */
 
 import type { CardDef, CurrentId } from "../../engine/types";
 import { CURRENT_PALETTE, hexToRgba, mix } from "./palette";
 import { drawPlaceholderArt } from "./placeholderArt";
 import { getCardArt, onArtLoaded } from "../art/artLoader";
+import {
+  bandFace,
+  bandShelf,
+  drawGem,
+  drawNumber,
+  edgeGradient,
+  grainOver,
+  innerCast,
+  crossfadeIn,
+  onCardTextureReady,
+  refreshCardStyle,
+  type Metal,
+} from "./material";
 
 /** Canonical portrait size — landscape, because a card never is. */
 export const LEADER_W = 440;
@@ -236,7 +265,7 @@ function profileFor(current: CurrentId): number[] {
  * inner edge and art clip — share one profile, so the Current's signature
  * appears twice across the chrome and stays legible at ~92px on screen.
  */
-function traceRim(ctx: CanvasRenderingContext2D, profile: number[], k: number): void {
+function traceRim(ctx: CanvasRenderingContext2D | Path2D, profile: number[], k: number): void {
   for (let i = 0; i < profile.length; i++) {
     const theta = rad(i * PROFILE_STEP);
     const r = k * profile[i]!;
@@ -248,6 +277,13 @@ function traceRim(ctx: CanvasRenderingContext2D, profile: number[], k: number): 
   ctx.closePath();
 }
 
+/** The same contour as a reusable path, for the fills and strokes that share one. */
+function rimPath(profile: number[], k: number): Path2D {
+  const path = new Path2D();
+  traceRim(path, profile, k);
+  return path;
+}
+
 // ---------------------------------------------------------------------------
 // Gems
 // ---------------------------------------------------------------------------
@@ -257,101 +293,56 @@ function traceRim(ctx: CanvasRenderingContext2D, profile: number[], k: number): 
  * they are outlined by stroking before filling. A shadow blur alone smears at
  * this size instead of separating the glyph from the gem.
  */
-function drawNumeral(
-  ctx: CanvasRenderingContext2D,
-  value: number,
-  x: number,
-  y: number,
-  startSize: number,
-  maxWidth: number,
-  floor: number,
-  fill: string
-): void {
-  const text = String(value);
-  ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  let size = startSize;
-  ctx.font = `800 ${size}px "Segoe UI", system-ui, sans-serif`;
-  while (ctx.measureText(text).width > maxWidth && size > floor) {
-    size -= 2;
-    ctx.font = `800 ${size}px "Segoe UI", system-ui, sans-serif`;
-  }
-  ctx.lineJoin = "round";
-  ctx.lineWidth = Math.max(4, size * 0.1);
-  ctx.strokeStyle = "rgba(0,0,0,0.85)";
-  ctx.strokeText(text, x, y);
-  ctx.fillStyle = fill;
-  ctx.fillText(text, x, y);
-  ctx.restore();
-}
-
-/** Health: a blood drop, point UP, clamped to the rim at lower-right. */
+/**
+ * Health: the same rounded brilliant the card face uses, clamped to the rim at
+ * lower-right.
+ *
+ * It was a hand-drawn blood drop with a radial gradient and a black contour, and
+ * a leader medallion sat next to a board card wearing two entirely different
+ * ideas of what a health gem is. One primitive, one light, one bevel: the
+ * *shape* still differs from armour so the two stay separable in greyscale, but
+ * the material no longer does.
+ */
 function drawHealthGem(ctx: CanvasRenderingContext2D, value: number, state: LeaderPortraitState): void {
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(350, 165);
-  ctx.quadraticCurveTo(355, 161, 360, 165);
-  ctx.bezierCurveTo(384, 190, 409, 218, 409, 247);
-  ctx.arc(355, 247, 54, 0, Math.PI);
-  ctx.bezierCurveTo(301, 218, 326, 190, 350, 165);
-  ctx.closePath();
-
-  const grad = ctx.createRadialGradient(336, 225, 6, 355, 247, 54);
-  grad.addColorStop(0, "#ffb3b3");
-  grad.addColorStop(0.55, "#e03a4e");
-  grad.addColorStop(1, "#5f0d18");
-  ctx.fillStyle = grad;
-  ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.80)";
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  ctx.restore();
+  drawGem(ctx, {
+    shape: "round",
+    cx: 355,
+    cy: 240,
+    r: 58,
+    metal: { hi: "#ffc2c2", key: "#d8394c", lo: "#66101c", abyss: "#33070e" },
+    socket: true,
+    glow: 0.3,
+    lift: 5,
+  });
 
   const damaged = value < state.maxHealth;
   const over = value > state.maxHealth;
-  drawNumeral(ctx, value, 355, 247, 58, 73, 34, over ? "#7dff9a" : damaged ? "#ffcaca" : "#ffffff");
+  drawNumber(ctx, value, 355, 241, {
+    size: 62,
+    maxWidth: 82,
+    colour: over ? "#a6ffbc" : damaged ? "#ffb4b4" : "#ffffff",
+    outline: 8,
+  });
 }
 
 /**
- * Armour: a heater shield, point DOWN. The inverted orientation means health
- * and armour stay separable in pure greyscale, from silhouette alone. The
- * reference carries no armour at all, so this one is designed, not copied.
+ * Armour: a shield-cut of the same stone, in steel. The inverted silhouette
+ * means health and armour stay separable in pure greyscale, from shape alone.
+ * The reference carries no armour at all, so this one is designed, not copied.
  */
 function drawArmourGem(ctx: CanvasRenderingContext2D, value: number): void {
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(47, 180);
-  ctx.lineTo(123, 180);
-  ctx.quadraticCurveTo(131, 180, 131, 188);
-  ctx.lineTo(131, 238);
-  ctx.quadraticCurveTo(128, 272, 85, 300);
-  ctx.quadraticCurveTo(42, 272, 39, 238);
-  ctx.lineTo(39, 188);
-  ctx.quadraticCurveTo(39, 180, 47, 180);
-  ctx.closePath();
-
-  // Desaturated steel, deliberately not a saturated blue, so it never reads as
-  // Tide's key colour on a Tide leader.
-  const grad = ctx.createLinearGradient(85, 180, 85, 300);
-  grad.addColorStop(0, "#dbe9f7");
-  grad.addColorStop(0.45, "#5f7f9e");
-  grad.addColorStop(1, "#24435e");
-  ctx.fillStyle = grad;
-  ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.80)";
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
-  ctx.strokeStyle = "rgba(255,255,255,0.35)";
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(85, 188);
-  ctx.lineTo(85, 286);
-  ctx.stroke();
-  ctx.restore();
-
-  drawNumeral(ctx, value, 85, 236, 46, 57, 28, "#ffffff");
+  drawGem(ctx, {
+    shape: "shield",
+    cx: 85,
+    cy: 232,
+    r: 50,
+    // Desaturated steel, deliberately not a saturated blue, so it never reads as
+    // Tide's key colour on a Tide leader.
+    metal: { hi: "#e4eefb", key: "#6d8ba8", lo: "#26445f", abyss: "#122536" },
+    socket: true,
+    lift: 5,
+  });
+  drawNumber(ctx, value, 85, 231, { size: 48, maxWidth: 62, colour: "#ffffff", outline: 7 });
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +356,7 @@ export function renderLeaderPortrait(
 ): void {
   const palette = CURRENT_PALETTE[card.current as CurrentId];
   const profile = profileFor(card.current as CurrentId);
+  refreshCardStyle();
   ctx.clearRect(0, 0, LEADER_W, LEADER_H);
 
   // --- contact shadow: grounds the coin, and is a second round cue ----------
@@ -409,7 +401,23 @@ export function renderLeaderPortrait(
     const dy = Math.min(CY - R_ART, Math.max(CY + R_ART - dh, CY - 0.33 * dh));
     ctx.drawImage(art as CanvasImageSource, CX - dw / 2, dy, dw, dh);
   } else {
-    drawPlaceholderArt(ctx, { x: CX - R_ART, y: CY - R_ART, w: R_ART * 2, h: R_ART * 2 }, card.current, card.name);
+    /**
+     * The placeholder inside a circular clip.
+     *
+     * This is the case that used to produce a keyhole: a torso-and-head
+     * silhouette composed against a square, cropped to a disc, with the head the
+     * only part above the scrim. The composition is rotational now, which is why
+     * the same routine can fill a 512×680 rectangle and a 252px circle without
+     * either one reading as a crop — and the disclosure is placed by the caller,
+     * because only the caller knows the gems are about to cover the lower third.
+     */
+    drawPlaceholderArt(
+      ctx,
+      { x: CX - R_ART, y: CY - R_ART, w: R_ART * 2, h: R_ART * 2 },
+      card.current,
+      card.name,
+      { faction: card.faction, disclosure: { cx: CX, y: CY + R_ART * 0.52, width: R_ART * 1.5 } }
+    );
   }
 
   // a touch of the Current's colour so leaders still read elementally
@@ -445,27 +453,72 @@ export function renderLeaderPortrait(
   ctx.restore();
 
   // --- metal ring: the Current's one large coloured surface ----------------
+  const ringOuter = rimPath(profile, R_OUT);
+  const ringInner = rimPath(profile, R_METAL);
+  const ring = new Path2D();
+  ring.addPath(ringOuter);
+  ring.addPath(ringInner);
+  const bounds = { x: CX - R_OUT, y: CY - R_OUT, w: R_OUT * 2, h: R_OUT * 2 };
+  const metal: Metal = { hi: palette.hi, key: palette.key, lo: palette.lo, abyss: palette.abyss };
+
   ctx.save();
-  ctx.beginPath();
-  traceRim(ctx, profile, R_OUT);
-  traceRim(ctx, profile, R_METAL);
-  ctx.fillStyle = metalGradient(ctx, palette);
-  ctx.fill("evenodd");
+  ctx.fillStyle = bandFace(ctx, bounds, metal);
+  ctx.fill(ring, "evenodd");
   ctx.restore();
 
-  // contours: outer separates the coin from the mat, inner makes it inlaid
+  /**
+   * The moulding, which is the other half of what the card frame does.
+   *
+   * A ring filled with one gradient is a coloured stripe however correctly it is
+   * lit. What reads as *struck metal* is the narrow high-contrast specular where
+   * a profile changes angle, so the ring is cut into two steps — an outer lip and
+   * a recessed inner shelf — and the wall between them is stroked with the same
+   * edge gradient the card's shelf uses: white where it faces the light, black
+   * where it turns away. The proportions are the card's, 42% of the band's width
+   * given to the lip, so a coin and a card frame are recognisably the same
+   * section at two scales.
+   */
+  const shelfRadius = R_OUT - (R_OUT - R_METAL) * 0.42;
+  const shelfPath = rimPath(profile, shelfRadius);
+  const shelf = new Path2D();
+  shelf.addPath(shelfPath);
+  shelf.addPath(ringInner);
   ctx.save();
-  ctx.strokeStyle = "rgba(0,0,0,0.72)";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  traceRim(ctx, profile, R_OUT);
-  ctx.stroke();
-  ctx.strokeStyle = "rgba(0,0,0,0.6)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  traceRim(ctx, profile, R_METAL);
-  ctx.stroke();
+  ctx.fillStyle = bandShelf(ctx, bounds, metal);
+  ctx.fill(shelf, "evenodd");
   ctx.restore();
+
+  // the same grain every other surface in the game wears, at one cell per
+  // device pixel, so the coin is not a mathematically smooth gradient
+  grainOver(ctx, ring, 0.95, "evenodd");
+
+  // the wall of the step
+  ctx.save();
+  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = edgeGradient(ctx, bounds, 0.5, 0.58);
+  ctx.stroke(shelfPath);
+  ctx.restore();
+
+  /**
+   * Contours, lit rather than flat black.
+   *
+   * Both edges used to be a uniform dark stroke, which separates the coin from
+   * the mat and says nothing about which way it faces. Stroking each with the
+   * shared edge gradient means the outer wall catches the key light on its
+   * top-left and the inner wall — which faces the other way — catches it on its
+   * bottom-right, and the ring reads as a raised bezel instead of an outline.
+   */
+  ctx.save();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = edgeGradient(ctx, bounds, 0.4, 0.8);
+  ctx.stroke(ringOuter);
+  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = edgeGradient(ctx, bounds, 0.3, 0.72, true);
+  ctx.stroke(ringInner);
+  ctx.restore();
+
+  // and the ring's own shadow, falling across the portrait it surrounds
+  innerCast(ctx, rimPath(profile, R_ART), bounds, { blur: 14, alpha: 0.6, lift: 6, tone: "dark", away: true });
 
   // Halo is identified by being a perfect circle, so it gets the one piece of
   // added detail that reinforces rather than breaks that: a tick ring.
@@ -493,39 +546,6 @@ export function renderLeaderPortrait(
   drawHealthGem(ctx, state.health, state);
 }
 
-/** Directionally lit metal: shadowed upper-left, specular lower-right. */
-function metalGradient(
-  ctx: CanvasRenderingContext2D,
-  palette: (typeof CURRENT_PALETTE)[CurrentId]
-): CanvasGradient {
-  const dark = mix(palette.lo, "#000000", 0.25);
-  const mid = mix(palette.lo, palette.key, 0.5);
-
-  // createConicGradient is not in every browser we target; the linear fallback
-  // keeps the same light direction, just without the wrap-around falloff.
-  const conic = (ctx as CanvasRenderingContext2D & {
-    createConicGradient?: (startAngle: number, x: number, y: number) => CanvasGradient;
-  }).createConicGradient;
-  if (typeof conic === "function") {
-    const grad = conic.call(ctx, 2.356, CX, CY);
-    grad.addColorStop(0, dark);
-    grad.addColorStop(0.18, mid);
-    grad.addColorStop(0.38, palette.key);
-    grad.addColorStop(0.5, palette.hi);
-    grad.addColorStop(0.62, palette.key);
-    grad.addColorStop(0.82, mid);
-    grad.addColorStop(1, dark);
-    return grad;
-  }
-
-  const grad = ctx.createLinearGradient(94, 40, 346, 292);
-  grad.addColorStop(0, dark);
-  grad.addColorStop(0.3, palette.key);
-  grad.addColorStop(0.55, palette.hi);
-  grad.addColorStop(1, dark);
-  return grad;
-}
-
 /** Render a leader portrait into a canvas; repaints when its art loads. */
 export function renderLeaderToCanvas(
   card: CardDef,
@@ -547,10 +567,33 @@ export function renderLeaderToCanvas(
   };
   paint();
 
+  /**
+   * The art-loaded crossfade, matching the card face.
+   *
+   * A leader medallion is the largest single image on the lobby and on the
+   * board, and it was the most conspicuous pop in the game: art-pending one
+   * frame, painted the next.
+   */
+  const fadeIn = (): void => {
+    crossfadeIn(
+      canvas,
+      (target) => {
+        target.scale(scale * dpr, scale * dpr);
+        renderLeaderPortrait(target, card, state);
+      },
+      paint
+    );
+  };
+
   const unsubscribe = onArtLoaded((cardId) => {
     if (cardId !== card.id) return;
-    paint();
+    fadeIn();
     unsubscribe();
+  });
+
+  const unsubscribeGrain = onCardTextureReady(() => {
+    paint();
+    unsubscribeGrain();
   });
 
   return canvas;

@@ -8,10 +8,37 @@
  */
 
 import type { CurrentId, StatusId } from "../../engine/types";
-import { getAsset } from "../art/assetLoader";
 import { iconPath } from "../art/iconAssets";
+import { scaledAsset } from "../art/texture";
 
 type IconFn = (ctx: CanvasRenderingContext2D) => void;
+
+/**
+ * The painted icon, resampled once at the size it is about to be drawn.
+ *
+ * The nineteen Current and crest masters are 512×512 and the card draws them
+ * into boxes of 28 to 44 pixels. Going straight there in one `drawImage` makes
+ * the browser resample a quarter of a million pixels on the main thread for
+ * every card on the screen, and — because a single-step downscale of that ratio
+ * skips most of the source — the thin strokes alias, so an icon on the board
+ * shimmers as the card moves. `scaledAsset` halves repeatedly into a cached
+ * bitmap, which is both the mipmap the GPU would have built and roughly a
+ * hundredth of the work.
+ *
+ * The size wanted is in **device** pixels, and the card renderer draws in
+ * card-space under a scale transform, so the transform is what has to be asked.
+ * `getTransform` is not in the 2D context type in every lib version this project
+ * builds against, hence the probe rather than a straight call.
+ */
+function paintedAt(path: string, ctx: CanvasRenderingContext2D, cssSize: number): CanvasImageSource | null {
+  let scale = 1;
+  const probe = (ctx as CanvasRenderingContext2D & { getTransform?: () => DOMMatrix }).getTransform;
+  if (typeof probe === "function") {
+    const matrix = probe.call(ctx);
+    scale = Math.max(Math.abs(matrix.a), Math.abs(matrix.d)) || 1;
+  }
+  return scaledAsset(path, cssSize * scale);
+}
 
 // ---------------------------------------------------------------------------
 // Current icons
@@ -202,7 +229,7 @@ export function drawCurrentIcon(
    * `docs/ASSET-BRIEF.md` §2.2). Re-tinting it flat would throw that away and
    * make eight hand-made icons look like the eight shapes they replaced.
    */
-  const painted = getAsset(iconPath("current", current));
+  const painted = paintedAt(iconPath("current", current), ctx, radius * 2);
   if (painted) {
     ctx.drawImage(painted, cx - radius, cy - radius, radius * 2, radius * 2);
     return;
@@ -387,7 +414,7 @@ export function drawFactionCrest(
   color: string,
   factionId?: string
 ): void {
-  const painted = factionId ? getAsset(iconPath("crest", factionId)) : null;
+  const painted = factionId ? paintedAt(iconPath("crest", factionId), ctx, radius * 2) : null;
   if (painted) {
     ctx.drawImage(painted, cx - radius, cy - radius, radius * 2, radius * 2);
     return;

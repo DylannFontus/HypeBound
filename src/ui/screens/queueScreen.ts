@@ -16,6 +16,22 @@
  * The AI offer is a button that appears, not a redirect. §9.3 says *offer*, and
  * the player stays in the queue while it is on screen — if somebody joins while
  * they are reading it, they get the human match they asked for.
+ *
+ * ## The longest wait in the game used to be a paragraph
+ *
+ * "Connecting…" set in body copy inside a static panel, with two thirds of the
+ * screen empty near-black behind it: no loader, no motion, no world. §3 says
+ * idle is never dead and §7 says loading is part of the world rather than a
+ * spinner — and a sentence is worse than a spinner, because it does not even
+ * move. Gwent keeps the leader animated on a lit plinth while you wait; Arena
+ * runs the planeswalker idle and a slowly filling searchlight.
+ *
+ * What is here is a searchlight: an arc that sweeps the room on a fixed 4s
+ * period. Fixed is the important word. A bar that fills would be a promise
+ * about progress this screen cannot keep — the queue has no idea when somebody
+ * will turn up — so the light says "still looking" for as long as that is true
+ * and never implies it is getting closer. The number underneath it is the real
+ * one, in tabular figures, and it usually says 1.
  */
 
 import type { ContentIndex, DeckList, Seat } from "../../engine/types";
@@ -27,6 +43,9 @@ import { LobbySocket, type QueueStatus } from "../../net/lobbySocket";
 import { browserSockets } from "../../net/wsTransport";
 import { describeRecord, fetchMyRecord } from "../../net/playerRecord";
 import { contentHash } from "../../engine/content";
+import { paintLeaderPortrait, paintVenue } from "../art/leaderPortrait";
+import { icon } from "../art/uiIcons";
+import { duration, num } from "../format";
 
 export interface QueueCallbacks {
   onBack: () => void;
@@ -43,46 +62,144 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   const root = document.createElement("div");
   root.className = "screen queue-screen";
 
+  /** Whose face stands on the plinth: the leader of the deck being queued. */
+  const leaderCard = deck ? content.leaders[deck.leaderCardId] : undefined;
+  const leader = leaderCard?.type === "leader" ? leaderCard : undefined;
+
   root.innerHTML = `
-    <div class="ambient-bg"></div>
     <header class="screen-header">
-      <button class="btn btn-ghost" id="queue-back">← Leave the queue</button>
+      <button class="btn btn-ghost queue-back" id="queue-back">${icon("arrow-left")}<span>Leave the queue</span></button>
       <h1 class="title">Casual Match</h1>
     </header>
 
     <main class="queue-body">
-      <section class="panel panel-chrome queue-panel">
-        <div class="queue-state" id="queue-state" role="status" aria-live="polite">Connecting…</div>
-        <div class="queue-detail muted" id="queue-detail"></div>
-        <div class="queue-record muted" id="queue-record" hidden></div>
+      <section class="queue-stage">
+        <div class="queue-searchlight" aria-hidden="true">
+          <div class="queue-room"></div>
+          <div class="queue-floor"></div>
+          <div class="queue-horizon"></div>
+          <div class="queue-sweep"><span class="queue-beam"></span><span class="queue-beam queue-beam-b"></span></div>
+          <div class="queue-haze"></div>
+          <div class="queue-plinth">
+            <div class="queue-cast"></div>
+            <div class="queue-leader"></div>
+            <div class="queue-leader-lit"></div>
+          </div>
+        </div>
 
-        <div class="queue-offer" id="queue-offer" hidden>
+        <div class="queue-readout">
+          <div class="queue-state t-display" id="queue-state" role="status" aria-live="polite">Connecting…</div>
+          <div class="queue-detail" id="queue-detail"></div>
+          <div class="queue-count" id="queue-count" hidden>
+            <span class="num queue-count-value" style="--digits:2" id="queue-count-value">1</span>
+            <span class="t-label" id="queue-count-label">in this queue</span>
+          </div>
+          <div class="queue-record t-label" id="queue-record" hidden></div>
+        </div>
+
+        <div class="queue-offer mat-panel" id="queue-offer" hidden>
+          <div class="t-label queue-offer-head">${icon("timer")} Four minutes, nobody here</div>
           <p class="queue-offer-text">
-            Nobody has turned up in four minutes. You can keep waiting — if somebody joins,
-            you will be matched with them — or play the AI instead.
+            You can keep waiting — if somebody joins, you will be matched with them —
+            or play the AI instead.
           </p>
-          <button class="btn btn-primary" id="queue-play-ai" type="button">Play the AI instead</button>
+          <button class="queue-offer-btn mat-hero act" id="queue-play-ai" type="button">Play the AI instead</button>
         </div>
       </section>
 
-      <section class="panel panel-chrome queue-note">
-        <h3 class="profile-section-title">What this number means</h3>
-        <p class="muted">
+      <aside class="queue-note mat-well">
+        <h3 class="t-label">What this number means</h3>
+        <p>
           The count is the real number of people in this queue, including you. This game is
           new and usually that number is one. It is shown rather than hidden because a
           spinner that never resolves and an empty queue look identical, and only one of
           them is a bug.
         </p>
-      </section>
+      </aside>
     </main>`;
 
   const stateEl = root.querySelector<HTMLElement>("#queue-state");
   const detailEl = root.querySelector<HTMLElement>("#queue-detail");
   const offerEl = root.querySelector<HTMLElement>("#queue-offer");
+  const countEl = root.querySelector<HTMLElement>("#queue-count");
+  const countValueEl = root.querySelector<HTMLElement>("#queue-count-value");
+  const countLabelEl = root.querySelector<HTMLElement>("#queue-count-label");
+  const light = root.querySelector<HTMLElement>(".queue-searchlight");
+
+  /**
+   * The room, built before the light.
+   *
+   * The previous version was two rings, a hub sphere and two beams rotating over
+   * a near-black field, with a comment on `.queue-stage::before` claiming to be
+   * "the room the light is sweeping" and a render in which that room was
+   * invisible. A beam with nothing to fall on is a diagram: it is the same
+   * spinner §7 forbids, wearing a costume.
+   *
+   * So there is a floor with a horizon on it, haze standing in the air above it,
+   * the venue at heavy blur behind, and the player's own leader standing on the
+   * floor breathing. The beam sweeps *across the floor* on the same fixed 4s
+   * period it always had — nothing here fills, ticks down or accelerates,
+   * because the queue does not know when anybody will arrive — and as it passes
+   * the leader, a rim light comes up on him and goes again. That single
+   * secondary reaction is the whole difference between a widget and a place: the
+   * light does something to something.
+   */
+  const roomHost = root.querySelector<HTMLElement>(".queue-room");
+  if (roomHost) {
+    roomHost.appendChild(
+      paintVenue(leader?.faction ?? "default", {
+        width: 900,
+        aspect: 0.5,
+        bias: 0.02,
+        scrim: 0.34,
+        dim: 0.24,
+        className: "queue-room-art",
+      })
+    );
+  }
+
+  const leaderHost = root.querySelector<HTMLElement>(".queue-leader");
+  if (leaderHost && leader) {
+    leaderHost.appendChild(
+      paintLeaderPortrait(leader, {
+        width: 460,
+        aspect: 1.42,
+        bias: 0.1,
+        scrim: 0.34,
+        // Cut on three sides. A figure standing in a room has no frame; a
+        // rectangle in the middle of a floor is a poster somebody left there.
+        fadeLeft: 0.28,
+        fadeRight: 0.28,
+        fadeBottom: 0.26,
+        className: "queue-leader-art",
+      })
+    );
+    light?.classList.add("has-leader");
+  }
 
   const say = (state: string, detail = ""): void => {
     if (stateEl) stateEl.textContent = state;
     if (detailEl) detailEl.textContent = detail;
+  };
+
+  /**
+   * The number, on its own, big and tabular.
+   *
+   * It is separated from the sentence because it is the one thing on the screen
+   * a player is actually reading, and because a figure that reflows the line
+   * when it goes from 9 to 10 is the defect §4 names. The sentence beside it
+   * still carries the honesty ("just you"); the figure carries the fact.
+   */
+  const showCount = (waiting: number): void => {
+    if (!countEl || !countValueEl || !countLabelEl) return;
+    countValueEl.textContent = num(waiting);
+    countLabelEl.textContent = waiting === 1 ? "in this queue — just you" : "in this queue";
+    countEl.hidden = false;
+  };
+
+  /** The light stops sweeping the moment there is nothing left to look for. */
+  const settle = (state: "searching" | "found" | "stopped"): void => {
+    light?.setAttribute("data-state", state);
   };
 
   let lobby: LobbySocket | null = null;
@@ -106,7 +223,10 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   });
 
   const start = async (): Promise<void> => {
-    if (!onlineAvailable()) return say("This build has no server configured.", "Nothing to connect to.");
+    if (!onlineAvailable()) {
+      settle("stopped");
+      return say("This build has no server configured.", "There is nothing to connect to from here.");
+    }
     if (!currentAccount()) return callbacks.onNeedsSignIn();
     if (!deck) return callbacks.onNeedsDeck();
 
@@ -125,8 +245,16 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
       build: "dev",
       contentHash: contentHash(content),
       handlers: {
-        onQueued: (_ticketId, waiting) => say("Looking for an opponent…", describe(waiting, 0)),
-        onSearching: (status) => say("Looking for an opponent…", describeStatus(status)),
+        onQueued: (_ticketId, waiting) => {
+          settle("searching");
+          showCount(waiting);
+          say("Looking for an opponent…", describe(0));
+        },
+        onSearching: (status) => {
+          settle("searching");
+          showCount(status.waiting);
+          say("Looking for an opponent…", describeStatus(status));
+        },
         onAiOffer: () => {
           offerEl?.removeAttribute("hidden");
           // Announced, not just revealed: a player on a screen reader has been
@@ -136,6 +264,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
         },
         onMatchFound: (found) => {
           audio.play("sfx.ui.confirm");
+          settle("found");
           say("Match found", "Loading the board…");
           callbacks.onMatchFound({
             matchId: found.matchId,
@@ -144,6 +273,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
           });
         },
         onRejected: (rejection) => {
+          settle("stopped");
           if (rejection.code === "buildMismatch") {
             return say("This tab is running an older version", "Reload the page and try again.");
           }
@@ -154,6 +284,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
         },
         onClosed: (reason) => {
           if (disposed) return;
+          settle("stopped");
           say("Disconnected from the queue", reason);
         },
       },
@@ -174,6 +305,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   });
 
   void start().catch((error: unknown) => {
+    settle("stopped");
     say("Could not join the queue", error instanceof Error ? error.message : String(error));
   });
 
@@ -194,16 +326,21 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   };
 }
 
-/** "1 player searching" — with the singular, because it will usually be one. */
-function describe(waiting: number, waitedMs: number): string {
-  const people = waiting === 1 ? "1 player searching (just you)" : `${waiting} players searching`;
-  if (waitedMs < 1000) return people;
-  return `${people} · ${Math.round(waitedMs / 1000)}s`;
+/**
+ * The line under the number.
+ *
+ * The count itself moved out of this string and onto the stage, so what is left
+ * is the wait and the rule — and the rule is worth printing. §9.3 widens the
+ * rating band as the wait grows, and saying so is more honest than a bar that
+ * fills: it is the actual thing the server is doing while nothing appears to
+ * happen.
+ */
+function describe(waitedMs: number): string {
+  if (waitedMs < 1000) return "The queue widens the longer you wait.";
+  return `Waiting ${duration(waitedMs, { units: 2 })}.`;
 }
 
 function describeStatus(status: QueueStatus): string {
-  const base = describe(status.waiting, status.waitedMs);
-  // §9.3 widens the rating band as the wait grows. Saying so is more honest
-  // than a bar that fills: it is the actual rule the server is applying.
-  return status.band >= 400 ? `${base} · matching anyone` : base;
+  const base = describe(status.waitedMs);
+  return status.band >= 400 ? `${base} Matching anyone now.` : base;
 }
