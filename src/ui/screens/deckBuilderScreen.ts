@@ -61,6 +61,8 @@ import {
   installKitStyles,
   lazyPaint,
   rarityTag,
+  retileOnResize,
+  tileWidth,
 } from "./collectionKit";
 
 /** 03 §4.3.2: "deck name (16 chars)". */
@@ -311,6 +313,7 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
 
   interface PoolCell {
     root: HTMLElement;
+    slot: HTMLElement;
     badge: HTMLElement;
     canvas: HTMLCanvasElement | null;
     card: CardDef;
@@ -337,6 +340,34 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     poolOrder = [];
   }
 
+  /**
+   * Draw the card at the width the pool grid actually handed the cell.
+   *
+   * The constant it replaces was 150, which at 844×390 — a resolution the bar
+   * names as a floor — was drawn into a 96px track, so the pool overlapped
+   * itself and ran off the right-hand edge.
+   */
+  function paintPool(entry: PoolCell): void {
+    if (entry.canvas) return;
+    // measured once: `clientWidth` inside the paint loop is a forced reflow of
+    // the whole pool for every card, which costs more than it saves
+    if (poolTrack === 0) poolTrack = tileWidth(entry.root, 150);
+    const canvas = renderCardToCanvas(entry.card, poolTrack, {});
+    entry.canvas = canvas;
+    entry.slot.replaceWith(canvas);
+  }
+  let poolTrack = 0;
+
+  function retilePool(): void {
+    poolTrack = 0;
+    for (const entry of poolCells.values()) {
+      if (!entry.canvas) continue;
+      entry.canvas.replaceWith(entry.slot);
+      entry.canvas = null;
+      painter.watch(entry.root, () => paintPool(entry));
+    }
+  }
+
   function buildPoolCell(card: CardDef): PoolCell {
     const cell = document.createElement("button");
     cell.className = "pool-cell";
@@ -352,16 +383,11 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     badge.className = "pool-badge";
     cell.appendChild(badge);
 
-    const entry: PoolCell = { root: cell, badge, canvas: null, card, attached: false, stopDrag: () => {} };
+    const entry: PoolCell = { root: cell, slot, badge, canvas: null, card, attached: false, stopDrag: () => {} };
 
     cell.addEventListener("click", () => addCard(card));
 
-    painter.watch(cell, () => {
-      if (entry.canvas) return;
-      const canvas = renderCardToCanvas(card, 150, {});
-      entry.canvas = canvas;
-      slot.replaceWith(canvas);
-    });
+    painter.watch(cell, () => paintPool(entry));
 
     /**
      * §4.3.2's *"build around this card"*, on a card you own.
@@ -1254,6 +1280,9 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
   }
 
   root.querySelector("#db-back")?.addEventListener("click", () => callbacks.onBack());
+  const unbindRetile = poolHost
+    ? retileOnResize(poolHost, () => poolHost.querySelector(".pool-cell")?.clientWidth ?? 0, retilePool)
+    : () => {};
   renderAll();
 
   /** Automation hook, the same shape the other screens expose. */
@@ -1271,6 +1300,7 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       painter.stop();
       unbindPoolFades();
       unbindSideFades();
+      unbindRetile();
       for (const cell of poolCells.values()) cell.stopDrag();
       for (const row of rows.values()) row.stopDrag();
       delete (window as unknown as { hypeboundBuilder?: unknown }).hypeboundBuilder;

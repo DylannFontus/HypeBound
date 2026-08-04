@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="hb-boot">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -25,15 +25,191 @@
     -->
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
-    <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <!--
+      The wordmark is the first picture of the product, so it is asked for in the
+      head rather than discovered when the boot plate is parsed a dozen lines
+      later. `as="image"` puts it in the same high-priority bucket as the
+      stylesheet instead of behind the module graph.
+    -->
+    <link rel="preload" as="image" href="./assets/brand/hb-wordmark.png" />
     <link rel="stylesheet" href="/src/ui/theme/base.css" />
+
+    <!--
+      ## The first frame of the product, painted by the document
+
+      Measured before this existed, on a *warm* reload with every module in the
+      HTTP cache and an RTX 2060 doing the drawing: 932 milliseconds at mean
+      luminance 5.8/255 — the bare `--bg-void` fill from `base.css` — before the
+      first pixel of the returning sting. Nothing was broken. The page had
+      painted; there was simply nothing in the body to paint but a colour, and
+      every millisecond of module evaluation, content validation and shell
+      construction happened behind it. On GitHub Pages over a real network it is
+      longer, and it is the frame a stranger judges the game on.
+
+      So the boot state is *in the document*. No script runs to produce it, no
+      stylesheet outside the one already in the head is consulted, and the only
+      request it adds is the wordmark it draws — which the intro and the lobby
+      header were both going to ask for anyway, so it is a request moved earlier
+      rather than a request added. A black first frame stops being a thing that
+      is merely short and becomes a thing that is structurally impossible.
+
+      What it paints is the *hub room*, at the same 315° key as everything else
+      and from the same three radial washes `atmosphere.ts` uses, so the handover
+      is a brightening rather than a swap: by the time `main.ts` removes
+      `.hb-boot` there is a real atmosphere layer underneath drawing very nearly
+      the same picture. `main.ts` takes the class off; `base.css` and the
+      atmosphere own every pixel from then on.
+
+      §3's "idle is never dead" applies to a loading screen more than to
+      anything else, so the mark breathes on a 3.6s period at very low
+      amplitude — one compositor-only `opacity`/`transform` animation on one
+      element, which is affordable even while the module graph is being
+      evaluated on the main thread.
+    -->
+    <style>
+      .hb-boot,
+      .hb-boot body {
+        background-color: #05030b;
+      }
+
+      #hb-boot-plate {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        /* Same recipe as `.atm-wash`: grainless here, because the generator is
+           a canvas in `texture.ts` and this must not wait for a script. */
+        background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+        background-image:
+          radial-gradient(78% 62% at 18% 4%, rgb(88 78 132 / 0.2), transparent 66%),
+          radial-gradient(62% 52% at 82% 16%, rgb(126 86 118 / 0.13), transparent 70%),
+          radial-gradient(96% 62% at 50% 112%, rgb(70 100 130 / 0.11), transparent 62%),
+          linear-gradient(135deg, #0c0b1c 0%, #0a0716 46%, #05030b 100%);
+        opacity: 1;
+        transition: opacity 420ms cubic-bezier(0.4, 0, 1, 1);
+      }
+
+      /* `main.ts` drops the class; the plate fades on the compositor and is
+         removed a beat later. Kept as a class swap rather than a removal so
+         nothing has to be re-queried if the plate is already gone. */
+      html:not(.hb-boot) #hb-boot-plate {
+        opacity: 0;
+      }
+
+      #hb-boot-mark {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: min(38vw, 44vh, 420px);
+        aspect-ratio: 3 / 1;
+        margin: -6vh 0 0 0;
+        transform: translate3d(-50%, -50%, 0);
+        background: url("./assets/brand/hb-wordmark.png") center / contain no-repeat;
+        opacity: 0.34;
+        will-change: opacity, transform;
+        animation: hb-boot-breathe 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+
+      @keyframes hb-boot-breathe {
+        0%,
+        100% {
+          opacity: 0.26;
+          transform: translate3d(-50%, -50%, 0) scale(0.988);
+        }
+        50% {
+          opacity: 0.42;
+          transform: translate3d(-50%, -50%, 0) scale(1);
+        }
+      }
+
+      /* The one horizontal line of light, on the same seam the curtain uses, so
+         the boot plate and the curtain are recognisably the same piece of
+         furniture rather than two loading states. */
+      #hb-boot-seam {
+        position: absolute;
+        left: 12%;
+        right: 12%;
+        top: 50%;
+        height: 1px;
+        margin-top: 5vh;
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          rgb(181 108 255 / 0.28) 22%,
+          rgb(226 205 255 / 0.5) 50%,
+          rgb(181 108 255 / 0.28) 78%,
+          transparent 100%
+        );
+        opacity: 0.8;
+        will-change: opacity;
+        animation: hb-boot-seam 3.6s cubic-bezier(0.4, 0, 0.2, 1) 180ms infinite;
+      }
+
+      @keyframes hb-boot-seam {
+        0%,
+        100% {
+          opacity: 0.5;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #hb-boot-mark,
+        #hb-boot-seam {
+          animation: none;
+        }
+        #hb-boot-mark {
+          opacity: 0.34;
+        }
+      }
+    </style>
   </head>
   <body>
+    <!--
+      Before `#app`, so it is behind every screen in document order as well as
+      by z-index, and outside it, so the router cannot remove it by accident.
+    -->
+    <div id="hb-boot-plate" aria-hidden="true">
+      <div id="hb-boot-mark"></div>
+      <div id="hb-boot-seam"></div>
+    </div>
     <div id="app" aria-live="polite"></div>
     <div id="rotate-overlay" hidden>
       <div class="rotate-overlay-inner">
-        <div class="rotate-icon" aria-hidden="true">⟳</div>
+        <!--
+          The `refresh` drawing from `src/ui/art/uiIcons.ts`, pasted rather than
+          imported. This is the one screen in the game that is shown before any
+          module has evaluated, so it cannot call `icon("refresh")` — and the
+          `⟳` it used to hold rendered in whatever font the OS supplied, at the
+          wrong weight, and was tofu on any device missing the code point. Module
+          C of the foundation contract deletes Unicode-as-icon everywhere else;
+          this was the last one, and it was on the first thing a phone player is
+          ever shown.
+
+          24px grid, 1.75px stroke, `currentColor` — identical to the other 107.
+          The path is `ART.refresh`; if that drawing is ever revised, revise it
+          here too, which is why the source is named.
+        -->
+        <svg
+          class="rotate-icon"
+          viewBox="0 0 24 24"
+          width="40"
+          height="40"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.75"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          focusable="false"
+          aria-hidden="true"
+        >
+          <path d="M16.2 4.72 A8.4 8.4 0 1 1 7.8 4.72" />
+          <path d="M4.4 4.4 L7.8 4.72 L6.4 7.8" />
+        </svg>
         <p>Rotate your device to landscape to play HYPEBOUND.</p>
       </div>
     </div>

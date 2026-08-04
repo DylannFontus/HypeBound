@@ -21,7 +21,7 @@ import { currentAccount, deleteAccount } from "../../auth/account";
 import { deleteMyServerData } from "../../net/playerRecord";
 import { policiesData } from "../../game/policies";
 import { audio } from "../../audio/audio";
-import { longDate } from "./data/kit";
+import { icon, longDate } from "./data/kit";
 
 export interface PrivacyCallbacks {
   onBack: () => void;
@@ -75,16 +75,16 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="privacy-back">← Back</button>
+        <button class="btn btn-ghost" id="privacy-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Privacy</h1>
         <div class="mastery-wallet">
           <div class="currency" title="Policy version">
-            <span class="currency-icon">◆</span><span class="currency-value">${esc(privacy.version)}</span>
+            <span class="currency-icon">${icon("diamond", 14)}</span><span class="currency-value">${esc(privacy.version)}</span>
           </div>
         </div>
       </header>
 
-      <main class="policy-body data-body">
+      <main class="policy-body data-body data-doc">
         <section class="panel panel-chrome policy-summary">
           <div class="t-label">In plain language · effective ${DATE.format(new Date(privacy.effectiveDate))}</div>
           ${privacy.summary.map((line) => `<p>${esc(line)}</p>`).join("")}
@@ -140,8 +140,8 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
           <h2 class="profile-section-title">Data requests</h2>
           ${privacy.requests.map((line) => `<p class="muted">${esc(line)}</p>`).join("")}
           <div class="mail-actions">
-            <button class="btn btn-ghost" id="privacy-support">Customer support →</button>
-            <button class="btn btn-ghost" id="privacy-legal">Legal information →</button>
+            <button class="btn btn-ghost" id="privacy-support">Customer support ${icon("arrow-right", 15)}</button>
+            <button class="btn btn-ghost" id="privacy-legal">Legal information ${icon("arrow-right", 15)}</button>
           </div>
         </section>
       </main>`;

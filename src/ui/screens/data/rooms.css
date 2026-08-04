@@ -864,17 +864,24 @@
   filter: drop-shadow(0 0 8px color-mix(in srgb, var(--event-accent, var(--accent)) 55%, transparent));
 }
 
-.events-screen .event-key-symbol {
-  font-size: 1.5rem;
-  color: var(--event-accent, var(--accent));
-  text-shadow: 0 2px 8px rgb(0 0 0 / 0.85);
+/**
+ * The token inside the countdown ring, and the one pinned to a rail card.
+ *
+ * The ring's child is centred by the grid above it; the rail card has no ring,
+ * so its token pins itself to the same top-right corner the ring occupies on the
+ * live card. Both are the drawn coin — `.event-key-symbol` and its `.is-small`
+ * variant were a Unicode character at 1.5rem and 1.15rem, and one of the three
+ * events authored `❘`, so the archive rendered its currency as a vertical bar.
+ */
+.events-screen .event-key-clock > .d-token {
+  filter: drop-shadow(0 2px 8px rgb(0 0 0 / 0.85));
 }
 
-.events-screen .event-key-symbol.is-small {
+.events-screen .d-key > .d-token {
   position: absolute;
   top: var(--sp-3);
   right: var(--sp-3);
-  font-size: 1.15rem;
+  filter: drop-shadow(0 2px 9px rgb(0 0 0 / 0.85));
 }
 
 .events-screen .event-body {
@@ -921,9 +928,8 @@
   --num-align: left;
 }
 
-.events-screen .event-symbol {
-  font-size: 1.4rem;
-  color: var(--event-accent, var(--accent));
+.events-screen .event-balance > .d-token {
+  align-self: center;
 }
 
 .events-screen .event-currency-name {
@@ -1083,19 +1089,35 @@
   }
 }
 
+.events-screen .event-rails {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: var(--sp-4);
+  align-items: start;
+}
+
 .events-screen .event-rail {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
+  min-width: 0;
 }
 
 .events-screen .event-rail-title {
   margin: 0;
 }
 
+/**
+ * `auto-fit`, not `auto-fill`, and the difference is the whole bug.
+ *
+ * `auto-fill` keeps the empty columns it created, so one event in a 1,114px band
+ * sat in the first 360px slot with two ghost columns beside it. `auto-fit`
+ * collapses the empties and lets the one card have the width. Same declaration
+ * everywhere else in this file for the same reason.
+ */
 .events-screen .event-rail-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: var(--sp-3);
 }
 
@@ -1397,6 +1419,11 @@
   height: 12px;
 }
 
+.leaderboards-screen .lb-meter-note {
+  margin: 0;
+  color: var(--text-faint);
+}
+
 .leaderboards-screen .lb-stats {
   margin-top: var(--sp-2);
   max-width: 420px;
@@ -1494,9 +1521,73 @@
   margin-right: 2px;
 }
 
+/**
+ * The workbench gets the wide measure, not the whole window.
+ *
+ * `screens.css` gives `.replay-body` a grid and a gutter and no `max-width`, so
+ * at 1600 the list and the stage spanned the full frame while the reading
+ * screens two clicks away — news, patch notes, the inbox, which are the same
+ * two-pane shape — sat inside 1440. That is the measure jumping between siblings
+ * that §8 of the recon is about. Same number, same gutter, same rhythm.
+ */
 .replay-screen .replay-body {
   padding-inline: clamp(16px, 3.4vw, 48px);
   gap: var(--sp-3);
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+}
+
+.replay-screen .replay-filters {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+}
+
+/* --- the route before the first match ------------------------------------ */
+
+/**
+ * One plate, composed, instead of two panels holding a sentence each.
+ *
+ * Measured before: content stopped at y=572 of 900 and the stage was an 1150×740
+ * rectangle with a 400px card floating in the middle of it. §2 reads an
+ * unresolved lower half as content that failed to load, and it is right to. The
+ * ladder plate is the same generator the Leaderboards silhouette uses, so the
+ * two most-empty screens in the domain are empty in the same language.
+ */
+.replay-screen .replay-body.is-virgin {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 900px;
+  padding-block: var(--sp-5) var(--sp-8);
+}
+
+.replay-screen .replay-stage.is-virgin {
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+  width: 100%;
+}
+
+.replay-screen .replay-virgin-key {
+  border-radius: 0;
+  opacity: 0.9;
+}
+
+.replay-screen .replay-virgin-text {
+  margin-top: -96px;
+  position: relative;
+  z-index: 1;
+  padding: 0 var(--sp-6) var(--sp-6);
+  background: none;
+  box-shadow: none;
+  border: none;
+  max-width: none;
+}
+
+.replay-screen .replay-virgin-text .t-body {
+  max-width: 56ch;
 }
 
 .replay-screen .replay-list {
@@ -1571,10 +1662,21 @@
   white-space: nowrap;
 }
 
-.replay-screen .replay-entry:disabled {
-  opacity: 1;
-  --mat-amp: 0.3;
-  cursor: not-allowed;
+/**
+ * A row without a replay is quieter, not dead.
+ *
+ * It used to be `disabled`, which took it out of the tab order and out of the
+ * pointer's reach — and since only the eight newest matches keep a record, most
+ * of a long history was unclickable. The result and the summary are still worth
+ * opening, so the row stays live and only its material steps down a rank.
+ */
+.replay-screen .replay-entry.is-recordless {
+  --mat-amp: 0.32;
+}
+
+.replay-screen .replay-noreplay {
+  margin: auto;
+  max-width: 480px;
 }
 
 .replay-screen .replay-note {
@@ -1833,6 +1935,74 @@
   overflow: visible;
   align-self: start;
   min-height: auto;
+}
+
+/**
+ * The index follows you down the article.
+ *
+ * The patch notes for 0.2.0 are 2,250px tall and the release list beside them is
+ * 340px, so by the time a player reaches the economy table the only way back to
+ * the other release is to scroll the whole page up again — and the left third of
+ * the frame below the list is dead for 1,900px of that. Sticking the index is the
+ * fix for both at once, and it is what every long-document UI does. `top` clears
+ * the header rail; `max-height` keeps the pane from ever being taller than the
+ * window it is pinned inside.
+ */
+@media (min-width: 900px) {
+  .news-screen .news-list-panel,
+  .inbox-screen .inbox-list-panel,
+  .patch-screen .patch-versions {
+    position: sticky;
+    top: var(--sp-2);
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+  }
+}
+
+/**
+ * The contents of the open release, in the rail.
+ *
+ * Two jobs, one object. It fills the 450×370 hole the release list left under
+ * itself — §2 reads an unresolved corner as content that failed to load — and it
+ * makes a 2,250px document navigable, which is the actual reason a shipped patch
+ * notes page has one. The counts are the same numbers the sections render, so
+ * "Fixed 14" is a promise the article keeps.
+ */
+.patch-screen .patch-index ul {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.patch-screen .patch-index-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 7px var(--sp-3);
+  border-radius: var(--r-field);
+  --r-self: var(--r-field);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  text-decoration: none;
+  transition:
+    background-color var(--dur-micro) var(--ease-arrive),
+    color var(--dur-micro) var(--ease-arrive);
+}
+
+@media (hover: hover) {
+  .patch-screen .patch-index-link:hover {
+    background: rgb(255 255 255 / 0.06);
+    color: var(--text);
+  }
+}
+
+.patch-screen .patch-index-count {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
 }
 
 .inbox-screen .mail-topic {
@@ -2393,17 +2563,33 @@
    blurb and a bare "0 / 6", so the screen squinted down to a stack of identical
    mid-purple bars with holes in them. The hole is now the crest and the meter. */
 
+/**
+ * The crest leads the row, and that is what closes the dead band.
+ *
+ * Recon defect 17: ~250px of nothing between where the blurb stopped and where
+ * the progress started, on every one of ten rows, so the screen squinted down to
+ * a stack of identical bars with holes in them. Putting the crest *between* them
+ * only moved the hole. The measure was the real cause — `.story-card-about` was
+ * capped at 58ch inside a `1fr` column 900px wide, so the column could never be
+ * full — so the crest moves to the head of the row where a faction mark belongs,
+ * the text column narrows to the width its own measure wants, and there is no
+ * leftover space for a hole to live in.
+ */
 .story-screen .story-card {
   display: grid;
-  grid-template-columns: 4px minmax(0, 1fr) minmax(200px, 300px) auto;
+  grid-template-columns: 4px auto minmax(0, 1fr) minmax(190px, 260px) auto;
   align-items: center;
-  gap: 0 var(--sp-5);
+  gap: 0 var(--sp-4);
   padding: var(--sp-4) var(--sp-5) var(--sp-4) 0;
   border: none;
   border-radius: var(--r-panel);
   --r-self: var(--r-panel);
   overflow: hidden;
   text-align: left;
+}
+
+.story-screen .story-card > .d-crest {
+  margin-left: var(--sp-4);
 }
 
 .story-screen .story-card-bar {
@@ -2425,21 +2611,35 @@
   margin: 0;
   font-size: var(--fs-sm);
   color: var(--text-dim);
-  max-width: 58ch;
 }
 
 .story-screen .story-card-track {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: var(--sp-3);
 }
 
+/**
+ * A rail that says "six episodes" while it is still empty.
+ *
+ * At the shared 10px with the shared tick alpha, an unstarted chapter's meter
+ * was a hairline the eye read as a divider, so the middle of the row still
+ * looked like nothing was there — which is the same complaint as the dead band
+ * wearing different clothes. Taller, and with the rungs cut in white rather than
+ * black, an empty track is a *count* before it is a progress bar.
+ */
 .story-screen .story-card-meter {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
+}
+
+.story-screen .story-card-meter .d-meter {
+  height: 14px;
+}
+
+.story-screen .story-card-meter .d-meter {
+  --meter-tick: rgb(255 255 255 / 0.18);
 }
 
 .story-screen .story-card-count {
@@ -2504,13 +2704,29 @@
   max-width: 520px;
 }
 
+/**
+ * Narrow: the row folds to two rows, and both children are told where to land.
+ *
+ * The first version dropped a column and left `.story-card-meta` to be
+ * auto-placed — which put it in the *4px bar column* of an implicit second row,
+ * where `justify-self: end` on a 118px chip inside a 4px track resolved to
+ * `left: -114`. Measured at 844×390: the Start button hung off the left edge of
+ * the window. Auto-placement is fine until a rule removes the track a child was
+ * counting on; naming the columns is the fix.
+ */
 @media (max-width: 1000px) {
   .story-screen .story-card {
-    grid-template-columns: 4px minmax(0, 1fr) auto;
+    grid-template-columns: 4px auto minmax(0, 1fr);
   }
 
   .story-screen .story-card-track {
-    grid-column: 2 / -1;
+    grid-column: 3 / -1;
+    margin-top: var(--sp-3);
+  }
+
+  .story-screen .story-card-meta {
+    grid-column: 3 / -1;
+    justify-self: start;
     margin-top: var(--sp-3);
   }
 }
@@ -2561,10 +2777,155 @@
 .remix-screen .remix-cta {
   padding: 11px var(--sp-5);
   font-weight: 700;
+  margin-top: var(--sp-2);
 }
 
 .remix-screen .remix-quest-line {
   font-size: var(--fs-md);
+}
+
+/* --- the week's rule, as a lit plate rather than six lines of text -------- */
+
+/**
+ * The hero panel holds its own key art, so the padding goes on the text.
+ *
+ * `.d-pad` would inset the banner too and leave a 24px moat of panel around a
+ * picture, which is the one thing key art must not have — it is the surface, not
+ * an illustration sitting on one. So the panel is flush and the caption column
+ * carries the inset, the same arrangement the event cards use.
+ */
+.remix-screen .remix-current {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  border-left: 3px solid var(--accent-hot, var(--accent));
+}
+
+.remix-screen .remix-key {
+  border-radius: 0;
+  margin: 0;
+}
+
+.remix-screen .remix-current-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  margin-top: -74px;
+  position: relative;
+  z-index: 1;
+}
+
+.remix-screen .remix-name {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  color: var(--text);
+  text-shadow: 0 2px 10px rgb(0 0 0 / 0.7);
+}
+
+.remix-screen .remix-rule {
+  margin: 0;
+  max-width: 62ch;
+}
+
+/**
+ * Inline, not flex, and that is the whole of the bug this replaced.
+ *
+ * `display: flex; gap: 8px` around "In force until <strong>Thu, 6 Aug 2026,
+ * 00:00</strong>, then the queue rotates." makes the `<strong>` a flex item, so
+ * the gap lands *between the strong and the comma that belongs to it* — the
+ * sentence rendered "until  Thu, 6 Aug 2026, 00:00  , then". A sentence is
+ * inline text and has to be laid out as inline text; only the leading icon needs
+ * aligning, and it can do that on its own.
+ */
+.remix-screen .remix-until,
+.remix-screen .remix-both {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.remix-screen .remix-until .hb-icon {
+  vertical-align: -2px;
+  margin-right: 4px;
+  color: var(--accent-bright, var(--accent));
+}
+
+/* --- the rotation, as ten reachable rows --------------------------------- */
+
+.remix-screen .remix-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--sp-2);
+}
+
+.remix-screen .remix-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  text-align: left;
+  color: var(--text);
+  border-top: none;
+}
+
+.remix-screen .remix-row.is-live {
+  --mat-tint: var(--accent);
+  box-shadow: var(--mat-cast), inset 0 0 0 1px color-mix(in srgb, var(--accent) 44%, transparent);
+}
+
+/**
+ * A deferred rule is dimmed by *material*, not by opacity.
+ *
+ * §A4 is explicit that an opacity-only disabled state is a contract violation,
+ * and it is also a legibility one: `opacity: 0.62` on the old row took the
+ * explanation text to 2.9:1 against the panel. The fill desaturates and the ink
+ * steps down to a colour that still clears 4.5:1.
+ */
+.remix-screen .remix-row.is-deferred {
+  filter: saturate(0.45);
+  cursor: default;
+}
+
+.remix-screen .remix-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.remix-screen .remix-row-name {
+  font-weight: 700;
+  font-size: var(--fs-md);
+}
+
+.remix-screen .remix-row-text {
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.remix-screen .remix-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-bright, var(--accent));
+}
+
+@media (hover: hover) {
+  .remix-screen .remix-row:not(:disabled):hover .remix-go {
+    color: var(--text);
+  }
+}
+
+.remix-screen .remix-locked {
+  gap: var(--sp-1);
 }
 
 .gauntlet-screen .gauntlet-none,
@@ -2658,10 +3019,173 @@
   margin: 0;
 }
 
+/**
+ * Two saves, side by side, because the screen is a comparison.
+ *
+ * They were stacked, so deciding between them meant scrolling from one to the
+ * other and holding six numbers in your head. Side by side, the row that differs
+ * is the one your eye lands on — which is the entire job of this route.
+ */
+.cloud-save-screen .cloud-save-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--sp-3);
+  align-items: stretch;
+}
+
+.cloud-save-screen .cloud-save-card {
+  min-width: 0;
+}
+
+.cloud-save-screen .cloud-save-none {
+  margin-top: var(--sp-2);
+  flex: 1 1 auto;
+}
+
+.cloud-save-screen .cloud-save-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.cloud-save-screen .cloud-save-skeleton .skeleton {
+  display: block;
+  height: 22px;
+  border-radius: var(--r-field);
+}
+
 .support-screen .support-faq .field,
 .support-screen .support-report .field,
 .support-screen .support-faq input[type="search"] {
   max-width: 420px;
+}
+
+/**
+ * The FAQ, in two columns, with each answer on its own plate.
+ *
+ * The old markup was a flat `<dl>` — a bold question at body size, an answer at
+ * body size directly beneath it, seven times — inside a 1114px panel whose prose
+ * stopped at 740px. So the largest object on the screen wasted its right third
+ * while the reader had no edge telling them where one answer ended. `auto-fit`
+ * spends the width; the recessed plate gives the pair a boundary; and the
+ * question is a different type role from the answer, which is what §4 means by
+ * a hierarchy rather than two sizes of the same weight.
+ */
+.support-screen .support-faq-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.support-screen .support-faq-head h2 {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.support-screen .support-search {
+  flex: 1 1 240px;
+  max-width: 420px;
+  margin: 0;
+}
+
+.support-screen .support-faq-count {
+  margin-left: auto;
+  color: var(--text-faint);
+}
+
+.support-screen .support-qa {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+.support-screen .support-qa-item {
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.support-screen .support-q {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--text);
+}
+
+.support-screen .support-a {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-dim);
+  max-width: 62ch;
+}
+
+/**
+ * The story archive is a `.panel` that the padding list also forgot.
+ *
+ * 1114×476 with its contents against the border, measured by the probe. Same
+ * failure as the Remix Queue's four, same one-line repair.
+ */
+.story-screen .story-archive {
+  padding: var(--sp-5);
+}
+
+/* -------------------------------------------------------------------------
+   The Lab
+   ------------------------------------------------------------------------- */
+
+.lab-screen .lab-group {
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+
+.lab-screen .lab-group > .t-label {
+  margin: 0;
+}
+
+.lab-screen .lab-check {
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+/**
+ * The sandbox fills the frame it is given.
+ *
+ * `.lab-body` is `height: calc(100% - 90px)` with the stage as its second
+ * column, so the board panel already reaches the bottom — but the editor beside
+ * it stopped at its last group and left 300px of bare grid under a scrolling
+ * column, which reads as the column having failed rather than having ended.
+ */
+.lab-screen .lab-editor {
+  padding-bottom: var(--sp-2);
+}
+
+/**
+ * The overflow that `.scroll` used to supply, without the scrollbar it broke.
+ *
+ * `.scroll` is `overflow-y: auto` *plus* `scrollbar-width`/`scrollbar-color`,
+ * and from Chrome 121 those two standard properties make the whole
+ * `::-webkit-scrollbar` block inert — which is why every pane wearing the class
+ * showed Chrome's Fluent bar with a stepper arrow at each end instead of the
+ * game's drawn thumb. `foundation.css` §1 documents the interaction and keeps the
+ * standard properties behind an `@supports` for exactly this reason; `.scroll`
+ * predates that and sets them unconditionally. These four panes want the scroll
+ * and not the side effect, so they take the one line and leave the class.
+ */
+.lab-screen .lab-editor,
+.lab-screen .lab-ops,
+.lab-screen .lab-log,
+.lab-screen .lab-move-list,
+.story-screen .story-archive-entry {
+  overflow-y: auto;
 }
 
 /* -------------------------------------------------------------------------
@@ -2757,6 +3281,169 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* --- the record band, which is what the lower third is for ---------------- */
+
+/**
+ * One column, one width, for both plates.
+ *
+ * `screens.css` gives `.doom-setup` `place-items: start center`, which centres
+ * each child at its own shrink-to-fit width — so the setup panel sat at its
+ * 820px cap and the record band beside it took whatever its contents wanted.
+ * Two stacked panels at two different widths on one screen is the composition
+ * failure §7 is about; a flex column with one measure is the whole fix.
+ */
+.doom-screen .doom-setup {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-3);
+  width: 100%;
+  max-width: 880px;
+  margin-inline: auto;
+}
+
+.doom-screen .doom-setup-panel {
+  max-width: none;
+}
+
+.doom-screen .doom-record {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.doom-screen .doom-record-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.doom-screen .doom-record-head h3 {
+  margin: 2px 0 0;
+}
+
+/* Three figures on one line. `.d-stats` is an auto-fit grid, which folds to a
+   single column the moment its container is narrow — right for a six-stat strip
+   across a page, wrong for three numbers pinned to the right of a heading. */
+.doom-screen .doom-record-stats {
+  display: flex;
+  gap: var(--sp-5);
+  margin: 0;
+}
+
+.doom-screen .doom-record-of {
+  color: var(--text-faint);
+  font-size: 0.7em;
+}
+
+.doom-screen .doom-acts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.doom-screen .doom-act {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  --mat-amp: 0.34;
+}
+
+/**
+ * The act you have not reached is dimmer, but not by opacity alone.
+ *
+ * The number plate loses its light, the name loses its display weight and the
+ * state cell says "Ahead" beside a lock — three channels, so the state survives
+ * greyscale and a screen reader hears it. §6's "never signal by colour alone"
+ * is a hard constraint and a row of three identical plates in three tints is
+ * exactly what it forbids.
+ */
+.doom-screen .doom-act-no {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-chip);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.08), rgb(0 0 0 / 0.3));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    inset 0 -1px 0 rgb(0 0 0 / 0.4);
+}
+
+.doom-screen .doom-act.is-cleared .doom-act-no,
+.doom-screen .doom-act.is-next .doom-act-no {
+  color: var(--text-invert);
+  background: linear-gradient(var(--light-sweep), var(--accent-bright, #d9a5ff), var(--accent));
+}
+
+.doom-screen .doom-act.is-next {
+  box-shadow: var(--mat-cast), inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.doom-screen .doom-act-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.doom-screen .doom-act-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.doom-screen .doom-act.is-cleared .doom-act-name,
+.doom-screen .doom-act.is-next .doom-act-name {
+  font-weight: 700;
+}
+
+.doom-screen .doom-act-blurb {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doom-screen .doom-act-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.doom-screen .doom-act.is-cleared .doom-act-state {
+  color: var(--success, #6fe0a4);
+}
+
+.doom-screen .doom-act.is-next .doom-act-state {
+  color: var(--accent-bright, var(--accent));
+}
+
+/** The drawn node marks want the icon grid's colour, not a glyph's. */
+.doom-screen .doom-node-icon {
+  display: grid;
+  place-items: center;
+  line-height: 0;
+}
+
 @media (max-width: 700px) {
   .doom-screen .doom-leader {
     grid-template-columns: minmax(0, 1fr);
@@ -2785,3 +3472,6 @@
 .replay-screen .replay-list {
   scrollbar-gutter: stable;
 }
+
+
+

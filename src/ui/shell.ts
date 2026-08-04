@@ -407,7 +407,35 @@ const CURTAIN = { close: 170, open: 210, lead: 110 } as const;
  * 260–420ms band with a frame's slack: a pause shorter than the shortest
  * legitimate transition is not a pause the player can name.
  */
-const HEAVY_BUILD_MS = 220;
+/**
+ * Above this, a build gets the curtain. Measured, not guessed.
+ *
+ * This was 220ms, on the reasoning that a frozen screen only stops reading as a
+ * beat once it is quite long. That is true of a *frozen* screen and false of a
+ * frozen transition, which is what actually happens: a CSS animation's clock
+ * runs in real time, so declaring one and then blocking for 116ms does not
+ * delay it — it consumes it. Four separate reviews caught the result and one
+ * caught it exactly, on `#collection → #lobby`: `nav-ascend-out` firing
+ * `animationstart` and `animationend` *in the same millisecond*, then one
+ * half-dismantled dark frame, then a cut to a settled lobby. The 320ms ascend
+ * had already elapsed inside the block.
+ *
+ * Attributed long tasks on this machine (75.2fps at rest, worst gap 13.5ms):
+ *
+ *     #lobby -> #play        116ms   under the old threshold, so unveiled
+ *     #lobby -> #settings     78ms + 97 + 80 + 74 + 50
+ *     #lobby -> #collection  489ms   over it, so this one was already covered
+ *
+ * So the two legs a player uses most were the two the veil declined to protect.
+ * 60ms is about four frames — the point at which a 260-420ms transition loses a
+ * visible fraction of itself. Below that a hitch is a hitch; above it, the whole
+ * move is gone and the player sees a cut.
+ *
+ * The curtain is the right tool and already works: it is a `translate3d` on the
+ * compositor, so once it has been given one frame by `twoFrames()` it keeps
+ * playing for the whole of the block underneath it.
+ */
+const HEAVY_BUILD_MS = 60;
 
 /**
  * How long the reveal will wait for a frame worth revealing on.

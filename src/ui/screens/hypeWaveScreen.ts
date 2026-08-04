@@ -153,9 +153,37 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
       const locked = track === "backstage" && !pass.backstage;
       const state = claimed ? "claimed" : claimable ? "claimable" : locked || !row.unlocked ? "locked" : "available";
 
+      /*
+       * The state word is only *printed* where it says something the tile
+       * cannot.
+       *
+       * Twenty tiers fit in one viewport, each with two lanes, so the honest
+       * rendering of "state as a word under every tile" is the word LOCKED
+       * forty times down a rail — which is what the first rebuild shipped, and
+       * it is the same defect §5 catches in a column of repeated grey text. The
+       * padlock is struck onto the reward tile instead (`.rw-tile[data-state]`),
+       * the lane key at the top of the track says which lane is shut, and the
+       * word survives on `.rw-sr` for a screen reader. What is left visible is
+       * the three states that are events rather than the default: Claimed, the
+       * Claim button, and Paid out.
+       */
+      const stateMark =
+        claimed
+          ? `<span class="pass-state" data-state="claimed">${icon("check")}<span>Claimed</span></span>`
+          : claimable && pick && track === "free"
+            ? `<button class="pass-claim mat-hero act pass-pick-open" data-tier="${row.tier}">Pick one</button>`
+            : claimable
+              ? `<button class="pass-claim mat-hero act pass-claim-btn" data-track="${track}" data-tier="${row.tier}">Claim</button>`
+              : row.unlocked && locked
+                ? `<span class="rw-sr">Needs the Backstage Pass</span>`
+                : row.unlocked
+                  ? `<span class="pass-state" data-state="available">${icon("dot")}<span>Paid out</span></span>`
+                  : `<span class="rw-sr">Locked — tier ${row.tier}</span>`;
+
       return `
         <div class="pass-cell mat-panel ${claimed ? "claimed" : ""} ${claimable ? "claimable" : ""} ${locked ? "locked" : ""}"
-             data-lane="${track}">
+             data-lane="${track}" data-state="${state}" data-milestone="${milestone ? 1 : 0}"
+             data-rewards="${rewards.length}">
           <div class="pass-rewards">
             ${rewards
               .map((reward) => {
@@ -164,7 +192,9 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
                 return (
                   rewardTileHtml(visual, {
                     state: state === "available" ? "none" : state,
-                    art: 40,
+                    /* em, because the lane it sits in is em: a fixed 40px tile
+                       was a quarter of its own cell at --ui-scale 1.4. */
+                    art: "2.55em",
                     bare: true,
                     title: visual.name,
                   }) +
@@ -174,19 +204,7 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
               })
               .join("")}
           </div>
-          ${
-            claimed
-              ? `<span class="pass-state" data-state="claimed">${icon("check")}<span>Claimed</span></span>`
-              : claimable && pick && track === "free"
-                ? `<button class="pass-claim mat-hero act pass-pick-open" data-tier="${row.tier}">Pick one</button>`
-                : claimable
-                  ? `<button class="pass-claim mat-hero act pass-claim-btn" data-track="${track}" data-tier="${row.tier}">Claim</button>`
-                  : row.unlocked && locked
-                    ? `<span class="pass-state" data-state="locked">${icon("lock")}<span>Backstage</span></span>`
-                    : row.unlocked
-                      ? `<span class="pass-state" data-state="available">${icon("dot")}<span>Paid out</span></span>`
-                      : `<span class="pass-state" data-state="locked">${icon("lock")}<span>Locked</span></span>`
-          }
+          ${stateMark}
         </div>`;
     };
 
@@ -336,7 +354,7 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
 
         ${
           pass
-            ? `<section class="pass-track mat-panel" style="display:grid;grid-template-rows:auto 1fr;min-height:0;padding:0">
+            ? `<section class="pass-track mat-panel">
                  <div class="pass-lane-key">
                    <span class="rw-lane-tag">${icon("chevron-up")}<span>Free lane</span></span>
                    <span class="rw-lane-tag">${icon("pass")}<span>Backstage lane${pass.backstage ? "" : " — locked"}</span></span>

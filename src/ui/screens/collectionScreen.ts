@@ -43,7 +43,9 @@ import {
   installKitStyles,
   lazyPaint,
   rarityTag,
+  retileOnResize,
   richText,
+  tileWidth,
 } from "./collectionKit";
 
 export interface CollectionCallbacks {
@@ -105,7 +107,9 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
           <span class="t-label">Filters</span>
           <span class="filter-active-count mat-chip chip-static num" id="filter-count" hidden>0</span>
         </div>
-        <div class="filter-rail-scroll hb-scroll" id="filter-rail-scroll"></div>
+        <div class="hb-scrollwrap hb-fade-top" id="filter-rail-wrap">
+          <div class="filter-rail-scroll hb-scroll" id="filter-rail-scroll"></div>
+        </div>
         <div class="filter-rail-foot" id="filter-rail-foot"></div>
       </aside>
 
@@ -131,6 +135,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   const grid = root.querySelector<HTMLElement>("#card-grid");
   const gridWrap = root.querySelector<HTMLElement>("#grid-wrap");
   const railScroll = root.querySelector<HTMLElement>("#filter-rail-scroll");
+  const railWrap = root.querySelector<HTMLElement>("#filter-rail-wrap");
   const railFoot = root.querySelector<HTMLElement>("#filter-rail-foot");
   const detail = root.querySelector<HTMLElement>("#card-detail");
   const searchInput = root.querySelector<HTMLInputElement>("#col-search");
@@ -140,7 +145,30 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   const ownedOut = root.querySelector<HTMLElement>("#col-owned");
   const shardsOut = root.querySelector<HTMLElement>("#col-shards");
 
-  const painter = lazyPaint(grid ?? root);
+  /**
+   * How far past the fold a card is drawn before it is needed.
+   *
+   * It was 500px, which on a 900px window is two extra rows: thirty-five cards
+   * rasterised on mount when twenty-one are visible, and a card costs about
+   * 35ms. Profiled, the navigation into this screen spends 2.2 seconds inside
+   * the renderer's `fillRect`, so every row not drawn is a quarter of a second
+   * of blocked main thread the player does not pay for. 320px is still a full
+   * row of lead, which is enough for the drain to stay ahead of a scroll.
+   */
+  const painter = lazyPaint(grid ?? root, "320px 0px");
+
+  /**
+   * Nothing is rasterised until the screen has finished arriving.
+   *
+   * Measured on the real navigation, lobby → collection: the transition, the
+   * atmosphere's own frame and thirty-five card rasterisations were all
+   * competing for the same main thread, so the descend ran at a handful of
+   * frames a second *and* the grid still took the better part of three seconds
+   * to fill. Sequencing them costs nothing and fixes both — the transition gets
+   * a clear 380ms, and the cards then land in one fast wave instead of trickling
+   * in behind a stuttering animation.
+   */
+  painter.hold(DUR.ui + 120);
 
   // ---- filter rail ---------------------------------------------------------
 
@@ -396,6 +424,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   };
 
   interface Cell {
+    card: CardDef;
     root: HTMLElement;
     slot: HTMLElement;
     canvas: HTMLCanvasElement | null;
@@ -567,7 +596,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     cell.appendChild(fav);
 
     // built detached; `render` attaches it in reading order on the same pass
-    const entry: Cell = { root: cell, slot, canvas: null, count, fav, lock, shown: false };
+    const entry: Cell = { card, root: cell, slot, canvas: null, count, fav, lock, shown: false };
 
     const open = (): void => {
       audio.play("sfx.ui.click");
@@ -611,14 +640,48 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       walk(cell, step);
     });
 
-    painter.watch(cell, () => {
-      if (entry.canvas) return;
-      const canvas = renderCardToCanvas(card, 168, {});
-      entry.canvas = canvas;
-      slot.replaceWith(canvas);
-    });
+    painter.watch(cell, () => paint(entry));
 
     return entry;
+  }
+
+  /**
+   * The shelf track, measured once and then remembered.
+   *
+   * Reading `clientWidth` is a synchronous layout flush, and the painter calls
+   * this from a loop that has just inserted a canvas — so measuring per tile
+   * made every single card re-lay the whole eight-thousand-pixel grid before it
+   * could be drawn. Measured, that alone put 500–900ms back onto a mount this
+   * work exists to shorten. Every tile on a shelf is the same width by
+   * construction; the only thing that changes it is a resize, and `retile`
+   * already knows when one of those has happened.
+   */
+  let trackWidth = 0;
+
+  /** Draw the card at whatever width the shelf has actually given the tile. */
+  function paint(entry: Cell): void {
+    if (entry.canvas) return;
+    if (trackWidth === 0) trackWidth = tileWidth(entry.root, 168);
+    const canvas = renderCardToCanvas(entry.card, trackWidth, {});
+    entry.canvas = canvas;
+    entry.slot.replaceWith(canvas);
+  }
+
+  /**
+   * A resize past a breakpoint is a new tile size, and a stale bitmap is soft.
+   *
+   * Every painted card is thrown away and re-queued rather than redrawn on the
+   * spot: only the ones the player can actually see are worth rasterising again,
+   * and the lazy painter already knows which those are.
+   */
+  function retile(): void {
+    trackWidth = 0;
+    for (const entry of cells.values()) {
+      if (!entry.canvas) continue;
+      entry.canvas.replaceWith(entry.slot);
+      entry.canvas = null;
+      painter.watch(entry.root, () => paint(entry));
+    }
   }
 
   /**
@@ -692,12 +755,85 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     if (host.hidden !== !on) host.hidden = !on;
   }
 
+  /**
+   * The survivors of a filter slide to their new places (§3a).
+   *
+   * "Filtering re-flows with a transition rather than a jump" is one of the
+   * named requirements, and every card that stayed on screen used to teleport:
+   * clear one Current chip and forty cards appear instantly two columns to the
+   * left, which reads as a page reload rather than a rack being re-sorted.
+   *
+   * This is a FLIP and it is deliberately cheap. Two batched reads — one before
+   * the reconcile, one after, each a single layout flush because nothing is
+   * written in between — then an inverse `transform` on the tiles that actually
+   * moved, released on the next frame. Only tiles the player can see are
+   * animated, and no more than a screenful of those, so a filter that reshuffles
+   * two hundred cards costs the same as one that reshuffles twenty.
+   */
+  const FLIP_MAX = 64;
+  type Spot = { cell: Cell; left: number; top: number };
+
+  /**
+   * Only the painted tiles are measured, and that is the whole optimisation.
+   *
+   * A tile has a bitmap because it came within a screen and a bit of the fold at
+   * some point; a tile that has never been painted is, by construction, one
+   * nobody has looked at. Measuring all 245 put a 91ms layout flush inside the
+   * keystroke handler — the layout was going to happen anyway, but doing it
+   * synchronously in the input event is what turns it into a long task. Twenty
+   * to sixty rects is the same information for the tiles the animation can
+   * actually reach.
+   */
+  function measureShown(): Spot[] {
+    const spots: Spot[] = [];
+    for (const cell of cells.values()) {
+      if (!cell.shown || !cell.canvas) continue;
+      const box = cell.root.getBoundingClientRect();
+      spots.push({ cell, left: box.left, top: box.top });
+    }
+    return spots;
+  }
+
+  function flip(before: Spot[], arrived: Set<HTMLElement>): void {
+    const moved: { node: HTMLElement; dx: number; dy: number }[] = [];
+    const height = window.innerHeight;
+    for (const spot of before) {
+      const node = spot.cell.root;
+      if (!spot.cell.shown || !node.isConnected || arrived.has(node)) continue;
+      const box = node.getBoundingClientRect();
+      // off the bottom or above the top of the window: nobody is watching it move
+      if (box.bottom < -80 || box.top > height + 80) continue;
+      const dx = spot.left - box.left;
+      const dy = spot.top - box.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+      moved.push({ node, dx, dy });
+      if (moved.length >= FLIP_MAX) break;
+    }
+    if (moved.length === 0) return;
+
+    for (const { node, dx, dy } of moved) {
+      node.style.transition = "none";
+      node.style.transform = `translate(${dx}px, ${dy}px)`;
+    }
+    requestAnimationFrame(() => {
+      for (const { node } of moved) {
+        node.style.transition = `transform ${DUR.ui}ms ${cssEase(EASE.arrive)}`;
+        node.style.transform = "";
+      }
+      window.setTimeout(() => {
+        // the inline transition has to go, or it overrides the hover's own
+        for (const { node } of moved) node.style.transition = "";
+      }, DUR.ui + 40);
+    });
+  }
+
   function render(): void {
     if (!grid) return;
     const acct = account();
     const arriving: HTMLElement[] = [];
     const tail: HTMLElement[] = [];
     let visible = 0;
+    const before = motionEnabled() ? measureShown() : null;
 
     for (const shelf of shelves.values()) {
       let at = 0;
@@ -754,6 +890,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     }
 
     if (arriving.length > 0) cascade(arriving);
+    if (before) flip(before, new Set(arriving));
 
     // the grid's single tab stop has to be a tile that is actually on it
     if (!roving || roving.hidden || !roving.isConnected) setRoving(shownCells()[0] ?? null);
@@ -947,7 +1084,21 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
     const tilt = document.createElement("div");
     tilt.className = "cd-tilt";
-    const cardCanvas = renderCardToCanvas(card, 420, { premium: card.rarity === "legendary" });
+    /**
+     * The hero card is rasterised to the room it has, not to a constant.
+     *
+     * 420 was a constant, and the stylesheet's `max-height: 62vh` was the only
+     * thing stopping it running off the bottom — a cap that squashes rather than
+     * scales, because the renderer writes an inline width the cap cannot reach.
+     * Measured at 844×390 the card was drawn 380px wide and 200px tall: a 3:4
+     * object presented at 1.9:1, with its own art stretched. Deriving the width
+     * from the height available keeps the aspect exact at every size and, on the
+     * small screens, makes the biggest single rasterisation in the domain
+     * cheaper at the same time.
+     */
+    const room = Math.max(200, window.innerHeight - 132);
+    const heroWidth = Math.round(Math.min(420, room * (512 / 680), window.innerWidth * 0.42));
+    const cardCanvas = renderCardToCanvas(card, heroWidth, { premium: card.rarity === "legendary" });
     tilt.appendChild(cardCanvas);
     artWrap.appendChild(tilt);
 
@@ -1212,6 +1363,18 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   syncFilterCount();
   const unsubscribe = profileStore.subscribe(() => render());
   const unbindFades = gridWrap && grid ? bindScrollFades(gridWrap, grid) : () => {};
+  /**
+   * The rail ends in air too.
+   *
+   * At 1280×720 the six filter groups are 320px taller than the rail, and the
+   * scroller butted straight into the pinned Clear-filters footer: the word
+   * "Faction" was sliced through the middle of its own glyphs. §7 asks for an
+   * end fade on every edge like this one and the rail was the last one without.
+   */
+  const unbindRailFades = railWrap && railScroll ? bindScrollFades(railWrap, railScroll) : () => {};
+  const unbindRetile = grid
+    ? retileOnResize(grid, () => shownCells()[0]?.clientWidth ?? 0, retile)
+    : () => {};
   render();
 
   /** Automation hook, the same shape the other screens expose. */
@@ -1230,6 +1393,8 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     dispose: () => {
       unsubscribe();
       unbindFades();
+      unbindRailFades();
+      unbindRetile();
       painter.stop();
       window.removeEventListener("keydown", onOverlayKey);
       window.clearTimeout(closing);

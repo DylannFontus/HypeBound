@@ -32,6 +32,7 @@ import { markVersionSeen, unseenReleases } from "../../save/profile";
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
+import { motionEnabled } from "../motion";
 import {
   chip,
   disposeBag,
@@ -155,16 +156,104 @@ export function createPatchNotesScreen(content: ContentIndex, callbacks: PatchNo
       );
     });
 
+    /*
+     * Every section registers itself, so the rail can index the document.
+     *
+     * 0.2.0 is 2,250px tall beside a 340px release list, which left the left
+     * third of the frame empty for 1,900px of scrolling and gave a reader no way
+     * back to the top of a section they had passed. An index is the standard
+     * answer to both and it is not decoration: these are real anchors into real
+     * headings, built from the same array that renders them, so a section that
+     * filters itself out of the article also disappears from the contents.
+     */
+    const sections: { id: string; title: string; count: number | null }[] = [];
+    const register = (id: string, title: string, count: number | null): string => {
+      sections.push({ id, title, count });
+      return id;
+    };
+
     const list = (title: string, entries: string[]): string => {
       const shown = entries.filter(matches);
       if (shown.length === 0) return "";
-      return `<section class="patch-section">
+      const id = register(`patch-s-${title.toLowerCase()}`, title, shown.length);
+      return `<section class="patch-section" id="${id}">
                 <h3 class="t-heading">${esc(title)}</h3>
                 <ul class="patch-list">${shown.map((entry) => `<li>${esc(entry)}</li>`).join("")}</ul>
               </section>`;
     };
 
     const factions = [...new Set((view?.cards ?? []).map((change) => change.card?.faction).filter(Boolean))] as FactionId[];
+
+    /*
+     * The article is built before the page, because the index is built from it.
+     *
+     * `register()` fills `sections` as each block renders, and a template literal
+     * evaluates left to right — so with the rail written above the article in one
+     * template, the contents list would always be a frame behind, and on first
+     * render it would be empty. Building the article into a string first is the
+     * whole fix.
+     */
+    const article = !view
+      ? `<p class="muted">No releases.</p>`
+      : `
+            <header class="patch-release-head">
+              <div class="t-label patch-release-eyebrow">${esc(view.def.version)} · ${esc(longDate(view.releasedAt))}${
+                view.current ? " · current" : ""
+              }</div>
+              <h2 class="mail-reading-subject">${esc(view.def.headline)}</h2>
+              <p class="patch-summary">${esc(view.def.summary)}</p>
+            </header>
+
+            <section class="patch-section" id="${register("patch-s-cards", "Cards changed", cardRows.length)}">
+              <h3 class="t-heading">Cards changed</h3>
+              ${
+                cardRows.length === 0
+                  ? `<p class="muted">
+                       ${
+                         (view.cards.length ?? 0) > 0
+                           ? "None under this filter."
+                           : "None. When a card is re-balanced this shows both sides on real frames — the note records only the old values, and the new ones are read off the card itself, so the two cannot disagree."
+                       }
+                     </p>`
+                  : `<div class="patch-cards">${cardRows.map(cardBlock).join("")}</div>`
+              }
+            </section>
+
+            <section class="patch-section" id="${register("patch-s-economy", "Economy", view.economy.length)}">
+              <h3 class="t-heading">Economy</h3>
+              ${
+                view.economy.length > 0
+                  ? `<table class="patch-table d-table">
+                       <thead><tr><th>What changed</th><th>Before</th><th>After</th></tr></thead>
+                       <tbody>
+                         ${view.economy
+                           .map(
+                             (change) =>
+                               `<tr><td>${esc(economyLabel(change.path))}</td>${diffCells(
+                                 change.before,
+                                 change.after
+                               )}</tr>`
+                           )
+                           .join("")}
+                       </tbody>
+                     </table>`
+                  : `<p class="muted">
+                       Nothing to diff — this is the first release. Below is the economy it shipped
+                       with, which is the snapshot the build compares against: change a published
+                       rate without adding a release and the tests fail.
+                     </p>
+                     ${snapshotTable(view)}`
+              }
+            </section>
+
+            ${list("Rules", view.def.rules)}
+            ${list("Systems", view.def.systems)}
+            ${list("Fixed", view.def.fixes)}
+            ${
+              view.empty
+                ? `<p class="muted">This release records no changes.</p>`
+                : ""
+            }`;
 
     root.innerHTML = `
       <div class="ambient-bg"></div>
@@ -232,72 +321,35 @@ export function createPatchNotesScreen(content: ContentIndex, callbacks: PatchNo
                    A faction filter appears here the moment a card has been re-balanced. None has yet.
                  </p>`
           }
+
+          ${
+            sections.length > 1
+              ? `<nav class="patch-index" aria-label="In this release">
+                   <div class="t-label">In this release</div>
+                   <ul>
+                     ${sections
+                       .map(
+                         (section) => `
+                           <li>
+                             <a class="patch-index-link" href="#${esc(section.id)}" data-jump="${esc(section.id)}">
+                               <span>${esc(section.title)}</span>
+                               ${
+                                 section.count === null
+                                   ? ""
+                                   : `<span class="patch-index-count num">${section.count}</span>`
+                               }
+                             </a>
+                           </li>`
+                       )
+                       .join("")}
+                   </ul>
+                 </nav>`
+              : ""
+          }
         </section>
 
         <section class="panel panel-chrome patch-release" id="patch-release">
-          ${
-            !view
-              ? `<p class="muted">No releases.</p>`
-              : `
-            <header class="patch-release-head">
-              <div class="t-label patch-release-eyebrow">${esc(view.def.version)} · ${esc(longDate(view.releasedAt))}${
-                view.current ? " · current" : ""
-              }</div>
-              <h2 class="mail-reading-subject">${esc(view.def.headline)}</h2>
-              <p class="patch-summary">${esc(view.def.summary)}</p>
-            </header>
-
-            <section class="patch-section">
-              <h3 class="t-heading">Cards changed</h3>
-              ${
-                cardRows.length === 0
-                  ? `<p class="muted">
-                       ${
-                         (view.cards.length ?? 0) > 0
-                           ? "None under this filter."
-                           : "None. When a card is re-balanced this shows both sides on real frames — the note records only the old values, and the new ones are read off the card itself, so the two cannot disagree."
-                       }
-                     </p>`
-                  : `<div class="patch-cards">${cardRows.map(cardBlock).join("")}</div>`
-              }
-            </section>
-
-            <section class="patch-section">
-              <h3 class="t-heading">Economy</h3>
-              ${
-                view.economy.length > 0
-                  ? `<table class="patch-table d-table">
-                       <thead><tr><th>What changed</th><th>Before</th><th>After</th></tr></thead>
-                       <tbody>
-                         ${view.economy
-                           .map(
-                             (change) =>
-                               `<tr><td>${esc(economyLabel(change.path))}</td>${diffCells(
-                                 change.before,
-                                 change.after
-                               )}</tr>`
-                           )
-                           .join("")}
-                       </tbody>
-                     </table>`
-                  : `<p class="muted">
-                       Nothing to diff — this is the first release. Below is the economy it shipped
-                       with, which is the snapshot the build compares against: change a published
-                       rate without adding a release and the tests fail.
-                     </p>
-                     ${snapshotTable(view)}`
-              }
-            </section>
-
-            ${list("Rules", view.def.rules)}
-            ${list("Systems", view.def.systems)}
-            ${list("Fixed", view.def.fixes)}
-            ${
-              view.empty
-                ? `<p class="muted">This release records no changes.</p>`
-                : ""
-            }`
-          }
+          ${article}
         </section>
       </main>`;
 
@@ -310,6 +362,25 @@ export function createPatchNotesScreen(content: ContentIndex, callbacks: PatchNo
       }, {});
       host.appendChild(renderCardToCanvas(cardAsItWas(change.card, before as CardBefore), 200));
       host.appendChild(renderCardToCanvas(change.card, 200));
+    }
+
+    /*
+     * The index scrolls the page rather than jumping it.
+     *
+     * A bare `href="#id"` would work, and would also rewrite `location.hash` —
+     * which is the router's own channel, so clicking "Economy" would navigate to
+     * a route called `patch-s-economy` and land on the error screen. The href
+     * stays for middle-click and for anyone reading the markup; the handler is
+     * what actually runs.
+     */
+    for (const link of root.querySelectorAll<HTMLAnchorElement>("[data-jump]")) {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        root.querySelector(`#${CSS.escape(link.dataset["jump"] ?? "")}`)?.scrollIntoView({
+          behavior: motionEnabled() ? "smooth" : "auto",
+          block: "start",
+        });
+      });
     }
 
     root.querySelector("#patch-back")?.addEventListener("click", () => {

@@ -445,6 +445,90 @@ export function crest(factionId: string, options: CrestOptions = {}): string {
   });
 }
 
+/**
+ * An event currency, as a struck token rather than a code point.
+ *
+ * `data/events.json` authors each event currency's mark as a Unicode character:
+ * `◈` for Con Badges, `✸` for Pixel Pumpkins and `❘` for Glowsticks — which is
+ * a **vertical bar**, so the second event's money rendered on screen as a thin
+ * line in whatever face the OS happened to have. Module C's whole argument
+ * applies: a glyph used as an icon comes out at the wrong weight, at the wrong
+ * optical size, and becomes tofu wherever the code point is missing.
+ *
+ * So the mark is drawn instead, from the event's own emblem shape and its own
+ * accent, on the same struck-metal logic as `crest` — a round coin rather than a
+ * hexagon, because a currency in this game is already round on the Clout and
+ * Signal chips and the eye should sort it into that family rather than into the
+ * faction family.
+ *
+ * One canonical size, scaled by CSS at the call site, for the same reason
+ * `crestMark` gives: the events hub asks for this mark at 15px, 18px and 34px,
+ * and keying the cache by display size would draw it three times.
+ */
+export function token(emblem: EmblemShape, accent: string, size = 96): string {
+  return cached(`token|${emblem}|${accent}|${size}`, () => {
+    const target = surface(size, size);
+    if (!target) return "";
+    const { canvas, ctx } = target;
+    const c = size / 2;
+    const r = size * 0.44;
+
+    ctx.beginPath();
+    ctx.arc(c, c, r, 0, Math.PI * 2);
+    ctx.save();
+    ctx.clip();
+
+    /*
+     * A coin is a *light* object, and that is not how the first version read.
+     *
+     * Keyed off the crest's numbers, this came out as a near-black disc with a
+     * hairline mark on it: at the 16px the balance line asks for, an emblem
+     * stroked at `size * 0.024` of a 96px drawing is a third of a pixel and the
+     * whole token was a dark dot. So the face keeps far more of the accent than
+     * the hexagonal crest does — a crest is struck steel in shadow, a coin is
+     * catching the light — and the mark is cut four times as deep. Both numbers
+     * are for legibility at the smallest call site, which is the one that decides
+     * whether this is an icon or a smudge.
+     */
+    const [x0, y0, x1, y1] = keyVector(size, size);
+    const face = ctx.createLinearGradient(x0, y0, x1, y1);
+    face.addColorStop(0, shade(accent, 0.06));
+    face.addColorStop(0.58, shade(accent, 0.42));
+    face.addColorStop(1, shade(accent, 0.82));
+    ctx.fillStyle = face;
+    ctx.fillRect(0, 0, size, size);
+    shaft(ctx, size, size, accent, 0.4);
+
+    // struck: the shadow of the cut down-right, the lit face of it on top
+    ctx.lineWidth = Math.max(1.6, size * 0.075);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(0,0,0,0.5)";
+    ctx.fillStyle = "rgba(0,0,0,0.26)";
+    drawEmblem(ctx, emblem, c + size * 0.02, c + size * 0.02, size / 340);
+    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    drawEmblem(ctx, emblem, c, c, size / 340);
+
+    grain(ctx, size, size, 0.9);
+    ctx.restore();
+
+    // the rim, lit at 315° and cut at 135° like every other object in the game
+    ctx.lineWidth = Math.max(1, size * 0.05);
+    for (const [from, to, ink] of [
+      [Math.PI, Math.PI * 2, "rgba(255,255,255,0.42)"],
+      [0, Math.PI, "rgba(0,0,0,0.55)"],
+    ] as const) {
+      ctx.beginPath();
+      ctx.arc(c, c, r - ctx.lineWidth / 2, from - Math.PI / 4, to - Math.PI / 4);
+      ctx.strokeStyle = ink;
+      ctx.stroke();
+    }
+
+    return canvas.toDataURL("image/png");
+  });
+}
+
 export interface BannerOptions {
   width?: number;
   height?: number;

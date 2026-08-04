@@ -69,6 +69,26 @@
 }
 
 /**
+ * ...and the documents want less.
+ *
+ * Three measures, not three accidents. A grid of tiles wants 1220; a two-pane
+ * reader wants 1440; a **single column of prose or of form rows** wants the
+ * measure prose has always wanted, and giving it 1220 does not widen the text —
+ * it widens the *panel* and leaves the right third of the largest object on the
+ * screen holding nothing, which is what the privacy, legal, fairness and support
+ * screens all shipped. It also let Settings pick its own 980 and Accessibility,
+ * the screen one click inside it, keep 1220, so a player watched the column jump
+ * between two halves of the same settings tree.
+ *
+ * `.data-doc` is that third measure, named once and applied to all six. Wide
+ * tables inside it scroll horizontally rather than forcing the page sideways —
+ * see the `.d-table` rules in `rooms.css`.
+ */
+.screen .data-body.data-doc {
+  --data-measure: 980px;
+}
+
+/**
  * A panel inside a scrolling column may grow and must never shrink.
  *
  * This is one line and it is load-bearing. Most of these bodies are
@@ -82,6 +102,32 @@
  */
 .screen .data-body > * {
   flex-shrink: 0;
+}
+
+/**
+ * Padding, for a `.panel` that nobody remembered to name.
+ *
+ * `.panel` in `base.css` is background + border + radius + blur + shadow and no
+ * padding whatsoever; `screens.css` grants it through an explicit list of forty
+ * screen-specific class names, which is a contract guaranteed to drift the
+ * moment a sixteenth builder adds a screen. It drifted: the Remix Queue's four
+ * panels were all missing from the list, so the heading sat *on* the border, the
+ * left accent rule cut through the text, and the primary CTA had its left cap
+ * clipped off the panel entirely.
+ *
+ * The real fix is padding on the primitive, which is module A's file. This is
+ * the composable version for this domain — a class a screen can name, so a panel
+ * is never one hand-maintained selector list away from having none.
+ */
+.screen .d-pad {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.screen .d-pad.d-pad-flush {
+  padding: 0;
 }
 
 /**
@@ -294,6 +340,28 @@
   gap: var(--sp-1);
 }
 
+/**
+ * An event currency's struck token, in the flow of a line of text.
+ *
+ * `vertical-align` rather than a flex row, because this sits *inside* sentences
+ * and beside numbers — "Claim ◈ 40", a balance, a shop price — and a flex child
+ * would not sit on the baseline the digits sit on. The optical nudge is the same
+ * one a typographic mark would need: a circle centred on the cap height reads
+ * low against lining figures.
+ */
+.d-token {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: var(--token-size, 16px);
+  height: var(--token-size, 16px);
+  vertical-align: calc(var(--token-size, 16px) * -0.16);
+  background-image: var(--token);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.6));
+}
+
 /** A reward, drawn as an object. 6 shapes, so the kind reads before the text. */
 .d-reward-tile {
   flex: 0 0 auto;
@@ -386,18 +454,24 @@
 /**
  * The ticks. 90° — square to the viewport, and a divider rather than a light.
  * `--meter-steps` is the number of segments; a 20-rank track gets 19 lines.
+ *
+ * **One tick per tile, and the gradient must not divide again.** The first
+ * version wrote the *period* as `calc(100% / steps)` and then set
+ * `background-size` to `calc(100% / steps)` as well — but percentages inside a
+ * gradient resolve against the background *tile*, not the element, so a 6-step
+ * meter drew six ticks per tile across six tiles and came out with thirty-six.
+ * It was invisible at 42% black and looked like a hatched ribbon the moment the
+ * story rows asked for a lighter ink. The tile carries exactly one line and the
+ * `background-size` does all the dividing.
  */
 .d-meter::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: repeating-linear-gradient(
-    90deg,
-    rgb(0 0 0 / 0.42) 0 1px,
-    transparent 1px calc(100% / var(--meter-steps, 10))
-  );
+  background-image: linear-gradient(90deg, var(--meter-tick, rgb(0 0 0 / 0.42)) 0 1.5px, transparent 1.5px);
   background-size: calc(100% / var(--meter-steps, 10)) 100%;
+  background-repeat: repeat-x;
   opacity: 0.75;
 }
 

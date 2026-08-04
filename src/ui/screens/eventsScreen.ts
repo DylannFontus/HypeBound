@@ -34,7 +34,6 @@ import {
   count,
   countUp,
   disposeBag,
-  emblemFor,
   enter,
   esc,
   icon,
@@ -43,6 +42,7 @@ import {
   quantify,
   rovingList,
   stamp,
+  tokenMark,
   unspec,
 } from "./data/kit";
 
@@ -92,16 +92,21 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
   const bag = disposeBag();
 
   /**
-   * The event's own currency mark.
+   * The event's own currency, as a struck token.
    *
-   * Authored as a Unicode symbol in the data file, which is exactly the thing
-   * §C says to stop rendering as an icon — it comes out in whatever face the OS
-   * has and becomes tofu where the code point is missing. It stays as the
-   * *typographic* mark beside a number, where it belongs, and the drawn diamond
-   * from the icon set carries the job of being an icon.
+   * `data/events.json` authors this as a Unicode character — `◈`, `✸` and, for
+   * Glowsticks, `❘`, which is a vertical bar and rendered on screen as a thin
+   * line in whatever face the OS happened to have. That is the exact failure
+   * module C exists to end: a code point used as an icon, at the wrong weight
+   * and the wrong optical size, and tofu wherever the font has no glyph. The
+   * mark is now drawn from the event's own emblem shape and accent, so it is a
+   * picture of a coin rather than a character that stands for one.
+   *
+   * The authored symbol survives as the accessible name, because a currency
+   * needs a spoken label and "◈" is the one the data file gave it.
    */
-  const currencyMark = (symbol: string): string =>
-    `<span class="event-symbol" aria-hidden="true">${esc(symbol)}</span>`;
+  const currencyMark = (view: EventView, size = 16): string =>
+    tokenMark(view.event.emblem, view.event.accent, size);
 
   function activeCard(view: EventView, now: number): string {
     const { event } = view;
@@ -125,7 +130,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
           </div>
           <div class="event-key-clock" aria-hidden="true">
             <span class="event-key-ring" style="--through:${(through * 100).toFixed(1)}%"></span>
-            <span class="event-key-symbol">${esc(event.currency.symbol)}</span>
+            ${currencyMark(view, 34)}
           </div>
         </div>
 
@@ -135,7 +140,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
             <span class="event-timer-left">${esc(distance(now, view.endsAt ?? now))} left</span>
           </p>
           <div class="event-balance">
-            ${currencyMark(event.currency.symbol)}
+            ${currencyMark(view, 22)}
             <strong class="num" data-count="${view.balance}" data-digits="4">${count(view.balance)}</strong>
             <span class="event-currency-name">${esc(event.currency.name)}</span>
             <span class="event-earned">${count(view.earned)} earned in total</span>
@@ -172,7 +177,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
           <li class="event-mission mat-panel d-enter ${mission.claimed ? "is-claimed" : ""}" data-mission="${esc(mission.id)}">
             <div class="event-mission-head">
               <span class="event-mission-name">${esc(mission.name)}</span>
-              <span class="event-mission-reward">${currencyMark(event.currency.symbol)}<span class="num">${count(
+              <span class="event-mission-reward">${currencyMark(view)}<span class="num">${count(
                 mission.reward
               )}</span></span>
             </div>
@@ -185,7 +190,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
                   : mission.claimable
                     ? `<button type="button" class="mat-hero act r-chip event-claim" data-claim="${esc(event.id)}|${esc(
                         mission.id
-                      )}">Claim ${esc(event.currency.symbol)} ${count(mission.reward)}</button>`
+                      )}">Claim ${currencyMark(view, 14)} <span class="num">${count(mission.reward)}</span></button>`
                     : `<span class="event-progress num">${Math.round(mission.fraction * 100)}%</span>`
               }
             </div>
@@ -207,7 +212,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
           <li class="event-shop-row mat-panel d-enter ${row.soldOut ? "is-sold-out" : ""}">
             <span class="event-shop-name">${esc(row.entry.name)}</span>
             <span class="event-shop-stock">${row.soldOut ? "Sold out" : `${count(row.left)} left`}</span>
-            <span class="event-shop-cost">${currencyMark(event.currency.symbol)}<span class="num">${count(
+            <span class="event-shop-cost">${currencyMark(view)}<span class="num">${count(
               row.entry.cost
             )}</span></span>
             <button type="button" class="mat-hero act r-chip event-buy" data-buy="${esc(event.id)}|${esc(
@@ -258,7 +263,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
       )}">
         <div class="d-key event-key" style="--key-art:url('${key}');--key-aspect:16/9">
           <div class="d-key-scrim"></div>
-          <span class="event-key-symbol is-small" aria-hidden="true">${esc(event.currency.symbol)}</span>
+          ${currencyMark(view, 26)}
         </div>
         <div class="event-body">
           <div class="event-title-row">
@@ -335,20 +340,42 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
         }
 
         ${
-          upcoming.length > 0
-            ? `<section class="event-rail" id="ev-upcoming">
-                 <h2 class="t-heading event-rail-title">Coming up</h2>
-                 <div class="event-rail-grid">${upcoming.map((view) => railCard(view, now, "upcoming")).join("")}</div>
-               </section>`
-            : ""
+          /*
+           * The two rails sit beside each other, not under.
+           *
+           * Each was a full-width section holding an `auto-fill` grid, and with
+           * one event in each the card took the first 360px column and left
+           * 750px of empty panel to its right — twice, one below the other. §2
+           * reads that as content that failed to load, and it is a *layout*
+           * problem rather than a content one: the calendar simply does not have
+           * three upcoming events to fill a three-column band with. Two columns
+           * of one card each fills the frame with the same content.
+           */ ""
         }
-
         ${
-          archived.length > 0
-            ? `<section class="event-rail" id="ev-archive">
-                 <h2 class="t-heading event-rail-title">Archive</h2>
-                 <div class="event-rail-grid">${archived.map((view) => railCard(view, now, "archive")).join("")}</div>
-               </section>`
+          upcoming.length > 0 || archived.length > 0
+            ? `<div class="event-rails">
+                 ${
+                   upcoming.length > 0
+                     ? `<section class="event-rail" id="ev-upcoming">
+                          <h2 class="t-heading event-rail-title">Coming up</h2>
+                          <div class="event-rail-grid">${upcoming
+                            .map((view) => railCard(view, now, "upcoming"))
+                            .join("")}</div>
+                        </section>`
+                     : ""
+                 }
+                 ${
+                   archived.length > 0
+                     ? `<section class="event-rail" id="ev-archive">
+                          <h2 class="t-heading event-rail-title">Archive</h2>
+                          <div class="event-rail-grid">${archived
+                            .map((view) => railCard(view, now, "archive"))
+                            .join("")}</div>
+                        </section>`
+                     : ""
+                 }
+               </div>`
             : ""
         }
       </div>

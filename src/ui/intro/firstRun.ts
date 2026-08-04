@@ -113,6 +113,28 @@ export function firstRunSequence(look: IntroLook): Sequence {
     look.bokeh = k;
   });
   /**
+   * The city arrives before the lights do, and that ordering is the point.
+   *
+   * The first second of this sequence used to be a wash and two shafts, and it
+   * established nothing — a stranger four hundred milliseconds into their first
+   * launch could not have told you the genre, let alone the setting. Bringing
+   * the skyline and its wet street up first means the very first thing that
+   * resolves out of the dark is a *place*, and the rig then ignites inside it.
+   * Slower than the wash, because a city coming out of fog is not a switch.
+   */
+  beat(120, 1600, (k) => {
+    look.city = k;
+  });
+  /**
+   * The crowd is last and lags the room deliberately: the foreground is what
+   * the eye checks once it has understood the background, and a silhouette that
+   * arrives with everything else is read as part of the vignette rather than as
+   * people.
+   */
+  beat(520, 1200, (k) => {
+    look.crowd = k * 0.92;
+  });
+  /**
    * A long, slow push that never stops.
    *
    * Started before anything is on screen and still running under the hold. A
@@ -180,6 +202,12 @@ export function firstRunSequence(look: IntroLook): Sequence {
   }, LINEAR);
   beat(LAND_AT - 30, 900, (k) => {
     look.haze += swell(k, 0.1) * 0.9;
+  }, LINEAR);
+  // The whole city takes the hit too — every window in the frame surges and
+  // falls back. It is the furthest thing from the impact and the last thing
+  // anybody would notice, which is exactly what secondary motion is for.
+  beat(LAND_AT - 20, 620, (k) => {
+    look.city += swell(k, 0.09) * 0.5;
   }, LINEAR);
   beat(LAND_AT - 30, 780, (k) => {
     look.markGlow += swell(k, 0.04) * 1.3;
@@ -289,6 +317,10 @@ export function firstRunSequence(look: IntroLook): Sequence {
     look.wash *= 1 - k;
     look.bokeh *= 1 - k;
     look.haze *= 1 - k;
+    look.city *= 1 - k;
+    // Faster than the rest of the room: the crowd is the nearest thing to the
+    // lens, so a camera accelerating forward loses it first.
+    look.crowd *= Math.max(0, 1 - k * 1.7);
     for (let i = 0; i < look.beams.length; i++) look.beams[i] = (look.beams[i] ?? 0) * (1 - k);
   }, EASE.leave);
   beat(EXIT_AT + 560, DUR.ui + 40, (k) => {

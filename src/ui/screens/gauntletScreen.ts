@@ -77,11 +77,24 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="screen-header">
-      <button class="btn btn-ghost" id="gauntlet-back">← Back</button>
+      <button class="btn btn-ghost" id="gauntlet-back">${icon("arrow-left", 16)} Back</button>
       <h1 class="title">The Gauntlet</h1>
       <div class="mastery-wallet" id="gauntlet-record-chip"></div>
     </header>
-    <main class="gauntlet-body scroll data-body" id="gauntlet-body"></main>`;
+    ${/*
+       * `.scroll` is deliberately absent, and that is a scrollbar fix.
+       *
+       * `.data-body` already scrolls. What `.scroll` adds on top is
+       * `scrollbar-width: thin; scrollbar-color: …` — and `foundation.css` §1
+       * documents the consequence in forty lines: from Chrome 121 a non-initial
+       * standard scrollbar property makes the whole `::-webkit-scrollbar` block
+       * **inert** for that element, so the game's drawn thumb was replaced by
+       * Chrome's own Fluent bar, complete with a stepper arrow at each end.
+       * Measured on this route at 8×: a grey-purple triangle above a hairline
+       * thumb, which is §7's "tear in the world" with extra steps. Dropping the
+       * class hands the element back to the foundation's drawing.
+       */ ""}
+    <main class="gauntlet-body data-body" id="gauntlet-body"></main>`;
 
   const body = root.querySelector<HTMLElement>("#gauntlet-body")!;
   const chip = root.querySelector<HTMLElement>("#gauntlet-record-chip")!;

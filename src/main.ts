@@ -150,6 +150,34 @@ function showFatalError(error: unknown): void {
     </div>`;
 }
 
+/**
+ * Take down the boot plate, whatever else happened.
+ *
+ * `index.html` opens with `<html class="hb-boot">` and a full-bleed
+ * `#hb-boot-plate` at `z-index: 1`, so the first paint is a composed dark field
+ * with the wordmark on it rather than a flash of unstyled void. Its own comment
+ * says "main.ts drops the class" — and main.ts never did. The only code that
+ * cleared it lived on the opening cinematic's completion path.
+ *
+ * That is fine exactly when the cinematic plays and catastrophic when it does
+ * not, and `src/ui/intro/index.ts` lists four reasons it legitimately might not:
+ * a deep link to anything that is not the front door, `?nointro`, a browser
+ * with no WebGL, and a missing brand asset. In every one of those the plate
+ * stayed up forever, covering a game that had booted perfectly well underneath
+ * it. Reloading into `#collection` showed a wordmark and nothing else.
+ *
+ * So the teardown belongs here, on the one path that always runs, rather than
+ * inside the feature that is allowed to opt out. `finally` because a screen that
+ * fails to mount still has to reveal the error it wants to show, and a plate
+ * over a stack trace is worse than either alone.
+ */
+function clearBootPlate(): void {
+  document.documentElement.classList.remove("hb-boot");
+  // The CSS transitions opacity for 420ms and then this removes the node, so a
+  // late-arriving layer cannot end up stacked underneath a spent cover.
+  window.setTimeout(() => document.getElementById("hb-boot-plate")?.remove(), 600);
+}
+
 function boot(): void {
   applySettings();
   watchOrientation();
@@ -1357,7 +1385,7 @@ function boot(): void {
     return;
   }
 
-  void shell.start();
+  void shell.start().finally(clearBootPlate);
 
   /**
    * Sync the save, if and only if somebody is signed in.

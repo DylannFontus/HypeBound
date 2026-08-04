@@ -44,6 +44,7 @@ import { getProfile } from "../../save/profile";
 import { FACTION_COLOR } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
 import { sparkline, winRateCurve, type TrendResult } from "./data/chart";
+import { EMPTY } from "../format";
 import { chip, count, countUp, disposeBag, enter, esc, icon, meter, quantify, rovingList } from "./data/kit";
 
 export interface StatsCallbacks {
@@ -52,8 +53,21 @@ export interface StatsCallbacks {
   onDeckBuilder: () => void;
 }
 
-const pct = (rate: number): string => `${Math.round(rate * 100)}%`;
-const round1 = (value: number): string => (Math.round(value * 10) / 10).toFixed(1);
+/**
+ * Neither of these may ever print "NaN", and both could.
+ *
+ * The deck table showed `NaN` in its Confluences and Resonance columns for any
+ * deck whose recorded matches carried no per-match detail: the dashboard divides
+ * a total by a count, the count was zero, and `(0/0).toFixed(1)` is the string
+ * "NaN" rendered in tabular figures in a shipped table. `undefined` on the patch
+ * notes and `NaN` here are the same defect — §0's one-sentence test is answered
+ * in under a second by either — so both are caught at the last possible moment,
+ * where no upstream arithmetic can slip past. `EMPTY` is `format.ts`'s em-dash,
+ * so a missing number looks the same everywhere in the game.
+ */
+const pct = (rate: number): string => (Number.isFinite(rate) ? `${Math.round(rate * 100)}%` : EMPTY);
+const round1 = (value: number): string =>
+  Number.isFinite(value) ? (Math.round(value * 10) / 10).toFixed(1) : EMPTY;
 
 export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbacks): Screen {
   const root = document.createElement("div");

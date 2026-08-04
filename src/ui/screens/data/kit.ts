@@ -37,11 +37,12 @@
 import { icon as drawIcon, type IconId } from "../../art/uiIcons";
 import { count as fmtCount, date as fmtDate, dateTime as fmtDateTime, num as fmtNum } from "../../format";
 import { DUR, motionEnabled, stagger, tickerTo } from "../../motion";
-import { crest, colourFor, rewardTile, type RewardKind } from "./art";
+import { crest, colourFor, rewardTile, token, type RewardKind } from "./art";
+import type { EmblemShape } from "../../cosmetics/emblem";
 import "./data.css";
 import "./rooms.css";
 
-export { crest, colourFor, banner, ladderPlate, rankCrest, rewardTile, emblemFor } from "./art";
+export { crest, colourFor, banner, ladderPlate, rankCrest, rewardTile, emblemFor, token } from "./art";
 export type { RewardKind } from "./art";
 
 // ---------------------------------------------------------------------------
@@ -161,8 +162,21 @@ export function economyLabel(path: string): string {
  * references as flavour text.
  */
 export function unspec(text: string): string {
+  /*
+   * The citation is the *subject*, so deleting it leaves a sentence with none.
+   *
+   * The first version removed the reference and capitalised whatever followed,
+   * which turned "§4.4.3 asks for a leaderboard tab per event" into "Asks for a
+   * leaderboard tab per event" — a dangling verb shipped on the events hub — and
+   * "These are the others §4.5.3 describes" into "These are the others
+   * describes". Every one of these paragraphs is a sentence *about the design*,
+   * so the design is what the citation is standing in for. Substituting it keeps
+   * the grammar and loses only the number, which is the part no player wants.
+   */
   return text
-    .replace(/§\s*[\d.]+(?:'s)?\s*/g, "")
+    .replace(/§\s*[\d.]+(?:\.\d+)*('s)?/g, (_match, possessive: string | undefined) =>
+      possessive ? "the design's" : "the design"
+    )
     .replace(/\s{2,}/g, " ")
     .replace(/^\s*([a-z])/, (_m, c: string) => c.toUpperCase())
     .trim();
@@ -417,6 +431,24 @@ export function rewardMark(kind: RewardKind, colour: string, size = 44): string 
     kind,
     colour,
     REWARD_PX
+  )}')"></span>`;
+}
+
+/**
+ * An event currency's struck token, at a display size.
+ *
+ * One drawing per (shape, accent) — the events hub wants the same mark at 15px
+ * beside a balance, 18px on a mission reward and 34px inside the countdown ring,
+ * and keying by display size would draw it three times for no visible gain. See
+ * `CREST_PX` for the measurement that argument comes from.
+ */
+const TOKEN_PX = 96;
+
+export function tokenMark(emblem: EmblemShape, accent: string, size = 16): string {
+  return `<span class="d-token" aria-hidden="true" style="--token-size:${size}px;--token:url('${token(
+    emblem,
+    accent,
+    TOKEN_PX
   )}')"></span>`;
 }
 

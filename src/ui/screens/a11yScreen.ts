@@ -32,6 +32,7 @@ import { defaultPalettePressure } from "../../game/a11y";
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { collectibleCards } from "../../engine/content";
 import { audio } from "../../audio/audio";
+import { icon } from "./data/kit";
 import { DEFERRED_CUES, cueData } from "../../audio/cues";
 
 export interface A11yCallbacks {
@@ -132,11 +133,11 @@ export function createA11yScreen(content: ContentIndex, callbacks: A11yCallbacks
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="a11y-back">← Back</button>
+        <button class="btn btn-ghost" id="a11y-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Accessibility</h1>
       </header>
 
-      <main class="policy-body a11y-body data-body">
+      <main class="policy-body a11y-body data-body data-doc">
         <section class="panel panel-chrome policy-summary">
           <p class="mastery-rule">
             <strong>Everything here applies as you touch it.</strong> There is no confirm step and

@@ -71,6 +71,7 @@ import { drawPlaceholderArt } from "../cardRenderer/placeholderArt";
 import { getCardArt, onArtLoaded } from "./artLoader";
 import { boardPath, BOARD_EXTENSIONS } from "./iconAssets";
 import { awaitAsset, getAsset } from "./assetLoader";
+import { scaledAsset } from "./texture";
 
 export interface PortraitOptions {
   /** Logical width in CSS pixels. Height follows `aspect`. */
@@ -125,12 +126,113 @@ export interface PortraitOptions {
   reflect?: number;
   /** Overall darkening, for art used as a backdrop behind type. */
   dim?: number;
+  /**
+   * Device pixels per CSS pixel of plate, overriding the display's own.
+   *
+   * The one number that decides what a navigation costs. A plate that is about
+   * to be displayed behind `blur(14px)` does not need a 2× backing store — it
+   * does not need a 1× one — and the front door was building two of them per
+   * screen at full retina resolution and then asking the compositor to blur
+   * 2800×1568 pixels inside the first frame of a transition. Measured on
+   * `#signin → #queue`, that first frame ran 118–191ms with **no script in it
+   * at all**: pure raster. Anything that is going to be soft on screen should be
+   * soft in memory, and this is how a caller says so.
+   */
+  resolution?: number;
+  /**
+   * Defocus baked into the plate, in plate pixels, instead of `filter: blur()`
+   * on the element.
+   *
+   * The same picture either way and not remotely the same cost. A CSS blur is a
+   * full-size GPU pass over the element's rendered box every time that layer is
+   * rasterised — 1856×1026 for the queue's room — while a blur baked into a
+   * 900px plate that is then stretched over the viewport is done once, at a
+   * ninth of the area, and cached with the plate. The stretch does the rest of
+   * the softening for free.
+   */
+  softness?: number;
+  /**
+   * Cut the plate to an ellipse rather than to a feathered rectangle.
+   *
+   * `fadeTop`/`fadeLeft`/`fadeRight`/`fadeBottom` soften four straight edges and
+   * leave four right angles, and four right angles is a rectangle however soft
+   * its sides are — measured on the queue at 2.4× exposure, the blurred far copy
+   * of the leader was a translucent rectangular column whose left and right
+   * boundaries changed the value of every floor line that crossed them. This is
+   * the superellipse falloff `texture.ts` describes, applied in the space the
+   * art is drawn in: the number is the exponent, 2 for a plain ellipse and 4 for
+   * a squircle, and the ramp runs over the outer third of the radius.
+   */
+  oval?: number;
+  /**
+   * Hang a lighting rig in the room before the blur goes on.
+   *
+   * Venues only, and it is a composition fix rather than a decoration. Measured
+   * against `hearthstone_frames/frame_00060` the queue reads 52.0 mean / 37.5 sd
+   * against 86.9 / 51.7 — 40% darker and 27% flatter — and the worst of it is
+   * the top fifth of the screen, y=80–240, which measures **sd 16.6**. That band
+   * is a fifth of the picture and it is a smear: the painted board behind it has
+   * no large shapes near the ceiling, so at `blur(14px)` there is nothing left
+   * to see. Gwent's backdrop survives its own depth because it has silhouettes —
+   * a truss, a rail, a lamp housing, a crowd edge — and a gradient does not.
+   *
+   * So the rig is drawn *into the plate, before the softening*, which is the only
+   * place it can go and still be at the room's focal depth rather than in front
+   * of it. Nothing here is card art and nothing here is invented for a card: it
+   * is stage furniture in a nightclub, which is what this game says it is set in.
+   */
+  rig?: boolean;
   className?: string;
 }
 
 /** Device pixels per CSS pixel, capped: a 3x phone does not need a 3x portrait. */
 function ratio(): number {
   return Math.min(typeof devicePixelRatio === "number" ? devicePixelRatio : 1, 2);
+}
+
+/** The backing-store scale a caller asked for, or the display's, clamped sane. */
+function plateRatio(options: PortraitOptions): number {
+  const asked = options.resolution;
+  if (typeof asked !== "number" || !Number.isFinite(asked) || asked <= 0) return ratio();
+  return Math.min(2, Math.max(0.2, asked));
+}
+
+/**
+ * Blur without a dark rim, which is the whole difficulty.
+ *
+ * `ctx.filter = "blur(n)"` samples outside the source, and outside a canvas is
+ * transparent black — so a blurred full-bleed image comes back with a shadow
+ * around all four edges, which on a backdrop reads as a vignette nobody asked
+ * for. Painting into a canvas that is `3σ` larger on every side and then
+ * drawing it back at a negative offset means every sample the blur takes is
+ * real picture.
+ */
+function softDraw(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  radius: number,
+  draw: (pen: CanvasRenderingContext2D) => void
+): void {
+  if (radius <= 0.2) {
+    draw(ctx);
+    return;
+  }
+  const pad = Math.ceil(radius * 3);
+  const scratch = document.createElement("canvas");
+  scratch.width = Math.max(1, Math.round(W + pad * 2));
+  scratch.height = Math.max(1, Math.round(H + pad * 2));
+  const pen = scratch.getContext("2d");
+  if (!pen) {
+    draw(ctx);
+    return;
+  }
+  pen.translate(pad, pad);
+  draw(pen);
+  ctx.save();
+  ctx.filter = `blur(${radius}px)`;
+  ctx.drawImage(scratch, -pad, -pad);
+  ctx.restore();
 }
 
 /**
@@ -300,6 +402,137 @@ function finish(
     g.addColorStop(1, "rgba(0,0,0,1)");
     cut(g);
   }
+
+  /**
+   * ...and then the corners, which the four edges cannot reach.
+   *
+   * A superellipse of exponent *n* evaluated per pixel would be a per-pixel loop
+   * on a plate up to a megapixel. `scale()` around the centre turns the ellipse
+   * into a circle, at which point a radial gradient *is* the falloff — exact for
+   * `oval: 2`, and for higher exponents the ramp is pushed outward so the
+   * straights stay full for longer, which is what a squircle looks like. The
+   * whole thing is one `fillRect` through `destination-out`.
+   */
+  if (options.oval && options.oval > 0) {
+    const exponent = Math.max(2, options.oval);
+    // Where the ramp begins, as a fraction of the radius. 2 → 0.66, 4 → 0.83.
+    const hold = 1 - 0.68 / exponent;
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(W / 2, H / 2);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(hold, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,1)");
+    ctx.fillStyle = g;
+    ctx.fillRect(-1.45, -1.45, 2.9, 2.9);
+    ctx.restore();
+  }
+}
+
+/**
+ * A truss, a rail and a crowd, in that order, because that is the order they are
+ * from the camera.
+ *
+ * Three masses and a set of practicals, sized as fractions of the plate so the
+ * rig is the same rig at every venue size. The lamps are the part that does the
+ * measurable work: a dark shape on a dark ceiling raises the mean and leaves the
+ * standard deviation where it was, and the band this exists to fix is failing on
+ * *variance*. A hot 6px core inside a dark housing survives a heavy blur as a
+ * bright blob against a dark bar, which is two values in a band that had one.
+ *
+ * Deliberately not symmetrical and deliberately not centred: the truss hangs a
+ * little left of centre and the lamps are unevenly spaced, because an evenly
+ * spaced row of identical lamps is the same "twelve identical 4px squares"
+ * failure the call board's marquee was pulled up for.
+ */
+function drawRig(ctx: CanvasRenderingContext2D, W: number, H: number): void {
+  ctx.save();
+
+  // 1. The truss. A dark bar across the ceiling with its own lit top edge, so it
+  //    is an object under the house lights rather than a band of black.
+  const trussY = H * 0.115;
+  const trussH = Math.max(3, H * 0.036);
+  const bar = ctx.createLinearGradient(0, trussY, 0, trussY + trussH);
+  bar.addColorStop(0, "rgba(196,170,246,0.30)");
+  bar.addColorStop(0.22, "rgba(10,6,22,0.86)");
+  bar.addColorStop(1, "rgba(4,2,10,0.72)");
+  ctx.fillStyle = bar;
+  ctx.fillRect(-W * 0.04, trussY, W * 1.08, trussH);
+
+  // The diagonal web inside it, which is what makes a bar read as a truss.
+  ctx.strokeStyle = "rgba(6,3,14,0.6)";
+  ctx.lineWidth = Math.max(1, H * 0.006);
+  ctx.beginPath();
+  for (let x = -W * 0.04; x < W * 1.06; x += W * 0.055) {
+    ctx.moveTo(x, trussY + trussH);
+    ctx.lineTo(x + W * 0.028, trussY);
+    ctx.lineTo(x + W * 0.055, trussY + trussH);
+  }
+  ctx.stroke();
+
+  // 2. The lamps hanging off it. Housing, socket, core — an unlit one would
+  //    still be an object, which is the note the call board's marquee got.
+  const lamps: readonly number[] = [0.11, 0.205, 0.325, 0.47, 0.585, 0.7, 0.845, 0.93];
+  const drop = trussY + trussH;
+  const r = Math.max(3, H * 0.026);
+  for (let i = 0; i < lamps.length; i += 1) {
+    const x = W * (lamps[i] ?? 0);
+    const y = drop + r * (i % 3 === 1 ? 1.5 : 1.05);
+    // the yoke
+    ctx.strokeStyle = "rgba(6,3,14,0.8)";
+    ctx.lineWidth = Math.max(1, H * 0.005);
+    ctx.beginPath();
+    ctx.moveTo(x, drop - trussH * 0.2);
+    ctx.lineTo(x, y - r * 0.7);
+    ctx.stroke();
+    // the housing
+    ctx.fillStyle = "rgba(7,4,16,0.9)";
+    ctx.beginPath();
+    ctx.ellipse(x, y, r * 0.92, r * 1.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // the lit face, and the spill it throws down the wall
+    const warm = i % 3 === 0;
+    const core = ctx.createRadialGradient(x, y + r * 0.28, 0, x, y + r * 0.28, r * 2.6);
+    core.addColorStop(0, warm ? "rgba(255,246,228,0.95)" : "rgba(228,232,255,0.9)");
+    core.addColorStop(0.16, warm ? "rgba(255,214,150,0.6)" : "rgba(178,206,255,0.55)");
+    core.addColorStop(0.5, warm ? "rgba(226,148,96,0.16)" : "rgba(126,150,255,0.15)");
+    core.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = core;
+    ctx.fillRect(x - r * 3, y - r * 2, r * 6, r * 6);
+  }
+
+  // 3. The rail of a balcony on the right, catching the light along its top.
+  const railY = H * 0.42;
+  const railH = Math.max(2, H * 0.055);
+  ctx.fillStyle = "rgba(5,3,12,0.62)";
+  ctx.fillRect(W * 0.58, railY, W * 0.46, railH);
+  const lip = ctx.createLinearGradient(0, railY, 0, railY + railH * 0.34);
+  lip.addColorStop(0, "rgba(214,186,255,0.34)");
+  lip.addColorStop(1, "rgba(214,186,255,0)");
+  ctx.fillStyle = lip;
+  ctx.fillRect(W * 0.58, railY, W * 0.46, railH * 0.34);
+
+  // 4. The crowd, as one silhouette rather than as people. A ragged dark edge
+  //    along the bottom third is what tells the eye the room is occupied, and it
+  //    is the last thing a heavy blur destroys because it is the biggest shape.
+  ctx.fillStyle = "rgba(4,2,10,0.66)";
+  ctx.beginPath();
+  ctx.moveTo(-W * 0.05, H);
+  const heads = 13;
+  for (let i = 0; i <= heads; i += 1) {
+    const x = -W * 0.05 + (W * 1.1 * i) / heads;
+    const bob = 0.5 + 0.5 * Math.sin(i * 2.399);
+    const y = H * (0.845 - 0.055 * bob);
+    ctx.lineTo(x, y);
+    ctx.quadraticCurveTo(x + (W * 1.1) / heads / 2, y - H * 0.03 * bob, x + (W * 1.1) / heads, y + H * 0.012);
+  }
+  ctx.lineTo(W * 1.05, H);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
 }
 
 /**
@@ -416,7 +649,7 @@ export function paintLeaderPortrait(card: CardDef, options: PortraitOptions = {}
 
   const canvas = document.createElement("canvas");
   canvas.className = options.className ?? "leader-portrait-art";
-  const dpr = ratio();
+  const dpr = plateRatio(options);
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
   const ctx = canvas.getContext("2d");
@@ -460,6 +693,8 @@ export function paintLeaderPortrait(card: CardDef, options: PortraitOptions = {}
       options.fadeRight ?? 0,
       options.fadeBottom ?? 0,
       options.reflect ?? 0,
+      options.softness ?? 0,
+      options.oval ?? 0,
       getCardArt(card) ? "art" : "placeholder",
     ].join("|");
 
@@ -482,14 +717,16 @@ export function paintLeaderPortrait(card: CardDef, options: PortraitOptions = {}
     pen.beginPath();
     pen.rect(0, 0, W, figureH);
     pen.clip();
-    if (art) {
-      const source = mipFor(card.id, art, Math.max(canvas.width, canvas.height));
-      const sw = typeof source === "object" && "width" in source ? Number(source.width) : art.width;
-      const sh = typeof source === "object" && "height" in source ? Number(source.height) : art.height;
-      coverInto(pen, source, sw, sh, W, figureH, bias);
-    } else {
-      drawPlaceholderArt(pen, { x: 0, y: 0, w: W, h: figureH }, card.current, card.name);
-    }
+    softDraw(pen, W, figureH, options.softness ?? 0, (inner) => {
+      if (art) {
+        const source = mipFor(card.id, art, Math.max(canvas.width, canvas.height));
+        const sw = typeof source === "object" && "width" in source ? Number(source.width) : art.width;
+        const sh = typeof source === "object" && "height" in source ? Number(source.height) : art.height;
+        coverInto(inner, source, sw, sh, W, figureH, bias);
+      } else {
+        drawPlaceholderArt(inner, { x: 0, y: 0, w: W, h: figureH }, card.current, card.name);
+      }
+    });
     finish(pen, W, figureH, options, palette);
     pen.restore();
 
@@ -533,7 +770,7 @@ export function paintVenue(factionId: FactionId | string, options: PortraitOptio
 
   const canvas = document.createElement("canvas");
   canvas.className = options.className ?? "venue-art";
-  const dpr = ratio();
+  const dpr = plateRatio(options);
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
   const ctx = canvas.getContext("2d");
@@ -561,14 +798,77 @@ export function paintVenue(factionId: FactionId | string, options: PortraitOptio
 
   const preferred = boardPath(String(factionId));
 
+  /**
+   * The source, already the right size, and kept.
+   *
+   * The boards are 3840×2160. Every venue in the front door was reading all
+   * 8.3 million of those pixels on every paint — twice per navigation into the
+   * queue, once more on sign-in — and Chrome defers that work out of the calling
+   * script and into the next raster, which is why `paintVenue` timed at 0.5ms
+   * while the frame it ran in took 190. `scaledAsset` is module B's memoised mip
+   * chain: the halving is paid once per session per size bucket and every later
+   * caller reads a small cached canvas.
+   */
+  const sourceFor = (path: string): HTMLCanvasElement | HTMLImageElement | null => {
+    const need = Math.max(canvas.width, canvas.height);
+    return scaledAsset(path, need, BOARD_EXTENSIONS) ?? getAsset(path, BOARD_EXTENSIONS);
+  };
+
+  const soft = options.softness ?? 0;
+
+  /**
+   * The finished room, kept, exactly as the portrait's is.
+   *
+   * Sign-in and the queue put the same venue behind everything, and this
+   * function memoised nothing at all — so walking `#signin → #queue` built the
+   * whole backdrop twice from the source PNG inside a 380ms transition. The key
+   * is everything that changes a pixel and, at the end, whether the room this
+   * caller actually asked for has decoded yet: without that term the repaint
+   * `awaitAsset` schedules would look up the plate it had just cached with the
+   * fallback board in it and blit the wrong room back over itself.
+   */
+  const keyNow = (): string =>
+    [
+      "venue",
+      preferred,
+      canvas.width,
+      canvas.height,
+      options.bias ?? 0.08,
+      options.scrim ?? 0.88,
+      options.dim ?? 0,
+      soft,
+      options.rig ? "rig" : "bare",
+      options.oval ?? 0,
+      getAsset(preferred, BOARD_EXTENSIONS) ? "room" : "fallback",
+    ].join("|");
+
+  const render = (art: CanvasImageSource, sw: number, sh: number): HTMLCanvasElement => {
+    const plate = document.createElement("canvas");
+    plate.width = canvas.width;
+    plate.height = canvas.height;
+    const pen = plate.getContext("2d");
+    if (!pen) return plate;
+    pen.scale(dpr, dpr);
+    softDraw(pen, W, H, soft, (inner) => {
+      coverInto(inner, art, sw, sh, W, H, options.bias ?? 0.08);
+      if (options.rig) drawRig(inner, W, H);
+    });
+    finish(pen, W, H, options);
+    return plate;
+  };
+
   const paint = (): boolean => {
-    const art = getAsset(preferred, BOARD_EXTENSIONS) ?? getAsset(boardPath("default"), BOARD_EXTENSIONS);
+    const art = sourceFor(preferred) ?? sourceFor(boardPath("default"));
+    const sw = art ? Number((art as { width?: number; naturalWidth?: number }).naturalWidth ?? art.width) : 0;
+    const sh = art ? Number((art as { height?: number; naturalHeight?: number }).naturalHeight ?? art.height) : 0;
+    if (!art || !sw || !sh) return false;
+    const key = keyNow();
+    let plate = plates.get(key);
+    if (!plate) plate = render(art, sw, sh);
+    keepPlate(key, plate);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, W, H);
-    if (!art || !art.naturalWidth) return false;
-    coverInto(ctx, art, art.naturalWidth, art.naturalHeight, W, H, options.bias ?? 0.08);
-    finish(ctx, W, H, options);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(plate, 0, 0);
     canvas.style.opacity = "1";
     return true;
   };

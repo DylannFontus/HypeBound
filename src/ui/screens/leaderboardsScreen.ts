@@ -56,6 +56,22 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
   const wins = profile.stats.wins;
   const rate = played > 0 ? Math.round((wins / played) * 100) : 0;
 
+  /**
+   * Two different meters, because "placed" and "unplaced" are two questions.
+   *
+   * Before placement the bar is the placement itself — ten rungs, one per match,
+   * which is a real countdown. After it, that bar is permanently at 100% with ten
+   * tick marks showing through the fill, and a fully saturated full-width rail is
+   * both meaningless and the most saturated object on the screen, which §6 spends
+   * a paragraph forbidding. So once placed it becomes progress toward the next
+   * local tier: partial, moving, and about something the player can still change.
+   */
+  const TIERS = 5;
+  const WINS_PER_TIER = 5;
+  const tier = placed ? Math.min(TIERS, 1 + Math.floor(wins / WINS_PER_TIER)) : 0;
+  const winsIntoTier = wins % WINS_PER_TIER;
+  const topTier = tier >= TIERS;
+
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="screen-header">
@@ -70,12 +86,12 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
           <div class="lb-crest">
             <span class="d-rank" style="--rank-size:132px;--rank-art:url('${rankCrest({
               size: RANK_PX,
-              tier: placed ? Math.min(5, 1 + Math.floor(wins / 5)) : 0,
+              tier,
               tiers: 20,
             })}')">
-              ${placed ? `<span class="d-rank-value">${count(Math.min(5, 1 + Math.floor(wins / 5)))}</span>` : ""}
+              ${placed ? `<span class="d-rank-value">${count(tier)}</span>` : ""}
             </span>
-            <span class="t-label">${placed ? "Local standing" : "Unplaced"}</span>
+            <span class="t-label">${placed ? `Local tier ${count(tier)} of ${count(TIERS)}` : "Unplaced"}</span>
           </div>
 
           <div class="lb-standing-text">
@@ -92,11 +108,24 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
               }
             </p>
             ${meter({
-              value: Math.min(1, played / PLACEMENT_MATCHES),
-              steps: PLACEMENT_MATCHES,
+              value: placed
+                ? topTier
+                  ? 1
+                  : winsIntoTier / WINS_PER_TIER
+                : Math.min(1, played / PLACEMENT_MATCHES),
+              steps: placed ? WINS_PER_TIER : PLACEMENT_MATCHES,
               animate: true,
               className: "lb-meter",
             })}
+            <p class="t-label lb-meter-note">
+              ${
+                placed
+                  ? topTier
+                    ? `Top local tier reached · ${quantify(wins, "win")} on record`
+                    : `${quantify(WINS_PER_TIER - winsIntoTier, "win")} to local tier ${count(tier + 1)}`
+                  : `${quantify(toPlace, "match", "matches")} to a placement`
+              }
+            </p>
             <dl class="d-stats lb-stats">
               <div class="d-stat"><dt>Matches</dt><dd class="num" data-count="${played}" data-digits="4">0</dd></div>
               <div class="d-stat"><dt>Wins</dt><dd class="num" data-count="${wins}" data-digits="4">0</dd></div>

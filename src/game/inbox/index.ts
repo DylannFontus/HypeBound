@@ -51,6 +51,7 @@ import { checkInConfig } from "../progression/data";
 import { hypeWaveData, seasonEnd, seasonStart } from "../progression/hypeWave";
 import { bannerData, runEnd, runStart } from "../economy/banner";
 import { newsArticles } from "../news";
+import { LOCALE } from "../../ui/format";
 
 const DAY_MS = 86_400_000;
 
@@ -72,10 +73,15 @@ export const RETENTION_DAYS = 30;
  * moments in a player's day. Formatted locally, 2026-07-27T00:00Z reads as "26
  * July" for everyone west of Greenwich — a run advertised as ending the day
  * before the data says it does.
+ *
+ * The **locale** is pinned for the same reason. `undefined` is not localisation
+ * — the game has no i18n layer, so the sentence around the date is English no
+ * matter what, and the date came out in the browser's language: "It returns on 2
+ * novembre 2026" inside an English paragraph. One locale, from `format.ts`.
  */
-const DATE = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-/** The check-in month is *this* month where the player is, so it stays local. */
-const MONTH = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
+const DATE = new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+/** The check-in month is *this* month where the player is, so it stays local — but still in English. */
+const MONTH = new Intl.DateTimeFormat(LOCALE, { month: "long", year: "numeric" });
 const on = (at: number): string => DATE.format(new Date(at));
 
 /** Who sent it. Only `system` can exist offline; the rest need a server. */

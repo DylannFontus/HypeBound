@@ -400,6 +400,10 @@ export class BattleView {
     object.position.copy(start);
     object.scale.setScalar(fromScale);
     object.flightHold = true;
+    // Counted, not merely flagged: `prewarmBatch`'s drain checks this every
+    // frame and a card render landing mid-flight is exactly the stall the whole
+    // mechanism exists to move somewhere else.
+    this.flightsInAir += 1;
     tween({
       from: 0,
       to: 1,
@@ -417,9 +421,14 @@ export class BattleView {
       },
       onDone: () => {
         object.flightHold = false;
+        this.flightsInAir = Math.max(0, this.flightsInAir - 1);
+        this.lastFlightAt = performance.now();
         object.position.copy(object.targetPosition);
         object.scale.setScalar(1);
         this.landToken(object, current);
+        // The landing burst is the tail of the flight and it is still moving, so
+        // the drain waits one more beat rather than firing on the contact frame.
+        window.setTimeout(() => this.scheduleSoonWarm(), 360);
       },
     });
   }
@@ -530,7 +539,13 @@ export class BattleView {
     ].join("|");
   }
 
-  private warmFace(card: CardDef, state: CardFaceState, urgent = false): void {
+  /**
+   * `"soon"` is a third rung above `urgent`, and the distinction is which clock
+   * the work is allowed to wait on. An idle callback is the browser's opinion of
+   * when there is time; `"soon"` is ours, and it is used only for faces a batch
+   * of engine events is definitely about to ask for within the second.
+   */
+  private warmFace(card: CardDef, state: CardFaceState, urgency: boolean | "soon" = false): void {
     const key = this.faceKey(card, state);
     if (this.faceWarmed.has(key)) return;
     /**
@@ -543,7 +558,20 @@ export class BattleView {
      */
     if (this.faceWarmed.size > 220) this.faceWarmed.clear();
     this.faceWarmed.add(key);
-    if (urgent) this.faceQueue.unshift({ key, card, state });
+
+    if (urgency === "soon") {
+      this.soonQueue.push({ key, card, state });
+      // One batch's worth. Beyond that the board has changed more than a single
+      // handover can animate and the idle queue is the right place for the rest.
+      while (this.soonQueue.length > 14) {
+        const dropped = this.soonQueue.pop();
+        if (dropped) this.faceWarmed.delete(dropped.key);
+      }
+      this.scheduleSoonWarm();
+      return;
+    }
+
+    if (urgency) this.faceQueue.unshift({ key, card, state });
     else this.faceQueue.push({ key, card, state });
     // A queue that outgrows the moment it was filled for is stale work; drop the
     // tail rather than spending idle time drawing faces nobody is waiting for.
@@ -551,7 +579,7 @@ export class BattleView {
       const dropped = this.faceQueue.pop();
       if (dropped) this.faceWarmed.delete(dropped.key);
     }
-    this.scheduleFaceWarm(urgent);
+    this.scheduleFaceWarm(urgency === true);
   }
 
   /**
@@ -575,6 +603,30 @@ export class BattleView {
     const draw = (): void => {
       this.faceScheduled = false;
       if (this.disposed) return;
+      /**
+       * Never while anything is moving.
+       *
+       * Two measurements, both of a ~145ms card render landing in the worst
+       * possible frame. On the player's own play: an 85ms long task at t+177ms
+       * after the mouse-up, a hundred and eighty milliseconds into a 300ms
+       * flight, so five dropped frames out of the eighteen the card is moving
+       * across. On a handover: seven faces drawn between t+903ms and t+1933ms,
+       * of which only the first two were faces the board was about to ask for —
+       * the rest were `warmAlternateFaces`, the "selected", "target" and "can
+       * act" variants a token *might* wear later, queued speculatively on every
+       * sync and then drawn, in four long tasks of 100, 57, 138 and 54ms, across
+       * the second the player was watching the rival act.
+       *
+       * None of that work is wrong and all of it is early. A turn is *seconds*
+       * of a human deciding what to do and it is the most genuinely idle time
+       * this screen ever has; a batch is the one second in ten when something is
+       * moving. So speculative work waits for the quiet, and `busyWithMotion`
+       * is what "quiet" means.
+       */
+      if (this.busyWithMotion()) {
+        this.scheduleFaceWarm(false);
+        return;
+      }
       const entry = this.faceQueue.shift();
       if (entry) getCardTexture(entry.card, entry.state);
       this.scheduleFaceWarm(false);
@@ -594,6 +646,175 @@ export class BattleView {
     };
 
     window.setTimeout(ask, BattleView.FACE_WARM_SPACING);
+  }
+
+  // -------------------------------------------------------------------------
+  // The faces a whole batch of engine events is about to need
+  // -------------------------------------------------------------------------
+
+  /**
+   * ## The 366ms the board froze, once per rival card
+   *
+   * Measured on a 60fps screencast of a handover: a `longtask` of **366ms** at
+   * t+923ms after End Turn, a worst rAF gap of 379ms in the same window, and a
+   * CPU profile putting 468ms of the three-second window inside
+   * `syncBoard → new CardObject → getCardTexture → renderCard`. Twenty-two
+   * dropped frames in the middle of the rival's turn, every turn they play
+   * something. §9's performance floor is not a preference.
+   *
+   * Everything the existing warm machinery covers is the *player's* side —
+   * `warmHandFaces` during their turn, `warmPlayFaces` on pickup,
+   * `warmAlternateFaces` for tokens already on the board. None of it can see the
+   * rival's hand, so a card the rival plays is always an uncached face, drawn on
+   * the single frame its token appears; and a token that took damage asks for a
+   * face keyed on its *new* health, which is a miss for the same reason.
+   *
+   * The batch already knows all of it. `getView()` is the view **after** the
+   * engine has resolved the whole batch — the engine never waits on animation —
+   * so at the instant the presenter is handed a batch, the final stats of every
+   * character on both boards are readable. There is no prediction here and no
+   * heuristic: this warms exactly the face states `syncBoard` is going to ask
+   * for, seconds of animation before it asks.
+   *
+   * Draining is on `requestAnimationFrame`, one face per frame, and **suspended
+   * while any token is in flight** (see `flightsInAir`). That is the whole
+   * point: a render has to block the main thread for as long as it takes, so the
+   * only question is which frame it lands on. It must never be a frame the
+   * player is tracking a moving object through.
+   */
+  prewarmBatch(view: PlayerView): void {
+    const rows = [
+      { characters: view.you.board, side: "player" as const },
+      { characters: view.opponent.board, side: "enemy" as const },
+    ];
+    const proxy = viewToState(view);
+    const arriving: { card: CardDef; state: CardFaceState }[] = [];
+    const settling: { card: CardDef; state: CardFaceState }[] = [];
+
+    for (const row of rows) {
+      for (const character of row.characters) {
+        if (!character) continue;
+        const card = this.content.cards[character.cardId];
+        if (!card) continue;
+        const base: CardFaceState = {
+          attack: totalAttack(proxy, this.content, character),
+          health: character.health,
+          maxHealth: character.maxHealth,
+          statEmphasis: true,
+        };
+        const isNew = !this.boardObjects.has(character.instanceId);
+        // The two an arriving token asks for, in the order it asks: `CardObject`'s
+        // constructor takes the plain face before anything has set stats on it —
+        // a render thrown away a millisecond later and unavoidable from here —
+        // and `syncFromCharacter` immediately asks for the real one.
+        if (isNew) arriving.push({ card, state: {} }, { card, state: { ...base, highlight: "none" } });
+        else settling.push({ card, state: { ...base, highlight: "none" } });
+        /**
+         * The "can act" ring is warmed at the *idle* rung, not this one.
+         *
+         * It is the face a friendly token wears when the turn comes back, which
+         * is a second away at the very least, and putting it in the same queue as
+         * the arriving token's face made it compete for the one budget that has a
+         * deadline. Measured: seven faces queued for a handover that needed two
+         * of them before the card moved.
+         */
+        if (row.side === "player") this.warmFace(card, { ...base, highlight: "playable" });
+      }
+    }
+
+    // Arrivals first: they are the only faces whose absence shows up as the
+    // board freezing while an object the player is watching is in the air.
+    for (const { card, state } of [...arriving, ...settling]) this.warmFace(card, state, "soon");
+  }
+
+  /**
+   * Wait, briefly, for the faces `prewarmBatch` queued to actually be drawn.
+   *
+   * Queueing alone was not enough and the measurement said so: with the drain on
+   * `requestAnimationFrame` but nothing waiting for it, the rival's batch still
+   * carried a **276ms long task**, because a local match hands the presenter the
+   * AI's play as its own batch whose *first* event is `cardPlayed` — there is no
+   * earlier beat for the drain to hide in. So the presenter waits, once, at the
+   * top of the batch.
+   *
+   * The wall clock this spends is the render time, which is spent either way.
+   * What it buys is *where*: a card render blocks the main thread for as long as
+   * it takes, and this moves that block onto a board where nothing is moving —
+   * the previous batch has finished, every token is at rest, the only thing
+   * running is a 6.8-second specular crawl — instead of onto the frames a token
+   * is flying across the mat. A stall on a still board is not visible. A stall
+   * inside the game's core verb is the defect this whole file is about.
+   *
+   * Never waited on when a handoff is parked. That is the player's own play: the
+   * released ghost is frozen at the drop point waiting for its token, on a 420ms
+   * safety timeout, and the faces it needs were drawn during the drag anyway.
+   */
+  facesSettled(capMs = 380): void {
+    if (this.soonQueue.length === 0 || this.handoff) return;
+    /**
+     * Drawn here and now, in one contiguous block, rather than one per frame.
+     *
+     * The per-frame version was measured first and it was the wrong shape: a
+     * card face costs ~140ms on this machine, so spreading four of them across
+     * four `requestAnimationFrame` callbacks produces four separate ~140ms
+     * stalls with a repaint attempted between each, which is more dropped frames
+     * than doing the lot at once and is spread across more of the animation. The
+     * only thing that matters is that the block sits *before* the first beat of
+     * the batch, where the board is still.
+     *
+     * The budget is checked before each render rather than after, so it can
+     * overshoot by one face and cannot ever refuse to make progress. Whatever is
+     * left goes back to the per-frame drain, which stands down while anything is
+     * flying.
+     */
+    const deadline = performance.now() + capMs;
+    while (this.soonQueue.length > 0 && performance.now() < deadline) {
+      const entry = this.soonQueue.shift();
+      if (entry) getCardTexture(entry.card, entry.state);
+    }
+  }
+
+  /** Tokens currently owned by a flight tween — see `prewarmBatch`. */
+  private flightsInAir = 0;
+  /** When the last one touched down, so the settle is protected as well. */
+  private lastFlightAt = 0;
+
+  /**
+   * Is something on this board moving in a way a 150ms card render would ruin?
+   *
+   * Three windows, and the third is the one that was missed. A batch is playing
+   * (`layoutLocked`); a token is in the air (`flightsInAir`); or a token landed
+   * less than a beat ago — the burst, the dust and the neighbours giving way run
+   * for ~280ms *after* the flight tween resolves, and a 99ms task measured at
+   * t+410ms on a play whose flight ended at t+350ms is a stall in the middle of
+   * the landing. `flightsInAir` alone reads zero for all of it.
+   */
+  private busyWithMotion(): boolean {
+    return this.layoutLocked || this.flightsInAir > 0 || performance.now() - this.lastFlightAt < 340;
+  }
+
+  private readonly soonQueue: { key: string; card: CardDef; state: CardFaceState }[] = [];
+  private soonFrame = 0;
+
+  /**
+   * Drain one queued face per frame, and never on a frame that is carrying
+   * something. `requestAnimationFrame` rather than `onMotionFrame` because this
+   * has to keep running when the reduced-motion setting has stopped the shared
+   * clock — the faces are still needed, they are just needed without a flight.
+   */
+  private scheduleSoonWarm(): void {
+    if (this.soonFrame || this.soonQueue.length === 0) return;
+    this.soonFrame = requestAnimationFrame(() => {
+      this.soonFrame = 0;
+      if (this.disposed) return;
+      // `layoutLocked` is deliberately NOT part of this one: the soon queue is
+      // the batch's own faces and the batch is exactly what is waiting for them.
+      if (this.flightsInAir === 0 && performance.now() - this.lastFlightAt >= 340) {
+        const entry = this.soonQueue.shift();
+        if (entry) getCardTexture(entry.card, entry.state);
+      }
+      this.scheduleSoonWarm();
+    });
   }
 
   /**
@@ -1208,7 +1429,18 @@ export class BattleView {
       const enemySide = point!.z < 0;
       const row = enemySide ? "enemy" : "player";
       const count = (enemySide ? view.opponent.board : view.you.board).filter((c) => c !== null).length;
-      this.board.setDropTarget(row, Math.max(0, count - 1), Math.max(1, count), "blocked");
+      /**
+       * One *past* the last token, not on top of it.
+       *
+       * It used to be `count - 1`, which is the slot the last character is
+       * standing in — so on any row that was not empty the struck-through socket
+       * was drawn underneath an occupied card and could not be seen at all.
+       * Photographed while holding a character over the rival's far apron: the
+       * refusal existed in the scene graph and nowhere on the screen. Placing it
+       * in the gap the row would open leaves it on bare mat, which is the only
+       * place a socket can be read.
+       */
+      this.board.setDropTarget(row, count, count + 1, "blocked");
     } else {
       if (this.makeRoomIndex !== null) {
         this.makeRoomIndex = null;
@@ -1235,6 +1467,17 @@ export class BattleView {
         ? drag.hoverTarget !== null
         : overBoard;
     this.callbacks.onDropFeedback?.(overArena || overBoard ? (accepted ? "valid" : "blocked") : "neutral");
+
+    /**
+     * And the ground directly under the card answers too.
+     *
+     * The socket is at the slot; this is at the pointer, which is where the
+     * player is looking. The two are not redundant — the socket says *where it
+     * will land*, the pool says *the thing you are holding is over the table,
+     * and it is (not) allowed here*. Before this the arena beneath a carried
+     * card was pixel-identical to the arena beneath nothing.
+     */
+    this.vfx.dragPool(overArena || overBoard ? point : null, accepted ? "valid" : "blocked");
   }
 
   /** Pointer released during an external drag: play the card, or cancel. */
@@ -1247,6 +1490,7 @@ export class BattleView {
     this.makeRoomIndex = null;
     this.targeting.hide();
     this.board.setDropTarget("player", null, 0);
+    this.vfx.dragPool(null, "valid");
     this.callbacks.onDropFeedback?.("neutral");
     if (!drag || !view) {
       this.dismissGhost(ghost);
@@ -1497,9 +1741,22 @@ export class BattleView {
     window.setTimeout(() => ghost.remove(), 180);
   }
 
-  /** Is this table point inside the area where cards may be played? */
+  /**
+   * Is this table point inside the area where cards may be played?
+   *
+   * The x bound is not decoration. Without it the test was `z` only, so a point
+   * fourteen units off the side of a twenty-unit mat — out over the venue, past
+   * the frame, on the wallpaper — answered "yes". Measured by holding a card
+   * there: the ghost stayed green, the socket stayed lit, and releasing played
+   * the card. §5 asks for every state to be designed, and the blocked state that
+   * `setDropTarget` and `.drop-blocked` both implement was unreachable in
+   * practice because nothing outside the cancel strip was ever refused. The
+   * generous z band stays — dropping high, over the rival's half, still plays to
+   * your own row, exactly as the reference allows — but the mat's own edge is
+   * now the edge.
+   */
   private isPlayZone(point: THREE.Vector3): boolean {
-    return point.z > -6 && point.z < BOARD.cancelZ;
+    return Math.abs(point.x) < BOARD.width / 2 && point.z > -6 && point.z < BOARD.cancelZ;
   }
 
   /** Legal target under a screen point, checking characters then leaders. */
@@ -1688,6 +1945,7 @@ export class BattleView {
     this.disposed = true;
     this.releaseHandoff();
     cancelAnimationFrame(this.raf);
+    if (this.soonFrame) cancelAnimationFrame(this.soonFrame);
     const canvas = this.scene.renderer.domElement;
     canvas.removeEventListener("pointermove", this.onPointerMove);
     canvas.removeEventListener("pointerdown", this.onPointerDown);

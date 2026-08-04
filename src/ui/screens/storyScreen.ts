@@ -99,13 +99,13 @@ function renderList(
     const total = Math.max(1, requiredEpisodes(chapter).length);
     card.innerHTML = `
       <div class="story-card-bar"></div>
+      ${chapter.faction ? crestMark(chapter.faction, 52, unlocked ? 1 : 0.4) : '<span class="d-crest"></span>'}
       <div class="story-card-body">
         <div class="t-label">${chapter.faction ? escape(content.factions[chapter.faction]?.name ?? "") : "Story"}</div>
         <div class="story-card-title">${escape(chapter.title)}</div>
         <p class="story-card-about">${escape(chapter.about)}</p>
       </div>
       <div class="story-card-track">
-        ${chapter.faction ? crestMark(chapter.faction, 46, unlocked ? 1 : 0.4) : ""}
         <div class="story-card-meter">
           ${meter({
             value: doneCount / total,
@@ -150,7 +150,7 @@ function renderList(
       <div class="story-card-body">
         <div class="eyebrow">This chapter needs fixing</div>
         <div class="story-card-title">${escape(bad.title)}</div>
-        <pre class="story-problems scroll">${escape(formatProblems(bad.problems))}</pre>
+        <pre class="story-problems">${escape(formatProblems(bad.problems))}</pre>
         <p class="muted story-card-about">Fix the file and save — this page reloads on its own. Every other chapter still plays.</p>
       </div>`;
     list?.appendChild(card);
@@ -207,7 +207,7 @@ function renderArchive(list: Element | null, chapters: readonly StoryChapter[]):
       unlocked
         ? `<details class="story-archive-capstone" open>
              <summary>The First Signal, Annotated</summary>
-             <pre class="story-archive-entry scroll">${escape(FIRST_SIGNAL_ANNOTATED)}</pre>
+             <pre class="story-archive-entry">${escape(FIRST_SIGNAL_ANNOTATED)}</pre>
            </details>`
         : `<p class="muted story-archive-locked">All ${REQUIRED_CHAPTERS} fragments unlock one more entry.</p>`
     }`;
@@ -232,13 +232,13 @@ function renderChapter(
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="sub-header">
-        <button class="btn btn-ghost" id="story-back">← Chapters</button>
+        <button class="btn btn-ghost" id="story-back">${icon("arrow-left", 16)} Chapters</button>
         <h1 class="title">${escape(chapter.title)}</h1>
         <div class="sub-header-meta muted">${
           requiredEpisodes(chapter).filter((episode) => progress.cleared.includes(episode.id)).length
         } of ${requiredEpisodes(chapter).length} played</div>
       </header>
-      <div class="story-chapter scroll">
+      <div class="story-chapter">
         <p class="story-chapter-about">${escape(chapter.about)}</p>
         <div class="episode-list" id="episode-list"></div>
         <div class="story-recap panel panel-tight" id="story-recap" hidden></div>

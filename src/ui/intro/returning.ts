@@ -81,6 +81,23 @@ export function returningSequence(look: IntroLook): Sequence {
   beat(0, 340, (k) => {
     look.bokeh = k * 0.9;
   });
+  /**
+   * The city, as light only.
+   *
+   * The stage multiplies the towers by the wash and leaves the wet street
+   * additive (see the note in `stage.ts`), so what this dial actually buys here
+   * is half a second of neon reflection washing across the bottom of the lobby
+   * while the sign comes on. The player never resolves it as a skyline and is
+   * not meant to; it is the same room as the title, seen for a moment through
+   * the lights the game is already wearing.
+   */
+  beat(0, 420, (k) => {
+    look.city = k * 0.62;
+  });
+  beat(520, 300, (k) => {
+    if (k <= 0) return;
+    look.city *= 1 - k;
+  }, EASE.leave);
   beat(0, 880, (k) => {
     look.dolly = mix(2.2, -0.5, k);
   });
@@ -141,18 +158,65 @@ export function returningSequence(look: IntroLook): Sequence {
    * the floor highlight with it.
    */
 
-  // --- dispersal ------------------------------------------------------------
+  // --- the handover ---------------------------------------------------------
 
-  const EXIT_AT = 620;
-  beat(EXIT_AT, 260, (k) => {
-    look.markScale = mix(1, 1.13, k);
-    look.wordScale = mix(1, 1.07, k);
-    look.markRise = mix(0, 0.05, k);
-    look.wordRise = mix(0, 0.04, k);
-    look.markGlow += k * 0.7;
-    look.wordGlow += k * 0.5;
+  /**
+   * The sting does not end. It puts the wordmark where the lobby keeps it.
+   *
+   * The first version bloomed the lockup out and took the picture to zero, and
+   * it was fine — but "fine" here means the player watched a logo evaporate and
+   * then noticed a smaller copy of the same logo sitting in the header rail
+   * where it had been the whole time. That is two objects, and §3a is explicit
+   * that when two screens contain the same object it must not blink out of
+   * existence and reappear somewhere else. It is the difference between a video
+   * that ends and a room the player has walked into.
+   *
+   * So the lockup flies to the header and shrinks to exactly the size the header
+   * draws it at. The real wordmark is underneath at full opacity the entire
+   * time, so the last frame of the cinematic and the first frame of the lobby
+   * are the same picture — there is no cut, and nothing to cross-fade.
+   *
+   * `arrive` rather than `leave`, because this is an arrival. The lockup
+   * decelerates into its parking space; it is not being thrown away.
+   */
+  const EXIT_AT = 560;
+  const FLIGHT = 300;
+  beat(EXIT_AT, FLIGHT, (k) => {
+    if (k <= 0) return;
+    look.dock = k;
+  }, EASE.arrive);
+  /**
+   * The badge leaves first and the word lands.
+   *
+   * There is no mark in the lobby's header — only the wordmark — so the badge
+   * has nowhere to arrive. Fading it out over the first two thirds of the
+   * flight, while it still travels with the word, means it reads as part of one
+   * shrinking lockup rather than as an object that was deleted.
+   */
+  beat(EXIT_AT, FLIGHT * 0.55, (k) => {
+    if (k <= 0) return;
+    look.markOpacity = 1 - k;
+    look.markGlow = (1 - k) * 0.9;
+  }, EASE.arrive);
+  /** The room goes out well before the lockup does; only the brand travels. */
+  beat(EXIT_AT - 40, 260, (k) => {
+    if (k <= 0) return;
+    look.wash *= 1 - k;
+    look.haze *= 1 - k;
+    look.bokeh *= 1 - k;
+    look.vignette *= 1 - k;
+    for (let i = 0; i < look.beams.length; i++) look.beams[i] = (look.beams[i] ?? 0) * (1 - k);
   }, EASE.leave);
-  beat(EXIT_AT, 260, (k) => {
+  /**
+   * The last sixty milliseconds, and only the last sixty.
+   *
+   * Everything above has already parked the wordmark on top of the lobby's own,
+   * so this is a crossfade between two identical bitmaps in the same place at
+   * the same size. It is invisible, which is the entire point — a longer fade
+   * would be a visible double exposure of the brand against itself.
+   */
+  beat(EXIT_AT + FLIGHT - 60, 100, (k) => {
+    if (k <= 0) return;
     look.master = 1 - k;
   }, EASE.leave);
 

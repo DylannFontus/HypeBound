@@ -77,6 +77,8 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
    */
   let painter: ReturnType<typeof lazyPaint> | null = null;
   let unbindFades: () => void = () => {};
+  /** The measured tile width, reset whenever the grid is rebuilt. */
+  let portraitW = 0;
 
   const factions = Object.values(content.factions).filter((faction) => faction.id !== "neutral");
   const leaderIds = new Set(selectableLeaders(content).map((leader) => leader.id));
@@ -162,7 +164,13 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
     button.addEventListener("pointerenter", () => audio.play("sfx.ui.hover"));
 
     painter?.watch(button, () => {
-      slot.replaceWith(portraitCanvas(card, TILE_W, TILE_H));
+      /*
+       * Measured once per grid, not once per tile: reading `clientWidth` from
+       * inside the paint loop is a forced reflow of the whole grid for every
+       * face. A 3:4 box, because the tile is one.
+       */
+      if (portraitW === 0) portraitW = Math.max(64, Math.round(button.clientWidth) || TILE_W);
+      slot.replaceWith(portraitCanvas(card, portraitW, Math.round((portraitW * TILE_H) / TILE_W)));
     });
 
     item.appendChild(button);
@@ -187,7 +195,7 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
     return `
       <section class="panel panel-chrome gallery-page" data-character="${esc(card.id)}">
         <div class="gallery-page-head">
-          <button class="btn btn-ghost" id="gallery-close">← All characters</button>
+          <button class="btn btn-ghost" id="gallery-close">${icon("arrow-left")}<span>All characters</span></button>
           <h2 class="gallery-page-title">${esc(card.name)}</h2>
           <span class="muted">${esc(faction?.name ?? card.faction)} · ${esc(content.currents[card.current]?.name ?? card.current)}</span>
         </div>
@@ -248,8 +256,8 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
             </p>
 
             <div class="stats-actions">
-              <button class="btn btn-ghost" id="gallery-collection">Find in Collection →</button>
-              ${isLeader ? `<button class="btn btn-ghost" id="gallery-mastery">Mastery track →</button>` : ""}
+              <button class="btn btn-ghost" id="gallery-collection"><span>Find in Collection</span>${icon("chevron-right", { size: 15 })}</button>
+              ${isLeader ? `<button class="btn btn-ghost" id="gallery-mastery"><span>Mastery track</span>${icon("chevron-right", { size: 15 })}</button>` : ""}
             </div>
           </div>
         </div>
@@ -268,6 +276,7 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
     unbindFades();
     unbindFades = () => {};
     painter = null;
+    portraitW = 0;
 
     root.innerHTML = `
       <div class="ambient-bg"></div>
@@ -280,13 +289,22 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
         ${
           open
             ? page(open)
-            : `<nav class="mastery-tabs gallery-filters">
-                 <button class="btn mastery-tab ${filter === "all" ? "active" : ""}" data-faction="all">Everyone</button>
+            : /*
+               * Every faction tab carries its own colour, because eleven
+               * identical lozenges is a wall rather than a set of choices — the
+               * same complaint the collection's filter rail was rebuilt around.
+               * The crest is a dot rather than colour alone on the label, so the
+               * control still reads without it (§6).
+               */
+              `<nav class="mastery-tabs gallery-filters">
+                 <button class="btn mastery-tab ${filter === "all" ? "active" : ""}" data-faction="all">
+                   ${icon("collection", { size: 14 })}<span>Everyone</span>
+                 </button>
                  ${factions
                    .map(
                      (faction) =>
-                       `<button class="btn mastery-tab ${filter === faction.id ? "active" : ""}" data-faction="${esc(faction.id)}">
-                          ${esc(faction.name)}
+                       `<button class="btn mastery-tab ${filter === faction.id ? "active" : ""}" data-faction="${esc(faction.id)}" style="--c:${esc(colorOf(faction.id))}">
+                          <span class="gal-tab-dot" aria-hidden="true"></span><span>${esc(faction.name)}</span>
                         </button>`
                    )
                    .join("")}

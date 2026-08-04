@@ -116,8 +116,25 @@ function currentRoute(): string {
   return (globalThis.location?.hash ?? "").replace(/^#/, "").split("?")[0] ?? "";
 }
 
+/**
+ * `?nointro`, in either query string.
+ *
+ * The switch lives in the *query* rather than the hash because this app routes
+ * on the hash and the query is the one part of the URL it never reads — but the
+ * screenshot harness navigates by appending `#<route>` to a bare origin, so the
+ * only place a caller can put a parameter is after the hash. Honouring both is
+ * two lines and it is the difference between a camera that can photograph this
+ * sequence and one that photographs a live playback composited over a seeked
+ * frame. That is not hypothetical: it happened, twice, and both times the
+ * screenshot was subtly wrong in a way that looked like a rendering bug.
+ */
 function suppressed(): boolean {
-  return new URLSearchParams(globalThis.location?.search ?? "").has("nointro");
+  const hash = globalThis.location?.hash ?? "";
+  const hashQuery = hash.slice(hash.indexOf("?") + 1);
+  return (
+    new URLSearchParams(globalThis.location?.search ?? "").has("nointro") ||
+    (hash.includes("?") && new URLSearchParams(hashQuery).has("nointro"))
+  );
 }
 
 function detectTier(): IntroTier {
@@ -155,6 +172,59 @@ interface Reel {
   still: boolean;
   /** Resolves true when each half of the lockup has reached the set. */
   artwork: { mark: Promise<boolean>; wordmark: Promise<boolean> };
+}
+
+/**
+ * The wordmark master's aspect ratio, overwritten from the real bitmap.
+ *
+ * The manifest says 3072×1024 and the fallback agrees with it, so a wrong guess
+ * is impossible in practice — but the artwork is on disk and the number it
+ * actually has is the one the header's `contain` fit will use, so this is read
+ * rather than assumed.
+ */
+let brandAspect = 3;
+
+/**
+ * The lobby's own wordmark, if this viewport is drawing one.
+ *
+ * The sting's exit flies its lockup onto this element and lets go — see
+ * `StageOptions.dockTarget`. Read-only and defensive by design: the header is
+ * another module's furniture, the class name is the only thing this depends on,
+ * and every way it can be absent resolves to `null` rather than to a wrong
+ * answer. The screen hides it outright below 900px and again in the phone
+ * breakpoint, and it only paints at all once `installIconStyles` has proved the
+ * PNG exists — so "there is no wordmark up there" is a *normal* outcome on a
+ * good few devices, not a failure.
+ *
+ * The rect test catches all of those at once: `display: none` reports zero, and
+ * so does an element the layout has not settled yet.
+ */
+function headerWordmark(): { x: number; y: number; width: number } | null {
+  const element = document.querySelector<HTMLElement>(".lobby-wordmark");
+  if (!element) return null;
+  const rect = element.getBoundingClientRect();
+  if (rect.width < 24 || rect.height < 6) return null;
+  const style = getComputedStyle(element);
+  if (style.visibility === "hidden" || Number(style.opacity) < 0.4) return null;
+  /**
+   * The *drawn* width, not the element's.
+   *
+   * The header paints the wordmark as a `background-size: contain` image inside
+   * a box whose width is a `clamp` against the viewport, so at 1600px the box is
+   * 232px wide and the artwork inside it is 92 — the fit is limited by the
+   * box's height, and the remaining 140px is empty. Flying the lockup to the
+   * element's width parks a copy of the wordmark two and a half times the size
+   * of the one underneath it, which is exactly what the last frame photographed
+   * as: a doubled edge on every letter.
+   *
+   * `contain` is `min` of the two ratios, and this is that same `min`.
+   */
+  const drawnHeight = Math.min(rect.height, rect.width / brandAspect);
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+    width: drawnHeight * brandAspect,
+  };
 }
 
 /**
@@ -245,6 +315,7 @@ async function buildReel(kind: IntroKind, cancelled: () => boolean): Promise<Ree
       race(awaitAsset(brandPath(WORDMARK_ASSET)), STING_ASSET_DEADLINE),
     ]);
     if (cancelled() || !markReady || !wordReady) return null;
+    if (wordReady.width > 0 && wordReady.height > 0) brandAspect = wordReady.width / wordReady.height;
   }
 
   document.body.appendChild(host);
@@ -264,7 +335,13 @@ async function buildReel(kind: IntroKind, cancelled: () => boolean): Promise<Ree
        * place the player is then moved out of.
        */
       room: "hub",
-      ...(first ? {} : { lockupScale: 0.62, lockupAnchor: "centre" as const }),
+      ...(first
+        ? {}
+        : {
+            lockupScale: 0.62,
+            lockupAnchor: "centre" as const,
+            dockTarget: headerWordmark,
+          }),
     });
   } catch (error) {
     console.warn("[intro] stage failed to build", error);
@@ -304,14 +381,34 @@ async function buildReel(kind: IntroKind, cancelled: () => boolean): Promise<Ree
  * grain is not grain — it is a dirty screen.
  */
 async function composeStill(reel: Reel): Promise<void> {
-  // A still with half a lockup in it is not a title card. This is the one path
-  // that genuinely has to wait, and it is the path where waiting is invisible:
-  // nothing is animating, so there is nothing for a delay to interrupt.
+  const draw = (): void => {
+    reel.film.seek(reel.rest);
+    if (!reel.first) reel.look.wash = Math.max(reel.look.wash, 0.36);
+    reel.look.grain = 0;
+    reel.stage.apply(reel.look, reel.rest);
+  };
+
+  /**
+   * Draw the room *first*, before waiting for anything.
+   *
+   * This path used to open with the await below, and photographed cold it was a
+   * black rectangle: the first-run layer carries an opaque plate, no frame loop
+   * ever starts on the still path, and nothing had been drawn — so a
+   * reduced-motion player's first second of HYPEBOUND was an unlit screen for
+   * however long two megabytes of PNG took to decode. The requirement is a
+   * *near-instant* title card, and "instant once the artwork lands" is not that.
+   *
+   * The set needs no artwork to be a room. This composes it at its settled
+   * moment with the lockup's opacities gated off — which is one draw, costs
+   * nothing, and means the worst case is a lit street with the sign not yet on
+   * rather than a black hole with a plate over it.
+   */
+  draw();
+  // Then again with the lockup in it. A still with half a lockup is not a title
+  // card, and this is the one path where waiting is genuinely invisible: nothing
+  // is animating, so there is nothing for a delay to interrupt.
   await Promise.all([reel.artwork.mark, reel.artwork.wordmark]);
-  reel.film.seek(reel.rest);
-  if (!reel.first) reel.look.wash = Math.max(reel.look.wash, 0.36);
-  reel.look.grain = 0;
-  reel.stage.apply(reel.look, reel.rest);
+  draw();
 }
 
 // ---------------------------------------------------------------------------
@@ -368,8 +465,26 @@ export function playIntro(kind: IntroKind): () => void {
       window.removeEventListener("hashchange", cut);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onHidden);
-      stage.dispose();
+      /**
+       * The element goes now; the GPU teardown waits for a quiet moment.
+       *
+       * `stage.dispose()` frees fifteen textures, drops a WebGL context and
+       * calls `forceContextLoss`, and that is tens of milliseconds of driver
+       * work — landing, by construction, a fraction of a second after the boot
+       * finishes, which is exactly when the player is making their first
+       * navigation and the shell is animating two screens against each other.
+       * A frame dropped there is a frame dropped in the one place §3a says the
+       * budget is tightest.
+       *
+       * Removing the host is what actually matters and it is one DOM mutation,
+       * so it happens immediately: from this line on the layer is gone and
+       * nothing it owns can take a click. The context is given back on the next
+       * idle slot, with a two-second deadline so it is never merely leaked.
+       */
       host.remove();
+      const free = (): void => stage.dispose();
+      if (typeof requestIdleCallback === "function") requestIdleCallback(free, { timeout: 2000 });
+      else setTimeout(free, 400);
     };
 
     /**
@@ -540,9 +655,12 @@ export function playIntro(kind: IntroKind): () => void {
  * relationship between this and the rest of `boot()`, and offering one would
  * invite somebody to await it.
  */
+/** The playback `startIntro` began, so the review seam can end it. */
+let running: (() => void) | null = null;
+
 export function startIntro(): void {
   const kind = chooseIntro();
-  if (kind) playIntro(kind);
+  if (kind) running = playIntro(kind);
 }
 
 // ---------------------------------------------------------------------------
@@ -564,6 +682,10 @@ export function startIntro(): void {
  * a long `--wait` cannot disturb it either.
  */
 export async function frameIntro(kind: IntroKind, ms: number): Promise<() => void> {
+  // Whatever this launch started, stop it: two reels on one page composite, and
+  // a still of the sum of them is a photograph of something nobody will see.
+  running?.();
+  running = null;
   let cancelled = false;
   const reel = await buildReel(kind, () => cancelled);
   if (!reel) return () => {};
@@ -587,8 +709,16 @@ export async function frameIntro(kind: IntroKind, ms: number): Promise<() => voi
  */
 if (typeof window !== "undefined") {
   (window as unknown as { hypeboundIntro?: unknown }).hypeboundIntro = {
-    play: (kind: IntroKind = "first-run") => playIntro(kind),
+    play: (kind: IntroKind = "first-run") => {
+      running?.();
+      running = playIntro(kind);
+      return running;
+    },
     frame: (kind: IntroKind, ms: number) => frameIntro(kind, ms),
+    stop: () => {
+      running?.();
+      running = null;
+    },
     forget: forgetTitle,
     choose: chooseIntro,
   };

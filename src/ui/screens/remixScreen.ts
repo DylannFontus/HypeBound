@@ -22,7 +22,7 @@ import {
 } from "../../game/remix";
 import { remixQuestView } from "../../save/profile";
 import { audio } from "../../audio/audio";
-import { count, enter, icon, meter, quantify, stamp, unspec } from "./data/kit";
+import { banner, count, disposeBag, enter, icon, meter, quantify, rovingList, stamp, unspec } from "./data/kit";
 
 export interface RemixCallbacks {
   onBack: () => void;
@@ -35,6 +35,7 @@ const esc = (value: string): string =>
 export function createRemixScreen(callbacks: RemixCallbacks): Screen {
   const root = document.createElement("div");
   root.className = "screen remix-screen";
+  const bag = disposeBag();
 
   function render(): void {
     const now = Date.now();
@@ -42,6 +43,22 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
     const quest = remixQuestView(now);
     const rotation = allModifiers();
     const playable = playableModifiers();
+    /*
+     * The week's rule gets key art, because the week's rule is the screen.
+     *
+     * The hero panel was six lines of text with a 3px pink rule down its left
+     * edge and no picture anywhere on the route — and because `.panel` carries no
+     * padding, the rule and the text were both hard against x=0 of the panel and
+     * the CTA had its left cap clipped. Seeded by the modifier id, so the rotation
+     * looks like a different week when the week turns over.
+     */
+    const key = banner("#e46bd6", {
+      width: 1280,
+      height: 194,
+      seed: current.id,
+      emblem: "spiral",
+      patternAlpha: 0.06,
+    });
 
     root.innerHTML = `
       <div class="ambient-bg"></div>
@@ -52,23 +69,28 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
       </header>
 
       <div class="remix-body data-body">
-        <section class="panel d-enter remix-current" id="remix-current">
-          <div class="t-label">This week's rule</div>
-          <h2 class="remix-name">${esc(current.name)}</h2>
-          <p class="remix-rule" id="remix-rule">${esc(current.text)}</p>
-          <p class="muted remix-until">
-            In force until <strong>${esc(stamp(weekEnd(now)))}</strong>, then the queue rotates.
-          </p>
-          <p class="muted remix-both">
-            The rule applies to <strong>both players</strong>. Remix never touches Ranked.
-          </p>
-          <button type="button" class="mat-hero act r-chip remix-cta" id="remix-play">${icon(
-            "play",
-            16
-          )} Play this week's Remix</button>
+        <section class="panel d-pad d-enter remix-current" id="remix-current">
+          <div class="d-key remix-key" style="--key-art:url('${key}');--key-aspect:6.6/1" aria-hidden="true">
+            <div class="d-key-scrim"></div>
+          </div>
+          <div class="remix-current-text">
+            <div class="t-label">This week's rule</div>
+            <h2 class="remix-name t-display">${esc(current.name)}</h2>
+            <p class="remix-rule" id="remix-rule">${esc(current.text)}</p>
+            <p class="muted remix-until">
+              ${icon("timer", 14)} In force until <strong>${esc(stamp(weekEnd(now)))}</strong>, then the queue rotates.
+            </p>
+            <p class="muted remix-both">
+              The rule applies to <strong>both players</strong>. Remix never touches Ranked.
+            </p>
+            <button type="button" class="mat-hero act r-chip remix-cta" id="remix-play">${icon(
+              "play",
+              16
+            )} Play this week's Remix</button>
+          </div>
         </section>
 
-        <section class="panel d-enter remix-quest" id="remix-quest">
+        <section class="panel d-pad d-enter remix-quest" id="remix-quest">
           <div class="t-label">Weekly Remix quest</div>
           <p class="remix-quest-line">
             Win ${quantify(quest.required, "Remix match", "Remix matches")} —
@@ -84,19 +106,37 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
           </p>
         </section>
 
-        <section class="panel d-enter remix-rotation">
+        <section class="panel d-pad d-enter remix-rotation">
           <div class="t-label">The launch rotation — ${playable.length} of ${rotation.length} playable</div>
+          <div class="remix-rows" id="remix-rows">
           ${rotation
             .map((modifier) => {
               const live = modifier.id === current.id;
+              /*
+               * Each rule is a real `<button>`, not a `<div>` with a nested one.
+               *
+               * The row itself was inert and only the "Play it" pill inside it
+               * could be reached, so a keyboard player tabbed past six rules
+               * without ever being told what any of them said. `mat-panel act` is
+               * the foundation's raised material plus its six-state mixin, which
+               * is where the hover, the press and the designed focus ring come
+               * from; a deferred rule is `disabled`, so it is announced as
+               * unavailable rather than merely looking dim.
+               */
               return `
-              <div class="remix-row ${modifier.deferred ? "is-deferred" : ""} ${live ? "is-live" : ""}" data-rule="${esc(modifier.id)}">
-                <div class="remix-row-head">
+              <button type="button"
+                      class="mat-panel act r-tile remix-row d-enter ${modifier.deferred ? "is-deferred" : ""} ${
+                        live ? "is-live" : ""
+                      }"
+                      data-rule="${esc(modifier.id)}"
+                      ${modifier.deferred ? "disabled" : `data-play="${esc(modifier.id)}"`}
+                      ${live ? 'aria-current="true"' : ""}>
+                <span class="remix-row-head">
                   <span class="remix-row-name">${esc(modifier.name)}</span>
                   ${live ? `<span class="remix-tag">This week</span>` : ""}
                   ${modifier.deferred ? `<span class="remix-tag remix-tag-off">Not yet</span>` : ""}
-                </div>
-                <p class="muted remix-row-text">${esc(modifier.text)}</p>
+                </span>
+                <span class="muted remix-row-text">${esc(modifier.text)}</span>
                 ${
                   /*
                    * A locked rule says it is locked, and *then* says why.
@@ -110,18 +150,17 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
                    * explanation instead of a ticket.
                    */
                   modifier.deferred
-                    ? `<p class="remix-why">${icon("lock", 13)}
-                         <span><strong>Coming soon.</strong> ${esc(unspec(modifier.deferred))}</span></p>`
-                    : `<button type="button" class="mat-chip act r-chip remix-play" data-play="${esc(
-                        modifier.id
-                      )}">${icon("play", 13)} Play it</button>`
+                    ? `<span class="remix-why">${icon("lock", 13)}
+                         <span><strong>Coming soon.</strong> ${esc(unspec(modifier.deferred))}</span></span>`
+                    : `<span class="remix-go">${icon("play", 13)} Play it</span>`
                 }
-              </div>`;
+              </button>`;
             })
             .join("")}
+          </div>
         </section>
 
-        <section class="panel d-enter remix-locked">
+        <section class="panel d-pad d-enter remix-locked">
           <div class="t-label">Not in this build</div>
           ${[...DEFERRED_REMIX.entries()]
             .map(
@@ -136,6 +175,8 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
     `;
 
     enter(root, ".panel", 40);
+    bag.run();
+    bag.add(rovingList(root.querySelector<HTMLElement>("#remix-rows"), ".remix-row"));
     root.querySelector("#remix-back")?.addEventListener("click", () => callbacks.onBack());
     root.querySelector("#remix-play")?.addEventListener("click", () => {
       audio.play("sfx.ui.confirm");
@@ -171,6 +212,7 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
     root,
     resume: render,
     dispose: () => {
+      bag.run();
       delete (window as unknown as { hypeboundRemix?: unknown }).hypeboundRemix;
     },
   };

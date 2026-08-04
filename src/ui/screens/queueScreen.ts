@@ -63,6 +63,7 @@ import { describeRecord, fetchMyRecord } from "../../net/playerRecord";
 import { contentHash } from "../../engine/content";
 import { paintLeaderPortrait, paintVenue } from "../art/leaderPortrait";
 import { icon } from "../art/uiIcons";
+import { stagger } from "../motion";
 import { duration, num } from "../format";
 
 export interface QueueCallbacks {
@@ -104,6 +105,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
       <section class="queue-stage">
         <div class="queue-plinth" aria-hidden="true">
           <div class="queue-cast"></div>
+          <div class="queue-reflect"><div class="queue-reflect-plane"></div></div>
           <div class="queue-leader"></div>
           <div class="queue-leader-lit"></div>
         </div>
@@ -175,18 +177,33 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   if (roomHost) {
     roomHost.appendChild(
       paintVenue(leader?.faction ?? "default", {
-        width: 1400,
         /**
-         * Wide enough to be a room rather than a strip.
+         * Nine hundred, and stretched — because it is going to be soft anyway.
          *
-         * It was 900×450 letterboxed into a rounded rectangle inset 17px from
-         * each edge, and the measurable result was a queue where 66.6% of the
-         * 16px blocks were both dark and flat and the 95th-percentile pixel sat
-         * at 53.9 against the lobby's 157.9. The venue now fills the viewport
-         * behind everything, so the light in the room is the light on the
-         * screen.
+         * This was 1400 CSS pixels at a 2× backing store: a 2800×1568 texture,
+         * drawn from a 3840×2160 PNG, handed to the compositor with
+         * `filter: blur(14px)` on it, inside the first frame of a 380ms
+         * transition. Measured on `#signin → #queue`, that frame ran 118–191ms
+         * with **no script in it at all** — pure raster — which is thirteen
+         * dropped frames on a machine that idles at 75fps, and it is why a
+         * carefully written descend has never once been visible.
+         *
+         * Every number below says the same thing in a different unit: a picture
+         * that will be blurred does not need resolution. The plate is a tenth of
+         * the pixels, the source comes off `scaledAsset`'s memoised mip instead
+         * of the 8.3-megapixel original, and the blur is *baked in* at plate
+         * scale rather than run over 1856×1026 on the way to the screen. The
+         * viewport stretches it 2.06×, which does the rest of the softening for
+         * nothing.
          */
+        width: 900,
         aspect: 0.56,
+        resolution: 1,
+        softness: 7,
+        // ...and a room with things in it. See `rig`: the top fifth of this
+        // screen measured sd 16.6 against the reference frame's 51.7, because a
+        // painted ceiling at heavy blur is a gradient.
+        rig: true,
         bias: 0.06,
         scrim: 0.22,
         dim: 0.12,
@@ -214,17 +231,39 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
    */
   const leaderHost = root.querySelector<HTMLElement>(".queue-leader");
   if (leaderHost && leader) {
-    for (const layer of ["queue-leader-far", "queue-leader-near"]) {
+    for (const layer of ["queue-leader-far", "queue-leader-near"] as const) {
+      /**
+       * The out-of-focus copy is drawn out of focus, at the resolution an
+       * out-of-focus copy deserves.
+       *
+       * It was the same 1120×1994 plate as the sharp one with `blur(12px)` over
+       * it in CSS — two megapixels of detail rasterised and then thrown away by
+       * a full-size GPU blur, twice, in the frame the transition starts in. At a
+       * fifth of the linear size with the defocus baked in it is 0.06 megapixels
+       * and the picture is identical, because a picture you cannot resolve is
+       * not resolution you can spend.
+       *
+       * `oval` is the other half of the same defect and it is not about cost.
+       * Four feathered straight edges leave four right angles, and at 2.4×
+       * exposure the far copy read as a translucent rectangular column standing
+       * on the floor — the grid lines visibly changed value where they crossed
+       * its sides. The plate is cut to a superellipse in the space the art is
+       * drawn in, so there is no straight edge anywhere for a floor line to
+       * cross.
+       */
+      const far = layer === "queue-leader-far";
       leaderHost.appendChild(
         paintLeaderPortrait(leader, {
           /**
-           * Wider, because she is half the composition now rather than an item
-           * in a centred stack. Given a column of her own the plinth is 348px
-           * across at 1600×900 and the plate is drawn a little over it, so the
-           * figure is resampled down rather than up on a 1× display. It costs
-           * 0.9ms — measured — because the mip and the plate are both memoised.
+           * The plinth is 348px across at 1600×900, so the sharp copy is drawn
+           * at a shade under two device pixels per CSS pixel and the soft one at
+           * a shade over a half. It costs a blit — the mip and the plate are
+           * both memoised.
            */
-          width: 560,
+          width: far ? 300 : 420,
+          resolution: far ? 0.6 : 1.62,
+          softness: far ? 6 : 0,
+          oval: far ? 2.6 : 0,
           /**
            * Taller, and the crop starts above the head rather than through it.
            *
@@ -236,21 +275,73 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
            */
           aspect: 1.78,
           bias: 0.03,
-          scrim: 0.3,
+          /**
+           * Light on her, not shade.
+           *
+           * The floor scrim exists so a *name* set under a portrait has
+           * something to stand on. Nothing is set under this one — the board
+           * carries every word — so at 0.3 it was purely a stop of exposure
+           * taken off the one thing on the screen that is supposed to be lit.
+           * She stands on a floor the room draws, with a cast and a reflection
+           * of her own, which is what a contact actually needs.
+           */
+          scrim: 0.16,
           // Cut on all four sides. A figure standing in a room has no frame; a
           // rectangle in the middle of a floor is a poster somebody left there.
           fadeTop: 0.24,
           fadeLeft: 0.26,
           fadeRight: 0.26,
-          fadeBottom: 0.05,
-          // ...and she leaves a mark on the floor she is standing on.
-          reflect: 0.12,
+          fadeBottom: 0.12,
           className: `queue-leader-art ${layer}`,
         })
       );
     }
+
+    /**
+     * The reflection belongs to the floor, not to her.
+     *
+     * It used to be a band reserved at the bottom of the plate — which meant it
+     * ended where the plate ended, in mid-air, on a floor drawn in perspective
+     * that it had no relationship with. At 2.4× exposure that was legible as a
+     * mirror image stopping dead along a horizontal line.
+     *
+     * So it is a third copy of the same memoised plate, mirrored, and laid on
+     * the *floor's own plane*: `.queue-reflect` carries the identical
+     * `perspective` and `rotateX` the grid and the beam use, so the reflection
+     * recedes with the room and fades out with it instead of ending at an edge.
+     * It is the cheapest of the three — a fifth of the resolution and heavily
+     * softened, because a reflection in a club floor is not a photograph.
+     */
+    const floorHost = root.querySelector<HTMLElement>(".queue-reflect-plane");
+    floorHost?.appendChild(
+      paintLeaderPortrait(leader, {
+        width: 260,
+        resolution: 0.55,
+        softness: 5,
+        oval: 2.4,
+        aspect: 1.78,
+        bias: 0.03,
+        scrim: 0.16,
+        fadeTop: 0.24,
+        fadeLeft: 0.26,
+        fadeRight: 0.26,
+        fadeBottom: 0.12,
+        className: "queue-reflect-art",
+      })
+    );
+
     root.classList.add("has-leader");
   }
+
+  /**
+   * The sign, then the footnote. The room and the person are not on the list.
+   *
+   * §3a asks for a cascade in reading order and this screen had none — every
+   * panel landed on the same frame. Only the two boards cascade: the venue, the
+   * floor, the lamp and the figure are the place, and a place does not assemble
+   * itself while somebody walks into it.
+   */
+  stagger(root.querySelectorAll(".queue-call, .queue-note"), { step: 60, from: 60 });
 
   const say = (state: string, detail = ""): void => {
     if (stateEl) stateEl.textContent = state;

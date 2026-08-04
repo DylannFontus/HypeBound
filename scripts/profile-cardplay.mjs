@@ -81,8 +81,19 @@ try {
       timeout: 40000,
     });
     await page.click(".end-turn-btn");
+    await dismissConfirm();
+  };
+
+  /**
+   * The confirmation mounts from an async handler, so `count()` on the very next
+   * tick is legitimately zero and the panel then appears a frame later and
+   * blocks every subsequent step. Wait for it, briefly, before deciding it is
+   * not coming.
+   */
+  const dismissConfirm = async () => {
     const c = page.locator(".confirm-panel .btn-primary");
-    if (await c.count()) await c.click();
+    await c.waitFor({ state: "visible", timeout: 700 }).catch(() => {});
+    if (await c.count()) await c.click().catch(() => {});
   };
 
   for (let i = 0; i < 3; i++) {
@@ -117,8 +128,7 @@ try {
   } else {
     await cdp.send("Profiler.start");
     await page.click(".end-turn-btn");
-    const c = page.locator(".confirm-panel .btn-primary");
-    if (await c.count()) await c.click();
+    await dismissConfirm();
     await page.waitForTimeout(3000);
     const { profile } = await cdp.send("Profiler.stop");
     report(profile, "turn handover (click + 3000ms)");

@@ -113,7 +113,15 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
                 .map((reward) => {
                   const visual = describeReward(reward, content);
                   return rewardTileHtml(visual, {
-                    art: 30,
+                    /*
+                     * 38, not 30. The quantity chip hangs off the plate's
+                     * bottom-right corner, and at 30px it covered most of the
+                     * icon underneath it — a Clout payout read as one muddy
+                     * red-purple smudge rather than as a coin with a number on
+                     * it. The chip is a fixed size, so the plate has to be big
+                     * enough to still be a plate beside it.
+                     */
+                    art: 38,
                     bare: true,
                     title: visual.qty !== undefined ? `${formatNumber(visual.qty)} ${visual.name}` : visual.name,
                     className: "ach-reward",
@@ -141,7 +149,17 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
                 ? `<button class="mat-hero act rw-back ach-claim" data-id="${esc(def.id)}">${icon("star-filled")}<span>Claim</span></button>`
                 : view.unlocked
                   ? tokenHtml("claimable", "Unlocked")
-                  : tokenHtml("locked")
+                  : /*
+                     * Not a chip. Eight rows in a category, all locked on a new
+                     * account, produced a vertical column of the word LOCKED
+                     * eight times — the exact defect the recon named, moved from
+                     * plain text into a nicer box. The badge to the left of this
+                     * already carries a struck padlock and is desaturated, the
+                     * rail underneath already reads 0 / 1, and the word is here
+                     * for a screen reader. Xbox and PlayStation both show a
+                     * greyed badge and no label at all.
+                     */
+                    `<span class="rw-sr">Locked</span>`
           }
         </div>
       </li>`;

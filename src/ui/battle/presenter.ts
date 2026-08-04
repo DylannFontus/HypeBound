@@ -102,6 +102,19 @@ export class BattlePresenter {
   play(events: EngineEvent[], getView: () => PlayerView): Promise<void> {
     this.queue = this.queue.then(async () => {
       this.skipRequested = false;
+      /**
+       * Draw the faces this batch is about to need, before the first beat.
+       *
+       * The engine has already resolved everything by the time a batch arrives,
+       * so `getView()` here is the board as it will be when the last event has
+       * played. Handing it over now buys the whole length of the animation to
+       * draw the card faces that would otherwise be drawn on the single frame a
+       * token appears — measured as a 366ms long task in the middle of the
+       * rival's play. See `BattleView.prewarmBatch`; the drain is per-frame and
+       * stands down while anything is in flight.
+       */
+      this.view.prewarmBatch(getView());
+      this.view.facesSettled();
       this.view.setLayoutLocked(true);
       try {
         for (const event of events) {

@@ -465,8 +465,13 @@ export function describeReward(
 
 export interface TileOptions {
   state?: TokenState | "none";
-  /** art box size in px */
-  art?: number;
+  /**
+   * Art box size. A number is pixels; a string is any CSS length, which is how
+   * a caller opts into growing with `--ui-scale`. The Hype Wave's lanes are
+   * sized in em, so a 40px tile inside them shrank to a quarter of its lane at
+   * scale 1.4 and the track read as a row of mostly-empty plates.
+   */
+  art?: number | string;
   /** hide the caption, for dense rows */
   bare?: boolean;
   title?: string;
@@ -476,14 +481,15 @@ export interface TileOptions {
 /** One reward, drawn: a picture, then a tabular quantity, then its name. */
 export function rewardTileHtml(visual: RewardVisual, options: TileOptions = {}): string {
   const state = options.state ?? "none";
-  const art = options.art ?? 46;
+  const artSize = options.art ?? 46;
+  const art = typeof artSize === "number" ? `${artSize}px` : artSize;
   const picture = visual.art
     ? `<img src="${visual.art}" alt="" loading="lazy" decoding="async">`
     : icon(visual.icon);
   return (
     `<div class="rw-tile ${options.className ?? ""}"${state === "none" ? "" : ` data-state="${state}"`}` +
     `${options.title ? ` title="${esc(options.title)}"` : ""}>` +
-    `<div class="rw-tile-art" style="--tile-ink:${visual.ink};--tile-art:${art}px">${picture}` +
+    `<div class="rw-tile-art" style="--tile-ink:${visual.ink};--tile-art:${art}">${picture}` +
     (visual.qty !== undefined && visual.qty > 1
       ? `<span class="rw-tile-qty mat-chip num">${formatNumber(visual.qty)}</span>`
       : "") +

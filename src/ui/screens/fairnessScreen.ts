@@ -18,7 +18,7 @@ import type { OddsTable } from "../../game/fairness";
 import { bannerTable, conversionTable, dropTable, rateHistory, workedExamples } from "../../game/fairness";
 import { DATA_VERSION, latestRelease } from "../../game/news";
 import { audio } from "../../audio/audio";
-import { longDate } from "./data/kit";
+import { icon, longDate } from "./data/kit";
 
 export interface FairnessCallbacks {
   onBack: () => void;
@@ -95,16 +95,16 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="screen-header">
-      <button class="btn btn-ghost" id="fairness-back">← Back</button>
+      <button class="btn btn-ghost" id="fairness-back">${icon("arrow-left", 16)} Back</button>
       <h1 class="title">Probability Disclosures</h1>
       <div class="mastery-wallet">
         <div class="currency" title="The data version these rates belong to">
-          <span class="currency-icon">◆</span><span class="currency-value" id="fairness-version">${esc(DATA_VERSION())}</span>
+          <span class="currency-icon">${icon("diamond", 14)}</span><span class="currency-value" id="fairness-version">${esc(DATA_VERSION())}</span>
         </div>
       </div>
     </header>
 
-    <main class="fairness-body data-body">
+    <main class="fairness-body data-body data-doc">
       <section class="panel panel-chrome fairness-intro">
         <p class="mastery-rule">
           <strong>These are the numbers the game rolls with.</strong> This page and the roller read
@@ -197,9 +197,9 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
                </table>`
         }
         <div class="mail-actions">
-          <button class="btn btn-ghost" id="fairness-patch">Patch notes →</button>
-          <button class="btn btn-ghost" id="fairness-shop">Merch Drops →</button>
-          <button class="btn btn-ghost" id="fairness-banner">The banner →</button>
+          <button class="btn btn-ghost" id="fairness-patch">Patch notes ${icon("arrow-right", 15)}</button>
+          <button class="btn btn-ghost" id="fairness-shop">Merch Drops ${icon("arrow-right", 15)}</button>
+          <button class="btn btn-ghost" id="fairness-banner">The banner ${icon("arrow-right", 15)}</button>
         </div>
       </section>
     </main>`;

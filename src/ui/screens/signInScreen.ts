@@ -52,7 +52,7 @@ import { activeDeck } from "../../save/profile";
 import { ONLINE, onlineAvailable } from "../../config";
 import { paintLeaderPortrait, paintVenue } from "../art/leaderPortrait";
 import { icon } from "../art/uiIcons";
-import { motionEnabled } from "../motion";
+import { motionEnabled, stagger } from "../motion";
 
 export interface SignInCallbacks {
   onBack: () => void;
@@ -152,7 +152,20 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
   const room = root.querySelector<HTMLElement>(".signin-room");
   if (room) {
     room.appendChild(paintVenue(deck?.leaderCardId ? leaderCard?.faction ?? "default" : "default", {
-      width: 1280,
+      /**
+       * Nine hundred pixels, softened in the plate, stretched over the viewport.
+       *
+       * It was 1280 CSS pixels at a 2× backing store under `filter: blur(20px)`
+       * — a 2560×1536 texture built from a 3840×2160 PNG and then blurred across
+       * 1728×1008 of screen, inside the frame a transition starts in. The whole
+       * point of a backdrop at this blur is that no pixel of it is resolvable,
+       * and a picture nobody can resolve should not be stored at retina. The
+       * same 900px bucket the queue asks for, so the two screens share one mip.
+       */
+      width: 900,
+      aspect: 0.6,
+      resolution: 1,
+      softness: 10,
       /**
        * Bigger, brighter, and no longer a strip.
        *
@@ -163,10 +176,12 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
        * the composition. Every value here moved in the same direction, and the
        * disclosure below is what proves it worked.
        */
-      aspect: 0.6,
       bias: 0.05,
       scrim: 0.34,
       dim: 0.22,
+      // Something in the room to survive the blur: the band y≈700–900 across the
+      // full width — 22% of this frame — carried nothing but wash.
+      rig: true,
       className: "signin-room-art",
     }));
   }
@@ -175,7 +190,18 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
   if (portraitHost && leaderCard) {
     portraitHost.appendChild(
       paintLeaderPortrait(leaderCard, {
-        width: 520,
+        /**
+         * 460 at 1.8×, rather than 520 at 2×.
+         *
+         * `.signin-portrait` is `min(40vw, 560px)` wide, so a 1.6-megapixel
+         * plate was being drawn for a box that can never exceed 1.1 megapixels
+         * of device pixels — and it is drawn inside the frame the transition
+         * starts in, where every megapixel is a dropped frame. This is the one
+         * plate in the front door that is sharp and lit, so it keeps very nearly
+         * all of its resolution and none of its slack.
+         */
+        width: 460,
+        resolution: 1.8,
         aspect: 1.52,
         bias: 0.08,
         scrim: 0.5,
@@ -201,6 +227,16 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
     );
     root.classList.add("has-leader");
   }
+
+  /**
+   * Three pieces of furniture, in reading order, 55ms apart.
+   *
+   * The room and the person are not in this list: they belong to the place and
+   * arrive with the screen. What cascades is the argument, then the form, then
+   * the small print — which is also the order somebody reads them in, and the
+   * order in which they matter.
+   */
+  stagger(root.querySelectorAll(".signin-stage, .signin-panel, .signin-note"), { step: 55, from: 40 });
 
   const panel = root.querySelector<HTMLElement>(".signin-panel");
   const status = root.querySelector<HTMLElement>("#signin-status");

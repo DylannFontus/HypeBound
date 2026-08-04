@@ -72,7 +72,7 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="tour-back">← Back</button>
+        <button class="btn btn-ghost" id="tour-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">The Grand Tour</h1>
         <div class="tour-count" id="tour-count">${progress.unlocked} of ${progress.total} unlocked</div>
       </header>

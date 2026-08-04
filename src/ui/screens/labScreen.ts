@@ -29,6 +29,7 @@ import { enumerateLegalIntents } from "../../engine/intents";
 import { selectableLeaders } from "../../engine/content";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
+import { icon } from "./data/kit";
 
 export interface LabCallbacks {
   onBack: () => void;
@@ -95,51 +96,84 @@ export function createLabScreen(content: ContentIndex, callbacks: LabCallbacks):
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="sub-header">
-      <button class="btn btn-ghost" id="lab-back">← Lobby</button>
+      <button class="btn btn-ghost" id="lab-back">${icon("arrow-left", 16)} Lobby</button>
       <h1 class="title">The Lab</h1>
       <div class="sub-header-meta muted">Deterministic sandbox · you control both seats</div>
     </header>
     <div class="lab-body data-body">
-      <aside class="lab-editor scroll">
+      <aside class="lab-editor">
+        ${/*
+           * The form kit, rather than five bespoke controls.
+           *
+           * These were bare `<input>` and `<select>` under a `.lab-field` rule in
+           * `screens.css` that gave them a flat `--bg-panel` fill and a 1px border
+           * — §1 bans both — and no hover, press, focus or disabled state of any
+           * kind. They are `field-group` / `t-label` / `.field` / `.select` /
+           * `.checkbox` now, which is module A's kit, so the Lab's controls are
+           * the same objects as the Custom Lobby's and the Settings rail's rather
+           * than a third opinion. The class is dropped from the wrapper as well as
+           * added to the control: `.lab-field input` is a more specific selector
+           * than `.field`, so as long as a control was *inside* one, the old flat
+           * fill won.
+           */ ""}
         <section class="lab-group">
-          <div class="eyebrow">Match</div>
-          <label class="lab-field">Seed <input type="number" id="lab-seed" value="${seed}" /></label>
-          <label class="lab-field">Leader A <select id="lab-leader-a"></select></label>
-          <label class="lab-field">Leader B <select id="lab-leader-b"></select></label>
+          <div class="t-label">Match</div>
+          <label class="field-group">
+            <span class="t-label">Seed</span>
+            <input class="field" type="number" id="lab-seed" value="${seed}" />
+          </label>
+          <label class="field-group">
+            <span class="t-label">Leader A</span>
+            <select class="select" id="lab-leader-a"></select>
+          </label>
+          <label class="field-group">
+            <span class="t-label">Leader B</span>
+            <select class="select" id="lab-leader-b"></select>
+          </label>
         </section>
 
         <section class="lab-group">
-          <div class="eyebrow">Add a character</div>
-          <label class="lab-field">Card <select id="lab-card"></select></label>
-          <label class="lab-field">Side
-            <select id="lab-side"><option value="0">A (you)</option><option value="1">B (rival)</option></select>
+          <div class="t-label">Add a character</div>
+          <label class="field-group">
+            <span class="t-label">Card</span>
+            <select class="select" id="lab-card"></select>
           </label>
-          <label class="lab-field lab-inline">
-            <span>Ready</span><input type="checkbox" id="lab-ready" checked />
+          <label class="field-group">
+            <span class="t-label">Side</span>
+            <select class="select" id="lab-side"><option value="0">A (you)</option><option value="1">B (rival)</option></select>
+          </label>
+          <label class="field-row lab-check">
+            <input class="checkbox" type="checkbox" id="lab-ready" checked />
+            <span>Enters ready</span>
           </label>
           <button class="btn btn-primary" id="lab-add">Add to board</button>
         </section>
 
         <section class="lab-group">
-          <div class="eyebrow">Set a value</div>
-          <label class="lab-field">What
-            <select id="lab-what">
+          <div class="t-label">Set a value</div>
+          <label class="field-group">
+            <span class="t-label">What</span>
+            <select class="select" id="lab-what">
               <option value="leaderHealth">Leader health</option>
               <option value="obsession">Obsession</option>
-              <option value="armor">Armor</option>
+              <option value="armor">Armour</option>
               <option value="turn">Turn (sets Hype)</option>
             </select>
           </label>
-          <label class="lab-field">Side
-            <select id="lab-vside"><option value="0">A (you)</option><option value="1">B (rival)</option></select>
+          <label class="field-group">
+            <span class="t-label">Side</span>
+            <select class="select" id="lab-vside"><option value="0">A (you)</option><option value="1">B (rival)</option></select>
           </label>
-          <label class="lab-field">Value <input type="number" id="lab-value" value="10" /></label>
+          <label class="field-group">
+            <span class="t-label">Value</span>
+            <input class="field" type="number" id="lab-value" value="10" />
+          </label>
           <button class="btn" id="lab-set">Apply</button>
         </section>
 
         <section class="lab-group">
-          <div class="eyebrow">Scenario</div>
-          <div class="lab-ops scroll" id="lab-ops"></div>
+          <div class="t-label">Scenario</div>
+          <div class="lab-ops" id="lab-ops"></div>
           <div class="row">
             <button class="btn btn-ghost" id="lab-undo-op">Remove last</button>
             <button class="btn btn-ghost" id="lab-clear">Clear all</button>
@@ -152,16 +186,16 @@ export function createLabScreen(content: ContentIndex, callbacks: LabCallbacks):
       <section class="lab-stage panel">
         <div class="lab-board" id="lab-board"></div>
         <div class="lab-log-head">
-          <span class="eyebrow">Intent log</span>
+          <span class="t-label">Intent log</span>
           <div class="row">
             <button class="btn btn-ghost" id="lab-undo">Undo</button>
             <button class="btn btn-ghost" id="lab-reset">Reset</button>
           </div>
         </div>
-        <div class="lab-log scroll" id="lab-log"></div>
+        <div class="lab-log" id="lab-log"></div>
         <div class="lab-moves">
-          <div class="eyebrow">Legal moves — <span id="lab-turn-owner"></span></div>
-          <div class="lab-move-list scroll" id="lab-moves"></div>
+          <div class="t-label">Legal moves — <span id="lab-turn-owner"></span></div>
+          <div class="lab-move-list" id="lab-moves"></div>
         </div>
       </section>
     </div>`;

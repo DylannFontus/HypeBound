@@ -27,6 +27,8 @@
 
 import type { Screen } from "../shell";
 import { audio } from "../../audio/audio";
+import { LOCALE } from "../format";
+import { count, enter, icon } from "./data/kit";
 import { adopt, type Adoption } from "../../save/cloudSaves";
 import { SaveClient } from "../../net/saveClient";
 import { profileStore } from "../../save/profile";
@@ -70,7 +72,14 @@ function summarise(profile: unknown, updated: string): Summary {
   };
 }
 
-const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+/**
+ * en-GB, not the browser.
+ *
+ * `undefined` here printed "il y a 3 heures" inside an English sentence on any
+ * machine not set to English. The game has no i18n layer, so the locale is a
+ * constant like every other date in the build — `format.ts` owns the value.
+ */
+const RELATIVE = new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto" });
 
 /** "3 hours ago", from an ISO string. */
 function ago(iso: string, nowMs = Date.now()): string {
@@ -88,13 +97,28 @@ function ago(iso: string, nowMs = Date.now()): string {
   return "just now";
 }
 
+/**
+ * One side of the comparison.
+ *
+ * The absent side used to be the sentence "Nothing to compare — this side has no
+ * save." dropped into a 1,100×190px plate, which is the blank grid §5 names. It
+ * is the same size and the same shape as the side that *does* have a save, so
+ * the two read as a pair; the difference between them is a designed empty rather
+ * than a missing table. The numbers all go through `format.ts` — `toLocaleString`
+ * with no locale is the same uncontrolled formatting the dates had, and 5000
+ * comes out as "5 000" here and "5,000" three screens away depending on the OS.
+ */
 function card(title: string, note: string, summary: Summary | null): string {
   if (!summary) {
     return `
       <section class="panel panel-chrome cloud-save-card">
         <h2 class="t-heading">${esc(title)}</h2>
         <p class="muted">${esc(note)}</p>
-        <p class="muted">Nothing to compare — this side has no save.</p>
+        <div class="empty cloud-save-none">
+          ${icon("info", 34)}
+          <h3 class="t-heading">Nothing on this side</h3>
+          <p class="t-body">There is no save here to compare against, so there is nothing to lose by keeping the other one.</p>
+        </div>
       </section>`;
   }
   return `
@@ -103,11 +127,11 @@ function card(title: string, note: string, summary: Summary | null): string {
       <p class="muted">${esc(note)}</p>
       <table class="d-table patch-table cloud-save-table">
         <tbody>
-          <tr><td>Level</td><td class="patch-after">${summary.level}</td></tr>
-          <tr><td>Clout</td><td class="patch-after">${summary.clout.toLocaleString()}</td></tr>
-          <tr><td>Cards</td><td class="patch-after">${summary.cards.toLocaleString()}</td></tr>
-          <tr><td>Decks</td><td class="patch-after">${summary.decks}</td></tr>
-          <tr><td>Matches</td><td class="patch-after">${summary.matches.toLocaleString()}</td></tr>
+          <tr><td>Level</td><td class="patch-after num">${count(summary.level)}</td></tr>
+          <tr><td>Clout</td><td class="patch-after num">${count(summary.clout)}</td></tr>
+          <tr><td>Cards</td><td class="patch-after num">${count(summary.cards)}</td></tr>
+          <tr><td>Decks</td><td class="patch-after num">${count(summary.decks)}</td></tr>
+          <tr><td>Matches</td><td class="patch-after num">${count(summary.matches)}</td></tr>
           <tr><td>Last change</td><td class="muted">${esc(summary.updated)}</td></tr>
         </tbody>
       </table>
@@ -125,11 +149,11 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="cloud-back">← Back</button>
+        <button class="btn btn-ghost" id="cloud-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Two saves</h1>
       </header>
 
-      <main class="cloud-save-body data-body">
+      <main class="cloud-save-body data-body data-doc">
         <section class="panel panel-chrome cloud-save-lead">
           <p>
             This device has a save, and so does your account. They are not the same, and
@@ -145,7 +169,21 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
           ${card("On this device", "What is in this browser right now.", local)}
           ${
             loading
-              ? `<section class="panel panel-chrome cloud-save-card"><h2 class="t-heading">In your account</h2><p class="muted">Fetching it…</p></section>`
+              ? /*
+                 * A skeleton, not the word "Fetching".
+                 *
+                 * §A4 lists loading as one of the six states and rules out a
+                 * spinner; `.skeleton` is module A's shimmer and it has the shape
+                 * of the table that is about to arrive, so the plate does not
+                 * change size when the fetch lands.
+                 */
+                `<section class="panel panel-chrome cloud-save-card">
+                   <h2 class="t-heading">In your account</h2>
+                   <p class="muted">Reading what the server is holding.</p>
+                   <div class="cloud-save-skeleton" aria-hidden="true">
+                     ${'<span class="skeleton"></span>'.repeat(6)}
+                   </div>
+                 </section>`
               : card("In your account", "What the server is holding.", cloud)
           }
         </div>
@@ -172,6 +210,8 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
           <p class="signin-status" id="cloud-status" role="status" aria-live="polite" hidden></p>
         </section>
       </main>`;
+
+    enter(root, ".panel", 40);
 
     root.querySelector("#cloud-back")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");

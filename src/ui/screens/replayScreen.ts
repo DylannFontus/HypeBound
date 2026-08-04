@@ -32,6 +32,7 @@ import {
   esc,
   fadeOnScroll,
   icon,
+  ladderPlate,
   logStamp,
   modeName,
   quantify,
@@ -131,6 +132,18 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
   root.className = "screen replay-screen";
   const bag = disposeBag();
 
+  /**
+   * With nothing on record, the two-pane workbench is not the screen.
+   *
+   * A 300px sidebar holding one sentence beside an 1150×740 panel holding
+   * another is what the recon measured, and it reads as content that failed to
+   * load rather than as a state anybody designed. §2 calls an unresolved
+   * composition exactly that. So the split only exists once there is something to
+   * split: before the first match, the route is one plate, centred, on the key
+   * art the rest of the domain uses, with the action that fixes it on it.
+   */
+  const virgin = history.length === 0;
+
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="sub-header">
@@ -138,54 +151,64 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
       <h1 class="title">Match History</h1>
       <div class="sub-header-meta">${quantify(history.length, "match", "matches")} on record</div>
     </header>
-    <div class="replay-filters d-chips" id="replay-filters"></div>
-    <div class="replay-body">
-      <aside class="replay-list" id="replay-list"></aside>
-      <section class="replay-stage panel" id="replay-stage"></section>
+    ${virgin ? "" : '<div class="replay-filters d-chips" id="replay-filters"></div>'}
+    <div class="replay-body ${virgin ? "is-virgin" : ""}">
+      ${virgin ? "" : '<aside class="replay-list" id="replay-list"></aside>'}
+      <section class="replay-stage panel ${virgin ? "is-virgin" : ""}" id="replay-stage"></section>
     </div>`;
+
+  if (virgin) {
+    const stagePlate = root.querySelector("#replay-stage")!;
+    stagePlate.innerHTML = `
+      <div class="d-key replay-virgin-key" style="--key-art:url('${ladderPlate(
+        1280,
+        420,
+        "#b56cff"
+      )}');--key-aspect:3/1" aria-hidden="true">
+        <div class="d-key-scrim"></div>
+      </div>
+      <div class="empty d-enter replay-virgin-text">
+        ${icon("mode-replays", 44)}
+        <h3 class="t-heading">No matches on record</h3>
+        <p class="t-body">
+          Every match this device plays is written down here — the deck, the opponent, the length and
+          the result. The most recent ${REPLAYABLE_HISTORY} keep a full replay you can scrub turn by turn,
+          and nothing is ever sent anywhere.
+        </p>
+        <button type="button" class="mat-hero act r-chip" id="replay-play">${icon("play", 16)} Play a match</button>
+      </div>`;
+    root.querySelector("#replay-play")?.addEventListener("click", () => {
+      audio.play("sfx.ui.confirm");
+      callbacks.onBack();
+    });
+    root.querySelector("#replay-back")!.addEventListener("click", () => callbacks.onBack());
+    enter(root, ".d-enter", 40);
+    return { root, dispose: () => bag.run() };
+  }
 
   const list = root.querySelector("#replay-list")!;
   const stage = root.querySelector("#replay-stage")!;
 
   /**
-   * Two empty states, both designed, both saying something different.
+   * The one empty the workbench can still reach: every filter excludes everything.
    *
-   * The old pair were bare sentences dropped into an 1100×730 void: "Play a
-   * match and it will appear here." on the left in 12px grey with no plate
-   * behind it, and "Pick a match on the left." centred in the stage. §5 asks for
-   * a designed empty, and a screen with two of them worded differently is also
-   * §7's consistency complaint.
+   * "No matches on record" now owns the whole route before the first match (see
+   * `virgin` above) and never appears here. This one is only ever true because
+   * the player asked for it, so it names the cause and the cure.
    */
-  const showNoHistory = (): void => {
+  const showFilteredOut = (): void => {
     stage.innerHTML = `
       <div class="empty d-enter replay-empty">
-        ${icon("mode-replays", 40)}
-        <h3 class="t-heading">No matches on record</h3>
-        <p class="t-body">Every match this device plays is recorded here, and the most recent ${REPLAYABLE_HISTORY} keep a full replay you can scrub turn by turn.</p>
+        ${icon("filter", 40)}
+        <h3 class="t-heading">No match fits</h3>
+        <p class="t-body">Every match on record is filtered out. Loosen one of the filters above and the board comes back.</p>
       </div>`;
   };
-
-  const showEmptyPrompt = (): void => {
-    stage.innerHTML = `
-      <div class="empty d-enter replay-empty">
-        ${icon("crosshair", 40)}
-        <h3 class="t-heading">Pick a match</h3>
-        <p class="t-body">Choose one on the left and the board it was played on rebuilds here, intent by intent.</p>
-      </div>`;
-  };
-
-  if (history.length === 0) showNoHistory();
-  else showEmptyPrompt();
 
   const open = (entry: MatchHistoryEntry): void => {
     const { frames, error } = buildFrames(entry, content);
 
-    if (frames.length === 0) {
-      stage.innerHTML = `<div class="replay-empty muted">${error ?? "Nothing to show."}</div>`;
-      return;
-    }
-
-    let index = frames.length - 1;
+    let index = Math.max(0, frames.length - 1);
 
     /**
      * "Run it back" is offered only for practice matches, and that is not a
@@ -250,31 +273,63 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
           <div class="replay-result replay-${entry.result}">${entry.result.toUpperCase()}</div>
         </div>
       </div>
-      ${error ? `<div class="replay-warning">${icon("warning", 15)} Replay stopped early: ${esc(error)}</div>` : ""}
-      <div class="replay-board" id="replay-board"></div>
-      <div class="replay-caption" id="replay-caption"></div>
-      <div class="replay-controls">
-        <button type="button" class="mat-chip act r-chip replay-step" id="replay-first" aria-label="First frame">${icon(
-          "skip-start",
-          16
-        )}</button>
-        <button type="button" class="mat-chip act r-chip replay-step" id="replay-prev" aria-label="Previous frame">${icon(
-          "chevron-left",
-          16
-        )}</button>
-        <input class="slider replay-scrub" type="range" id="replay-scrub" min="0" max="${frames.length - 1}"
-               value="${index}" aria-label="Timeline"
-               style="--ticks:${Math.max(1, frames.length - 1)}" />
-        <button type="button" class="mat-chip act r-chip replay-step" id="replay-next" aria-label="Next frame">${icon(
-          "chevron-right",
-          16
-        )}</button>
-        <button type="button" class="mat-chip act r-chip replay-step" id="replay-last" aria-label="Last frame">${icon(
-          "skip-end",
-          16
-        )}</button>
-        <span class="replay-counter num" id="replay-counter"></span>
-      </div>`;
+      ${
+        error && frames.length > 0
+          ? `<div class="replay-warning">${icon("warning", 15)} Replay stopped early: ${esc(error)}</div>`
+          : ""
+      }
+      ${
+        /*
+         * A match with no record still has a match in it.
+         *
+         * Older entries drop their replay to keep the save small, and the old
+         * screen answered that by disabling the row outright — so the majority of
+         * a long history could not be *clicked*, and the stage beside it stayed
+         * an 1100×730 rectangle with one grey sentence in it. The result, the
+         * deck, the opponent, the length and the Obsession peak all survive
+         * whether or not the intents do, and those are most of what somebody
+         * opens this screen for. So every row opens, the header above is always
+         * drawn, and only the board and the scrubber are replaced by a state that
+         * says which part is missing and why.
+         */
+        frames.length === 0
+          ? `<div class="empty d-enter replay-noreplay">
+               ${icon("mode-replays", 40)}
+               <h3 class="t-heading">The board is not kept for this one</h3>
+               <p class="t-body">Only the ${REPLAYABLE_HISTORY} most recent matches keep the full turn-by-turn record. The result above is the whole of what this match left behind.</p>
+             </div>`
+          : `<div class="replay-board" id="replay-board"></div>
+             <div class="replay-caption" id="replay-caption"></div>
+             <div class="replay-controls">
+               <button type="button" class="mat-chip act r-chip replay-step" id="replay-first" aria-label="First frame">${icon(
+                 "skip-start",
+                 16
+               )}</button>
+               <button type="button" class="mat-chip act r-chip replay-step" id="replay-prev" aria-label="Previous frame">${icon(
+                 "chevron-left",
+                 16
+               )}</button>
+               <input class="slider replay-scrub" type="range" id="replay-scrub" min="0" max="${frames.length - 1}"
+                      value="${index}" aria-label="Timeline"
+                      style="--ticks:${Math.max(1, frames.length - 1)}" />
+               <button type="button" class="mat-chip act r-chip replay-step" id="replay-next" aria-label="Next frame">${icon(
+                 "chevron-right",
+                 16
+               )}</button>
+               <button type="button" class="mat-chip act r-chip replay-step" id="replay-last" aria-label="Last frame">${icon(
+                 "skip-end",
+                 16
+               )}</button>
+               <span class="replay-counter num" id="replay-counter"></span>
+             </div>`
+      }`;
+
+    stage.querySelector("#replay-rematch")?.addEventListener("click", () => {
+      audio.play("sfx.ui.click");
+      callbacks.onRematch(rematchDifficulty!);
+    });
+
+    if (frames.length === 0) return;
 
     const board = stage.querySelector("#replay-board")!;
     const caption = stage.querySelector("#replay-caption")!;
@@ -326,10 +381,6 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
       render();
     };
 
-    stage.querySelector("#replay-rematch")?.addEventListener("click", () => {
-      audio.play("sfx.ui.click");
-      callbacks.onRematch(rematchDifficulty!);
-    });
     stage.querySelector("#replay-first")!.addEventListener("click", () => go(0));
     stage.querySelector("#replay-prev")!.addEventListener("click", () => go(index - 1));
     stage.querySelector("#replay-next")!.addEventListener("click", () => go(index + 1));
@@ -433,22 +484,22 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
     if (shown.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty d-enter replay-list-empty";
-      empty.innerHTML =
-        history.length === 0
-          ? `${icon("campfire", 32)}<h3 class="t-heading">Nothing yet</h3><p class="t-body">Your first match lands at the top of this list.</p>`
-          : `${icon("filter", 32)}<h3 class="t-heading">No match fits</h3><p class="t-body">Loosen a filter above.</p>`;
+      empty.innerHTML = `${icon(
+        "filter",
+        32
+      )}<h3 class="t-heading">No match fits</h3><p class="t-body">Loosen a filter above.</p>`;
       list.appendChild(empty);
-      if (history.length === 0) showNoHistory();
-      else showEmptyPrompt();
+      showFilteredOut();
       return;
     }
 
     shown.forEach((entry, i) => {
       const button = document.createElement("button");
-      button.className = `replay-entry mat-panel act d-enter replay-${entry.result}`;
+      button.className = `replay-entry mat-panel act d-enter replay-${entry.result}${
+        entry.record ? "" : " is-recordless"
+      }`;
       button.type = "button";
       const replayable = Boolean(entry.record);
-      button.disabled = !replayable;
       const opponent = content.leaders[entry.opponentLeaderCardId]?.name ?? "—";
       const faction = content.leaders[entry.leaderCardId]?.faction ?? "neutral";
       button.style.setProperty("--row-accent", colourFor(faction));
@@ -475,15 +526,17 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
         open(entry);
       });
       list.appendChild(button);
-      if (i === 0 && replayable) button.click();
+      /*
+       * Always open the newest row, replayable or not.
+       *
+       * The old guard was `if (i === 0 && replayable)`, and since only the eight
+       * newest matches keep a record, any filter that landed on an older match
+       * left the stage holding an empty prompt beside a full list — which reads
+       * as a broken screen rather than as a choice. Every row opens now, so the
+       * stage always has the match the list says is selected.
+       */
+      if (i === 0) button.click();
     });
-
-    if (history.length > REPLAYABLE_HISTORY) {
-      const note = document.createElement("p");
-      note.className = "replay-note";
-      note.textContent = `Only the ${REPLAYABLE_HISTORY} most recent matches keep a full replay.`;
-      list.appendChild(note);
-    }
 
     enter(list, ".d-enter", 26);
     bag.add(rovingList(list as HTMLElement, ".replay-entry"));

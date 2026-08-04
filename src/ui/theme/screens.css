@@ -5654,12 +5654,18 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 }
 
 /**
- * The room, at heavy blur, behind everything.
+ * The room, at heavy blur, behind everything — and the blur is not here any more.
  *
- * The venue the player is signing in to reach. `filter: blur()` on a fixed
- * backdrop is one composited layer that never invalidates, which is why it is a
- * blurred *image* rather than a `backdrop-filter` on three panels — that would
- * re-filter on every scroll and on every panel that moves.
+ * The venue the player is signing in to reach. It used to carry
+ * `filter: blur(20px)`, on the reasoning that one composited layer that never
+ * invalidates is cheaper than a `backdrop-filter` on three panels. Both halves
+ * of that are true and it still cost 118–191ms: a layer that never invalidates
+ * is still rasterised *once*, and the once is the first frame of the navigation
+ * that brought the screen in. A 1728×1008 Gaussian is not a thing to do in the
+ * frame a transition starts on.
+ *
+ * So the softening moved into the plate, at plate scale, memoised — see
+ * `paintVenue`'s `softness`. What is left here is a layer with an image in it.
  */
 .signin-room {
   position: absolute;
@@ -5667,7 +5673,6 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  filter: blur(20px) saturate(1);
   opacity: 1;
   mask-image: radial-gradient(172% 152% at 38% 36%, #000 52%, rgb(0 0 0 / 0.62) 86%, transparent 100%);
   -webkit-mask-image: radial-gradient(172% 152% at 38% 36%, #000 52%, rgb(0 0 0 / 0.62) 86%, transparent 100%);
@@ -5793,6 +5798,89 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 
 .signin-back,
 .queue-back { gap: var(--sp-2); padding: 0 var(--sp-4); }
+
+/**
+ * The furniture arrives in reading order; the room is already there.
+ *
+ * §3a: "Contents stagger in. Panels, rows, tiles and cards arrive on a 30–60ms
+ * cascade in reading order… This single change is the biggest perceived-quality
+ * gap between a hobby menu and a shipped one." The lobby, the play screen and
+ * the collection all cascade; these two arrived as one block, which is the same
+ * defect the lobby was fixed for and it survived because nobody re-read these
+ * two screens after the helper existed.
+ *
+ * Only the *furniture* cascades. The venue, the vignette and the person standing
+ * in it are the room, and a room does not assemble itself while you walk into
+ * it — they come in with the screen's own transition and the panels land on top
+ * of them.
+ *
+ * The ramp starts at 0.42 rather than 0 for the reason `lobby-tile-rise` records
+ * at length: a per-element entrance from zero holds the whole content plane at
+ * nothing for the first ~90ms of a screen that has already replaced the one
+ * behind it, and that is a blank frame the DOM probes cannot see.
+ */
+.signin-stage,
+.signin-panel,
+.signin-note,
+.queue-call,
+.queue-note {
+  animation: front-panel-rise var(--dur-ui, 260ms) var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+}
+
+@keyframes front-panel-rise {
+  from { opacity: 0.42; translate: 0 14px; }
+  to { opacity: 1; translate: none; }
+}
+
+:root[data-reduced-motion="true"] .signin-stage,
+:root[data-reduced-motion="true"] .signin-panel,
+:root[data-reduced-motion="true"] .signin-note,
+:root[data-reduced-motion="true"] .queue-call,
+:root[data-reduced-motion="true"] .queue-note { animation: none; }
+
+/**
+ * The bar, over a room somebody is standing in.
+ *
+ * `.screen-header` is furniture for twenty screens whose content starts below
+ * it, and on those it is right: an opaque-ish plate, a `backdrop-filter` and a
+ * 1px bottom border. These two are the only screens in the game where a painted
+ * figure stands *behind* the bar, and there the same recipe draws a razor line
+ * across the top of her head — twice over. The border is one line, and the
+ * blur is a second and worse one, because a `backdrop-filter` has a hard
+ * boundary: everything above it is defocused and everything a pixel below it is
+ * sharp, so the edge of the filter is visible wherever there is detail behind
+ * it. Measured at 1280×720 it landed in her hair.
+ *
+ * So on these two the bar is a scrim rather than a plate: no filter, no border,
+ * and the divider is §7's fading rule — alpha to zero at both ends — rather
+ * than a hairline butting into the frame edges. The title still has its dark
+ * ground; the room simply passes underneath it.
+ */
+.signin-screen > .screen-header,
+.queue-screen > .screen-header {
+  position: relative;
+  border-bottom: 0;
+  backdrop-filter: none;
+  background: linear-gradient(180deg, rgb(9 5 20 / 0.8) 0%, rgb(9 5 20 / 0.42) 46%, rgb(9 5 20 / 0) 100%);
+}
+
+.signin-screen > .screen-header::after,
+.queue-screen > .screen-header::after {
+  content: "";
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(198 170 255 / 0.2) 15%,
+    rgb(198 170 255 / 0.2) 85%,
+    transparent
+  );
+}
 
 /* ---- the stage ----------------------------------------------------------- */
 
@@ -6095,7 +6183,25 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   .signin-body,
   .signin-screen.has-leader .signin-body {
     grid-template-columns: minmax(0, 0.82fr) minmax(320px, 1.05fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    /**
+     * `min-content`, not `0`, and this is the whole of the fix.
+     *
+     * A `minmax(0, 1fr)` row is allowed to be shorter than the thing standing in
+     * it, and a grid item does not clip — it spills. Measured at 844×390 signed
+     * in: the panel's 357px of content in a 313px row put the Sign out button at
+     * y=302–346 and `.signin-note` — which lives in row 2 and paints later — at
+     * y=320–378, so `document.elementFromPoint` at the button's own centre
+     * returned the note. The scroller reported `scrollHeight === clientHeight`,
+     * because the overflow was *inside a track* rather than inside the scroll
+     * container, so there was not even a way to scroll out from under it. A
+     * control the player can see and cannot press is the worst class of layout
+     * defect there is, and this is the second time this domain has produced one.
+     *
+     * With a `min-content` floor the row grows to hold its panel, the grid grows
+     * past the body, and `overflow-y: auto` above turns that into scroll the
+     * player can actually use. Nothing can be drawn through anything.
+     */
+    grid-template-rows: minmax(min-content, 1fr) auto;
     align-content: stretch;
     align-items: stretch;
     padding: var(--sp-2) var(--sp-4) var(--sp-3);
@@ -6117,7 +6223,9 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     grid-row: 1;
     padding: var(--sp-3) var(--sp-4);
     justify-content: safe center;
-    min-height: 0;
+    /* The other half of the row fix: `0` let the panel be shorter than its own
+       form and hand the difference to whatever was painted next. */
+    min-height: min-content;
   }
   .signin-note { grid-column: 1 / -1; grid-row: 2; }
   .signin-note-body { max-height: 40vh; }
@@ -6190,6 +6298,22 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
    * the figure is a second lamp in the room.
    */
   --queue-subject-x: 26%;
+
+  /**
+   * How dark the near field is allowed to get, as three numbers rather than as
+   * nine literals spread over three rules.
+   *
+   * The floor, the haze's ground darkener and the vignette's rise off the bottom
+   * edge all shade the same band, and on a tall viewport the three of them
+   * together read as ground. On a phone in landscape the *whole bottom sixth* is
+   * that band — measured at 844×390, 86% of its 16px blocks were both dark and
+   * flat, which is a lit room whose foreground has been switched off. They are
+   * properties so the short-viewport rule can lift all three with one edit
+   * instead of restating three multi-layer backgrounds.
+   */
+  --queue-floor-near: rgb(16 9 34 / 0.86);
+  --queue-sink: 0.36;
+  --queue-ground: 0.28;
 }
 
 .queue-world {
@@ -6266,11 +6390,16 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 
 /* The venue, at heavy blur, filling the back of the room rather than a band
    across the middle of it. Masked at the very bottom only, where the vignette
-   takes over, so the art reaches three of the four viewport edges. */
+   takes over, so the art reaches three of the four viewport edges.
+
+   The blur is baked into the plate rather than run here: `filter: blur(14px)`
+   over 1856×1026 is a full-screen Gaussian in the first frame of the descend,
+   and it was measured as the largest single component of a 118–191ms hole in a
+   transition that is only 380ms long. See `paintVenue`'s `softness`. */
 .queue-room {
   position: absolute;
   inset: -10% -8% -4%;
-  filter: blur(14px) saturate(1.02);
+  filter: saturate(1.02);
   opacity: 1;
   mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.85) 0%, #000 22%, #000 52%, rgb(0 0 0 / 0.42) 78%, transparent 98%);
   -webkit-mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.85) 0%, #000 22%, #000 52%, rgb(0 0 0 / 0.42) 78%, transparent 98%);
@@ -6330,7 +6459,22 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   left: -30%;
   right: -30%;
   top: 46%;
-  bottom: -6%;
+  /**
+   * A height in pixels with a floor under it, because the plane's reach is
+   * measured in pixels and the viewport is not.
+   *
+   * `perspective: 420px` and `rotateX(72deg)` project a point *d* pixels down
+   * the un-rotated plane to `0.309d · 420 ÷ (420 − 0.951d)` — which runs away to
+   * the bottom of any screen once *d* passes about 440, and stops well short of
+   * it before that. The element used to be `bottom: -6%`, so on a 900px frame it
+   * was 540px tall and the near field ran off the bottom edge as intended, and
+   * on a 390px one it was 234px tall and the floor **ended at y=333 of a 390px
+   * viewport**. That is the whole reason the bottom sixth of a phone in
+   * landscape measured 100% dark and flat: there was no room down there, only
+   * the page. `max()` keeps the desktop geometry exactly as it was and refuses
+   * to let a short screen shrink the plane below the distance it has to cover.
+   */
+  height: max(430px, 60vh);
   perspective: 420px;
   perspective-origin: 50% 0%;
   pointer-events: none;
@@ -6347,28 +6491,66 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     /* A lit floor, not a dark one. The far end is the one in shadow — the near
        field is under the lamp, and painting it near-black is what left the fifth
        sixth of this screen 91% dark-and-flat with a grid drawn on top of it. */
-    linear-gradient(180deg, rgb(60 38 108 / 0.55) 0%, rgb(52 32 96 / 0.66) 44%, rgb(16 9 34 / 0.86) 100%);
+    linear-gradient(180deg, rgb(60 38 108 / 0.55) 0%, rgb(52 32 96 / 0.66) 44%, var(--queue-floor-near) 100%);
   mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 62%, rgb(0 0 0 / 0.7) 100%);
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 62%, rgb(0 0 0 / 0.7) 100%);
 }
 
-/* Where the floor meets the dark. A horizon is one line of light, and it is what
-   tells the eye that the plane is a plane. */
+/**
+ * Where the floor meets the dark — and the only thing on this screen that is a
+ * light rather than a lit surface.
+ *
+ * It was a 2px line at 0.6 alpha under a 1.5px blur, which draws the plane and
+ * nothing else. That left the room with a halo behind the figure and no visible
+ * source for it: §1's "one consistent key light" is a statement about direction,
+ * but a nightclub with a glow in it and no fixture anywhere is a room lit by
+ * arithmetic. Measured, it was also why a squint found nothing — the queue's
+ * 95th-percentile pixel sat at 98 against the lobby's 156, because every bright
+ * thing in the frame was a *reflection* of a lamp nobody had drawn.
+ *
+ * So the strip is the lamp. A white-hot core along the back wall with the rig's
+ * two accents either side of it, and `::after` is the bloom it throws into the
+ * air above the floor. Both breathe on a multiple of the room's clock, so the
+ * fixture, the beam, the marquee on the sign and the figure's breath are all one
+ * mechanism.
+ */
 .queue-horizon {
   position: absolute;
-  left: 4%;
-  right: 4%;
+  left: 2%;
+  right: 2%;
   top: 46%;
-  height: 2px;
+  height: 5px;
   pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgb(217 165 255 / 0.6) 24%, rgb(126 214 255 / 0.5) 64%, transparent);
-  filter: blur(1.5px);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(214 164 255 / 0.5) 16%,
+    rgb(244 232 255 / 0.86) 44%,
+    rgb(228 240 255 / 0.8) 62%,
+    rgb(150 216 255 / 0.48) 86%,
+    transparent
+  );
+  filter: blur(5px);
   animation: queue-horizon-breathe calc(var(--queue-period) * 2.75) var(--ease-in-out) infinite;
 }
 
+/* The air in front of the fixture. Screened rather than laid over, so it adds
+   light to the wall instead of veiling it. */
+.queue-horizon::after {
+  content: "";
+  position: absolute;
+  left: -2%;
+  right: -2%;
+  top: -46px;
+  height: 106px;
+  mix-blend-mode: screen;
+  background: radial-gradient(56% 100% at 50% 50%, rgb(222 194 255 / 0.5), rgb(146 106 216 / 0.2) 54%, transparent 78%);
+  filter: blur(22px);
+}
+
 @keyframes queue-horizon-breathe {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.88; }
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 1; }
 }
 
 /**
@@ -6382,12 +6564,14 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
  * rotating through 360°, because a searchlight sweeps back and forth and a full
  * rotation is a radar dish. A radar dish is what this screen used to be.
  */
+/* Identical geometry to `.queue-floor`, to the pixel — a beam laid on a plane
+   that is not the plane the grid is drawn on is a beam in mid-air. */
 .queue-sweep {
   position: absolute;
   left: -30%;
   right: -30%;
   top: 46%;
-  bottom: -6%;
+  height: max(430px, 60vh);
   perspective: 420px;
   perspective-origin: 50% 0%;
   pointer-events: none;
@@ -6442,9 +6626,9 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     /* The house lights on the back wall, so the upper half of the room has a
        light mass in it rather than being the flat near-black that measured
        66.6% dead. Two practicals and their spill, no brighter than the figure. */
-    radial-gradient(38% 30% at 22% 26%, rgb(181 108 255 / 0.2), transparent 72%),
-    radial-gradient(34% 26% at 79% 20%, rgb(82 200 255 / 0.15), transparent 74%),
-    radial-gradient(74% 34% at 50% 44%, rgb(150 110 235 / 0.2), transparent 76%),
+    radial-gradient(38% 30% at 22% 26%, rgb(181 108 255 / 0.28), transparent 72%),
+    radial-gradient(34% 26% at 79% 20%, rgb(82 200 255 / 0.24), transparent 74%),
+    radial-gradient(74% 34% at 50% 44%, rgb(150 110 235 / 0.24), transparent 76%),
     /* The pool the lamp throws around the figure's feet, centred on her rather
        than on the viewport — she is in the left column now, and a pool of light
        in the middle of the floor with nobody in it is a third lamp. */
@@ -6453,7 +6637,7 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     /* The floor still ends in ground rather than in a hole, but less of one:
        at 0.55 the near field measured 47% dark-and-flat with the note bar
        standing in it, which is a lit room whose foreground is switched off. */
-    radial-gradient(120% 40% at 50% 114%, rgb(24 14 50 / 0.36), transparent 82%);
+    radial-gradient(120% 40% at 50% 114%, rgb(24 14 50 / var(--queue-sink)), transparent 82%);
   animation: queue-haze-drift calc(var(--queue-period) * 3.5) var(--ease-in-out) infinite;
 }
 
@@ -6488,12 +6672,18 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
      * the wall the sign hangs on is further from it, so the sign reads.
      */
     radial-gradient(104% 92% at 34% 42%, transparent 24%, rgb(5 2 12 / 0.72) 100%),
-    linear-gradient(180deg, rgb(6 3 14 / 0.44) 0%, transparent 14%),
+    /* In pixels, because the header is in pixels. At 14% the fall of shade under
+       the bar was 126px on a desktop frame and 55px on a phone in landscape —
+       the same rule shading a fifth of the short viewport and a seventh of the
+       tall one, which is why 844×390 measured 47% dark-and-flat across its top
+       sixth while 1600×900 measured 28%. A scrim exists to hold a title; it
+       should be the height of the title everywhere. */
+    linear-gradient(180deg, rgb(6 3 14 / 0.4) 0px, transparent 82px),
     /* Shallower than it was: this and the haze's own floor darkener were both
        pulling the bottom of the frame down and between them they put the near
        field — the part of the room the player is standing closest to — into the
        dark. One of them is enough to say "ground". */
-    linear-gradient(0deg, rgb(5 2 12 / 0.28) 0%, transparent 18%);
+    linear-gradient(0deg, rgb(5 2 12 / var(--queue-ground)) 0%, transparent 18%);
 }
 
 /**
@@ -6568,15 +6758,92 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
  * The blur is a little under the venue's, because she is nearer than the wall.
  * Both layers are the same memoised plate, so the second one costs a blit.
  */
+/**
+ * Half a stop down, and half transparent, because a defocused copy at full
+ * strength is fog rather than distance.
+ *
+ * The first cut of this blurred the plate and left it at opacity 1 and
+ * `brightness(0.94)`, so the painting's own sunset window and red curtain
+ * became a milky field standing *in front of* the room — measured as a soft
+ * rectangle 380px wide around the figure at 1600×900, which is the same "poster
+ * somebody left there" the sharp crop used to be, wearing a blur. Out-of-focus
+ * background in a photograph is darker and less saturated than the subject, not
+ * brighter: it is receiving the same light from further away. So the far copy
+ * loses two thirds of a stop and half its opacity, and what is left of it is
+ * the halo the practical behind her would actually throw.
+ */
 .queue-leader-far {
-  filter: blur(9px) saturate(0.86) brightness(0.94);
+  opacity: 0.5;
+  /* The defocus is in the plate now — a 180×320 backing store with the blur
+     already in it, stretched back up — so what is left here is a colour matrix,
+     which costs nothing. `blur(12px)` over a 348×620 element was a second
+     full-layer Gaussian in the same frame as the room's. */
+  filter: saturate(0.7) brightness(0.62);
+  /* No straight edge left to soften: `oval` cuts the plate to a superellipse in
+     the space the art is drawn in, so the element's own mask can stop trying to
+     round off four right angles it cannot reach. */
+  mask-image: none;
+  -webkit-mask-image: none;
 }
+
+/**
+ * The reflection, on the floor, in the floor's own perspective.
+ *
+ * It used to be a band reserved at the bottom of the portrait plate, which put
+ * a mirror image inside a rectangle and ended it along a horizontal line in
+ * mid-air — measured at 2.4× exposure as a reflection that "stops dead at the
+ * plate boundary instead of fading into the floor it is supposed to be cast on".
+ * A reflection is a property of the ground, so it is drawn on the ground: the
+ * same `perspective: 420px` and `rotateX(72deg)` the grid and the beam use, laid
+ * from her feet toward the camera, fading out as it recedes.
+ *
+ * `scaleY(-1)` on the canvas rather than on the plane, because flipping the
+ * plane about its own top edge would send it up over the horizon. Flipping the
+ * picture in place puts her feet at the contact line and her head at the far end,
+ * which is the only way round a reflection goes.
+ */
+.queue-reflect {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: 86%;
+  height: 70%;
+  perspective: 420px;
+  perspective-origin: 50% 0%;
+  pointer-events: none;
+  opacity: 0.26;
+}
+.queue-reflect-plane {
+  position: absolute;
+  inset: 0;
+  transform: rotateX(72deg);
+  transform-origin: 50% 0%;
+  mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.9) 0%, rgb(0 0 0 / 0.45) 42%, transparent 88%);
+  -webkit-mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.9) 0%, rgb(0 0 0 / 0.45) 42%, transparent 88%);
+}
+.queue-reflect-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scaleY(-1);
+  filter: saturate(0.62) brightness(0.8);
+}
+:root[data-reduced-motion="true"] .queue-reflect { opacity: 0.22; }
 .queue-leader-near {
   /* Wide and tall enough to hold the whole person — head to heel. The first
      cut at 43×54 put her hair and her shoes in the far layer, which is a lens
      focused on somebody's chest. */
-  mask-image: radial-gradient(47% 62% at 50% 47%, #000 52%, rgb(0 0 0 / 0.5) 84%, transparent 100%);
-  -webkit-mask-image: radial-gradient(47% 62% at 50% 47%, #000 52%, rgb(0 0 0 / 0.5) 84%, transparent 100%);
+  mask-image: radial-gradient(56% 70% at 50% 47%, #000 62%, rgb(0 0 0 / 0.5) 88%, transparent 100%);
+  -webkit-mask-image: radial-gradient(56% 70% at 50% 47%, #000 62%, rgb(0 0 0 / 0.5) 88%, transparent 100%);
+  /* She is the subject and the subject is the lit thing. §6 asks the most
+     saturated, brightest mass to be the one that matters, and before this the
+     figure sat at the same exposure as the wall behind her — measured, the
+     brightest 5% of this screen was luminance 98 against the lobby's 156 and the
+     play screen's 161, which is a whole screen of mid-purple with a person in it.
+     The lamp above accounts for the room; this accounts for the subject. */
+  filter: brightness(1.18) saturate(1.08) contrast(1.04);
 }
 
 @keyframes queue-breathe {
@@ -6584,18 +6851,22 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   50% { scale: 1.004 1.014; }
 }
 
-/* The pool the figure stands in, under the reflection the canvas paints. Wider
-   and softer than the cast baked into the plate, so the two read as one shadow
-   with a hard core and a soft skirt rather than as two ellipses. */
+/* The pool the figure stands in, and now the only one: the plate stopped baking
+   a cast of its own when the reflection moved onto the floor, so this carries
+   the whole contact. A hard-ish core with a wide skirt, because §1's "anything
+   sitting on top of anything else casts" is the cheapest thing in the game that
+   turns a cut-out into an object. */
 .queue-cast {
   position: absolute;
-  left: -18%;
-  right: -18%;
-  bottom: 6%;
-  height: 46px;
+  left: -22%;
+  right: -22%;
+  bottom: 3%;
+  height: 62px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgb(3 1 8 / 0.66), transparent 76%);
-  filter: blur(12px);
+  background:
+    radial-gradient(closest-side, rgb(2 1 6 / 0.8), rgb(2 1 6 / 0.34) 46%, transparent 78%),
+    radial-gradient(38% 60% at 50% 46%, rgb(1 0 4 / 0.72), transparent 72%);
+  filter: blur(10px);
   animation: queue-cast-breathe calc(var(--queue-period) * 1.75) var(--ease-in-out) infinite;
 }
 
@@ -6719,9 +6990,27 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
    * in `--text-dim`, and against the lighter plate that pair measured 4.1:1.
    * §9 does not bend for a value ladder.
    */
-  --mat-fill: linear-gradient(var(--light-sweep), rgb(66 50 108 / 0.97) 0%, rgb(26 18 50 / 0.98) 100%);
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(88 68 140 / 0.97) 0%, rgb(34 24 66 / 0.98) 100%);
   --rim-boost: 1.4;
   --mat-amp: 0.95;
+
+  /**
+   * The ink the plate is allowed to carry, and the reason the plate could
+   * finally be lit.
+   *
+   * The stops above were held at 66/50/108 for one reason: the board's captions
+   * are `--text-dim`, and against anything lighter that pair fell under 4.5:1.
+   * The consequence was measurable and backwards — at 1600×900 the board's face
+   * read luminance 30 against a floor of 48, so *the lit sign was the darkest
+   * object in the room*, which is §6's value structure inverted rather than
+   * missing. The right answer is to move both numbers, not to keep the sign in
+   * shade so the captions survive.
+   *
+   * A mix rather than a literal, so `data-contrast="high"` still wins: that
+   * setting lightens `--text-dim`, and anything derived from it lightens with
+   * it. §10 of the foundation — every ratio that setting touches must go up.
+   */
+  --ink-dim: color-mix(in srgb, var(--text-dim) 55%, var(--text));
 }
 
 /**
@@ -6836,7 +7125,7 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   line-height: 1.12;
   text-wrap: balance;
 }
-.queue-detail { font-size: var(--fs-sm); color: var(--text-dim); }
+.queue-detail { font-size: var(--fs-sm); color: var(--ink-dim, var(--text-dim)); }
 
 /**
  * The number, in a well, at the size of the thing it is.
@@ -6872,8 +7161,8 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   color: var(--accent-bright);
   text-shadow: 0 0 22px rgb(217 165 255 / 0.45);
 }
-.queue-count .t-label { color: var(--text-dim); line-height: 1.35; }
-.queue-record { color: var(--text-dim); }
+.queue-count .t-label { color: var(--ink-dim, var(--text-dim)); line-height: 1.35; }
+.queue-record { color: var(--ink-dim, var(--text-dim)); }
 .queue-record[hidden] { display: none; }
 
 @keyframes queue-count-in {
@@ -6894,7 +7183,7 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 .queue-offer[hidden] { display: none; }
 .queue-offer-rule { width: 100%; margin-bottom: var(--sp-1); }
 .queue-offer-head { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--accent-gold); }
-.queue-offer-text { font-size: var(--fs-sm); line-height: 1.55; margin: 0; color: var(--text-dim); }
+.queue-offer-text { font-size: var(--fs-sm); line-height: 1.55; margin: 0; color: var(--ink-dim, var(--text-dim)); }
 .queue-offer-btn {
   display: inline-flex;
   align-items: center;
@@ -6944,6 +7233,15 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
  * thing that goes, because it is the one thing that is not needed to act.
  */
 @media (max-height: 540px) {
+  /* The near field, lifted. Three darkeners tuned for a 900px frame all land
+     inside the bottom sixth of a 390px one; at their full strength they took
+     86% of that sixth to dark-and-flat, with the floor grid still drawn on top
+     of it. The room keeps its ground, it just stops being a hole. */
+  .queue-screen {
+    --queue-floor-near: rgb(44 27 84 / 0.6);
+    --queue-sink: 0.12;
+    --queue-ground: 0.1;
+  }
   .queue-body {
     grid-template-rows: minmax(0, 1fr);
     gap: var(--sp-3);
@@ -6964,7 +7262,7 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   /* The out-of-focus radius is in CSS pixels and the figure is 162 of them wide
      here rather than 348, so the same 9px reads as twice the defocus and she
      goes soft. A lens stopped down for a smaller subject. */
-  .queue-leader-far { filter: blur(5px) saturate(0.86) brightness(0.94); }
+  .queue-leader-far { filter: blur(6px) saturate(0.7) brightness(0.62); }
 }
 
 /**

@@ -239,24 +239,118 @@ try {
   // ---------------------------------------------------- press latency -------
   await page.waitForTimeout(900);
   console.log("\n=== press feedback ===");
-  const press = await page.evaluate(async () => {
-    const btn = document.querySelector(".end-turn-btn");
+  /**
+   * Every control on this screen, not only the one that was failed for it.
+   *
+   * "Clicking any button produces no visible response for 130-230ms" was the
+   * finding, and End Turn was the only control the previous round instrumented.
+   * A hero action that acknowledges in ten milliseconds beside a control rail
+   * that takes two hundred is the same defect, photographed in the wrong place.
+   */
+  /**
+   * A REAL press, through CDP, not a synthesised `PointerEvent`.
+   *
+   * The first version of this dispatched `new PointerEvent("pointerdown")` and
+   * reported "no visible change in 40 frames" for every control except End Turn.
+   * That answer was the instrument's, not the game's: a synthesised event does
+   * not put the browser into `:active`, so a control whose whole press state is
+   * `.act:active` in the foundation could not possibly have moved. Only End Turn
+   * passed, and only because `hud.ts` adds a class by hand. `page.mouse.down()`
+   * drives the real input pipeline, which is the only way to see `:active`.
+   */
+  const PRESS_ARM = (selector) => {
+    // A listener left armed on the previous target fires into this run's record
+    // and reports a thirty-seven-second press. Disarm before arming.
+    if (window.__pressDisarm) window.__pressDisarm();
+    const btn = document.querySelector(selector);
     if (!btn) return null;
-    const before = getComputedStyle(btn).transform;
-    const t0 = performance.now();
-    btn.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }));
-    let t = 0;
-    for (let i = 0; i < 40; i++) {
-      await new Promise((r) => requestAnimationFrame(r));
-      if (getComputedStyle(btn).transform !== before) {
-        t = performance.now() - t0;
-        break;
-      }
+    const style = () => {
+      const cs = getComputedStyle(btn);
+      return [cs.transform, cs.filter, cs.boxShadow, cs.backgroundImage, cs.backgroundColor, cs.opacity].join("|");
+    };
+    const record = { before: style(), t0: null, changed: null, disabled: btn.disabled === true };
+    window.__pressStyle = style;
+    window.__press = record;
+    const onDown = () => {
+      record.t0 = performance.now();
+      const tick = () => {
+        if (record.changed !== null) return;
+        if (style() !== record.before) {
+          record.changed = performance.now() - record.t0;
+          return;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    };
+    btn.addEventListener("pointerdown", onDown);
+    window.__pressDisarm = () => btn.removeEventListener("pointerdown", onDown);
+    const r = btn.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  };
+
+  /**
+   * End Turn goes last, and every press is followed by a dismissal.
+   *
+   * The first version tested it first, its click opened the "end your turn?"
+   * panel, and every control measured after that was underneath a modal — which
+   * reported as "no visible change" for four controls that had simply never been
+   * pressed. A measurement that cannot tell "this button has no press state"
+   * from "this button was not clicked" is not a measurement.
+   */
+  const clearOverlays = async () => {
+    for (let i = 0; i < 3; i++) {
+      const ghost = page.locator(".battle-overlay .btn-ghost").first();
+      if ((await ghost.count()) === 0) break;
+      await ghost.click({ timeout: 1500 }).catch(() => {});
+      await page.waitForTimeout(260);
     }
-    btn.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
-    return Math.round(t);
-  });
-  console.log(` End Turn transform changes ${press}ms after pointerdown`);
+    // The emote wheel is not an overlay and closes nothing when clicked away, so
+    // it sat on top of the action log and the next control was never pressed.
+    await page.evaluate(() => document.querySelector(".emote-menu")?.classList.remove("open"));
+    // The leader-detail overlay has no dismiss button — it is closed by clicking
+    // it — so it survived the loop above and covered every later control.
+    for (let i = 0; i < 3; i++) {
+      if ((await page.locator(".battle-overlay").count()) === 0) break;
+      await page.mouse.click(8, 8).catch(() => {});
+      await page.waitForTimeout(300);
+    }
+    await page.mouse.move(6, 6);
+    await page.waitForTimeout(200);
+  };
+
+  for (const [selector, label] of [
+    [".ability-btn", "leader ability"],
+    [".battle-controls .btn", "control rail"],
+    [".leader-plate-player", "leader plate"],
+    [".history-toggle", "log toggle"],
+    [".end-turn-btn", "End Turn"],
+  ]) {
+    const at = await page.evaluate(PRESS_ARM, selector);
+    if (!at) {
+      console.log(` ${label}: not present`);
+      continue;
+    }
+    await page.mouse.move(at.x, at.y);
+    await page.waitForTimeout(160); // let any hover state settle so it is not the change
+    // re-read the resting style with the pointer already hovering, so a hover
+    // state is not mistaken for the press
+    await page.evaluate(() => {
+      window.__press.before = window.__pressStyle();
+    });
+    await page.mouse.down();
+    await page.waitForTimeout(420);
+    await page.mouse.up();
+    const result = await page.evaluate(() => window.__press ?? null);
+    const answer =
+      result?.t0 == null
+        ? "NEVER PRESSED (something is over it)"
+        : result.changed === null
+          ? `NO VISIBLE CHANGE in 420ms${result.disabled ? " (disabled — correct)" : ""}`
+          : `${Math.round(result.changed)}ms`;
+    console.log(` ${label}: ${answer}`);
+    await clearOverlays();
+  }
 
   // ------------------------------------------------- viewport containment ---
   const overflow = async (w, h, label) => {

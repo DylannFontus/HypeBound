@@ -95,8 +95,29 @@ const median = (a) => (a.length === 0 ? 0 : [...a].sort((x, y) => x - y)[Math.fl
  * at the frame rate without becoming the thing it is measuring.
  */
 const PROBE = `
-window.__probe = { rows: [], marks: [], longtasks: [], anims: [] };
+window.__probe = { rows: [], marks: [], longtasks: [], anims: [], faces: [] };
 window.__probeT0 = performance.now();
+/*
+ * Every full card face drawn during the window, with its offset.
+ *
+ * A long-task entry says "something took 366ms" and a CPU profile says
+ * "renderCard" without saying how many of them or when. A card face is the only
+ * thing in this app that asks a canvas this size for a 2D context, so counting
+ * those calls counts the renders exactly — and their offsets say whether the
+ * prewarm moved them off the frames a token is moving through, which is the
+ * whole question.
+ */
+if (!HTMLCanvasElement.prototype.__faceCounted) {
+  const proto = HTMLCanvasElement.prototype;
+  const original = proto.getContext;
+  proto.__faceCounted = true;
+  proto.getContext = function (type, ...rest) {
+    if (type === '2d' && this.width >= 300 && this.height >= 420 && window.__probe) {
+      window.__probe.faces.push(Math.round(performance.now() - window.__probeT0));
+    }
+    return original.call(this, type, ...rest);
+  };
+}
 const rect = (n) => { if (!n) return null; const r = n.getBoundingClientRect();
   return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; };
 const tick = () => {
@@ -239,6 +260,10 @@ try {
         " longtasks:",
         probe.longtasks.filter((l) => l.t >= zero - 400).map((l) => `${l.t - zero}ms/${l.d}ms`).join(" ") || "none"
       );
+      console.log(
+        ` card faces drawn (${probe.faces.length}):`,
+        probe.faces.map((t) => `${t - zero}ms`).join(" ") || "none"
+      );
       const gaps = [];
       for (let i = 1; i < probe.rows.length; i++) gaps.push(probe.rows[i].t - probe.rows[i - 1].t);
       console.log(` rAF median ${median(gaps)}ms, worst ${Math.max(...gaps)}ms`);
@@ -311,6 +336,10 @@ try {
     console.log(
       " longtasks:",
       probe.longtasks.map((l) => `${l.t - zero}ms/${l.d}ms`).join(" ") || "none"
+    );
+    console.log(
+      ` card faces drawn (${probe.faces.length}):`,
+      probe.faces.map((t) => `${t - zero}ms`).join(" ") || "none"
     );
     const gaps = [];
     for (let i = 1; i < probe.rows.length; i++) gaps.push(probe.rows[i].t - probe.rows[i - 1].t);

@@ -43,7 +43,7 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
       <h1 class="title">Settings</h1>
       <div></div>
     </header>
-    <div class="settings-body data-body" id="settings-body"></div>`;
+    <div class="settings-body data-body data-doc" id="settings-body"></div>`;
 
   const body = root.querySelector<HTMLElement>("#settings-body");
 

@@ -567,6 +567,14 @@
  * it. The softness is in the gradient stops rather than in a `filter: blur()`,
  * which matters: a blurred layer that also moves can force a re-render of the
  * blur every frame, and this is a full-screen layer.
+ *
+ * The band lies on the rig, not across it. It was authored at 96° — six degrees
+ * off vertical on a screen whose every static edge is lit from 315° — and a
+ * moving light is still a light: `one-sun.test.ts` fails an axis-aligned band as
+ * readily as an oblique one, because a specular sweep that disagrees with the
+ * key is the second sun in its most visible form. The `skewX(-13deg)` on the
+ * element is what gives the leading edge its rake; the angle here is what the
+ * light is.
  */
 .atm-sweep {
   position: absolute;
@@ -576,7 +584,7 @@
   width: 42%;
   opacity: 0;
   background: linear-gradient(
-    96deg,
+    var(--light-sweep, 135deg),
     transparent 0%,
     rgba(255, 255, 255, calc(0.016 * var(--atm-strength))) 28%,
     rgba(226, 214, 255, calc(0.055 * var(--atm-strength))) 50%,
@@ -1121,11 +1129,43 @@
  * lift and blur are carrying the whole "further away" reading — and it keeps a
  * lit surface on screen through the exchange.
  */
+/*
+ * ## The end state was right and the *shape* of the ramp was not
+ *
+ * Photographed at the moment of maximum overlap — t=569ms of a real click on
+ * lobby → missions — PLAY, ACTIVE DECK, YOUR RECORD and all nine nav tiles were
+ * fully legible **through** the Missions panels, with no perceptible blur on the
+ * parent. `--nav-recede-blur` resolves to 7px on this tier, so the token was not
+ * the problem: a linear interpolation across a 170ms exit puts the parent at
+ * roughly 1.7px of blur at t=40ms, and the child's entrance begins at 60ms. By
+ * the time the child is transparent enough to see through, the thing behind it
+ * is still sharp. §3a asks the parent to *recede*; what that produced was a
+ * double exposure.
+ *
+ * So the geometry is front-loaded the way the opacity ramp already is. By the
+ * 40% keyframe — 68ms in, eight milliseconds after the child's first frame — the
+ * blur, the scale and the lift are all at 72% of their final value, and the
+ * parent is unambiguously behind something before there is anything in front of
+ * it.
+ *
+ * **`brightness` is deliberately *not* front-loaded**, and that is the whole
+ * reason the dim sits on its own keyframe line here rather than travelling with
+ * the blur. Dimming early is how this transition produced a frame measured at
+ * 44% of the reference mean and 24% at the 95th percentile on `lobby → play`:
+ * blur moves image structure around, brightness removes it. The parent stays lit
+ * until the child is genuinely covering it, and then goes.
+ */
 @keyframes nav-descend-out {
   from {
     opacity: 1;
     transform: scale(1) translate3d(0, 0, 0);
     filter: blur(0) brightness(1);
+  }
+  40% {
+    opacity: 0.8;
+    transform: scale(calc(1 - (1 - var(--nav-recede-scale)) * 0.72))
+      translate3d(0, calc(var(--nav-recede-lift) * -0.72), 0);
+    filter: blur(calc(var(--nav-recede-blur) * 0.72)) brightness(calc(1 - (1 - var(--nav-recede-dim)) * 0.28));
   }
   55% {
     opacity: 0.66;
@@ -1216,12 +1256,30 @@
   }
 }
 
-/** ...and the parent comes back from exactly where it went. */
+/**
+ * ...and the parent comes back from exactly where it went.
+ *
+ * With one asymmetry that keeps the pair a pair rather than making it one: the
+ * descend front-loads the *arrival* of the blur, so the ascend has to front-load
+ * its *departure*. Interpolated linearly, the returning parent was still
+ * carrying 4.5px of blur and 76% brightness a third of the way through its own
+ * entrance, underneath a child that had already dropped below 20% — which is the
+ * same unreadable double exposure as the descend, photographed from the other
+ * side. Clearing 72% of the recede by the 38% keyframe means the screen the
+ * player pressed Back to reach is sharp before the one they left has finished
+ * going, and the transform still lands on exactly the descend's start state.
+ */
 @keyframes nav-ascend-in {
   from {
     opacity: 0;
     transform: scale(var(--nav-recede-scale)) translate3d(0, calc(var(--nav-recede-lift) * -1), 0);
     filter: blur(var(--nav-recede-blur)) brightness(var(--nav-recede-dim));
+  }
+  38% {
+    opacity: 0.72;
+    transform: scale(calc(1 - (1 - var(--nav-recede-scale)) * 0.28))
+      translate3d(0, calc(var(--nav-recede-lift) * -0.28), 0);
+    filter: blur(calc(var(--nav-recede-blur) * 0.28)) brightness(calc(1 - (1 - var(--nav-recede-dim)) * 0.22));
   }
   to {
     opacity: 1;
@@ -1472,11 +1530,13 @@
   inset: 0;
   z-index: 3;
   pointer-events: none;
-  /* Perpendicular to the key, like every other band in the project. The 105°
-     this used to be put it fifteen degrees off vertical on a screen whose every
-     static edge obeys 315°. */
+  /* On the key, not perpendicular to it. This was authored at 105°, then
+     corrected to `--light-sweep + 90deg` on the reasoning that a band of light
+     crosses the light rather than lying along it — but +90° of 135° is 225°,
+     which draws the same band as 45° and is a second sun by either name. The
+     rig angle is the whole answer: one light, one bearing, moving or still. */
   background: linear-gradient(
-    calc(var(--light-sweep, 135deg) + 90deg),
+    var(--light-sweep, 135deg),
     transparent 40%,
     rgba(255, 255, 255, 0.06) 50%,
     transparent 60%
@@ -1649,9 +1709,26 @@
   animation: none;
 }
 
+/**
+ * And it starts at 0.2, for the same reason `nav-descend-in` starts at 0.22.
+ *
+ * `from { opacity: 0 }` on a 30ms cascade means that for the first 200ms of a
+ * descend the arriving screen is a lit rectangle with nothing in it — the root
+ * is at 95% and its contents have not begun. Filmed with a CDP screencast on a
+ * real click of `lobby → play`, that is the frame at t≈300ms: mean luminance
+ * **44%** of the two screens it sits between, 95th-percentile pixel **24%**.
+ * §3a's "no moment where the page background flashes through" is a rule about
+ * the picture, and an empty screen fails it exactly as thoroughly as no screen.
+ *
+ * 0.2 is invisible as a starting value under a 14px rise — the entrance is
+ * carried by the translate, which is what the eye reads as arrival — and it is
+ * the difference between a screen assembling and a screen appearing from an
+ * empty plate. Nothing pops: 20% to 100% over 198ms with a rise is still an
+ * entrance by any measure.
+ */
 @keyframes nav-child-rise {
   from {
-    opacity: 0;
+    opacity: 0.2;
     translate: 0 14px;
   }
   to {
@@ -1753,12 +1830,121 @@
  */
 .nav-curtain-panel.is-top {
   top: 0;
-  background: linear-gradient(180deg, #05030b 0%, #0a0613 58%, #171029 100%);
+  background: linear-gradient(180deg, #08051040 0%, #0a061340 58%, #171029 100%), #0a0714;
 }
 
 .nav-curtain-panel.is-bottom {
   bottom: 0;
-  background: linear-gradient(0deg, #05030b 0%, #0a0613 58%, #171029 100%);
+  background: linear-gradient(0deg, #08051040 0%, #0a061340 58%, #171029 100%), #0a0714;
+}
+
+/**
+ * ## The battle veil was a dead black rectangle, and it is the biggest gesture
+ *
+ * Measured on a cold `lobby → battle`: the panels met at t=150ms and the screen
+ * then held at mean luminance **12.5/255** with a per-pair luminance delta of
+ * **0.018** and 0.3% of pixels moving — five per cent of consecutive frame pairs
+ * byte-identical to the JPEG's noise floor — for **6.7 seconds**, followed by a
+ * 90ms reveal. On the way out it was worse: a single frame at 5.8/255, *darker
+ * than the app's own `--bg-void`*, held for 696ms. That is not a curtain; a
+ * curtain is a lit object. It is a hole with a timer on it, and it is the moment
+ * the whole game is building towards.
+ *
+ * Hearthstone covers the identical wait with two lit hero portraits and a coin.
+ * MTG Arena covers it with a camera move through the environment the match is
+ * about to happen in. Neither shows the player black, and neither needs to,
+ * because both know who is playing before the board exists.
+ *
+ * So does this. `matchCurtain.ts` puts the two leaders on the closed panels —
+ * the away side above the seam, the home side below it — and everything here is
+ * the surface they stand on:
+ *
+ *  - the destination room's key thrown from the top-left, at arena strength
+ *    rather than the menu veil's,
+ *  - a **horizon**: the seam is not a line drawn over two rectangles, it is the
+ *    light between two halves, so each panel carries a glow that falls away from
+ *    its own inner edge and the pair reads as one lit gap,
+ *  - the same 96px house grain every other surface in the game wears, so a held
+ *    frame is a photographed surface rather than a mathematically smooth one,
+ *  - and a floor. The base fill is `#0a0714` (luminance 8.9) rather than the old
+ *    `#05030b` (4.0), because an occluder that goes below the value of the world
+ *    it is occluding has stopped being a cover and become a hole.
+ *
+ * `.atmosphere-fore` is a sibling of `#app` and paints above z-index 900, so the
+ * near plane's dust genuinely crosses this. The menu veil manages 3.6% of pixels
+ * moving during its hold; this one managed 0.3%.
+ */
+.nav-curtain[data-veil="battle"] .nav-curtain-panel {
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-size: 96px 96px, auto, auto, auto, auto;
+  background-image:
+    var(--grain-src, none),
+    /* the horizon: light lying along this panel's inner edge */
+      radial-gradient(
+        130% 68% at 50% 100%,
+        color-mix(in srgb, var(--room-key, #ff5fa2) 26%, transparent),
+        transparent 74%
+      ),
+    radial-gradient(
+      108% 128% at 14% -26%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 20%, transparent),
+      transparent 66%
+    ),
+    radial-gradient(
+      92% 120% at 90% 132%,
+      color-mix(in srgb, var(--room-rim, #52c8ff) 10%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(var(--light-sweep, 135deg), #16102a 0%, #0d0919 54%, #0a0714 100%);
+}
+
+/* The lower half is lit from the same world position; only the horizon flips,
+   because its inner edge is the top one. */
+.nav-curtain[data-veil="battle"] .nav-curtain-panel.is-bottom {
+  background-image:
+    var(--grain-src, none),
+    radial-gradient(
+      130% 68% at 50% 0%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 30%, transparent),
+      transparent 74%
+    ),
+    radial-gradient(
+      108% 128% at 14% -110%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 14%, transparent),
+      transparent 66%
+    ),
+    radial-gradient(
+      92% 120% at 90% 36%,
+      color-mix(in srgb, var(--room-rim, #52c8ff) 9%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(var(--light-sweep, 135deg), #120d24 0%, #0b0817 56%, #08050f 100%);
+}
+
+/* The same specular crawl the menu veil gets, at the same period, because a
+   six-second hold is the longest still image any player is ever shown and §3
+   makes "idle is never dead" a rule with no exception for loading. */
+.nav-curtain[data-veil="battle"] .nav-curtain-panel::after {
+  content: "";
+  position: absolute;
+  inset: -20% -35%;
+  pointer-events: none;
+  background: linear-gradient(
+    var(--light-sweep, 135deg),
+    transparent 34%,
+    rgb(255 255 255 / 0.03) 50%,
+    transparent 66%
+  );
+  opacity: 0;
+}
+
+.nav-curtain[data-veil="battle"][data-phase="close"] .nav-curtain-panel::after {
+  animation: nav-veil-crawl 5.2s var(--nav-ease-glide) var(--nav-dur, 200ms) infinite;
+  will-change: transform, opacity;
+}
+
+.nav-curtain[data-veil="battle"][data-phase="close"] .is-bottom::after {
+  animation-delay: calc(var(--nav-dur, 200ms) + 320ms);
 }
 
 /**
@@ -1831,8 +2017,9 @@
   position: absolute;
   inset: -20% -35%;
   pointer-events: none;
+  /* The same correction as the arrival band above: on the rig, not across it. */
   background: linear-gradient(
-    calc(var(--light-sweep, 135deg) + 90deg),
+    var(--light-sweep, 135deg),
     transparent 34%,
     rgb(255 255 255 / 0.035) 50%,
     transparent 66%
@@ -1874,15 +2061,18 @@
   will-change: opacity, transform;
 }
 
+/* The floor came up from 0.72 to 0.86. This is the only light on screen for as
+   long as a build takes, and a third of it going away and coming back on a 3.4s
+   period is a hold that visibly dims rather than one that breathes. */
 @keyframes nav-seam-breathe {
   0%,
   100% {
-    opacity: 0.72;
+    opacity: 0.86;
     transform: scaleY(0.94);
   }
   50% {
     opacity: 1;
-    transform: scaleY(1.12);
+    transform: scaleY(1.14);
   }
 }
 
@@ -2007,16 +2197,31 @@
 }
 
 /**
- * The seam clears well before the panels do — gone by 55%, while they are still
- * parting. It is the light spilling out of the gap, so it has to give way to
- * what it revealed; held to the end it is a bright rule drawn across the board.
+ * The seam gives way to what it revealed — but not before the panels have
+ * actually moved, and that clause is a repair.
+ *
+ * It used to be gone by 55% of the open, on the reasoning that a bright rule
+ * held across a revealed board is worse than no seam at all. That is true when
+ * the panels part on schedule and false in the one case that matters. Measured
+ * on `battle → lobby`: the phase flipped to `open`, the seam's own opacity ramp
+ * ran, and the panels' transform did not — the outgoing battle screen's
+ * `dispose()` and the lobby's constructor were both still on the thread — so the
+ * compositor put **one frame at luminance 5.8/255 on screen for 696ms**, a
+ * fully-closed occluder with its only light already switched off. Darker than
+ * `--bg-void`, on the way out of the longest thing a player does.
+ *
+ * Clearing between 62% and 88% costs nothing when the reveal is healthy — by
+ * 62% of a 210ms part the panels are most of the way off screen and the seam is
+ * over the incoming board for about fifty milliseconds — and it means the light
+ * cannot leave before the thing it is the light *of*.
  */
 @keyframes nav-curtain-seam-open {
-  0% {
+  0%,
+  62% {
     opacity: 1;
     transform: scaleX(1);
   }
-  55%,
+  88%,
   100% {
     opacity: 0;
     transform: scaleX(1.3);

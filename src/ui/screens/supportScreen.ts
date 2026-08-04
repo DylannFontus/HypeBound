@@ -18,6 +18,7 @@ import type { Screen } from "../shell";
 import { buildDiagnostics, policiesData } from "../../game/policies";
 import { getProfile } from "../../save/profile";
 import { audio } from "../../audio/audio";
+import { enter, icon } from "./data/kit";
 
 export interface SupportCallbacks {
   onBack: () => void;
@@ -41,6 +42,7 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
   const { faq } = policiesData().support;
 
   let query = "";
+  let mounted = false;
 
   const diagnostics = (): ReturnType<typeof buildDiagnostics> =>
     buildDiagnostics(content, { lastMatchSeed: lastMatchSeed(), matchesPlayed: getProfile().stats.matchesPlayed });
@@ -57,38 +59,60 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="support-back">← Back</button>
+        <button class="btn btn-ghost" id="support-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Support</h1>
         <div class="mastery-wallet">
           <div class="currency" title="The data version this build is running">
-            <span class="currency-icon">◆</span><span class="currency-value">${esc(report.dataVersion)}</span>
+            <span class="currency-icon">${icon("diamond", 14)}</span><span class="currency-value">${esc(
+      report.dataVersion
+    )}</span>
           </div>
         </div>
       </header>
 
-      <main class="policy-body data-body">
+      <main class="policy-body data-body data-doc">
         <section class="panel panel-chrome support-faq">
-          <div class="stats-table-head">
+          <div class="support-faq-head">
             <h2 class="t-heading">Frequently asked</h2>
-            <span class="muted" id="support-count">${shown.length} of ${faq.length}</span>
+            <label class="support-search field-group">
+              <span class="sr-only">Search the questions</span>
+              <input class="field" type="search" id="support-search" value="${esc(query)}"
+                     placeholder="save, odds, bug, multiplayer" />
+            </label>
+            <span class="t-label support-faq-count" id="support-count">
+              <span class="num">${shown.length}</span> of <span class="num">${faq.length}</span>
+            </span>
           </div>
-          <label class="patch-search field-group">
-            <span class="t-label">Search</span>
-            <input class="field" type="search" id="support-search" value="${esc(query)}"
-                   placeholder="save, odds, bug, multiplayer" />
-          </label>
           ${
             shown.length === 0
-              ? `<p class="muted">Nothing matches “${esc(query)}”. There is no ticket queue in this build — the diagnostic export below is the way to send something on.</p>`
-              : `<dl class="fairness-questions" id="support-list">
+              ? `<div class="empty d-enter">
+                   ${icon("search", 40)}
+                   <h3 class="t-heading">Nothing matches “${esc(query)}”</h3>
+                   <p class="t-body">There is no ticket queue in this build. The diagnostic export below is the way to send something on.</p>
+                 </div>`
+              : /*
+                 * Two columns, and each answer on its own plate.
+                 *
+                 * The old markup was a flat `<dl>`: a bold question at body size,
+                 * an answer at body size directly under it, seven times, in a
+                 * 1114px panel whose text stopped at 740px — so the right third
+                 * of the largest object on the screen held nothing, and the eye
+                 * had no way to tell where one answer ended and the next question
+                 * began. A recessed plate per question gives the pair an edge to
+                 * live inside, and the auto-fit grid spends the width that was
+                 * being wasted.
+                 */
+                `<div class="support-qa" id="support-list">
                    ${shown
                      .map(
                        (entry) => `
-                         <dt data-faq="${esc(entry.id)}">${esc(entry.question)}</dt>
-                         <dd>${entry.answer.map((line) => `<p>${esc(line)}</p>`).join("")}</dd>`
+                         <article class="mat-well r-tile support-qa-item d-enter" data-faq="${esc(entry.id)}">
+                           <h3 class="support-q">${esc(entry.question)}</h3>
+                           ${entry.answer.map((line) => `<p class="support-a">${esc(line)}</p>`).join("")}
+                         </article>`
                      )
                      .join("")}
-                 </dl>`
+                 </div>`
           }
         </section>
 
@@ -113,9 +137,9 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
           </table>
           <div class="mail-actions">
             <button class="btn btn-primary" id="support-export">Export the diagnostic</button>
-            <button class="btn btn-ghost" id="support-privacy">What is stored about me →</button>
-            <button class="btn btn-ghost" id="support-fairness">Probability disclosures →</button>
-            <button class="btn btn-ghost" id="support-cards">Card and rules reference →</button>
+            <button class="btn btn-ghost" id="support-privacy">What is stored about me ${icon("arrow-right", 15)}</button>
+            <button class="btn btn-ghost" id="support-fairness">Probability disclosures ${icon("arrow-right", 15)}</button>
+            <button class="btn btn-ghost" id="support-cards">Card and rules reference ${icon("arrow-right", 15)}</button>
           </div>
         </section>
 
@@ -133,6 +157,17 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
           </p>
         </section>
       </main>`;
+
+    /*
+     * The panels cascade once, on arrival; the answers cascade on every filter.
+     *
+     * This screen re-renders on each keystroke, so staggering everything would
+     * replay the whole entrance seven times while somebody types "odds" — which
+     * is the opposite of §3a's "filtering re-flows with a transition rather than
+     * a jump". The answers are what changed, so the answers are what moves.
+     */
+    enter(root, mounted ? ".support-qa-item" : ".panel, .support-qa-item", 34);
+    mounted = true;
 
     root.querySelector("#support-back")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");

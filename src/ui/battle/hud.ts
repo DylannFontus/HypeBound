@@ -122,12 +122,11 @@ export class BattleHud {
      * plates, `.mat-well` for the recessed tracks. The rim, the lip, the drop,
      * the 2px contact shadow and the grain arrive with the class.
      */
-    // ---- enemy plate (top centre) -----------------------------------------
-    this.enemyPlate = el("div", "leader-plate mat-chip leader-plate-enemy");
+    // ---- the two rails -----------------------------------------------------
+    this.enemyPlate = el("div", "leader-plate mat-panel leader-plate-enemy");
     this.enemyPlate.addEventListener("click", () => this.view && this.callbacks.onInspectLeader(this.view.opponent.seat));
-    this.root.appendChild(this.enemyPlate);
 
-    this.playerPlate = el("div", "leader-plate mat-chip leader-plate-player");
+    this.playerPlate = el("div", "leader-plate mat-panel leader-plate-player");
     this.playerPlate.addEventListener("click", () => this.view && this.callbacks.onInspectLeader(this.view.seat));
 
     this.obsessionEnemy = el("div", "obsession-dial mat-panel obsession-enemy");
@@ -147,7 +146,24 @@ export class BattleHud {
      */
     const corner = el("div", "hud-corner");
     corner.append(this.obsessionPlayer, this.playerPlate, this.abilityBar);
-    this.root.append(this.obsessionEnemy, corner);
+
+    /**
+     * And the rival gets the same column, mirrored.
+     *
+     * The two Obsession dials are the same number about two players and they sat
+     * in two unrelated places — the rival's on the centre line above their
+     * medallion, the player's in the bottom-left corner underneath their own
+     * abilities — at two different distances from the plate they belong to. §6's
+     * rule is that a mirrored resource has to be *presented* identically or it
+     * cannot be compared at a glance, which is the only reason the rival's is on
+     * screen at all. Gwent puts both round scores in identical plates on one
+     * vertical axis; Hearthstone mirrors both mana rows. Now so does this: one
+     * column per player, plate and dial, top-left and bottom-left, and the
+     * centre line above the rival's medallion is given back to the board.
+     */
+    const rivalRail = el("div", "hud-corner hud-corner-rival");
+    rivalRail.append(this.enemyPlate, this.obsessionEnemy);
+    this.root.append(rivalRail, corner);
 
     /**
      * ---- the Hype tray (bottom right) -------------------------------------
@@ -345,7 +361,7 @@ export class BattleHud {
         <div class="leader-orb-fill" style="--fill:${ratio}"></div>
         <div class="leader-orb-value">
           <span class="hp">${health}</span>
-          ${armor > 0 ? `<span class="armor">⛊${armor}</span>` : ""}
+          ${armor > 0 ? `<span class="armor">${icon("armour")}<span class="num">${armor}</span></span>` : ""}
         </div>
       </div>
       <div class="leader-info">
@@ -396,7 +412,21 @@ export class BattleHud {
         <span class="obs-value">${value}<span class="obs-max">/${max}</span></span>
       </div>
       <div class="obs-track mat-well">${pips}</div>
-      ${obsessed ? '<div class="obs-warning">⚠ OBSESSED — takes +1 damage</div>' : ""}`;
+      ${
+        /**
+         * The last two Unicode glyphs on this HUD, drawn instead of typed.
+         *
+         * `⛊` (U+26CA) and `⚠` (U+26A0) render in whatever face the operating
+         * system happens to have for them: a different stroke weight from every
+         * other mark on the screen, a different optical size, full colour on the
+         * platforms that ship an emoji presentation for the warning sign, and
+         * tofu where the code point is missing. The foundation contract lists
+         * exactly this as work to delete, and these were the two survivors.
+         */
+        obsessed
+          ? `<div class="obs-warning">${icon("warning")}<span>Obsessed — takes +1 damage</span></div>`
+          : ""
+      }`;
   }
 
   /**

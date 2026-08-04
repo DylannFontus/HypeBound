@@ -247,12 +247,21 @@
 /* ---- leader plates ------------------------------------------------------ */
 
 /*
- * The plate is `.mat-chip` (see hud.ts) — the 315° gradient, the lit rim, the
+ * The plate is `.mat-panel` (see hud.ts) — the 315° gradient, the lit rim, the
  * unlit lip, the soft drop, the 2px contact shadow and the grain all arrive
  * with the class. What is left here is the shape and the fact that it is a
  * button. It carried `background: var(--glass-strong); border: 1px solid
  * var(--glass-border)` and nothing else, which is §1's banned pair, and which
  * put a second sun ten pixels from the action log's top-lit panel.
+ *
+ * ## Why it is no longer a pill
+ *
+ * It wore `--r-chip`, which the foundation reserves for "pills and chips only",
+ * and the cost of that was visible the moment the two rails were stacked into
+ * columns: dial at 18px, plate at 999px, ability tiles at 14px — three radii
+ * down one 214px-wide edge, which is §7's first craft line failed in the place
+ * it is easiest to see. A leader plate is structural furniture: it is a panel,
+ * at the panel's radius and the panel's amplitude.
  */
 .leader-plate {
   position: absolute;
@@ -260,8 +269,8 @@
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-2);
-  border-radius: var(--r-chip, var(--radius-pill));
-  --r-self: var(--r-chip, var(--radius-pill));
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
   cursor: pointer;
   transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast) var(--ease-out);
   max-width: 340px;
@@ -308,7 +317,40 @@
   transform: none;
 }
 
-.leader-plate-enemy { top: var(--sp-3); left: var(--sp-4); }
+/*
+ * The rival's rail is the player's, on the other edge of the same axis.
+ *
+ * Both columns paint dial-above-plate, so the pair the player is being asked to
+ * compare is the same two objects in the same order in both places rather than
+ * one on the centre line above the rival's medallion and one buried under the
+ * player's own ability buttons. `column-reverse` rather than a second DOM order,
+ * because a screen reader should hear "who, then how obsessed they are" on both
+ * sides and only the painting is flipped.
+ */
+.hud-corner-rival {
+  top: var(--sp-3);
+  bottom: auto;
+  flex-direction: column-reverse;
+}
+
+/*
+ * One width for everything in a rail, so the rail has an edge.
+ *
+ * The dial was 214px and the plate was whatever its leader's name came to, which
+ * left four blocks down the left of the screen with four different right-hand
+ * edges — the "unrelated rectangles pinned to corners" reading, in miniature.
+ * A shared width turns the stack into one column with a silhouette. Guarded to
+ * viewports tall enough to stack, because the short layout lays the rival's rail
+ * on its side and the plate has to be free to be as wide as its name there.
+ */
+@media (min-height: 521px) {
+  .hud-corner > .leader-plate,
+  .hud-corner > .obsession-dial,
+  .hud-corner > .ability-bar {
+    width: var(--rail-w, 214px);
+    box-sizing: border-box;
+  }
+}
 .leader-plate:hover { transform: translateY(-2px) scale(1.015); --rim-boost: 2; }
 .leader-plate:active { transform: scale(0.99); --cast-lift: 0; }
 
@@ -342,7 +384,16 @@
   text-shadow: 0 2px 4px rgba(0,0,0,0.9);
 }
 .leader-orb-value .hp { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700; }
-.leader-orb-value .armor { font-size: var(--fs-xs); color: var(--accent-cool); }
+/* The shield is module C's drawing now, not U+26CA, so it needs an optical size
+   and a baseline of its own rather than a font's opinion of both. */
+.leader-orb-value .armor {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: var(--fs-xs);
+  color: var(--accent-cool);
+}
+.leader-orb-value .armor svg { width: 11px; height: 11px; flex: none; }
 
 .leader-info { min-width: 0; }
 .leader-name { font-family: var(--font-display); font-weight: 600; font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -362,6 +413,8 @@
   --r-self: var(--r-panel, var(--radius));
   transition: box-shadow var(--dur-med);
 }
+/* The rival's dial lives in `.hud-corner-rival` now (see hud.ts). This is the
+   fallback for any host that mounts the dial outside a rail. */
 .obsession-enemy { top: var(--sp-3); left: 50%; transform: translateX(-50%); }
 
 .obsession-dial.danger {
@@ -406,7 +459,18 @@
 .obs-pip.fix { border-bottom: 3px solid var(--accent-cool); }
 .obs-pip.ult { border-bottom: 3px solid var(--accent-gold); }
 
-.obs-warning { margin-top: 4px; font-size: var(--fs-xs); color: var(--danger); font-weight: 600; letter-spacing: 0.04em; }
+.obs-warning {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  color: var(--danger);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.obs-warning svg { width: 13px; height: 13px; flex: none; }
 
 /* ---- hype crystals ------------------------------------------------------ */
 
@@ -512,6 +576,9 @@
   right: var(--sp-5);
   top: 50%;
   transform: translateY(-50%);
+  /* the collar below sits at `z-index: -1`, which needs a stacking context here
+     or it drops behind the whole HUD instead of behind the ring */
+  isolation: isolate;
 }
 
 /*
@@ -530,7 +597,7 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  padding: 6px;
+  padding: var(--ring-band, 6px);
   /*
    * The FULL ring is painted by a plain gradient, and the conic only ever
    * subtracts.
@@ -555,6 +622,56 @@
     0 6px 18px rgba(0, 0, 0, 0.55);
 }
 
+/*
+ * The collar the ring is set into, and why the hero action needed one.
+ *
+ * Photographed at 3x against the rooftop art, the control read as a lavender
+ * disc laid on a photograph: a bright ring at one brightness the whole way
+ * round, no seat, no shadow of its own reaching the surface behind it. §1 calls
+ * a glow with no corresponding shadow out by name, and §2 is the real charge —
+ * the most-clicked object in the game belonged to no depth plane. All three
+ * reference games attach it: Gwent clips a brass tab into the mat's edge,
+ * Hearthstone carves the plate into the board frame.
+ *
+ * So the disc now sits in a hole. The collar is a wider ring behind it carrying
+ * a dark recessed channel, a lit lip on the 315° side, an unlit one opposite and
+ * a real cast onto whatever is behind — which on this screen is the venue. It is
+ * a `::after` rather than a wrapper so nothing about the layout, the tutorial's
+ * spotlight rect or the small-viewport rules has to know it exists.
+ */
+.turn-wrap::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--collar, 13px) * -1);
+  border-radius: 50%;
+  z-index: -1;
+  background:
+    var(--tex-grain-chip, none),
+    radial-gradient(
+      closest-side,
+      rgba(9, 5, 20, 0) 62%,
+      rgba(9, 5, 20, 0.62) 74%,
+      rgba(24, 14, 46, 0.92) 86%,
+      rgba(46, 28, 78, 0.86) 100%
+    ),
+    linear-gradient(var(--light-angle, 315deg), rgba(186, 156, 246, 0.62), rgba(46, 30, 78, 0.72) 34%, rgba(8, 5, 18, 0.94) 76%);
+  background-size: var(--tex-grain-chip-size, auto), 100% 100%, 100% 100%;
+  /*
+   * Four edges, in the order §1 lists them: the lit lip on the 315° side, the
+   * unlit one opposite, the machined channel the disc drops into, and a cast
+   * that reaches the venue behind rather than a glow with no shadow under it.
+   */
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.22),
+    inset 2px 0 0 rgba(255, 255, 255, 0.1),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.82),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 2px 0 rgba(0, 0, 0, 0.6),
+    4.4px 7.1px 30px rgba(0, 0, 0, 0.7),
+    4.4px 7.1px 2px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
 /* the spent part of the clock, subtracted from the ring above */
 .timer-ring::before {
   content: "";
@@ -574,33 +691,46 @@
    * was a clock.
    *
    * Now the spent arc grows clockwise from twelve like every dial anyone has
-   * ever read, and the boundary carries a two-degree specular cap so the eye
-   * reads a hand travelling round a track rather than a bite taken out of a
-   * plate. Two layers on one element, both conic, both composited.
+   * ever read, and the boundary carries a specular cap so the eye reads a hand
+   * travelling round a track rather than a bite taken out of a plate. Two layers
+   * on one element, both conic, both composited.
    */
   --spent: calc((1 - var(--timer, 1)) * 360deg);
   background:
     conic-gradient(
-      transparent calc(var(--spent) - 2.2deg),
-      rgba(255, 244, 214, 0.9) calc(var(--spent) - 2.2deg),
-      rgba(255, 244, 214, 0.9) var(--spent),
+      transparent calc(var(--spent) - 5deg),
+      rgba(255, 240, 205, 0.28) calc(var(--spent) - 3.4deg),
+      rgba(255, 244, 214, 0.8) calc(var(--spent) - 1.2deg),
+      rgba(255, 244, 214, 0.8) var(--spent),
       transparent var(--spent)
     ),
     conic-gradient(rgba(11, 5, 26, 0.86) var(--spent), transparent 0);
   /*
-   * And the layer is not drawn at all while there is nothing spent to draw.
+   * It is confined to the ring's own band, and this is not tidiness.
    *
-   * At a full clock every stop above lands on 0deg, CSS collapses the pair, and
-   * Chrome antialiases a zero-width band into a faint mark — the same class of
-   * artefact the old inverted conic produced at 360deg, and no epsilon closes
-   * it, because it is the antialiasing of a degenerate stop rather than a gap
-   * between two. Gating the opacity is the only reliable answer. The multiplier
-   * makes it opaque by the time 2.5% of the turn has gone, which is under a
-   * second of a thirty-second clock, so the arc is never caught fading in and a
-   * full ring is genuinely one unbroken piece of light.
+   * `inset: 0` makes the layer a full disc and it is positioned, so it paints
+   * *over* the statically-positioned button inside it. Photographed at 3x, the
+   * first few seconds of a turn put a dark wedge and a cream tick across the top
+   * of the hero plate's face — read, correctly, by three reviews as a stray
+   * notch clipped by the ring at twelve o'clock. It is the clock, drawn where a
+   * clock has no business being. The mask cuts everything inside the track away,
+   * so the arc can only ever exist in the band it belongs to.
    */
-  opacity: clamp(0, calc((1 - var(--timer, 1)) * 40), 1);
-  transition: opacity var(--dur-med) var(--ease-out);
+  --track-in: calc(100% - var(--ring-band, 6px) - 1px);
+  -webkit-mask-image: radial-gradient(closest-side, transparent var(--track-in), #000 calc(var(--track-in) + 1px));
+  mask-image: radial-gradient(closest-side, transparent var(--track-in), #000 calc(var(--track-in) + 1px));
+  /*
+   * And it is not drawn at all until there is enough of it to read as a dial.
+   *
+   * The previous multiplier reached full opacity 2.5% into the turn, which on a
+   * thirty-second clock is nine degrees of arc: a 12x8px chip, indistinguishable
+   * from a rendering fault and photographed as one. A dial has to be a dial. The
+   * layer now stays at zero for the first ~6% and is fully present by ~16%, by
+   * which point the arc is fifty-odd degrees and unmistakably a clock hand. The
+   * transition means the crossing is a fade rather than a pop (§7).
+   */
+  opacity: clamp(0, calc((1 - var(--timer, 1)) * 10 - 0.6), 1);
+  transition: opacity var(--dur-slow, 420ms) var(--ease-out);
 }
 .timer-ring.rope { background-image: none; background-color: var(--danger); }
 
@@ -1065,7 +1195,10 @@
   pointer-events: none;
 }
 .dp-damage { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 800; color: #ff5f7a; }
-.dp-bonus { color: var(--accent-gold); font-weight: 600; }
+/* The mark is module C's drawing rather than U+25B2 (see targeting.ts), so it
+   needs an optical size and a baseline rather than a font's opinion of both. */
+.dp-bonus { color: var(--accent-gold); font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.dp-bonus svg { width: 13px; height: 13px; flex: none; }
 .dp-kill { color: #ff9a5f; }
 .dp-counter { color: var(--text-dim); }
 .dp-risk { color: var(--warning); }
@@ -1373,7 +1506,10 @@
    */
   .history-panel { top: 52px; max-height: 92px; width: 186px; }
   .obsession-dial { width: 152px; }
-  .timer-ring { width: 84px; height: 84px; }
+  .timer-ring { width: 84px; height: 84px; --ring-band: 5px; }
+  /* The collar scales with the disc — at 13px around an 84px ring it would be a
+     third of the object's diameter and the seat would read as the button. */
+  .turn-wrap { --collar: 8px; }
   .end-turn-icon { width: 18px; height: 18px; }
   .end-turn-btn .end-turn-text { font-size: var(--fs-xs); letter-spacing: 0.02em; }
   .leader-orb { width: 46px; height: 46px; }
@@ -1384,24 +1520,26 @@
   .hud-corner { gap: 4px; }
 
   /*
-   * The rival's dial comes off the centre line, and this is the fix the camera
-   * framing has been assuming for a round.
+   * The rival's rail lies down when there is no height for it to stand up in.
    *
-   * At 844x390 the RIVAL·OBSESSION chip covered roughly 55% of the enemy leader
-   * medallion — the object the whole match is about — leaving a sliver of
-   * portrait and the health gem. `insetsFor()` in scene.ts already drops the top
-   * reserve from 84px to 46px below 500px of height *on the grounds that the dial
-   * has moved out to the right*, which cost the phone target a third of its scale
-   * for a collision this rule is what actually prevents. It is one place a
-   * comment described a rule that was never written.
+   * At 844x390 the two players' columns would want 106px and 135px out of 390,
+   * which is two thirds of the screen given to chrome. Stacking is only how the
+   * mirror is *drawn* — what has to hold is that both players' plate and dial are
+   * one object anchored to their own edge of the board, and a row does that in
+   * 60px instead of 106. The player's column stays vertical because it has the
+   * ability buttons under it and they cannot go beside anything.
+   *
+   * (The rival's dial used to be on the centre line here, where it covered
+   * roughly 55% of the enemy leader medallion — the object the whole match is
+   * about. `insetsFor()` in scene.ts drops the top reserve from 84px to 46px
+   * below 500px of height on the grounds that the dial is out of the way, and
+   * this is what actually puts it there.)
    */
-  .obsession-enemy {
-    top: var(--sp-3);
-    left: auto;
-    right: calc(var(--sp-3) + 148px);
-    transform: none;
-    width: 152px;
+  .hud-corner-rival {
+    flex-direction: row-reverse;
+    align-items: flex-start;
   }
+  .hud-corner-rival > .obsession-dial { width: 152px; }
 
   /*
    * "RIVAL · OBSESSION" wrapped to two lines inside a 136px dial and took the

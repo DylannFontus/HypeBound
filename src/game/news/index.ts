@@ -28,6 +28,7 @@
 
 import type { ContentIndex } from "../../engine/types";
 import { collectibleCards } from "../../engine/content";
+import { LOCALE } from "../../ui/format";
 import { checkInConfig } from "../progression/data";
 import { hypeWaveData, seasonById, seasonEnd, seasonStart } from "../progression/hypeWave";
 import { bannerById, runEnd, runStart } from "../economy/banner";
@@ -72,8 +73,16 @@ export {
  * west of Greenwich — a run advertised as ending a day before the data says it
  * does. These are calendar dates in a data file rather than moments in a
  * player's day, and they should read the same everywhere.
+ *
+ * The **locale** is pinned for the same reason the time zone is. This read
+ * `undefined`, which is not localisation — the game has no i18n layer, so every
+ * string around the date is English and the date itself came out in whatever the
+ * browser was set to. The article body shipped "The Second Funeral runs until 17
+ * août 2026" on any machine not set to English, which is the fastest way for a
+ * viewer to tell that nobody opened the build. `LOCALE` is `src/ui/format.ts`'s
+ * en-GB, imported rather than restated so there is one place to change.
  */
-const DATE = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const DATE = new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const on = (at: number): string => DATE.format(new Date(at));
 const pct = (rate: number): string => `${(rate * 100).toFixed(1)}%`;
 

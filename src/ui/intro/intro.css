@@ -63,9 +63,30 @@
   pointer-events: auto;
 }
 
-/** The hold plate. Present for the first-run title, absent for the sting. */
+/**
+ * The hold plate. Present for the first-run title, absent for the sting.
+ *
+ * Painted rather than filled, and the reason is a failure mode a flat colour
+ * cannot survive. A WebGL canvas with `preserveDrawingBuffer: false` — which is
+ * every canvas in this game, because preserving it costs a full-buffer copy per
+ * frame — has an *empty* drawing buffer between renders, and a compositor
+ * capture that lands in that window shows the plate on its own. Photographed in
+ * a burst it happened three frames running, and with a flat `#04020a` behind it
+ * the picture went to a black rectangle and back.
+ *
+ * It cannot be prevented from this side and it does not need to be. What it
+ * needs is for the layer underneath to be a *room with the lights off* rather
+ * than a hole: the same 315° key, the same violet, dark enough to be a
+ * backdrop. A dropped frame then reads as the moment before the rig ignites,
+ * which is a thing the sequence genuinely contains, instead of as a fault. §3a's
+ * "never a blank frame" is a rule about what the player sees, and this is the
+ * cheapest possible way of never letting them see nothing.
+ */
 .hb-intro[data-plate="true"] {
-  background: #04020a;
+  background:
+    radial-gradient(120% 90% at 22% 8%, rgb(26 14 58 / 0.9), rgb(8 4 22 / 0) 62%),
+    radial-gradient(90% 60% at 50% 78%, rgb(38 12 62 / 0.5), rgb(4 2 10 / 0) 70%),
+    #05020e;
 }
 
 .hb-intro.is-leaving {

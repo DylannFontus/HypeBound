@@ -17,7 +17,7 @@
 import type { Screen } from "../shell";
 import { attributions, policiesData } from "../../game/policies";
 import { audio } from "../../audio/audio";
-import { longDate } from "./data/kit";
+import { icon, longDate } from "./data/kit";
 
 export interface LegalCallbacks {
   onBack: () => void;
@@ -47,11 +47,11 @@ export function createLegalScreen(callbacks: LegalCallbacks): Screen {
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="screen-header">
-      <button class="btn btn-ghost" id="legal-back">← Back</button>
+      <button class="btn btn-ghost" id="legal-back">${icon("arrow-left", 16)} Back</button>
       <h1 class="title">Legal</h1>
     </header>
 
-    <main class="policy-body data-body">
+    <main class="policy-body data-body data-doc">
       ${documents
         .map(
           (document) => `
@@ -102,7 +102,7 @@ export function createLegalScreen(callbacks: LegalCallbacks): Screen {
           distributed to anybody.
         </p>
         <div class="mail-actions">
-          <button class="btn btn-ghost" id="legal-privacy">Privacy →</button>
+          <button class="btn btn-ghost" id="legal-privacy">Privacy ${icon("arrow-right", 15)}</button>
         </div>
       </section>
     </main>`;

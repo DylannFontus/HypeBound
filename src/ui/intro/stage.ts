@@ -65,6 +65,8 @@ import {
   beamTexture,
   bloomOf,
   bokehTexture,
+  cityTexture,
+  crowdTexture,
   disposeIntroTextures,
   reflectionTexture,
   flashTexture,
@@ -76,6 +78,7 @@ import {
   vignetteTexture,
   washTexture,
   type BrandSource,
+  type CitySpec,
 } from "./textures";
 
 // ---------------------------------------------------------------------------
@@ -93,6 +96,13 @@ import {
 export interface IntroLook {
   /** Opacity of the opaque room backdrop. 0 lets the live game show through. */
   wash: number;
+  /**
+   * The skyline and the wet street under it — the only hard-edged thing in the
+   * frame, and therefore the only thing that says where the camera is standing.
+   */
+  city: number;
+  /** The out-of-focus crowd along the bottom edge. The foreground plane. */
+  crowd: number;
   /** Master brightness of the defocused city. */
   bokeh: number;
   /** Per-shaft intensity. Five entries; the low tier only reads the first three. */
@@ -150,6 +160,13 @@ export interface IntroLook {
   /** Reflection strength on the floor under the lockup. */
   reflection: number;
 
+  /**
+   * How far the lockup has travelled to its handover position, 0–1.
+   *
+   * Only the returning sting uses it. See `StageOptions.dockTarget`.
+   */
+  dock: number;
+
   /** Shockwave radius as a multiple of its resting size. */
   ring: number;
   ringOpacity: number;
@@ -168,6 +185,8 @@ export interface IntroLook {
 export function restingLook(): IntroLook {
   return {
     wash: 0,
+    city: 0,
+    crowd: 0,
     bokeh: 0,
     beams: [0, 0, 0, 0, 0],
     haze: 0,
@@ -188,6 +207,7 @@ export function restingLook(): IntroLook {
     sheen: -1,
     sheenOpacity: 0,
     reflection: 0,
+    dock: 0,
     ring: 0,
     ringOpacity: 0,
     streak: 0,
@@ -218,13 +238,26 @@ const CAM_Z = 26;
 /** The stacking order. Read it top to bottom as back to front. */
 const ORDER = {
   wash: 0,
+  cityFar: 1,
+  cityFarWet: 2,
   hazeFar: 4,
+  cityNear: 5,
+  cityNearWet: 6,
   bokehFar: 8,
   beams: 12,
   hazeMid: 16,
   bokehNear: 20,
   floor: 24,
   reflection: 26,
+  /**
+   * The crowd is in front of the floor and behind the impact.
+   *
+   * In front of the reflection because a foreground plane that the logo's own
+   * reflection is drawn *over* is not a foreground plane; behind the shockwave
+   * and the flash because those are light in the air between the camera and
+   * everything, including the people.
+   */
+  crowd: 28,
   ring: 30,
   /**
    * The impact bloom sits *behind* the lockup, not over it.
@@ -304,6 +337,34 @@ export interface StageOptions {
    * with nothing under it is a second logo hanging in a menu.
    */
   lockupAnchor?: "horizon" | "centre";
+  /**
+   * Where the lockup is handed over to the running game, in CSS pixels.
+   *
+   * This is §3a's shared-element rule applied to the one place in HYPEBOUND
+   * where it has the largest possible payoff. The lobby wears the wordmark in
+   * its header rail; the sting draws the same wordmark, enormous, in the middle
+   * of the screen. Two copies of one object, one of which blinks out of
+   * existence while the other is already there — which is precisely the thing
+   * §3a says must not happen when two screens contain the same object.
+   *
+   * So the sting does not disperse. It flies the wordmark to the header,
+   * shrinking it to exactly the size the header draws it at, and lets go. The
+   * player's own wordmark is underneath the whole time at full opacity, so the
+   * handover is a crossfade between two identical bitmaps in the same place —
+   * there is no frame in which the brand is anywhere but where it belongs, and
+   * the sting stops being a video that ends and becomes the game arriving.
+   *
+   * A function rather than a rect because the destination does not exist yet
+   * when the stage is built: the sting mounts inside `boot()`, before the router
+   * has put a lobby on screen. It is resolved the first frame the dock is
+   * actually needed, which is six hundred milliseconds later.
+   *
+   * Returning `null` — no header wordmark on this viewport, or the asset never
+   * loaded — is expected and handled. The fallback flies to where a header
+   * wordmark would be, which is a coherent exit on its own: the sign goes up on
+   * the wall rather than evaporating.
+   */
+  dockTarget?: () => { x: number; y: number; width: number } | null;
 }
 
 export interface IntroStage {
@@ -515,6 +576,146 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
   const flash = quad({ texture: flashTexture(), order: ORDER.flash, additive: true });
   flash.position.z = -1.2;
   camera.add(flash);
+
+  // --- the skyline ----------------------------------------------------------
+
+  /**
+   * Two bands at two depths, and the near one is not simply a bigger copy.
+   *
+   * Parallax alone does not read as distance when both layers have the same
+   * statistics — two identical skylines sliding against each other look like a
+   * printing error. The far band is many short towers with dense small windows,
+   * lifted a long way toward the horizon glow; the near band is a handful of
+   * tall blocks, nearly black, with sparse windows and most of the signage. That
+   * is what atmospheric perspective does to a city, and it means the two are
+   * separable in a still frame as well as in a moving one — which is the test
+   * §2 actually sets.
+   *
+   * The low tier gets one band at half the resolution rather than none, and
+   * that decision was made with a stopwatch rather than by feel. Generating both
+   * bands measures at 5.6ms and 1.9ms on this machine, and the crowd at 1.0ms —
+   * against 290–530ms for the WebGL context and its shader links, which is what
+   * bringing this set up actually costs. Cutting nine milliseconds to take the
+   * *setting* away from the cheapest devices would be a bad trade at any price
+   * and is an absurd one at that price: a low-tier player would get the abstract
+   * light show that this whole layer exists to replace.
+   */
+  interface Band {
+    mass: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+    wet: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+    aspect: number;
+    wetAspect: number;
+    z: number;
+    /** Width as a multiple of the frame at that depth. Over 1, for the dolly. */
+    span: number;
+    weight: number;
+    drift: number;
+  }
+  const bands: Band[] = [];
+  {
+    const room = ROOMS[options.room];
+    /**
+     * The sting buys the cheap city, and so does the low tier.
+     *
+     * Two bands at 2048 are about nine megabytes of texture to upload, and the
+     * upload lands inside the ~360ms of cold WebGL start-up that a returning
+     * player's lobby is already paying for. The sting shows the skyline
+     * multiplied by a wash that peaks at 0.3, over a menu, for half a second —
+     * there is no version of that where the far band's window grid is visible
+     * to anybody. One band at half the resolution is the same picture and a
+     * quarter of the bytes.
+     */
+    const frugal = options.tier === "low" || (options.lockupAnchor ?? "horizon") !== "horizon";
+    const px = frugal ? 1024 : 2048;
+    const half = frugal ? 0.5 : 1;
+    const bandSpec: Array<{ spec: CitySpec; z: number; span: number; weight: number; drift: number }> = [
+      {
+        spec: {
+          seed: 7,
+          px,
+          aspect: 10.5,
+          towers: 40,
+          low: 0.16,
+          high: 0.9,
+          ink: "#100a26",
+          fog: 0.72,
+          fogColour: room.rim,
+          lit: 0.42,
+          cell: 5 * half,
+        },
+        z: -46,
+        span: 1.22,
+        weight: 0.8,
+        drift: 0.9,
+      },
+      {
+        spec: {
+          seed: 41,
+          px,
+          aspect: 5,
+          towers: 16,
+          low: 0.14,
+          high: 1,
+          ink: "#060313",
+          fog: 0.22,
+          fogColour: room.key,
+          lit: 0.24,
+          cell: 8 * half,
+        },
+        z: -30,
+        span: 1.3,
+        weight: 1,
+        drift: 2.2,
+      },
+      // The near band is the one that survives a cut: it carries the tall
+      // silhouettes, the signage and the reflection worth looking at.
+    ].slice(frugal ? 1 : 0);
+    for (const [index, entry] of bandSpec.entries()) {
+      const built = cityTexture(entry.spec);
+      if (!built) continue;
+      const far = index === 0;
+      const mass = quad({ texture: built.mass, order: far ? ORDER.cityFar : ORDER.cityNear });
+      const wet = quad({
+        texture: built.wet,
+        order: far ? ORDER.cityFarWet : ORDER.cityNearWet,
+        additive: true,
+      });
+      mass.position.z = entry.z;
+      wet.position.z = entry.z;
+      scene.add(mass, wet);
+      bands.push({
+        mass,
+        wet,
+        aspect: built.aspect,
+        wetAspect: built.wetAspect,
+        z: entry.z,
+        span: entry.span,
+        weight: entry.weight,
+        drift: entry.drift,
+      });
+    }
+  }
+
+  // --- the crowd, in front of everything in the room ------------------------
+
+  /**
+   * Only the title gets a crowd, and the reason is the sting, not the budget.
+   *
+   * A one-megapixel canvas of blurred silhouettes costs a millisecond, so every
+   * tier can have it. What no tier can have is an opaque black band across the
+   * bottom of a *live lobby* — the sting plays over a menu the player is about
+   * to click, and darkening the row the nav grid sits in for half a second is
+   * the same mistake as covering the PLAY button with a logo. The sting has no
+   * floor and no wash to speak of; a foreground plane needs both.
+   */
+  const crowd =
+    (options.lockupAnchor ?? "horizon") !== "horizon"
+      ? null
+      : quad({ texture: crowdTexture(), order: ORDER.crowd });
+  if (crowd) {
+    crowd.position.z = -2;
+    scene.add(crowd);
+  }
 
   // --- the defocused city ---------------------------------------------------
 
@@ -793,10 +994,16 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
        * The lobby's densest region is the nine-tile nav grid in the lower
        * middle; the band above it is one wide PLAY button and one deck row.
        * Sitting the sting over the wide elements rather than over the grid
-       * means the 200ms in which the lockup is dispersing does not read as nine
+       * means the half-second the lockup is on screen does not read as nine
        * labels being crossed out.
+       *
+       * Measured against the real lobby rather than guessed. At 0.1 the
+       * wordmark's centre landed on the exact row the nav labels sit on and
+       * struck through "Collection", "Deck Builder" and "Merch Drops"; at 0.19
+       * it sits over the active-deck row, where the only thing behind it is one
+       * line of type it is wider than.
        */
-      const middle = frame.h * 0.1;
+      const middle = frame.h * 0.19;
       markRestY = middle + total / 2 - markH / 2;
       wordRestY = middle - total / 2 + wordH / 2;
     }
@@ -836,6 +1043,41 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
       // Sourced above the frame and raking down across the horizon, which is
       // where a rig hangs and where the smoke it is lighting actually is.
       beam.mesh.position.y = view.h * 0.16;
+    }
+
+    /**
+     * The skyline stands *on* the horizon and the street hangs off the same
+     * line, both sized from the frame at their own depth.
+     *
+     * The line is `HORIZON_FRACTION` of the frame height at that depth, which is
+     * the same screen position at every depth and therefore the same line for
+     * the wash, the lockup, the reflection and both bands. That agreement is the
+     * whole reason the composition holds together: a skyline whose base is nine
+     * pixels off the floor the logo is standing on is a collage.
+     */
+    for (const band of bands) {
+      const view = viewAt(CAM_Z - band.z);
+      const width = view.w * band.span;
+      const height = width / band.aspect;
+      const line = view.h * HORIZON_FRACTION;
+      band.mass.scale.set(width, height, 1);
+      band.mass.position.y = line + height / 2;
+      const wetHeight = width / band.wetAspect;
+      band.wet.scale.set(width, wetHeight, 1);
+      band.wet.position.y = line - wetHeight / 2;
+    }
+
+    if (crowd) {
+      const view = viewAt(CAM_Z - crowd.position.z);
+      /**
+       * Anchored to the bottom edge rather than to the horizon, because that is
+       * what a foreground is: it is where the camera is, not where the subject
+       * is. Sized off the frame height so a phone in landscape — which is short
+       * — gets proportionally the same band of heads rather than a wall of them.
+       */
+      const height = view.h * 0.145;
+      crowd.scale.set(view.w * 1.15, height, 1);
+      crowd.position.y = -view.h / 2 + height * 0.42;
     }
 
     for (const haze of hazes) {
@@ -971,6 +1213,48 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
   // ---------------------------------------------------------------------------
 
   const clamp01 = (value: number): number => (value < 0 ? 0 : value > 1 ? 1 : value);
+  const mix = (a: number, b: number, k: number): number => a + (b - a) * k;
+
+  /**
+   * The handover position, resolved once and then frozen.
+   *
+   * Once, because it is read out of the DOM and this is called from inside a
+   * frame loop — `getBoundingClientRect` on every frame of a 260ms flight is a
+   * forced layout per frame, on the exact frames the lobby is finishing its own
+   * entrance. Frozen rather than re-resolved on resize because a viewport change
+   * mid-flight is not a case worth a reflow; the sting is over in a quarter of a
+   * second.
+   */
+  /**
+   * Stored as fractions of the frame rather than as world units, because the
+   * camera has not finished moving.
+   *
+   * The sting's dolly is still running when the lockup docks, so the world
+   * rectangle the lens frames at the lockup's depth is not the one `frame` was
+   * solved for — and a two percent error in that rectangle is a two percent
+   * error in where the wordmark parks, which at a 92px target is a visible
+   * double exposure against the header's own copy. Fractions survive the move;
+   * world units do not.
+   */
+  let dockAt: { fx: number; fy: number; span: number } | null = null;
+  function resolveDock(): { fx: number; fy: number; span: number } {
+    if (dockAt) return dockAt;
+    const target = options.dockTarget?.() ?? null;
+    if (!target) {
+      // No header wordmark on this viewport. Fly to where one would be.
+      dockAt = { fx: 0, fy: 0.4, span: 0.14 };
+      return dockAt;
+    }
+    const rect = host.getBoundingClientRect();
+    const width = Math.max(1, rect.width);
+    const height = Math.max(1, rect.height);
+    dockAt = {
+      fx: (target.x - rect.left) / width - 0.5,
+      fy: 0.5 - (target.y - rect.top) / height,
+      span: target.width / width,
+    };
+    return dockAt;
+  }
 
   function apply(look: IntroLook, elapsed: number): void {
     const master = clamp01(look.master);
@@ -987,8 +1271,20 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
      * "idle is never dead" is not satisfied by a screen that only moves when
      * something is happening on it.
      */
-    const breathX = Math.sin(t * 0.00021) * 0.22;
-    const breathY = Math.cos(t * 0.00017) * 0.14;
+    /**
+     * The breath is damped out as the lockup docks, and it has to be.
+     *
+     * A fifth of a world unit is three pixels of drift, which is exactly the
+     * point of it — but three pixels is also the entire error budget for parking
+     * a 92-pixel wordmark on top of an identical one. A camera that is still
+     * wandering cannot land anything precisely, so it settles over the flight
+     * and is perfectly still at the moment of the handover. Nobody sees it stop,
+     * because by then the only thing on screen is a logo where a logo already
+     * is.
+     */
+    const still = 1 - clamp01(look.dock);
+    const breathX = Math.sin(t * 0.00021) * 0.22 * still;
+    const breathY = Math.cos(t * 0.00017) * 0.14 * still;
     const shakeX = look.shake > 0 ? Math.sin(t * 0.09) * look.shake : 0;
     const shakeY = look.shake > 0 ? Math.cos(t * 0.113) * look.shake * 0.7 : 0;
     const lift = markRestY * look.lift;
@@ -1013,7 +1309,45 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
       grain.material.map?.offset.set(((step * 37) % 128) * texel, ((step * 61) % 128) * texel);
     }
 
-    // --- city ---------------------------------------------------------------
+    // --- the place ----------------------------------------------------------
+    /**
+     * The bands slide, and the near one slides more than twice as far.
+     *
+     * This is the only motion the skyline has and it is deliberately tiny — a
+     * couple of world units over a minute — because it is not meant to be seen
+     * as movement. What it is for is the same thing the camera's lissajous is
+     * for: two hard-edged layers whose relationship changes mean the frame is
+     * never twice the same, and mean a burst capture cannot photograph a dead
+     * screen. Wall time drives it, so it keeps going while the sequence clock is
+     * stalled waiting for artwork.
+     */
+    for (const band of bands) {
+      const slide = Math.sin(t * 0.000045) * band.drift;
+      band.mass.position.x = slide;
+      band.wet.position.x = slide;
+      const level = look.city * band.weight * master;
+      /**
+       * The buildings are multiplied by the wash and the reflection is not, and
+       * that is physics rather than a fudge.
+       *
+       * The silhouette is an *occluder* — it is only visible to the extent that
+       * there is an opaque room behind it to occlude. The wet street is emitted
+       * light, which is visible whether or not anything is drawn behind it. So
+       * the title, whose wash goes to 1, gets a full skyline; and the returning
+       * sting, whose wash peaks at 0.3 over a live lobby, gets the *lights* of a
+       * city with almost none of its mass — which is the correct answer twice
+       * over, because a near-black band of towers across a menu the player is
+       * about to click is precisely what a logo sting must not do.
+       */
+      setOpacity(band.mass, level * look.wash);
+      // The reflection is dimmer than the source and it shimmers, because water
+      // moves. Two slow sines so the period is not findable.
+      const shimmer = 0.82 + 0.18 * Math.sin(t * 0.00055 + band.drift) * Math.sin(t * 0.00019);
+      setOpacity(band.wet, level * shimmer);
+    }
+    if (crowd) setOpacity(crowd, look.crowd * master);
+
+    // --- the defocused city -------------------------------------------------
     for (const cloud of clouds) {
       const twinkle = 0.86 + 0.14 * Math.sin(t * 0.0006 + cloud.phase);
       cloud.points.material.opacity = clamp01(look.bokeh * cloud.weight * twinkle) * master;
@@ -1040,19 +1374,50 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
      * `MeshBasicMaterial` with no map is a plain white quad — an unattached
      * lockup would draw as two glowing rectangles rather than as nothing.
      */
+    /**
+     * The flight to the handover, applied to both halves of the lockup.
+     *
+     * Both, because a badge that stays put while the word flies away is two
+     * objects rather than one lockup — the mark converges on the same point and
+     * is faded out on the way by the sequence, so what the eye follows is a
+     * single thing shrinking into the header.
+     */
+    const dock = clamp01(look.dock);
+    const anchor = dock > 0.001 ? resolveDock() : null;
+    /**
+     * The target, re-solved against the frame the lens is framing *right now*.
+     *
+     * `viewAt(CAM_Z + dolly)` rather than the cached `frame`, because the camera
+     * is still dollying while the lockup flies. Cheap — one `tan` that is a
+     * constant and two multiplies — and it is the difference between the last
+     * frame of the sting being a clean handover and being the brand printed
+     * twice, three pixels apart, at slightly different sizes.
+     */
+    const live = dock > 0.001 ? viewAt(CAM_Z + look.dolly) : frame;
+    const to = anchor ? { x: anchor.fx * live.w, y: anchor.fy * live.h } : null;
+    const dockScale = anchor ? mix(1, (anchor.span * live.w) / Math.max(0.0001, wordW), dock) : 1;
+
     // --- the mark -----------------------------------------------------------
     const markOn = markLive ? master : 0;
-    markGroup.position.set(0, markRestY + look.markRise * markH, look.markPush);
+    markGroup.position.set(
+      to ? to.x * dock : 0,
+      mix(markRestY + look.markRise * markH, to?.y ?? 0, dock),
+      look.markPush * (1 - dock)
+    );
     markGroup.rotation.z = look.markTilt;
-    markGroup.scale.setScalar(look.markScale);
+    markGroup.scale.setScalar(look.markScale * dockScale);
     setOpacity(mark, look.markOpacity * markOn);
     setOpacity(markGlowTight, look.markGlow * 0.55 * markOn);
     setOpacity(markGlowWide, look.markGlow * 0.34 * markOn);
 
     // --- the wordmark -------------------------------------------------------
     const wordOn = wordLive ? master : 0;
-    wordGroup.position.set(0, wordRestY + look.wordRise * markH, 0);
-    wordGroup.scale.setScalar(look.wordScale);
+    wordGroup.position.set(
+      to ? to.x * dock : 0,
+      mix(wordRestY + look.wordRise * markH, to?.y ?? 0, dock),
+      0
+    );
+    wordGroup.scale.setScalar(look.wordScale * dockScale);
     setOpacity(word, look.wordOpacity * wordOn);
     setOpacity(wordGlowTight, look.wordGlow * 0.5 * wordOn);
     setOpacity(wordGlowWide, look.wordGlow * 0.3 * wordOn);
@@ -1066,7 +1431,17 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
      */
     const band = sheenSpan * 0.16;
     const edge = sheenMin - band + (sheenSpan + band * 2) * clamp01(look.wipe);
-    wipePlane.constant = edge;
+    /**
+     * The reveal plane is disarmed the moment the lockup starts travelling.
+     *
+     * The plane lives in *world* space and its position was solved for the
+     * wordmark standing at its resting place. Fly the wordmark up and to the
+     * right — which is exactly where a header rail is — and its own leading
+     * corner crosses the plane and gets sliced off mid-flight. The wipe has long
+     * since finished by then, so the honest statement is "there is nothing left
+     * to reveal", and that is what a constant this large says.
+     */
+    wipePlane.constant = dock > 0.001 ? 1e6 : edge;
 
     const sheenAt = look.sheen;
     const sheenLive = look.sheenOpacity > 0.002 && sheenAt >= 0;
@@ -1100,8 +1475,17 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
     }
 
     // --- floor --------------------------------------------------------------
-    setOpacity(reflection, look.reflection * 0.34 * wordOn);
-    setOpacity(floor, look.reflection * 0.22 * master);
+    /**
+     * The lockup's own reflection had to get louder once the street arrived.
+     *
+     * At 0.34 it was correct against a plain dark floor and invisible against a
+     * floor that is now full of the city's own reflected neon — lavender
+     * letterforms on a lavender smear. The nearest, brightest, largest object in
+     * the frame must have the strongest reflection in it; anything else says the
+     * logo is further away than the skyline.
+     */
+    setOpacity(reflection, look.reflection * 0.52 * wordOn);
+    setOpacity(floor, look.reflection * 0.3 * master);
 
     // --- impact -------------------------------------------------------------
     ring.position.set(0, markRestY + look.markRise, -0.2);

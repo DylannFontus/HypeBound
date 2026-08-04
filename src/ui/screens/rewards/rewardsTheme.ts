@@ -453,6 +453,53 @@ const CSS = `
   background: rgb(4 2 10 / 0.26);
 }
 
+/* The padlock is *struck on the object*, the way the tick is, rather than
+   spelled out in a word beside it.
+   Twenty tiers of the Hype Wave in one viewport used to print the word LOCKED
+   twenty times down the rail, and the Highlight Reel printed it six times down
+   a column — a repeated grey word is a database column, not a state design, and
+   it is exactly what §5 is written to catch. The word survives for a screen
+   reader on .rw-sr; what the eye gets is a mark on the thing itself, which is
+   what Hearthstone's gold padlock plate and Xbox's greyed badge both do. */
+.rw-tile[data-state="locked"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 50% -2px auto;
+  translate: 50% 0;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-chip);
+  background:
+    var(--rw-lockmark) center / 12px 12px no-repeat,
+    linear-gradient(var(--light-sweep), rgb(74 66 96 / 0.98) 0%, rgb(26 22 38 / 0.98) 100%);
+  box-shadow: 0 2px 5px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+
+/* The one padlock drawing, traced from uiIcons' own lock at its 24 grid, as
+   something a CSS background can paint. icon() returns markup and a ::after
+   cannot hold markup, so the alternative was the Unicode padlock character —
+   which renders in whatever font the OS has, at the wrong weight, and is
+   exactly the tell the icon contract exists to delete. Declared at the root and
+   namespaced, because a locked tile turns up on all five of these screens and
+   enumerating their containers is a list that will go out of date. */
+:root {
+  --rw-lockmark: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23d6d0e6'%20stroke-width='1.9'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Crect%20x='4.4'%20y='10.4'%20width='15.2'%20height='10.2'%20rx='2.2'/%3E%3Cpath%20d='M8%2010.4%20V7.4%20A4%204%200%200%201%2016%207.4%20V10.4'/%3E%3C/svg%3E");
+}
+
+/* Screen-reader-only, and it has to be clip-path rather than display: none:
+   a hidden state word that is not announced is not an accessible state. */
+.rw-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* =========================================================================
    5. The pack opening
    =========================================================================
@@ -800,6 +847,14 @@ const CSS = `
   cursor: pointer;
   animation: rw-pack-float 5.2s var(--ease-sweep, ease-in-out) infinite;
   filter: drop-shadow(0 26px 40px rgb(0 0 0 / 0.7));
+  /* The sheen below translates by ±40% of its own box, and without a clip it
+     leaves the pack entirely: photographed, it read as a large soft rectangle
+     drifting across the empty half of the panel — a rendering artefact, not a
+     specular. mask-image does not fix it, because a mask is applied in the
+     element's own space and then transformed along with it. The parent has to
+     do the clipping. filter is applied after the clip, so the drop shadow is
+     unaffected. */
+  overflow: hidden;
 }
 
 @keyframes rw-pack-float {
@@ -822,7 +877,10 @@ const CSS = `
 .rw-pack::before {
   content: "";
   position: absolute;
-  inset: 66% -5% auto -5%;
+  /* Flush to the pack's edges rather than overhanging it: the parent clips now
+     (see the note on .rw-pack), so an overhang would only be a band with two
+     cut ends. */
+  inset: 66% 0 auto 0;
   height: 11%;
   border-radius: 2px;
   background:
@@ -907,6 +965,16 @@ const CSS = `
   gap: var(--sp-4);
   flex-wrap: wrap;
   padding: var(--sp-3) var(--sp-4);
+  /* Shrink-wrapped and centred, not full-bleed. A slab the width of the viewport
+     with three buttons huddled at one end and eleven hundred empty pixels at the
+     other is a lot of pale furniture at the moment the player is looking
+     hardest at the cards.
+     There is no jump when the summary arrives, because the summary is laid out
+     from the first frame and only its opacity changes — so max-content already
+     reserves the room it will need. */
+  margin-inline: auto;
+  width: max-content;
+  max-width: 100%;
 }
 
 .rw-open-summary {
@@ -1018,6 +1086,10 @@ const CSS = `
   aspect-ratio: 512 / 680;
   animation: rw-pack-float 6.4s var(--ease-sweep, ease-in-out) infinite;
   filter: drop-shadow(0 22px 34px rgb(0 0 0 / 0.66));
+  /* Clips the specular, which otherwise walks 40% of the pack's width out into
+     the hero's empty half. See the note on .rw-pack. */
+  overflow: hidden;
+  border-radius: 4.5%;
 }
 
 /* The contact shadow on the floor. An object with a soft drop and no contact is
@@ -1149,6 +1221,13 @@ const CSS = `
   overflow-x: hidden;
   padding-bottom: var(--sp-4);
   min-height: 0;
+  /* The spotlight row is taller than the space under the hero, so the scroller's
+     bottom edge cuts a row of cards in half against the pull rail. A hard cut
+     reads as a broken layout; a fade reads as "there is more", which is what
+     §7's rule about dividers fading rather than butting is really about. The
+     taper is only on the last 34px, so nothing a player is reading is dimmed. */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 34px), transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 34px), transparent 100%);
 }
 
 .rw-banner-scroll > * + * { margin-top: var(--sp-4); }
@@ -1183,16 +1262,28 @@ const CSS = `
   50%      { opacity: 1; transform: translate3d(1.6%, -1.2%, 0) scale(1.035); }
 }
 
+/* The art box is the thing that clips and the thing that casts, in that order.
+   overflow applies before filter on the same element, so the shadow is cast
+   by the clipped shape — which lets the specular below travel its full sweep
+   without leaving the card. It used to be a plain ::after on .banner-card
+   with nothing containing it, and a 40% translation carried a soft white
+   rectangle out over the empty half of the panel. */
+.rw-hero .banner-card-art {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4.5%;
+  filter: drop-shadow(0 22px 30px rgb(0 0 0 / 0.66));
+}
+
 .rw-hero .banner-card-art > canvas {
   width: 100%;
   height: auto;
   display: block;
   border-radius: 4.5%;
-  filter: drop-shadow(0 22px 30px rgb(0 0 0 / 0.66));
 }
 
 /* The slow specular crawl across the face — §3, idle is never dead. */
-.rw-hero .banner-card::after {
+.rw-hero .banner-card-art::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1299,6 +1390,14 @@ const CSS = `
   padding: 3px;
   gap: 2px;
   --r-self: var(--r-chip);
+  /* inline-flex is not enough: as a grid item it is still stretched to the
+     column, and on the banner's pull rail that drew a 1,120px recessed well
+     holding four labels in its left third — a groove with nothing in most of
+     it, which reads as a control that failed to load. */
+  justify-self: start;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .rw-seg > button {
@@ -1406,13 +1505,30 @@ const CSS = `
 .pass-pacing-on-pace { color: var(--accent-bright); }
 .pass-pacing-rebound { color: var(--accent-gold); }
 
+/* The track's own box, declared here rather than inline on the element, so the
+   lane height and the height it needs are one calculation instead of two that
+   drift.
+
+   min-height: 0 used to be set inline on this element, and at 844x390 — a
+   phone in landscape, which every screen has to work at — it let the outer grid
+   squeeze the whole rail to **two pixels**: the screen rendered its header, a
+   lane key, a two-pixel line, and the footnote. A track that can be compressed
+   out of existence is worse than one that scrolls. */
+.pass-track {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding: 0;
+  --lane-h: 9.2em;
+}
+
 .rw-track {
   position: relative;
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x proximity;
   padding: var(--sp-3) var(--sp-4) var(--sp-4);
-  min-height: 0;
+  /* two lanes, the medallion between them, and the padding above and below */
+  min-height: calc(var(--lane-h, 9.2em) * 2 + 3.25em + var(--sp-3) + var(--sp-4));
 }
 
 .pass-rows {
@@ -1424,10 +1540,10 @@ const CSS = `
   padding: 0;
   list-style: none;
   align-items: center;
-  /* The lane height, so the whole track changes size from one property rather
-     than from six — and in em, so it grows with --ui-scale. At 1.4 a fixed
-     146px lane clipped the second reward off every tier that pays two. */
-  --lane-h: 9.2em;
+  /* --lane-h is declared on .pass-track, not here, so the scroller above can
+     compute the height it needs from the same number. It is in em so it grows
+     with --ui-scale: at 1.4 a fixed 146px lane clipped the second reward off
+     every tier that pays two. */
 }
 
 /* grid-template-columns is restated because screens.css lays a .pass-row out
@@ -1550,7 +1666,40 @@ const CSS = `
   --lip-a: 0.72;
 }
 
+/* Every tenth tier is a milestone, and a rail of fifty identical plates has no
+   rhythm to read — the eye needs somewhere to land while it is scrolling. The
+   medallion already goes gold here; the plate follows it, warm rather than
+   violet, so the track has a beat every ten tiers the way Hearthstone's rewards
+   track puts a chest at each landmark. */
+.pass-cell[data-milestone="1"] {
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(70 54 30 / 0.95) 0%, rgb(19 13 8 / 0.98) 100%);
+  --rim-a: 0.2;
+}
+
+.pass-cell[data-milestone="1"]:not(.locked)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgb(255 200 110 / 0.24);
+}
+
 .pass-rewards { display: grid; gap: 4px; justify-items: center; flex-wrap: nowrap; }
+
+/* A lane is one fixed height for every tier, because the rail line is drawn at
+   exactly 50% of the row and a variable lane would put it somewhere different
+   on every tier. Milestone tiers pay two rewards into that same box, and at
+   full size the second one's caption was clipped by the cell's own overflow. So
+   a two-reward cell draws smaller: the constraint is the rail, and the rail is
+   worth more than forty pixels of plate. */
+.pass-cell:not([data-rewards="1"]) .rw-tile-art { width: 1.85em; height: 1.85em; }
+.pass-cell:not([data-rewards="1"]) .rw-tile { padding: 2px; }
+.pass-cell:not([data-rewards="1"]) .pass-reward {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  font-size: 0.62rem;
+}
 
 .pass-reward {
   display: -webkit-box;
@@ -1878,7 +2027,10 @@ const CSS = `
 .ach-text { margin: 0; font-size: var(--fs-sm); line-height: 1.4; }
 .ach-progress { display: flex; justify-content: space-between; font-size: var(--fs-xs); }
 .ach-deferred { margin: 0; font-size: var(--fs-sm); color: var(--warning); }
-.ach-action { display: grid; justify-items: end; gap: 5px; }
+.ach-action { position: relative; display: grid; justify-items: end; gap: 5px; }
+/* A locked row's action cell holds nothing but a screen-reader word, and an
+   empty track still costs a gap. */
+.ach-action:empty, .ach-row:not(.unlocked):not(.claimed) .ach-action { gap: 0; }
 
 .ach-row.claimed  { --mat-fill: linear-gradient(var(--light-sweep), rgb(44 50 54 / 0.9) 0%, rgb(19 22 25 / 0.94) 100%); }
 .ach-row.unlocked:not(.claimed) { --mat-fill: linear-gradient(var(--light-sweep), rgb(78 56 132 / 0.95) 0%, rgb(30 18 58 / 0.96) 100%); --rim-a: 0.13; }
@@ -2061,7 +2213,11 @@ const CSS = `
   border: 0;
   box-shadow: none;
   background: none;
-  width: clamp(190px, 30vh, 310px);
+  /* The recon asked for 380–420px against a 150px original. The ceiling is the
+     hero panel's share of a scroller that also has to show the spotlight row
+     without the player scrolling for it, so this is 34vh — 306px at 900, 388px
+     at 1080 — rather than a flat 400 that would eat the fold on a laptop. */
+  width: clamp(200px, 34vh, 380px);
 }
 
 .rw-hero .banner-card-art { width: 100%; }
@@ -2073,8 +2229,19 @@ const CSS = `
 
 @media (max-width: 1120px) {
   /* One column, and it has to *scroll* — the two-column layout is the only one
-     that can afford to clip, because on it nothing is ever below the fold. */
-  .rw-shop-body { grid-template-columns: 1fr; overflow-y: auto; }
+     that can afford to clip, because on it nothing is ever below the fold.
+
+     grid-auto-rows: max-content is what makes it actually scroll. Without it
+     the stacked rows were squeezed into the remaining viewport instead of
+     overflowing it: measured at 844x390, the left column was handed a **nine
+     pixel** row, spilled its two panels out of it, and the hero painted
+     straight over the headliner. */
+  .rw-shop-body {
+    grid-template-columns: 1fr;
+    grid-auto-rows: max-content;
+    align-content: start;
+    overflow-y: auto;
+  }
   .rw-shop-left { overflow: visible; }
   .rw-shop-hero { min-height: 62vh; }
   .rw-shop-pack > .rw-pack-still { height: auto; width: min(34vh, 200px); }
@@ -2088,13 +2255,22 @@ const CSS = `
 /* A phone in landscape: 844×390. Everything above has to survive 390px of
    height, which is the constraint that kills a fixed-height hero. */
 @media (max-height: 800px) {
-  .pass-rows { --lane-h: 7.4em; }
+  .pass-track { --lane-h: 7.4em; }
 }
 
 @media (max-height: 620px) {
-  .pass-rows { --lane-h: 5.2em; }
+  /* 6.4em, not 5.2: a lane has to hold a 40px tile, a gap and two lines of
+     caption, and at 5.2em (83px) the cell's own overflow: hidden cut the second
+     line off every two-word cosmetic on the track. The body scrolls; the lane
+     does not get to lie about what is in it. */
+  .pass-track { --lane-h: 6.4em; }
+  .pass-cell { padding: 5px; }
   .pass-node { width: 2.6em; height: 2.6em; }
   .rw-pass-head { padding: var(--sp-3); }
+  /* The two purchase buttons side by side rather than stacked: on a phone in
+     landscape the header was eating two thirds of 390px of viewport before the
+     track had drawn a single tier. */
+  .rw-pass-head > :last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); }
 }
 
 @media (max-height: 460px) {

@@ -65,6 +65,7 @@ if (argv.length === 0 || argv[0].startsWith("--")) {
       "  --eval <js>          run this in the page before the wait",
       "  --freeze <ms>        pin all CSS animations at this offset",
       "  --raw                brand-new account: no seeding, no starter choice",
+      "  --intro              let the opening cinematic play (default: ?nointro)",
       "  --battle             drive through the mulligan onto a live board",
       "  --scale <n>          deviceScaleFactor         (default: 1)",
     ].join("\n")
@@ -194,7 +195,22 @@ try {
     await seedPlayedAccount(page, ORIGIN);
   }
 
-  await page.goto(`${ORIGIN}/#${route}`, { waitUntil: "networkidle" });
+  /**
+   * `?nointro` unless the caller actually wants the cinematic.
+   *
+   * `src/ui/intro/index.ts` provides this switch and names this harness as the
+   * reason it exists. Without it the opening plays over the top of whatever we
+   * came to photograph, and because the overlay is a sibling of `#app` — the
+   * game booting happily underneath it — every wait and every selector still
+   * succeeds. The screenshot is simply of the title card, and it looks
+   * deliberate. Several captures were wasted before anyone noticed.
+   *
+   * It goes in the query rather than the hash because the app routes on the
+   * hash and never reads the query, so this cannot disturb the route under test.
+   * `--intro` opts back in, for photographing the cinematic itself.
+   */
+  const query = has("intro") ? "" : "?nointro";
+  await page.goto(`${ORIGIN}/${query}#${route}`, { waitUntil: "networkidle" });
 
   /**
    * Wait for the shell to finish swapping screens.

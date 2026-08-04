@@ -320,7 +320,27 @@ export function beamTexture(): THREE.Texture {
     // Emerges over the first 12%, dies away over the last 55%.
     const head = Math.min(1, along / 0.12);
     const tail = Math.min(1, (1 - along) / 0.55);
-    const length = head * tail * tail;
+    /**
+     * Gobo breakup: three incommensurate sines along the shaft's length.
+     *
+     * A beam whose only variation is a smooth falloff is a painted triangle, and
+     * that is what these photographed as next to a hard-edged skyline — the one
+     * mathematically perfect object in a frame full of texture. Light through
+     * real smoke is *unevenly* obstructed: the smoke is denser here than there,
+     * something in the rig cuts a slat out of it, dust drifts through. Three
+     * frequencies at ±14% total is invisible as a pattern and is the difference
+     * between a shaft of light and a wedge of colour.
+     *
+     * Along the length rather than across the width, deliberately. Breaking up
+     * the cross-section would destroy the hot core the beam reads by; breaking
+     * up the length leaves the silhouette intact and only varies its density.
+     */
+    const gobo =
+      1 +
+      0.08 * Math.sin(along * 23.7) +
+      0.04 * Math.sin(along * 61.3 + 1.9) +
+      0.05 * Math.sin(along * 9.1 + 4.2);
+    const length = head * tail * tail * gobo;
     for (let x = 0; x < w; x++) {
       const across = Math.abs((x + 0.5) / w - 0.5) * 2;
       /**
@@ -439,6 +459,589 @@ export function ringTexture(): THREE.Texture {
     }
   }
   ctx.putImageData(image, 0, 0);
+  return textureOf(ctx);
+}
+
+// ---------------------------------------------------------------------------
+// the place
+// ---------------------------------------------------------------------------
+
+/**
+ * A city block, generated: silhouette, lit windows, roof signage, and the wet
+ * street the whole thing is standing in.
+ *
+ * This function exists because of the one thing the first version of the title
+ * sequence did not have, and could not fake with light alone: **a place.** The
+ * room was a wash, five shafts, a haze puff and a field of defocused points,
+ * and photographed at 700ms — the establishing beat, the frame that has to tell
+ * a stranger what kind of game this is — it was two diagonal streaks over a
+ * purple gradient. Every element in it was a soft radial falloff. There was
+ * nothing on screen with an *edge*, so there was nothing for the eye to read as
+ * an object, a distance or a scale, and "neon nightlife" was a claim the
+ * pictures did not support.
+ *
+ * A silhouette fixes that in one move, and it is the cheapest fix available:
+ * hard-edged geometry is the only thing in a hazy frame that establishes where
+ * the camera is standing. Hearthstone's menu does it with a building; Gwent does
+ * it with a horizon of trees. Here it is a skyline, because the game is set in a
+ * city at night and that is what a city at night looks like from the street.
+ *
+ * ## Two bitmaps, because the lights have a second job
+ *
+ * The towers are painted twice: once as opaque mass and once as emission only.
+ * That is not tidiness. The wet street below the horizon is *the same lights*,
+ * flipped and smeared downward — a neon reflection in wet asphalt is a vertical
+ * streak of the sign above it, broken by ripples, and it is by some distance the
+ * strongest single cue that a scene is a rainy street at night rather than a
+ * lit room. Keeping the emissive pass separate is what makes that free: the
+ * reflection is the same paint, transformed, so the two can never disagree about
+ * which windows are on.
+ *
+ * ## Atmospheric perspective is applied to the alpha, not the colour
+ *
+ * The bases of the towers are lifted toward the horizon glow and their tops are
+ * not, which is what distance through haze does. Doing it as a `source-atop`
+ * fill means the fog only ever touches painted pixels, so the roofline stays a
+ * hard silhouette against the sky while the ground floor dissolves into the band
+ * — a skyline whose fog is painted over the sky as well has a visible rectangle
+ * around it, which is the failure this ordering avoids.
+ */
+export interface CitySpec {
+  seed: number;
+  /** Texture width in pixels. Height follows from `aspect`. */
+  px: number;
+  /** Width ÷ height of the band. Far bands are long and low. */
+  aspect: number;
+  towers: number;
+  /** Roofline range, as fractions of the band's height. */
+  low: number;
+  high: number;
+  /** Silhouette ink. A near band is nearly black; a far one is lifted by haze. */
+  ink: string;
+  /** How far the horizon glow lifts the base of the silhouette, 0–1. */
+  fog: number;
+  fogColour: string;
+  /** Chance that a window cell is lit. */
+  lit: number;
+  /** Window cell size in texture pixels. */
+  cell: number;
+}
+
+export interface CityBand {
+  /** The skyline itself: silhouette with its own lights burned in. */
+  mass: THREE.Texture;
+  /** The lights only, flipped and smeared — the street below the horizon. */
+  wet: THREE.Texture;
+  aspect: number;
+  wetAspect: number;
+}
+
+/** How far down the reflection reaches, as a multiple of the band's height. */
+const WET_REACH = 0.85;
+
+export function cityTexture(spec: CitySpec): CityBand | null {
+  const w = spec.px;
+  const h = Math.round(spec.px / spec.aspect);
+  const mass = canvas(w, h);
+  const lights = canvas(w, h);
+  if (!mass || !lights) return null;
+
+  let state = (spec.seed * 2654435761) >>> 0;
+  const rand = (): number => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  const between = (a: number, b: number): number => a + (b - a) * rand();
+
+  /**
+   * Towers are laid out right-to-left as well as left-to-right, alternately,
+   * from a cursor that is allowed to run backwards.
+   *
+   * A single left-to-right sweep produces a roofline whose heights are
+   * independent samples, and independent samples read as noise: the eye sees a
+   * bar chart. Real skylines cluster — a tall block has taller neighbours,
+   * because that is where the zoning and the money are. `cluster` is a slow
+   * random walk that biases the height of each tower toward its neighbour's, and
+   * it is the difference between a skyline and a histogram.
+   */
+  let cluster = 0.5;
+  let x = -w * 0.04;
+  const step = (w * 1.08) / spec.towers;
+  /** Occasionally the walk slams to an extreme: a district, or a tower. */
+  const jolt = (): number => (rand() > 0.86 ? (rand() > 0.5 ? 1 : 0) : cluster);
+
+  interface Tower {
+    x: number;
+    w: number;
+    top: number;
+    tint: number;
+  }
+  const towers: Tower[] = [];
+  while (x < w && towers.length < spec.towers * 2) {
+    cluster = Math.min(1, Math.max(0, jolt() + between(-0.26, 0.26)));
+    const width = step * between(0.5, 1.5);
+    /**
+     * The exponent, and why the roofline needed one.
+     *
+     * A linear map from the cluster walk to a height gives a roofline whose
+     * blocks are all within about twenty percent of each other — a wall with a
+     * ragged top, not a skyline. What makes a skyline a silhouette is that most
+     * of it is low and a *few* things are very tall, so the eye has two or three
+     * landmarks to hang the shape on. Squaring the sample does exactly that:
+     * it pushes the bulk down and leaves the extremes where they were.
+     */
+    const height = h * (spec.low + (spec.high - spec.low) * (cluster * 0.86 + rand() * 0.14) ** 2);
+    towers.push({ x, w: width, top: h - height, tint: Math.floor(rand() * NIGHTLIFE_COUNT) });
+    // Overlap slightly more often than they gap, so blocks read as a mass with
+    // a broken top edge rather than as a row of separated posts.
+    x += width * between(0.62, 1.05);
+  }
+
+  /**
+   * The window palette, and the single mistake that made the first attempt look
+   * like an arcade game.
+   *
+   * Picking each window straight out of the seven Currents at full saturation
+   * gives a facade speckled orange, cyan, red and lime in equal measure — which
+   * is not a city at night, it is a colour swatch. Photograph any real skyline
+   * and the overwhelming majority of the lit windows are one of two colours,
+   * warm tungsten or cool fluorescent, because that is what is inside buildings;
+   * the saturated hues are *signage*, and there are perhaps five of those in
+   * shot.
+   *
+   * So the ordinary window is a Current mixed most of the way to one of those
+   * two neutrals — enough that the frame is still lit by this game's palette,
+   * nowhere near enough to read as a colour. One window in eleven keeps its full
+   * `hi` value, and those are the ones the eye picks out.
+   */
+  const WARM = [255, 226, 178];
+  const COOL = [196, 220, 255];
+  const windowInk: string[] = [];
+  for (let i = 0; i < 24; i++) {
+    const base = CURRENT_PALETTE[NIGHTLIFE[i % NIGHTLIFE.length]!].key;
+    const towardCool = i % 3 === 0;
+    const neutral = towardCool ? COOL : WARM;
+    const r = parseInt(base.slice(1, 3), 16);
+    const g = parseInt(base.slice(3, 5), 16);
+    const b = parseInt(base.slice(5, 7), 16);
+    const m = 0.62 + (i % 5) * 0.05;
+    windowInk.push(
+      `rgb(${Math.round(r + (neutral[0]! - r) * m)},${Math.round(g + (neutral[1]! - g) * m)},${Math.round(
+        b + (neutral[2]! - b) * m
+      )})`
+    );
+  }
+
+  lights.globalCompositeOperation = "lighter";
+
+  for (const tower of towers) {
+    /**
+     * The facade is a gradient, not a fill.
+     *
+     * A flat silhouette is correct for something genuinely backlit and wrong for
+     * a building, whose glass picks up the sky at the top and is in shadow at the
+     * street. Two stops of about eight percent is invisible as a gradient and is
+     * the difference between a cut-out and a surface — the same argument §1
+     * makes about every panel in the game, applied to the one object in this
+     * frame that has a flat side facing the camera.
+     */
+    const face = mass.createLinearGradient(0, tower.top, 0, h);
+    face.addColorStop(0, hexToRgba(spec.ink, 1));
+    face.addColorStop(1, "rgba(2,1,6,1)");
+    mass.fillStyle = face;
+    mass.fillRect(tower.x, tower.top, tower.w, h - tower.top);
+
+    // A stepped setback on the taller blocks, and a mast on a few of those.
+    if (tower.w > step * 0.8 && rand() > 0.55) {
+      const capW = tower.w * between(0.4, 0.72);
+      const capH = h * between(0.03, 0.08);
+      mass.fillStyle = hexToRgba(spec.ink, 1);
+      mass.fillRect(tower.x + (tower.w - capW) / 2, tower.top - capH, capW, capH);
+      if (rand() > 0.62) {
+        const mastH = h * between(0.05, 0.14);
+        const mastX = Math.round(tower.x + tower.w / 2);
+        mass.fillRect(mastX, tower.top - capH - mastH, Math.max(1, w * 0.0006), mastH);
+        // The aviation beacon. One warm dot at the top of one mast in three is
+        // the detail that makes a silhouette read as architecture.
+        const beacon = CURRENT_PALETTE["cinder"].hi;
+        lights.fillStyle = hexToRgba(beacon, 0.75);
+        const r = Math.max(1, w * 0.0011);
+        lights.beginPath();
+        lights.arc(mastX, tower.top - capH - mastH, r, 0, Math.PI * 2);
+        lights.fill();
+      }
+    }
+
+    /**
+     * Windows, by floor rather than by cell.
+     *
+     * Occupancy is not independent per window — a floor is lit or it is not, and
+     * within a lit floor most of the windows are on. Rolling a per-storey
+     * multiplier before the row is what gives a facade its horizontal banding,
+     * and banding is most of what makes a grid of dots read as a building
+     * instead of as static.
+     */
+    const cell = spec.cell;
+    const phase = rand() * cell;
+    for (let wy = tower.top + cell * 1.2; wy < h - cell * 0.6; wy += cell) {
+      const storey = spec.lit * (rand() > 0.68 ? 0.15 : between(0.75, 1.35));
+      for (let wx = tower.x + phase + cell * 0.35; wx < tower.x + tower.w - cell * 0.6; wx += cell) {
+        if (rand() > storey) continue;
+        const hot = rand() > 0.91;
+        if (hot) {
+          const accent = CURRENT_PALETTE[NIGHTLIFE[(tower.tint + 1) % NIGHTLIFE.length]!];
+          lights.fillStyle = hexToRgba(accent.hi, between(0.55, 0.95));
+        } else {
+          lights.fillStyle = windowInk[(tower.tint * 5 + Math.floor(wy)) % windowInk.length]!;
+          lights.globalAlpha = between(0.16, 0.5);
+        }
+        lights.fillRect(wx, wy, cell * 0.4, cell * 0.34);
+        lights.globalAlpha = 1;
+      }
+    }
+
+    /**
+     * A rooftop sign on one block in nine, drawn as a bar rather than as text.
+     *
+     * Legible signage would be a lie — there is no such shop — and it would also
+     * be the one element in the frame with a reading age. A bright bar at this
+     * size is exactly what a sign looks like from three streets away, which is
+     * where the camera is standing.
+     */
+    if (rand() > 0.89) {
+      const signW = tower.w * between(0.2, 0.42);
+      const signH = Math.max(1.2, h * between(0.006, 0.011));
+      const signX = tower.x + (tower.w - signW) / 2;
+      const signY = tower.top + h * between(0.03, 0.1);
+      const sign = CURRENT_PALETTE[NIGHTLIFE[(tower.tint + 2) % NIGHTLIFE.length]!];
+      /**
+       * The halo is a canvas shadow, not a second rectangle.
+       *
+       * The first version drew a larger flat rectangle behind the bar at 16% and
+       * it read as exactly that: a pale box around a white box, the single most
+       * obviously computer-generated thing in the frame. A neon sign's glow has
+       * the shape of the sign and no edge at all, and `shadowBlur` is the one
+       * canvas primitive that gives that for free.
+       */
+      lights.save();
+      lights.shadowColor = hexToRgba(sign.key, 0.85);
+      lights.shadowBlur = signH * 7;
+      lights.fillStyle = hexToRgba(sign.key, 0.62);
+      lights.fillRect(signX, signY, signW, signH);
+      lights.shadowBlur = signH * 2.5;
+      lights.fillStyle = hexToRgba(sign.hi, 0.7);
+      lights.fillRect(signX, signY + signH * 0.25, signW, signH * 0.5);
+      lights.restore();
+    }
+
+    // A vertical neon strip up one edge of the occasional block. Short, because
+    // a full-height one reads as scaffolding rather than as a sign.
+    if (rand() > 0.9) {
+      const strip = CURRENT_PALETTE[NIGHTLIFE[(tower.tint + 4) % NIGHTLIFE.length]!];
+      const stripH = (h - tower.top) * between(0.3, 0.6);
+      lights.fillStyle = hexToRgba(strip.key, 0.45);
+      lights.fillRect(
+        tower.x + tower.w * (rand() > 0.5 ? 0.08 : 0.88),
+        tower.top + h * 0.03,
+        Math.max(1, w * 0.0009),
+        stripH
+      );
+    }
+  }
+
+  /**
+   * Street level: a hot band along the very bottom, brighter than anything
+   * above it.
+   *
+   * The ground is where the signs, the windows of the bars and the headlights
+   * all are, and a skyline whose brightest pixels are at the top has the value
+   * structure of a sunrise. Squinted at, §6's test wants light and dark masses:
+   * this is the light one, and it sits directly under the logo.
+   */
+  lights.globalCompositeOperation = "source-over";
+
+  // Haze, on the painted pixels only. See the note above about `source-atop`.
+  mass.globalCompositeOperation = "source-atop";
+  const fog = mass.createLinearGradient(0, h, 0, 0);
+  fog.addColorStop(0, hexToRgba(spec.fogColour, spec.fog));
+  fog.addColorStop(0.45, hexToRgba(spec.fogColour, spec.fog * 0.4));
+  fog.addColorStop(1, hexToRgba(spec.fogColour, 0));
+  mass.fillStyle = fog;
+  mass.fillRect(0, 0, w, h);
+  mass.globalCompositeOperation = "lighter";
+  mass.drawImage(lights.canvas, 0, 0);
+  /**
+   * Street level: a hot band along the very bottom, added to the mass and
+   * deliberately *not* to the emissive pass.
+   *
+   * The ground is where the signs, the bar windows and the headlights are, and a
+   * skyline whose brightest pixels are at the top has the value structure of a
+   * sunrise. Squinted at, §6 wants light and dark masses; this is the light one,
+   * and it sits directly under the logo.
+   *
+   * It is kept out of `lights` because `lights` is also the source for the
+   * reflection, and a smooth gradient smeared twenty-six times is a smooth
+   * gradient — it drowned every window in the wet pass and turned a street into
+   * a lavender fog bank. The reflection gets its own, tighter spill below.
+   */
+  const street = mass.createLinearGradient(0, h, 0, h * 0.74);
+  street.addColorStop(0, hexToRgba(spec.fogColour, 0.26));
+  street.addColorStop(0.4, hexToRgba(spec.fogColour, 0.08));
+  street.addColorStop(1, hexToRgba(spec.fogColour, 0));
+  mass.fillStyle = street;
+  mass.fillRect(0, h * 0.74, w, h * 0.26);
+  mass.globalCompositeOperation = "source-over";
+
+  /**
+   * The wet street.
+   *
+   * Sixteen copies of the emissive pass, flipped, each one further down and
+   * fainter than the last, is a vertical motion blur done with `drawImage` — and
+   * a vertical motion blur of a neon sign *is* its reflection in wet ground.
+   * Sixteen rather than four because the banding is findable at four; rather
+   * than sixty-four because at this alpha it is not findable at sixteen.
+   *
+   * Then the ripples, punched out with `destination-out` along a sum of two
+   * incommensurate sines: still water gives a mirror, and a mirror of a skyline
+   * on a street is a puddle the size of a district. Broken horizontally into
+   * bands, it is a wet road.
+   */
+  const wetH = Math.round(h * WET_REACH);
+  const smear = canvas(w, wetH);
+  if (!smear) return null;
+  smear.globalCompositeOperation = "lighter";
+  smear.save();
+  smear.scale(1, -1);
+  /**
+   * A *short* smear, and the length of it is the whole difference between a
+   * reflection and a fog bank.
+   *
+   * The first version dragged each copy the full height of the band, which
+   * means every row of the result is the average of twenty-six different rows
+   * of the skyline — and the average of a skyline is a flat wash. It rendered as
+   * a smooth lavender gradient with no structure in it at all, which is exactly
+   * what it should have been: that is what averaging does. Eighteen percent of
+   * the band keeps each light's own column recognisable while still turning it
+   * into a streak, and it is the amount a real wet road actually smears at this
+   * distance.
+   */
+  const SMEAR = 22;
+  const REACH = wetH * 0.18;
+  for (let i = 0; i < SMEAR; i++) {
+    const t = i / SMEAR;
+    smear.globalAlpha = (1 - t) ** 0.9 * 0.22;
+    smear.drawImage(lights.canvas, Math.sin(i * 2.3) * w * 0.0012, -h + t * REACH, w, h);
+  }
+  smear.restore();
+  smear.globalAlpha = 1;
+
+  /**
+   * The spill: the glow the whole city throws onto the ground nearest it.
+   *
+   * Separate from the streaks because it is a different phenomenon — the streaks
+   * are specular reflections of individual sources and this is the diffuse
+   * scatter of all of them together. Without it the reflection starts abruptly
+   * at the horizon; with it the ground under the far lights is simply brighter,
+   * which is what standing in a lit street looks like.
+   */
+  smear.globalCompositeOperation = "lighter";
+  const spill = smear.createLinearGradient(0, 0, 0, wetH * 0.6);
+  spill.addColorStop(0, hexToRgba(spec.fogColour, 0.22));
+  spill.addColorStop(0.35, hexToRgba(spec.fogColour, 0.07));
+  spill.addColorStop(1, hexToRgba(spec.fogColour, 0));
+  smear.fillStyle = spill;
+  smear.fillRect(0, 0, w, wetH * 0.6);
+  smear.globalCompositeOperation = "source-over";
+
+  /**
+   * A hard horizontal blur over the finished smear, and it is the step that
+   * decides whether this reads as water or as a printing fault.
+   *
+   * A vertical-only smear leaves every window's own width intact, so the
+   * reflection is a legible, column-accurate copy of the skyline — which is what
+   * a *mirror* is. Asphalt is not a mirror; it is a rough surface with a film of
+   * water on it, and it scatters horizontally as well as vertically. Blurring
+   * across before the ripples go in is what turns eight hundred individual
+   * windows into a dozen bands of colour, which is what the eye expects.
+   */
+  const wet = canvas(w, wetH);
+  if (!wet) return null;
+  if (typeof wet.filter === "string") wet.filter = `blur(${Math.max(1.5, w * 0.0012).toFixed(1)}px)`;
+  wet.drawImage(smear.canvas, 0, 0);
+  wet.filter = "none";
+
+  /**
+   * The ripples, punched out along a sum of two incommensurate sines.
+   *
+   * Still water gives a mirror, and a mirror of a skyline on a street is a
+   * puddle the size of a district. Broken horizontally into bands, it is a wet
+   * road — and the two frequencies mean the banding has no findable period,
+   * which a single sine very obviously does.
+   */
+  wet.globalCompositeOperation = "destination-out";
+  for (let y = 0; y < wetH; y++) {
+    const depth = y / wetH;
+    const ripple = Math.sin(y * 0.19) * 0.55 + Math.sin(y * 0.053 + 1.3) * 0.45;
+    // Rougher toward the camera: the near ground breaks the reflection up more.
+    const cut = Math.max(0, ripple) ** 1.4 * (0.34 + depth * 0.44);
+    if (cut <= 0.01) continue;
+    wet.fillStyle = `rgba(0,0,0,${cut.toFixed(3)})`;
+    wet.fillRect(0, y, w, 1);
+  }
+  /**
+   * The street is lit from 315°, like everything else, so it is not equally
+   * bright across its width.
+   *
+   * This started as a composition fix and turned into a correctness fix. With
+   * the reflection at a uniform brightness the wet band became the brightest,
+   * most saturated mass in the whole frame — a horizontal bar of neon running
+   * the full width, directly under the wordmark — and §6 is explicit that the
+   * most saturated thing on screen should be the thing that matters most. It was
+   * not; the logo was.
+   *
+   * Ramping it along the key axis fixes both problems with one gradient. The
+   * lit side keeps its neon, the far side falls into the dark, the composition
+   * gets an asymmetry it badly needed, and the picture stops having a uniformly
+   * lit floor — which is the one thing no real street has.
+   */
+  const rake = wet.createLinearGradient(0, 0, w, 0);
+  const fall = 0.46;
+  /**
+   * `+` and not `-`, and getting this backwards is the exact defect the
+   * foundation contract says fifteen parallel builders will introduce.
+   *
+   * `LIGHT_RIG.screen` points *toward* the light in CSS coordinates, and at 315°
+   * that is (-0.707, -0.707) — up and to the **left**. The mirror of a source at
+   * up-left in a horizontal floor sits down-left, so the wet street is brightest
+   * on the left of frame. The first version of this line negated it and lit the
+   * right-hand side, which is a second sun in a picture that has exactly one.
+   */
+  const lit = 0.5 + LIGHT_RIG.screen.x * 0.5;
+  // Alpha rises with distance from the specular point, so the further the
+  // ground is from the light's own reflection the less of it survives.
+  rake.addColorStop(0, `rgba(0,0,0,${(fall * lit).toFixed(3)})`);
+  rake.addColorStop(Math.min(0.9, Math.max(0.1, lit)), "rgba(0,0,0,0.02)");
+  rake.addColorStop(1, `rgba(0,0,0,${(fall * (1 - lit)).toFixed(3)})`);
+  wet.fillStyle = rake;
+  wet.fillRect(0, 0, w, wetH);
+
+  // And the distance fade: the reflection dies well before the bottom of the
+  // frame, because the ground gets rougher and darker as it comes toward you.
+  const die = wet.createLinearGradient(0, 0, 0, wetH);
+  die.addColorStop(0, "rgba(0,0,0,0)");
+  die.addColorStop(0.5, "rgba(0,0,0,0.34)");
+  die.addColorStop(1, "rgba(0,0,0,1)");
+  wet.fillStyle = die;
+  wet.fillRect(0, 0, w, wetH);
+  wet.globalCompositeOperation = "source-over";
+
+  return {
+    mass: textureOf(mass),
+    wet: textureOf(wet),
+    aspect: spec.aspect,
+    wetAspect: w / wetH,
+  };
+}
+
+/**
+ * The crowd, out of focus, along the bottom edge of the frame.
+ *
+ * The last depth plane, and the one that puts the camera *somewhere*. §2 asks
+ * for four resolvable planes separated by blur and scale rather than by
+ * z-index; without a foreground the title sequence had three, and every one of
+ * them was behind the logo. A row of heads at the bottom of the frame, blurred
+ * past recognition, does three things at once: it says the viewer is standing in
+ * a crowd, it gives the reflection on the floor something to die into, and it
+ * darkens the bottom of the composition so the value structure has a floor.
+ *
+ * Silhouette only, with one cool rim along the tops. Anything more would be a
+ * character, and there are no characters in this sequence — the moment a shape
+ * in a title card starts to look like a specific person, the eye tries to read
+ * a face and finds a smudge.
+ */
+export function crowdTexture(): THREE.Texture {
+  const w = 1024;
+  const h = 200;
+  const ctx = canvas(w, h);
+  if (!ctx) return textureOf(null);
+
+  let state = 0x51ed;
+  const rand = (): number => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+
+  const supportsFilter = typeof ctx.filter === "string";
+  if (supportsFilter) ctx.filter = "blur(9px)";
+
+  /**
+   * Three ranks at three sizes, back to front, and the near rank is nearly the
+   * height of the band.
+   *
+   * One rank of evenly-sized heads on one baseline is a caterpillar — that is
+   * exactly what the first version photographed as, a regular row of identical
+   * bumps with a light on each. A crowd is a *depth*: a wall of small heads
+   * behind, a few very large near ones breaking the top line, and the ranks
+   * overlapping enough that no single silhouette is separable. The randomness
+   * that matters is in the size, not in the spacing.
+   */
+  ctx.fillStyle = "#000000";
+  const heads: Array<{ x: number; y: number; r: number; near: boolean }> = [];
+  const ranks = [
+    { count: 34, base: 0.5, size: 0.1, spread: 0.1 },
+    { count: 20, base: 0.62, size: 0.16, spread: 0.12 },
+    { count: 9, base: 0.78, size: 0.26, spread: 0.16 },
+  ];
+  for (const [rankIndex, rank] of ranks.entries()) {
+    for (let i = 0; i < rank.count; i++) {
+      const cx = (i + rand() * 1.4 - 0.2) * (w / rank.count);
+      const r = h * rank.size * (0.7 + rand() * 0.7);
+      const cy = h * (rank.base + (rand() - 0.5) * rank.spread);
+      heads.push({ x: cx, y: cy, r, near: rankIndex === 2 });
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, r * 0.82, r, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + r * 1.9, r * 2.4, r * 1.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.fillRect(0, h * 0.8, w, h * 0.2);
+
+  /**
+   * The rim, and why it is only on the near rank and only at the top-left.
+   *
+   * 315°, like everything else in this game: the rig is above and to the left,
+   * so the light that gets past a person catches the same side of every skull in
+   * the room. It is on the near rank alone because a rim on all sixty-three
+   * heads is a row of glowing beads — the light has to fall off with distance or
+   * it is not light, it is an outline. At six percent it is not visible as a
+   * highlight at all; what it does is stop the band reading as a hole cut in the
+   * picture.
+   */
+  if (supportsFilter) ctx.filter = "blur(6px)";
+  ctx.globalCompositeOperation = "lighter";
+  const cool = CURRENT_PALETTE["tide"].key;
+  for (const head of heads) {
+    if (!head.near) continue;
+    const rim = ctx.createRadialGradient(
+      head.x + LIGHT_RIG.screen.x * head.r * 0.7,
+      head.y + LIGHT_RIG.screen.y * head.r * 0.7,
+      head.r * 0.15,
+      head.x + LIGHT_RIG.screen.x * head.r * 0.7,
+      head.y + LIGHT_RIG.screen.y * head.r * 0.7,
+      head.r * 1.05
+    );
+    rim.addColorStop(0, hexToRgba(cool, 0.075));
+    rim.addColorStop(1, hexToRgba(cool, 0));
+    ctx.fillStyle = rim;
+    ctx.beginPath();
+    ctx.ellipse(head.x, head.y, head.r * 1.05, head.r * 1.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+
   return textureOf(ctx);
 }
 

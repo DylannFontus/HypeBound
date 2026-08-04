@@ -6,6 +6,7 @@
  */
 
 import type { AttackPreview } from "../../engine/types";
+import { icon } from "../art/uiIcons";
 
 export type ArrowMode = "play" | "attack" | "attack-valid";
 
@@ -157,8 +158,18 @@ export function createTargetingLayer(container: HTMLElement): TargetingLayer {
     if (data.shieldAbsorbs) {
       parts.push('<span class="dp-blocked">Shielded — no damage</span>');
     } else {
-      parts.push(`<span class="dp-damage">-${data.attackerDamage}</span>`);
-      if (data.elementalBonus) parts.push('<span class="dp-bonus">▲ Current advantage +1</span>');
+      parts.push(`<span class="dp-damage num">-${data.attackerDamage}</span>`);
+      /**
+       * The bonus mark is drawn, not typed.
+       *
+       * It was `▲`, which renders in whatever face the operating system has for
+       * U+25B2 — a different weight and a different optical size from every
+       * other mark in this HUD, and tofu on a device that has none. Module C's
+       * chevron is `currentColor` at the one stroke weight the contract names.
+       */
+      if (data.elementalBonus) {
+        parts.push(`<span class="dp-bonus">${icon("chevron-up")}Current advantage +1</span>`);
+      }
       if (data.defenderDies) parts.push('<span class="dp-kill">Defeats target</span>');
     }
     if (data.defenderDamage > 0) parts.push(`<span class="dp-counter">Takes ${data.defenderDamage} back</span>`);
