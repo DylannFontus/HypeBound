@@ -21,6 +21,7 @@ import { currentAccount, deleteAccount } from "../../auth/account";
 import { deleteMyServerData } from "../../net/playerRecord";
 import { policiesData } from "../../game/policies";
 import { audio } from "../../audio/audio";
+import { longDate } from "./data/kit";
 
 export interface PrivacyCallbacks {
   onBack: () => void;
@@ -31,7 +32,16 @@ export interface PrivacyCallbacks {
 const esc = (value: string): string =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-const DATE = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+/**
+ * Pinned to en-GB, in UTC, from the one formatter.
+ *
+ * This was `new Intl.DateTimeFormat(undefined, …)`, which takes the
+ * *browser* locale and printed "EFFECTIVE 30 JUILLET 2026" on a page whose
+ * every other word is English. The game has no localisation layer, so
+ * `undefined` was not correct-by-default localisation — it was uncontrolled
+ * formatting, and it made every screenshot machine-dependent.
+ */
+const DATE = { format: (at: Date): string => longDate(at) };
 
 /** Everything this game has stored about you, as a single JSON document. */
 export function exportSave(): string {
@@ -74,15 +84,15 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
         </div>
       </header>
 
-      <main class="policy-body">
+      <main class="policy-body data-body">
         <section class="panel panel-chrome policy-summary">
-          <div class="eyebrow">In plain language · effective ${DATE.format(new Date(privacy.effectiveDate))}</div>
+          <div class="t-label">In plain language · effective ${DATE.format(new Date(privacy.effectiveDate))}</div>
           ${privacy.summary.map((line) => `<p>${esc(line)}</p>`).join("")}
         </section>
 
         <section class="panel panel-chrome policy-table-panel">
           <h2 class="profile-section-title">What is and is not collected</h2>
-          <table class="patch-table policy-table">
+          <table class="d-table patch-table policy-table">
             <thead><tr><th>Category</th><th>Collected</th><th>Detail</th><th>Where</th></tr></thead>
             <tbody>
               ${privacy.categories

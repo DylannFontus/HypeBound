@@ -242,12 +242,47 @@ export class HandBar {
     const fanned = count >= 4;
     const maxTilt = fanned ? 16 : 0;
 
+    /**
+     * The arc's lowest point is the bar's own baseline, not a card's worth
+     * below it.
+     *
+     * `--lift` used to push the *outer* cards **down** by up to 22px on top of
+     * the strip's deliberate 3% tuck. Measured with the bounding rects at both
+     * required sizes: at 1280x720 the outer hand cards ended 27px past the
+     * bottom of the viewport and at 844x390 all seven did, which puts the
+     * attack and health gems — the numbers the hand exists to carry — off the
+     * screen on exactly the cards a fan makes hardest to read. §9's "every
+     * screen still has to work at 1280x720 and on a phone in landscape" is a
+     * hard constraint, and a clipped stat row is the recon's second critical.
+     *
+     * The curve is identical; only its zero moves. The centre of the fan now
+     * rises above the baseline and the ends sit on it, which is the same arc a
+     * hand of cards held in one hand actually makes, and nothing crosses the
+     * bottom edge at any count or any viewport.
+     */
+    const arc = fanned ? 22 : 0;
+
+    /**
+     * And the corner the rotation throws below the baseline.
+     *
+     * `transform-origin: 50% 100%` pivots each card about its own bottom centre,
+     * so a card tilted by θ puts its lower outside corner `(w/2)·sin θ` below
+     * where the untilted card ends. At 1280x720 that measured 13px, which with
+     * the strip's 3% tuck put 17px of the outermost cards under the fold —
+     * exactly the stat gems again, just from the other half of the fan. The bar
+     * lifts by that amount rather than the tilt being reduced, because the
+     * exaggerated tilt is most of what makes the hand look expensive and it is
+     * cheaper to move the strip than to flatten the fan.
+     */
+    const drop = Math.sin((maxTilt * Math.PI) / 180) * (cardWidth / 2);
+    this.root.style.setProperty("--fan-drop", `${Math.round(drop) + 2}px`);
+
     this.entries.forEach((entry, index) => {
       const t = count > 1 ? index / (count - 1) - 0.5 : 0;
       entry.element.style.left = `${startX + index * step}px`;
       entry.element.style.zIndex = String(10 + index);
       entry.element.style.setProperty("--tilt", `${t * 2 * maxTilt}deg`);
-      entry.element.style.setProperty("--lift", `${fanned ? Math.abs(t) * 22 : 0}px`);
+      entry.element.style.setProperty("--lift", `${-(1 - Math.abs(t) * 2) * arc}px`);
     });
   }
 

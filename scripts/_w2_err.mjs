@@ -1,0 +1,17 @@
+import { chromium } from "playwright-core";
+import { existsSync } from "node:fs";
+import { seedPlayedAccount } from "./lib/account.mjs";
+const ORIGIN = "http://localhost:5173";
+const CHROME = ["C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"].find((p) => existsSync(p));
+const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ["--use-gl=angle"] });
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+page.on("pageerror", (e) => console.log("PAGEERROR:", e.stack ?? e.message));
+page.on("console", (m) => { if (m.type() === "error") console.log("CONSOLE:", m.text()); });
+await page.goto(ORIGIN, { waitUntil: "domcontentloaded" });
+await seedPlayedAccount(page);
+await page.goto(`${ORIGIN}/#${process.argv[2] ?? "collection"}`, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3000);
+console.log("cells", await page.$$eval(".card-cell", (n) => n.length));
+console.log("canvases", await page.$$eval(".card-cell canvas", (n) => n.length));
+console.log("shelves", await page.$$eval(".col-shelf", (n) => n.length));
+await browser.close();

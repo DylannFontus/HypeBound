@@ -99,7 +99,7 @@ export function createLabScreen(content: ContentIndex, callbacks: LabCallbacks):
       <h1 class="title">The Lab</h1>
       <div class="sub-header-meta muted">Deterministic sandbox · you control both seats</div>
     </header>
-    <div class="lab-body">
+    <div class="lab-body data-body">
       <aside class="lab-editor scroll">
         <section class="lab-group">
           <div class="eyebrow">Match</div>

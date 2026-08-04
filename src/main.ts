@@ -33,6 +33,7 @@ import { tutorialConfig } from "./game/progression/data";
 import { autoBuildDeck } from "./engine/deck";
 import { Shell, watchOrientation } from "./ui/shell";
 import { mountAtmosphere } from "./ui/atmosphere";
+import { startIntro } from "./ui/intro";
 import { createLobbyScreen } from "./ui/screens/lobbyScreen";
 import { createPlayScreen } from "./ui/screens/playScreen";
 import { createShopScreen } from "./ui/screens/shopScreen";
@@ -172,6 +173,26 @@ function boot(): void {
    * nothing waits for either outcome.
    */
   installIconStyles();
+
+  /**
+   * The opening cinematic, over the top of everything below.
+   *
+   * Started here — after the world exists and before a single line of content is
+   * parsed — for two reasons. It is the earliest point at which the layer can go
+   * up, which matters because the alternative to covering the boot is showing
+   * the player half of it; and it is *before* the content check, so the two
+   * competing failure modes cannot collide. A content-validation failure needs
+   * to be readable, and `playIntro` ends the moment the route changes or the
+   * player touches anything, so the report is one keypress away rather than
+   * behind a five-second title.
+   *
+   * Nothing here is awaited and nothing below depends on it. `startIntro`
+   * decides for itself whether this launch gets the long title, the short sting
+   * or neither — a deep link, a `?nointro`, a browser with no WebGL and a
+   * missing brand asset all resolve to "neither", and in every one of those
+   * cases the boot underneath is bit-for-bit the boot that already existed.
+   */
+  startIntro();
 
   let content: ContentIndex;
   try {

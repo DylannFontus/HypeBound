@@ -92,16 +92,16 @@ function card(title: string, note: string, summary: Summary | null): string {
   if (!summary) {
     return `
       <section class="panel panel-chrome cloud-save-card">
-        <h2 class="profile-section-title">${esc(title)}</h2>
+        <h2 class="t-heading">${esc(title)}</h2>
         <p class="muted">${esc(note)}</p>
         <p class="muted">Nothing to compare — this side has no save.</p>
       </section>`;
   }
   return `
     <section class="panel panel-chrome cloud-save-card">
-      <h2 class="profile-section-title">${esc(title)}</h2>
+      <h2 class="t-heading">${esc(title)}</h2>
       <p class="muted">${esc(note)}</p>
-      <table class="patch-table cloud-save-table">
+      <table class="d-table patch-table cloud-save-table">
         <tbody>
           <tr><td>Level</td><td class="patch-after">${summary.level}</td></tr>
           <tr><td>Clout</td><td class="patch-after">${summary.clout.toLocaleString()}</td></tr>
@@ -129,7 +129,7 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
         <h1 class="title">Two saves</h1>
       </header>
 
-      <main class="cloud-save-body">
+      <main class="cloud-save-body data-body">
         <section class="panel panel-chrome cloud-save-lead">
           <p>
             This device has a save, and so does your account. They are not the same, and
@@ -145,7 +145,7 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
           ${card("On this device", "What is in this browser right now.", local)}
           ${
             loading
-              ? `<section class="panel panel-chrome cloud-save-card"><h2 class="profile-section-title">In your account</h2><p class="muted">Fetching it…</p></section>`
+              ? `<section class="panel panel-chrome cloud-save-card"><h2 class="t-heading">In your account</h2><p class="muted">Fetching it…</p></section>`
               : card("In your account", "What the server is holding.", cloud)
           }
         </div>

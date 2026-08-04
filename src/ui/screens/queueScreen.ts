@@ -32,6 +32,24 @@
  * will turn up — so the light says "still looking" for as long as that is true
  * and never implies it is getting closer. The number underneath it is the real
  * one, in tabular figures, and it usually says 1.
+ *
+ * ## A room with a subject and a sign, rather than a centred file
+ *
+ * Building the room fixed the dead screen and left a hollow one. Everything was
+ * still one centred column — figure, sentence, count, offer, essay, each
+ * narrower than the last — so at 1600×900 nothing at all occupied the outer
+ * thirds and the 95th-percentile pixel measured 80 against the lobby's 155.
+ * That is §6's value structure failing as arithmetic: squint and no light mass
+ * resolves.
+ *
+ * The markup below is therefore two things standing in one place. `.queue-stage`
+ * is the person, on the floor, lit from behind by a practical at the horizon so
+ * her silhouette reads against something brighter than she is — which is what
+ * actually stops a cropped painting looking pasted on, rather than another pass
+ * of edge feathering. `.queue-call` is the sign on the wall beside her, and it
+ * carries every word: the state, the wait, the count, the record, and the AI
+ * offer, which now opens *inside* the board instead of arriving under it and
+ * pushing the composition down the screen at the four-minute mark.
  */
 
 import type { ContentIndex, DeckList, Seat } from "../../engine/types";
@@ -69,6 +87,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   root.innerHTML = `
     <div class="queue-world" aria-hidden="true">
       <div class="queue-room"></div>
+      <div class="queue-backlight"></div>
       <div class="queue-floor"></div>
       <div class="queue-horizon"></div>
       <div class="queue-sweep"><span class="queue-beam"></span><span class="queue-beam queue-beam-b"></span></div>
@@ -88,8 +107,13 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
           <div class="queue-leader"></div>
           <div class="queue-leader-lit"></div>
         </div>
+      </section>
+
+      <section class="queue-call mat-panel">
+        <div class="queue-call-rail" aria-hidden="true"></div>
 
         <div class="queue-readout">
+          <div class="t-label queue-call-head"><span class="queue-pip" aria-hidden="true"></span>Casual queue</div>
           <div class="queue-state t-display" id="queue-state" role="status" aria-live="polite">Connecting…</div>
           <div class="queue-detail" id="queue-detail"></div>
           <div class="queue-count" id="queue-count" hidden>
@@ -99,7 +123,8 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
           <div class="queue-record t-label" id="queue-record" hidden></div>
         </div>
 
-        <div class="queue-offer mat-panel" id="queue-offer" hidden>
+        <div class="queue-offer" id="queue-offer" hidden>
+          <div class="hairline queue-offer-rule" aria-hidden="true"></div>
           <div class="t-label queue-offer-head">${icon("timer")} Four minutes, nobody here</div>
           <p class="queue-offer-text">
             You can keep waiting — if somebody joins, you will be matched with them —
@@ -170,34 +195,60 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
     );
   }
 
+  /**
+   * Two copies of one plate, and the second one is what puts her in the room.
+   *
+   * Every leader painting is a *scene*: this one has a sunset window, a red
+   * curtain and a monitor in it. Feathering the plate's four edges stops the
+   * boundary being a razor line and does nothing at all about the fact that a
+   * sharp, differently-lit room is sitting inside a blurred one — which is the
+   * actual reason a crop reads as pasted on, and which four rounds of feathering
+   * did not touch. Photographers do not solve this with a softer edge; they
+   * solve it with depth of field.
+   *
+   * So the far copy is the whole plate under a blur, matched to the venue behind
+   * it, and the near copy is the same plate sharp with an elliptical mask over
+   * the figure. What survives at full resolution is a person; what surrounds her
+   * is her own painting at the room's focal depth. The second call is a blit —
+   * the options are identical, so it hits the memoised plate.
+   */
   const leaderHost = root.querySelector<HTMLElement>(".queue-leader");
   if (leaderHost && leader) {
-    leaderHost.appendChild(
-      paintLeaderPortrait(leader, {
-        width: 460,
-        /**
-         * Taller, and the crop starts above the head rather than through it.
-         *
-         * At 1.42 the frame began at her chest and the missing `fadeTop` turned
-         * the start of the frame into a horizontal line across her — +64
-         * luminance in a single pixel at 1600×900, +148 in two at 1280×720. The
-         * aspect is now tall enough for the whole figure and the bias small
-         * enough that the ramp lands in empty air above her.
-         */
-        aspect: 1.78,
-        bias: 0.03,
-        scrim: 0.3,
-        // Cut on all four sides. A figure standing in a room has no frame; a
-        // rectangle in the middle of a floor is a poster somebody left there.
-        fadeTop: 0.24,
-        fadeLeft: 0.26,
-        fadeRight: 0.26,
-        fadeBottom: 0.05,
-        // ...and she leaves a mark on the floor she is standing on.
-        reflect: 0.12,
-        className: "queue-leader-art",
-      })
-    );
+    for (const layer of ["queue-leader-far", "queue-leader-near"]) {
+      leaderHost.appendChild(
+        paintLeaderPortrait(leader, {
+          /**
+           * Wider, because she is half the composition now rather than an item
+           * in a centred stack. Given a column of her own the plinth is 348px
+           * across at 1600×900 and the plate is drawn a little over it, so the
+           * figure is resampled down rather than up on a 1× display. It costs
+           * 0.9ms — measured — because the mip and the plate are both memoised.
+           */
+          width: 560,
+          /**
+           * Taller, and the crop starts above the head rather than through it.
+           *
+           * At 1.42 the frame began at her chest and the missing `fadeTop`
+           * turned the start of the frame into a horizontal line across her —
+           * +64 luminance in a single pixel at 1600×900, +148 in two at
+           * 1280×720. The aspect is now tall enough for the whole figure and the
+           * bias small enough that the ramp lands in empty air above her.
+           */
+          aspect: 1.78,
+          bias: 0.03,
+          scrim: 0.3,
+          // Cut on all four sides. A figure standing in a room has no frame; a
+          // rectangle in the middle of a floor is a poster somebody left there.
+          fadeTop: 0.24,
+          fadeLeft: 0.26,
+          fadeRight: 0.26,
+          fadeBottom: 0.05,
+          // ...and she leaves a mark on the floor she is standing on.
+          reflect: 0.12,
+          className: `queue-leader-art ${layer}`,
+        })
+      );
+    }
     root.classList.add("has-leader");
   }
 

@@ -323,11 +323,65 @@ const LEGS: readonly Leg[] = [
   { from: "collection", to: "lobby", heavy: true },
 ];
 
+/**
+ * The legs that get photographed as well as probed, and why photographing them
+ * is not the same check twice.
+ *
+ * Everything above this line reads the DOM. The DOM said this screen was fine.
+ * `nav-descend-out` bottoms out at `opacity: 0.12` — a deliberate fix, so that a
+ * held outgoing screen is still *an image* rather than a hole — and `VISIBLE` is
+ * 0.05, so a frame containing one screen at 12% over a dark atmosphere counts as
+ * drawn. Composited, that frame was measured at mean luminance 19.7 with a 95th
+ * percentile pixel of 35.6, against 41.8/148.6 for the lobby it left: black, on
+ * a real click of the front door's PLAY button, three frames running. Four
+ * rounds of review passed it because every instrument in this file was pointed
+ * at the tree rather than at the picture.
+ *
+ * So these legs are also filmed, with `Page.startScreencast`, which returns what
+ * the compositor actually put on the glass. Both endpoints are unveiled by
+ * design — a curtain is allowed to be dark, that is what a curtain is — and the
+ * film is discarded if one appears, rather than being quietly excused.
+ */
+const FILMS: readonly Leg[] = [
+  { from: "lobby", to: "play" },
+  { from: "missions", to: "lobby" },
+];
+
+/**
+ * How dark a frame may get, as a fraction of the dimmer of the two screens it is
+ * between.
+ *
+ * Measured on this machine after the exit keyframe was given its 0.12 floor: the
+ * darkest frame of `lobby → play` sits at 85% of the reference by mean and 73%
+ * by 95th percentile. The defect this replaces sat at 45% and **23%**. Half is
+ * therefore a long way from both — it cannot be tripped by an honest transition
+ * that dips, and it cannot be satisfied by a frame nobody can see.
+ *
+ * The 95th percentile is the load-bearing one. A mean survives a screen going
+ * dark if anything at all is still bright; the p95 is asking "is there a
+ * highlight anywhere in this picture", which is exactly what a blank frame does
+ * not have.
+ */
+const LIT_MEAN = 0.5;
+const LIT_P95 = 0.5;
+
+interface Photo {
+  t: number;
+  mean: number;
+  p95: number;
+}
+interface Film {
+  frames: Photo[];
+  /** a veil appeared during the film, so its darkness is not this test's business */
+  veiled: boolean;
+}
+
 let browser: Browser | undefined;
 let page: Page | undefined;
 /** Load events seen since the current leg armed its probe. See the retry note below. */
 let reloads = 0;
 const traces = new Map<string, Trace>();
+const films = new Map<string, Film>();
 
 const key = (leg: Leg): string => `${leg.from} → ${leg.to}`;
 
@@ -440,6 +494,101 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
         }
       }
       traces.set(key(leg), trace);
+    }
+
+    /**
+     * The same navigation, photographed rather than inspected.
+     *
+     * The screencast is capped at 640px wide because every frame is decoded and
+     * reduced inside the page and the statistics are scale-invariant; at full
+     * size the decode is slower than the thing being measured, which is how an
+     * instrument starts changing its subject. A `MutationObserver` watches for a
+     * curtain instead of a per-frame probe for the same reason — it costs
+     * nothing while the thread is free and still reports the veil afterwards
+     * when the thread was not.
+     */
+    const film = async (leg: Leg): Promise<Film> => {
+      const target = page as Page;
+      await target.goto(`${ORIGIN}/#${leg.from}`, { waitUntil: "networkidle" });
+      const ready = await settled(target, leg.from, 40000);
+      expect(ready, `${key(leg)} never came to rest on ${leg.from} before filming`).toBe(true);
+      await target.waitForTimeout(400);
+
+      const session = await target.context().newCDPSession(target);
+      const shots: { t: number; data: string }[] = [];
+      session.on("Page.screencastFrame", (payload) => {
+        const frame = payload as unknown as { data: string; sessionId: number; metadata: { timestamp?: number } };
+        shots.push({ t: frame.metadata.timestamp ?? 0, data: frame.data });
+        void session.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => undefined);
+      });
+
+      await target.evaluate(() => {
+        const scope = window as unknown as { __veiled?: boolean };
+        scope.__veiled = document.querySelector(".nav-curtain") !== null;
+        new MutationObserver(() => {
+          if (document.querySelector(".nav-curtain") !== null) scope.__veiled = true;
+        }).observe(document.body, { childList: true, subtree: true });
+      });
+
+      await session.send("Page.startScreencast", { format: "jpeg", quality: 60, maxWidth: 640, maxHeight: 400 });
+      await target.evaluate((hash) => {
+        location.hash = hash;
+      }, `#${leg.to}`);
+      await settled(target, leg.to, 40000);
+      await target.waitForTimeout(300);
+      await session.send("Page.stopScreencast");
+
+      const veiled = await target.evaluate(() => (window as unknown as { __veiled?: boolean }).__veiled === true);
+      const base = shots.length === 0 ? 0 : (shots[0] as { t: number }).t;
+      const frames = await target.evaluate(async (list: { t: number; data: string }[]) => {
+        const out: { t: number; mean: number; p95: number }[] = [];
+        for (const shot of list) {
+          const image = new Image();
+          image.src = `data:image/jpeg;base64,${shot.data}`;
+          await image.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          const pen = canvas.getContext("2d", { willReadFrequently: true });
+          if (pen === null) continue;
+          pen.drawImage(image, 0, 0);
+          const px = pen.getImageData(0, 0, canvas.width, canvas.height).data;
+          const lum = new Float32Array(px.length / 4);
+          let sum = 0;
+          for (let i = 0, p = 0; i < px.length; i += 4, p += 1) {
+            const v = 0.2126 * (px[i] as number) + 0.7152 * (px[i + 1] as number) + 0.0722 * (px[i + 2] as number);
+            lum[p] = v;
+            sum += v;
+          }
+          const sorted = Float32Array.from(lum).sort();
+          out.push({
+            t: shot.t,
+            mean: sum / lum.length,
+            p95: sorted[Math.floor(0.95 * sorted.length)] as number,
+          });
+        }
+        return out;
+      }, shots);
+
+      await session.detach().catch(() => undefined);
+      return { veiled, frames: frames.map((f) => ({ ...f, t: Math.round((f.t - base) * 1000) })) };
+    };
+
+    for (const leg of FILMS) {
+      let reel: Film = { frames: [], veiled: false };
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        reloads = 0;
+        try {
+          const candidate = await film(leg);
+          if (candidate.frames.length > 0 && reloads === 0) {
+            reel = candidate;
+            break;
+          }
+        } catch (error) {
+          if (reloads === 0) throw error;
+        }
+      }
+      films.set(key(leg), reel);
     }
   }, 420_000);
 
@@ -569,6 +718,71 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
     }
   });
 
+  const reel = (leg: Leg): Film => {
+    const found = films.get(key(leg));
+    if (found === undefined) throw new Error(`no film captured for ${key(leg)}`);
+    return found;
+  };
+
+  /** The endpoints of the film, as the brightness a frame in between is judged against. */
+  const ends = (frames: readonly Photo[], pick: (p: Photo) => number): number => {
+    const head = frames.slice(0, 3).map(pick).sort((a, b) => a - b);
+    const tail = frames.slice(-3).map(pick).sort((a, b) => a - b);
+    return Math.min(head[Math.floor(head.length / 2)] ?? 0, tail[Math.floor(tail.length / 2)] ?? 0);
+  };
+
+  it("filmed every navigation it said it would", () => {
+    for (const leg of FILMS) {
+      expect(reel(leg).frames.length, `${key(leg)} produced no compositor frames`).toBeGreaterThan(8);
+    }
+    /**
+     * A veil is allowed to be dark — covering a load deliberately is the
+     * contract's own answer to a build that cannot be made fast, and the
+     * assertion below therefore skips a veiled film. What it may not do is skip
+     * *every* film, because then the pixel check would be passing by having
+     * nothing to look at. If the shell starts veiling both of these, add a leg
+     * that it does not.
+     */
+    expect(
+      FILMS.some((leg) => !reel(leg).veiled),
+      "every filmed leg raised a curtain, so the darkness check measured nothing"
+    ).toBe(true);
+  });
+
+  /**
+   * The picture, not the tree.
+   *
+   * Every frame the compositor produced has to be at least half as bright as the
+   * dimmer of the two screens the navigation runs between — by mean, and by the
+   * brightest 5% of its pixels. §3a: "no moment where neither screen is drawn,
+   * and no moment where the page background flashes through". A screen held at
+   * `opacity: 0.12` over a dark atmosphere satisfies the DOM and fails this.
+   */
+  it("never puts a dark frame on the glass", () => {
+    const blackouts: string[] = [];
+    for (const leg of FILMS) {
+      const { frames, veiled } = reel(leg);
+      if (frames.length === 0 || veiled) continue;
+      const meanRef = ends(frames, (p) => p.mean);
+      const p95Ref = ends(frames, (p) => p.p95);
+      for (const frame of frames) {
+        const dimMean = frame.mean < meanRef * LIT_MEAN;
+        const dimP95 = frame.p95 < p95Ref * LIT_P95;
+        if (!dimMean && !dimP95) continue;
+        blackouts.push(
+          `${key(leg)} at t=${frame.t}ms — mean ${frame.mean.toFixed(1)} (${((100 * frame.mean) / meanRef).toFixed(0)}% ` +
+            `of ${meanRef.toFixed(1)}), p95 ${frame.p95.toFixed(1)} (${((100 * frame.p95) / p95Ref).toFixed(0)}% of ` +
+            `${p95Ref.toFixed(1)})`
+        );
+      }
+    }
+    expect(
+      blackouts,
+      "a frame this dark is the page background showing through between two screens; the DOM probe cannot see it " +
+        "because a screen at opacity 0.12 still counts as present"
+    ).toEqual([]);
+  });
+
   /** Printed on success as well as failure — the trace is the evidence. */
   it("reports what it measured", () => {
     const rows = LEGS.map((leg) => {
@@ -586,7 +800,21 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
         `veiled ${frames.some(covered) ? "yes" : "no "}  events ${events.length}`
       );
     });
-    console.log(`\nnavigation traces\n${rows.join("\n")}`);
+    const films = FILMS.map((leg) => {
+      const { frames } = reel(leg);
+      if (frames.length === 0) return `  ${key(leg).padEnd(24)} no film`;
+      const meanRef = ends(frames, (p) => p.mean);
+      const p95Ref = ends(frames, (p) => p.p95);
+      const worst = frames.reduce((a, b) => (b.p95 < a.p95 ? b : a), frames[0] as Photo);
+      return (
+        `  ${key(leg).padEnd(24)} frames ${String(frames.length).padStart(4)}  ` +
+        `reference mean ${meanRef.toFixed(1)} p95 ${p95Ref.toFixed(1)}  ` +
+        `darkest t=${String(worst.t).padStart(5)}ms mean ${worst.mean.toFixed(1)} ` +
+        `(${((100 * worst.mean) / meanRef).toFixed(0)}%) p95 ${worst.p95.toFixed(1)} ` +
+        `(${((100 * worst.p95) / p95Ref).toFixed(0)}%)`
+      );
+    });
+    console.log(`\nnavigation traces\n${rows.join("\n")}\n\ncompositor films\n${films.join("\n")}`);
     expect(rows.length).toBe(LEGS.length);
   });
 });

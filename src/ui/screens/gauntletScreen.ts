@@ -49,6 +49,7 @@ import {
 import { TARGET_CURVE, curveBucket } from "../../engine/deck";
 import { aiCloutRemaining, getProfile } from "../../save/profile";
 import { aiDailyCap } from "../../game/economy/income";
+import { enter, icon } from "./data/kit";
 
 export interface GauntletCallbacks {
   onBack: () => void;
@@ -80,7 +81,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
       <h1 class="title">The Gauntlet</h1>
       <div class="mastery-wallet" id="gauntlet-record-chip"></div>
     </header>
-    <main class="gauntlet-body scroll" id="gauntlet-body"></main>`;
+    <main class="gauntlet-body scroll data-body" id="gauntlet-body"></main>`;
 
   const body = root.querySelector<HTMLElement>("#gauntlet-body")!;
   const chip = root.querySelector<HTMLElement>("#gauntlet-record-chip")!;
@@ -114,7 +115,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
 
   /** §8.1's two rarity rows, as published. */
   const rarityTable = (): string => `
-    <table class="patch-table gauntlet-rarity-table">
+    <table class="d-table patch-table gauntlet-rarity-table">
       <thead><tr><th>Pick</th>${RARITY_ORDER.map((r) => `<th>${esc(RARITY_LABEL[r]!)}</th>`).join("")}</tr></thead>
       <tbody>
         <tr data-row="spotlight">
@@ -170,7 +171,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
 
   /** §8.3's table, with what Practice actually pays beside it. */
   const rewardTable = (): string => `
-    <table class="patch-table gauntlet-reward-table">
+    <table class="d-table patch-table gauntlet-reward-table">
       <thead>
         <tr>
           <th>Wins</th><th>Clout</th><th>Signal</th><th>Packs</th><th>Ticket</th><th>Extra</th>
@@ -276,7 +277,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
     chip.innerHTML = "";
     body.innerHTML = `
       <section class="panel panel-chrome gauntlet-intro">
-        <div class="eyebrow">Gauntlet Practice</div>
+        <div class="t-label">Gauntlet Practice</div>
         <h2 class="title">Draft a deck one pick at a time.</h2>
         <p class="mastery-rule">
           Pick a leader from three, then build ${data.draft.picks} cards from ${data.draft.offerSize} offers at a
@@ -287,7 +288,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
         <p class="muted">
           ${
             save.runsStarted === 0
-              ? "No runs yet."
+              ? `<span class="gauntlet-none">${icon("campfire", 15)} No runs yet — the first one starts free.</span>`
               : `${save.runsStarted} run${save.runsStarted === 1 ? "" : "s"} started · best ${save.bestWins} win${
                   save.bestWins === 1 ? "" : "s"
                 } · ${save.lifetimeClout} Clout banked · ${save.cardBackProgress}/${
@@ -336,7 +337,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
     chip.innerHTML = `<div class="currency"><span class="currency-icon">▤</span><span class="currency-value">Pick a leader</span></div>`;
     body.innerHTML = `
       <section class="panel panel-chrome gauntlet-phase">
-        <div class="eyebrow">Step 1 of 2</div>
+        <div class="t-label">Step 1 of 2</div>
         <h2 class="title">Choose your leader</h2>
         <p class="muted">
           Three leaders, three factions. The one you take fixes the run's faction and both Currents, exactly
@@ -385,7 +386,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
 
     body.innerHTML = `
       <section class="panel panel-chrome gauntlet-phase">
-        <div class="eyebrow">${esc(leaderName)} · pick ${offer.pick} of ${data.draft.picks}</div>
+        <div class="t-label">${esc(leaderName)} · pick ${offer.pick} of ${data.draft.picks}</div>
         <h2 class="title">${offer.spotlight ? "Spotlight Pick" : "Take one"}</h2>
         <p class="muted" id="gauntlet-rarity">
           <strong>${esc(RARITY_LABEL[offer.rarity]!)}</strong> pick${
@@ -416,7 +417,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
     chip.innerHTML = `<div class="currency"><span class="currency-icon">▤</span><span class="currency-value">Deck ready</span></div>`;
     body.innerHTML = `
       <section class="panel panel-chrome gauntlet-phase">
-        <div class="eyebrow">${esc(content.leaders[run.leaderCardId!]?.name ?? "")}</div>
+        <div class="t-label">${esc(content.leaders[run.leaderCardId!]?.name ?? "")}</div>
         <h2 class="title">${data.draft.picks} cards, drafted.</h2>
         <p class="muted">
           Once the first match starts the deck is locked for the run. You get one free full re-draft before
@@ -462,7 +463,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
 
     body.innerHTML = `
       <section class="panel panel-chrome gauntlet-phase">
-        <div class="eyebrow">${esc(content.leaders[run.leaderCardId!]?.name ?? "")}</div>
+        <div class="t-label">${esc(content.leaders[run.leaderCardId!]?.name ?? "")}</div>
         <h2 class="title">${run.wins} win${run.wins === 1 ? "" : "s"}, ${run.losses} loss${
           run.losses === 1 ? "" : "es"
         }</h2>
@@ -506,7 +507,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
     chip.innerHTML = "";
     body.innerHTML = `
       <section class="panel panel-chrome gauntlet-phase" id="gauntlet-summary">
-        <div class="eyebrow">${run.retiredEarly ? "Retired" : run.wins >= data.run.winsToRetire ? "Perfect run" : "Run over"}</div>
+        <div class="t-label">${run.retiredEarly ? "Retired" : run.wins >= data.run.winsToRetire ? "Perfect run" : "Run over"}</div>
         <h2 class="title">${run.wins}–${run.losses}</h2>
         <div class="gauntlet-summary-grid">
           <div><span class="gauntlet-summary-value" id="gauntlet-paid-clout">${payout.clout}</span><span class="muted">Clout</span></div>

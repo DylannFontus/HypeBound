@@ -21,6 +21,7 @@ import {
 } from "../../save/settings";
 import { audio } from "../../audio/audio";
 import { getProfile, profileStore } from "../../save/profile";
+import { count, enter, icon, quantify } from "./data/kit";
 
 export interface SettingsCallbacks {
   onBack: () => void;
@@ -38,20 +39,32 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="sub-header">
-      <button class="btn btn-ghost" id="set-back">← Lobby</button>
+      <button class="btn btn-ghost" id="set-back">${icon("arrow-left", 16)} Lobby</button>
       <h1 class="title">Settings</h1>
       <div></div>
     </header>
-    <div class="settings-body scroll" id="settings-body"></div>`;
+    <div class="settings-body data-body" id="settings-body"></div>`;
 
   const body = root.querySelector<HTMLElement>("#settings-body");
 
-  function section(title: string, description?: string): HTMLElement {
+  /**
+   * A section, with a drawn mark rather than a heading on its own.
+   *
+   * Five identical panels in a column is a settings *document*; a mark at the
+   * head of each is what makes it a settings *screen*. The icon is from the one
+   * set at the one weight, which is the whole point of having a set.
+   */
+  function section(title: string, iconId: Parameters<typeof icon>[0], description?: string): HTMLElement {
     const node = document.createElement("section");
-    node.className = "settings-section panel";
-    node.innerHTML = `<h2 class="settings-title">${title}</h2>${
-      description ? `<p class="muted settings-desc">${description}</p>` : ""
-    }`;
+    node.className = "settings-section panel d-enter";
+    node.innerHTML = `
+      <div class="settings-head">
+        <span class="settings-mark" aria-hidden="true">${icon(iconId, 20)}</span>
+        <div>
+          <h2 class="settings-title t-heading">${title}</h2>
+          ${description ? `<p class="settings-desc t-body">${description}</p>` : ""}
+        </div>
+      </div>`;
     body?.appendChild(node);
     return node;
   }
@@ -60,10 +73,18 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
     const row = document.createElement("div");
     row.className = "setting-row";
     const value = getSettings()[key] as number;
+    /*
+     * `.slider` is module A's control and `shell.ts` keeps `--slider-fill` in
+     * step with the value, so the filled portion of the groove is real rather
+     * than the empty black rail every slider in the game used to render as. The
+     * old class only ever said `accent-color`, which a control with
+     * `appearance: none` ignores entirely.
+     */
     row.innerHTML = `
       <label class="setting-label" for="s-${key}">${label}</label>
-      <input class="setting-slider" id="s-${key}" type="range" min="0" max="100" value="${Math.round(value * 100)}" />
-      <output class="setting-output" id="o-${key}">${Math.round(value * 100)}%</output>`;
+      <input class="slider setting-slider" id="s-${key}" type="range" min="0" max="100"
+             value="${Math.round(value * 100)}" />
+      <output class="setting-output num" id="o-${key}">${Math.round(value * 100)}%</output>`;
     host.appendChild(row);
 
     const input = row.querySelector<HTMLInputElement>(`#s-${key}`);
@@ -145,7 +166,11 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
   }
 
   // ---- audio ---------------------------------------------------------------
-  const audioSection = section("Audio", "Five independent channels. Drop your own files into public/assets/audio and map them in data/audio-manifest.json.");
+  const audioSection = section(
+    "Audio",
+    "volume",
+    "Five independent channels. Drop your own files into public/assets/audio and map them in data/audio-manifest.json."
+  );
   slider(audioSection, "Master", "volumeMaster", () => audio.applyVolumes());
   slider(audioSection, "Music", "volumeMusic", () => audio.applyVolumes());
   slider(audioSection, "Voice Lines", "volumeVoice", () => audio.applyVolumes());
@@ -158,7 +183,10 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
   if (missing > 0) {
     const note = document.createElement("p");
     note.className = "faint settings-note";
-    note.textContent = `${missing} of ${audio.allSlots().length} audio slots have no file yet — the game runs silently until you add them.`;
+    note.textContent = `${count(missing)} of ${quantify(
+      audio.allSlots().length,
+      "audio slot"
+    )} have no file yet — the game runs silently until you add them.`;
     audioSection.appendChild(note);
   }
 
@@ -168,16 +196,17 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
    * section buried between Audio and Graphics is neither. What stays here is
    * the signpost, which §4.6.1 asks for by name.
    */
-  const a11y = section("Accessibility", "Text size, motion, colour-blind modes, focus and captions.");
+  const a11y = section("Accessibility", "eye", "Text size, motion, colour-blind modes, focus and captions.");
   const a11yNote = document.createElement("p");
   a11yNote.className = "muted";
   a11yNote.textContent =
     "Every control has a live preview and none of it is behind an account level, a purchase or a mode.";
   a11y.appendChild(a11yNote);
   const a11yButton = document.createElement("button");
-  a11yButton.className = "btn btn-primary";
+  a11yButton.className = "mat-hero act r-chip settings-cta";
+  a11yButton.type = "button";
   a11yButton.id = "set-a11y";
-  a11yButton.textContent = "Open accessibility settings →";
+  a11yButton.innerHTML = `Open accessibility settings ${icon("chevron-right", 15)}`;
   a11yButton.addEventListener("click", () => {
     audio.play("sfx.ui.click");
     callbacks.onAccessibility();
@@ -185,7 +214,7 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
   a11y.appendChild(a11yButton);
 
   // ---- gameplay ------------------------------------------------------------
-  const gameplay = section("Gameplay & Presentation");
+  const gameplay = section("Gameplay & Presentation", "settings");
   choice<AnimationSpeed>(gameplay, "Animation speed", "animationSpeed", [
     { value: "full", label: "Full" },
     { value: "fast", label: "Fast" },
@@ -202,16 +231,33 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
   ], "Takes effect on the next match.");
 
   // ---- data ----------------------------------------------------------------
-  const data = section("Player Data", "Everything is stored locally in this browser. Cloud saves arrive with the online build.");
+  const data = section(
+    "Player Data",
+    "deck",
+    "Everything is stored locally in this browser. Cloud saves arrive with the online build."
+  );
   const profile = getProfile();
-  const info = document.createElement("p");
-  info.className = "muted";
-  info.textContent = `${profile.stats.matchesPlayed} matches played · ${Object.keys(profile.collection).length} unique cards · ${profile.decks.length} saved decks`;
+  const info = document.createElement("dl");
+  info.className = "d-stats settings-data-stats";
+  info.innerHTML = `
+    <div class="d-stat"><dt>Matches played</dt><dd class="num">${count(profile.stats.matchesPlayed)}</dd></div>
+    <div class="d-stat"><dt>Unique cards</dt><dd class="num">${count(Object.keys(profile.collection).length)}</dd></div>
+    <div class="d-stat"><dt>Saved decks</dt><dd class="num">${count(profile.decks.length)}</dd></div>`;
   data.appendChild(info);
 
+  /**
+   * The one destructive action on the screen, styled like one.
+   *
+   * It used to be a plain `.btn`, visually identical to "Accessibility →" and
+   * "Support →" two panels below — so the highest-consequence control in the
+   * game was the least distinguished, which is §6's "saturation is a resource"
+   * inverted. It is now danger-cased, carries the warning glyph, and still goes
+   * through the browser confirm it always did.
+   */
   const resetButton = document.createElement("button");
-  resetButton.className = "btn btn-ghost";
-  resetButton.textContent = "Reset all player data";
+  resetButton.type = "button";
+  resetButton.className = "mat-panel act r-chip settings-danger";
+  resetButton.innerHTML = `${icon("warning", 15)} Reset all player data`;
   resetButton.addEventListener("click", () => {
     if (window.confirm("This erases your collection, decks and progress on this device. Continue?")) {
       profileStore.reset();
@@ -227,20 +273,21 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
    * places a rate must be readable, and the other one is a purchase button —
    * which is not somewhere a player goes to *check*.
    */
-  const links = section("Information", "Everything the game is obliged to tell you, in one place.");
+  const links = section("Information", "info", "Everything the game is obliged to tell you, in one place.");
   const linkRow = document.createElement("div");
   linkRow.className = "settings-links";
-  for (const [id, label, handler] of [
-    ["set-accessibility", "Accessibility", callbacks.onAccessibility],
-    ["set-fairness", "Probability disclosures", callbacks.onFairness],
-    ["set-privacy", "Privacy", callbacks.onPrivacy],
-    ["set-legal", "Legal", callbacks.onLegal],
-    ["set-support", "Support", callbacks.onSupport],
+  for (const [id, label, handler, glyph] of [
+    ["set-accessibility", "Accessibility", callbacks.onAccessibility, "eye"],
+    ["set-fairness", "Probability disclosures", callbacks.onFairness, "diamond"],
+    ["set-privacy", "Privacy", callbacks.onPrivacy, "lock"],
+    ["set-legal", "Legal", callbacks.onLegal, "log"],
+    ["set-support", "Support", callbacks.onSupport, "help"],
   ] as const) {
     const button = document.createElement("button");
-    button.className = "btn btn-ghost";
+    button.type = "button";
+    button.className = "mat-panel act r-tile settings-link";
     button.id = id;
-    button.textContent = `${label} →`;
+    button.innerHTML = `${icon(glyph, 18)}<span>${label}</span>${icon("chevron-right", 15, "settings-link-go")}`;
     button.addEventListener("click", () => {
       audio.play("sfx.ui.click");
       handler();
@@ -249,6 +296,10 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
   }
   links.appendChild(linkRow);
 
+  const missingNote = audioSection.querySelector(".settings-note");
+  if (missingNote) audioSection.appendChild(missingNote);
+
   root.querySelector("#set-back")?.addEventListener("click", () => callbacks.onBack());
+  enter(root, ".settings-section", 42);
   return { root };
 }

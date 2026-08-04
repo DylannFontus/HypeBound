@@ -1,11 +1,34 @@
 /**
  * Deck builder: leader selection, legal card pool, live validation, resource
  * curve, type distribution, auto-build, import/export codes and saved slots.
+ *
+ * ## The shape of the side panel is load-bearing
+ *
+ * It used to be one flex column: stats, curve, identity, list, validation,
+ * assistance and the action row, all competing for the same height. At
+ * 1280×720 — a resolution the bar names as a hard floor — the action row was
+ * laid out at y=720 in a 720px window with nothing to scroll, so **Save Deck did
+ * not exist at the minimum supported resolution**, and the deck list, the single
+ * most important object on the screen, was a four-and-a-half-row peephole with
+ * no thumb and no fade.
+ *
+ * So the column is three rows now: a header that sizes to its content, one
+ * scroll region, and a pinned footer. A footer cannot be squeezed off the
+ * bottom, and the list gets the room the panel has left rather than the room
+ * everything above it did not want.
+ *
+ * ## Nothing is rebuilt that has not changed
+ *
+ * Adding a card used to set `poolHost.innerHTML = ""` and re-rasterise a
+ * hundred-plus card canvases, then do the same to the list. Both are keyed by
+ * card id now and reconciled in place, which is what makes the insert animation
+ * and the count roll possible at all: you cannot animate a row that is destroyed
+ * and recreated on every click.
  */
 
 import type { CardDef, ContentIndex, DeckList, LeaderCardDef } from "../../engine/types";
 import type { Screen } from "../shell";
-import { legalCardPool, validateDeck } from "../../engine/deck";
+import { TARGET_CURVE, legalCardPool, validateDeck } from "../../engine/deck";
 import {
   autoCompleteDeck,
   buildAround,
@@ -21,26 +44,52 @@ import {
 } from "../../game/decks";
 import { selectableLeaders } from "../../engine/content";
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
-import { CURRENT_PALETTE, FACTION_COLOR, RARITY_STYLE } from "../cardRenderer/palette";
+import { CURRENT_PALETTE, RARITY_STYLE } from "../cardRenderer/palette";
 import type { CurrentId } from "../../engine/types";
 import { deleteDeck, getProfile, myCosmetics, saveDeck, setActiveDeck } from "../../save/profile";
 import { cosmeticById } from "../../game/cosmetics";
 import { drawEmblem } from "../cosmetics/emblem";
 import { audio } from "../../audio/audio";
+import { icon } from "../art/uiIcons";
+import { motionEnabled } from "../motion";
+import {
+  bindScrollFades,
+  canvasGhost,
+  currentTag,
+  draggable,
+  enterRow,
+  installKitStyles,
+  lazyPaint,
+  rarityTag,
+} from "./collectionKit";
 
 /** 03 §4.3.2: "deck name (16 chars)". */
 const NAME_LIMIT = 16;
+
+/**
+ * The plural of each card type, written out.
+ *
+ * `type.slice(0, 4)` produced "even 1", "acti 10", "equi 1", "loca 1" and
+ * "reac 2" — a composition summary that has to be decoded, and one entry of
+ * which reads as a statement about parity.
+ */
+const TYPE_PLURAL: Record<string, string> = {
+  character: "Characters",
+  action: "Actions",
+  reaction: "Reactions",
+  equipment: "Equipment",
+  location: "Locations",
+  transformation: "Transformations",
+  event: "Events",
+};
 
 export interface DeckBuilderCallbacks {
   deckIndex?: number;
   onBack: () => void;
   /**
    * §4.3.2's *"Test vs AI"* — launch a practice match with the **draft**,
-   * without saving it first.
-   *
-   * The draft is handed over rather than read back from a slot, because the
-   * whole point is trying a list you have not committed to. Saving it first
-   * would overwrite the deck you are experimenting on.
+   * without saving it first. The draft is handed over rather than read back from
+   * a slot, because the whole point is trying a list you have not committed to.
    */
   onTestDeck?: (deck: DeckList) => void;
 }
@@ -79,17 +128,14 @@ export function decodeDeck(code: string, content: ContentIndex): DeckList | null
 }
 
 export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBuilderCallbacks): Screen {
+  installKitStyles();
+
   const profile = getProfile();
   let deckIndex = callbacks.deckIndex ?? profile.activeDeckIndex;
   /**
-   * A brand-new slot starts **empty**.
-   *
-   * It used to open on an `autoBuildDeck` result, which builds from every
-   * printed card in the game — so a new account's first visit to the deck
-   * builder presented thirty cards it did not own, in a list the pool beside it
-   * would have refused to let that player assemble one card at a time.
-   * Auto-Complete fills from the collection, on request, and says what it could
-   * not find.
+   * A brand-new slot starts **empty**. It used to open on an `autoBuildDeck`
+   * result, which builds from every printed card in the game — so a new
+   * account's first visit presented thirty cards it did not own.
    */
   let deck: DeckList = structuredClone(
     profile.decks[deckIndex] ?? {
@@ -100,11 +146,11 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
   );
 
   const root = document.createElement("div");
-  root.className = "screen builder-screen";
+  root.className = "screen builder-screen db-v2";
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="sub-header">
-      <button class="btn btn-ghost" id="db-back">← Decks</button>
+      <button class="btn btn-ghost" id="db-back">${icon("arrow-left")}<span>Decks</span></button>
       <input class="deck-name-input" id="db-name" aria-label="Deck name" maxlength="16" placeholder="Deck name" />
       <div class="row" id="db-header-actions"></div>
     </header>
@@ -113,26 +159,60 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       <section class="builder-pool">
         <div class="builder-pool-head">
           <select class="leader-select" id="db-leader" aria-label="Leader"></select>
-          <input class="search-input" id="db-search" type="search" placeholder="Search legal cards…" aria-label="Search cards" />
+          <div class="search-field">
+            ${icon("search", { size: 17 })}
+            <input class="search-input" id="db-search" type="search" autocomplete="off"
+                   placeholder="Search legal cards…" aria-label="Search cards" />
+            <span class="search-count num" id="db-pool-count"></span>
+          </div>
         </div>
-        <div class="pool-grid scroll" id="db-pool"></div>
+        <div class="hb-scrollwrap" id="db-pool-wrap">
+          <div class="pool-grid hb-scroll" id="db-pool"></div>
+        </div>
       </section>
 
       <aside class="builder-side panel">
-        <div class="deck-stats" id="db-stats"></div>
-        <div class="deck-curve" id="db-curve"></div>
-        <div class="deck-identity" id="db-identity"></div>
-        <div class="deck-list scroll" id="db-list"></div>
-        <div class="deck-validation" id="db-validation"></div>
-        <div class="deck-assist" id="db-assist"></div>
-        <div class="builder-actions" id="db-actions"></div>
+        <div class="builder-side-head">
+          <div class="deck-stats" id="db-stats"></div>
+        </div>
+        <div class="hb-scrollwrap hb-fade-top" id="db-side-wrap">
+          <div class="builder-side-scroll hb-scroll" id="db-side-scroll">
+            <!--
+              The curve is the first thing in the *scroll* region rather than a
+              second pinned header. On a 900px window it is visible without
+              scrolling, which is what it is for; on a 720px one the player can
+              push it away and give the whole panel to the deck list, which is
+              the object they came here to edit. A second fixed header would have
+              taken that choice away at exactly the height where it matters.
+            -->
+            <div class="deck-curve" id="db-curve"></div>
+            <div class="deck-list-block">
+              <div class="deck-list-head">
+                <span class="eyebrow">Deck list</span>
+                <span class="muted num" id="db-list-count"></span>
+              </div>
+              <div class="deck-list" id="db-list"></div>
+              <div class="deck-legend" id="db-legend"></div>
+            </div>
+            <div class="deck-identity" id="db-identity"></div>
+            <div class="deck-assist" id="db-assist"></div>
+          </div>
+        </div>
+        <div class="builder-side-foot">
+          <div class="deck-validation" id="db-validation"></div>
+          <div class="builder-actions" id="db-actions"></div>
+        </div>
       </aside>
     </div>`;
 
   const nameInput = root.querySelector<HTMLInputElement>("#db-name");
   const leaderSelect = root.querySelector<HTMLSelectElement>("#db-leader");
   const poolHost = root.querySelector<HTMLElement>("#db-pool");
+  const poolWrap = root.querySelector<HTMLElement>("#db-pool-wrap");
+  const poolCount = root.querySelector<HTMLElement>("#db-pool-count");
   const listHost = root.querySelector<HTMLElement>("#db-list");
+  const listCount = root.querySelector<HTMLElement>("#db-list-count");
+  const legendHost = root.querySelector<HTMLElement>("#db-legend");
   const statsHost = root.querySelector<HTMLElement>("#db-stats");
   const curveHost = root.querySelector<HTMLElement>("#db-curve");
   const validationHost = root.querySelector<HTMLElement>("#db-validation");
@@ -140,6 +220,13 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
   const assistHost = root.querySelector<HTMLElement>("#db-assist");
   const actionsHost = root.querySelector<HTMLElement>("#db-actions");
   const headerActions = root.querySelector<HTMLElement>("#db-header-actions");
+  const sideWrap = root.querySelector<HTMLElement>("#db-side-wrap");
+  const sideScroll = root.querySelector<HTMLElement>("#db-side-scroll");
+  const sidePanel = root.querySelector<HTMLElement>(".builder-side");
+
+  const painter = lazyPaint(poolHost ?? root, "600px 0px");
+  const unbindPoolFades = poolWrap && poolHost ? bindScrollFades(poolWrap, poolHost) : () => {};
+  const unbindSideFades = sideWrap && sideScroll ? bindScrollFades(sideWrap, sideScroll) : () => {};
 
   let search = "";
 
@@ -161,14 +248,14 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       const legalIds = new Set(legalCardPool(content, leader).map((c) => c.id));
       deck.cards = deck.cards.filter((id) => legalIds.has(id));
     }
+    resetPool();
     renderAll();
   });
 
   nameInput?.addEventListener("input", () => {
     /**
-     * §4.3.2 caps a deck name at 16 characters. The `maxlength` attribute
-     * handles typing; this handles a paste, and keeps the truncation in one
-     * place rather than trusting every engine to agree about `value`.
+     * §4.3.2 caps a deck name at 16 characters. `maxlength` handles typing; this
+     * handles a paste, and keeps the truncation in one place.
      */
     deck.name = nameInput.value.slice(0, NAME_LIMIT);
     if (nameInput.value !== deck.name) nameInput.value = deck.name;
@@ -176,7 +263,8 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
   });
 
   root.querySelector<HTMLInputElement>("#db-search")?.addEventListener("input", (event) => {
-    search = (event.target as HTMLInputElement).value.toLowerCase();
+    search = (event.target as HTMLInputElement).value.trim().toLowerCase();
+    painter.hold(200);
     renderPool();
   });
 
@@ -192,13 +280,17 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       : content.balance.deck.maxCopies;
   }
 
+  function canAdd(card: CardDef): boolean {
+    if (deck.cards.length >= content.balance.deck.size) return false;
+    if (countOf(card.id) >= maxCopies(card)) return false;
+    return countOf(card.id) < (getProfile().collection[card.id] ?? 0);
+  }
+
   function addCard(card: CardDef): void {
-    if (deck.cards.length >= content.balance.deck.size) return;
-    if (countOf(card.id) >= maxCopies(card)) return;
-    const owned = getProfile().collection[card.id] ?? 0;
-    if (countOf(card.id) >= owned) return; // cannot run more copies than you own
+    if (!canAdd(card)) return;
     deck.cards.push(card.id);
     audio.play("sfx.ui.click");
+    lastTouched = card.id;
     renderAll();
   }
 
@@ -207,65 +299,84 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     if (index >= 0) {
       deck.cards.splice(index, 1);
       audio.play("sfx.ui.back");
+      lastTouched = cardId;
       renderAll();
     }
   }
 
-  // ---- rendering -----------------------------------------------------------
+  /** The row that just changed, so it can flash rather than the list re-snapping. */
+  let lastTouched: string | null = null;
 
-  function renderPool(): void {
-    if (!poolHost) return;
-    const leader = content.leaders[deck.leaderCardId] as LeaderCardDef | undefined;
-    if (!leader) return;
+  // ---- the pool ------------------------------------------------------------
 
-    const profileNow = getProfile();
-    const pool = legalCardPool(content, leader)
-      .filter((card) => {
-        if (!search) return true;
-        return `${card.name} ${card.text} ${card.tags.join(" ")}`.toLowerCase().includes(search);
-      })
-      .sort((a, b) => a.cost - b.cost || a.name.localeCompare(b.name));
+  interface PoolCell {
+    root: HTMLElement;
+    badge: HTMLElement;
+    canvas: HTMLCanvasElement | null;
+    card: CardDef;
+    attached: boolean;
+    stopDrag: () => void;
+  }
+  const poolCells = new Map<string, PoolCell>();
+  let poolOrder: CardDef[] = [];
 
-    poolHost.innerHTML = "";
-    for (const card of pool) {
-      const owned = profileNow.collection[card.id] ?? 0;
-      const inDeck = countOf(card.id);
-      const atLimit = inDeck >= Math.min(maxCopies(card), owned);
+  /**
+   * A new leader is a new pool, so the old cells go.
+   *
+   * `release` matters as much as `remove`: a cell that is still queued for its
+   * first paint would otherwise rasterise a card that is no longer legal, into
+   * an element nothing is holding.
+   */
+  function resetPool(): void {
+    for (const cell of poolCells.values()) {
+      cell.stopDrag();
+      painter.release(cell.root);
+      cell.root.remove();
+    }
+    poolCells.clear();
+    poolOrder = [];
+  }
 
-      const cell = document.createElement("button");
-      cell.className = `pool-cell ${owned <= 0 ? "unowned" : ""} ${atLimit ? "at-limit" : ""}`;
-      cell.type = "button";
-      // the card id on the element, so a browser check can name what it clicked
-      cell.dataset["card"] = card.id;
-      cell.appendChild(renderCardToCanvas(card, 150, { dimmed: owned <= 0 || atLimit }));
+  function buildPoolCell(card: CardDef): PoolCell {
+    const cell = document.createElement("button");
+    cell.className = "pool-cell";
+    cell.type = "button";
+    // the card id on the element, so a browser check can name what it clicked
+    cell.dataset["card"] = card.id;
 
-      const badge = document.createElement("div");
-      badge.className = "pool-badge";
-      badge.textContent = owned <= 0 ? "Not owned" : `${inDeck}/${Math.min(maxCopies(card), owned)}`;
-      cell.appendChild(badge);
+    const slot = document.createElement("div");
+    slot.className = "card-slot";
+    cell.appendChild(slot);
 
-      cell.addEventListener("click", () => addCard(card));
+    const badge = document.createElement("div");
+    badge.className = "pool-badge";
+    cell.appendChild(badge);
 
-      /**
-       * §4.3.2's *"build around this card"*.
-       *
-       * A corner button rather than a modifier click: a shortcut nobody can see
-       * is a feature nobody uses, and a modifier is unreachable on touch. It
-       * picks the leader whose pool pays this card's tags off hardest and
-       * completes from the collection, so what comes back is a deck the account
-       * can actually field.
-       */
-      /**
-       * Only on a card you own. Building around a card you do not have would
-       * either seed an uncollected copy or quietly leave it out — and both are
-       * worse than the control not being there.
-       */
-      if (owned > 0) {
+    const entry: PoolCell = { root: cell, badge, canvas: null, card, attached: false, stopDrag: () => {} };
+
+    cell.addEventListener("click", () => addCard(card));
+
+    painter.watch(cell, () => {
+      if (entry.canvas) return;
+      const canvas = renderCardToCanvas(card, 150, {});
+      entry.canvas = canvas;
+      slot.replaceWith(canvas);
+    });
+
+    /**
+     * §4.3.2's *"build around this card"*, on a card you own.
+     *
+     * A corner button rather than a modifier click: a shortcut nobody can see is
+     * a feature nobody uses, and a modifier is unreachable on touch. Building
+     * around a card you do not have would either seed an uncollected copy or
+     * quietly leave it out, and both are worse than the control not being there.
+     */
+    if ((getProfile().collection[card.id] ?? 0) > 0) {
       const around = document.createElement("button");
       around.className = "pool-build-around";
       around.type = "button";
       around.dataset["around"] = card.id;
-      around.textContent = "⌖";
+      around.innerHTML = icon("crosshair", { size: 14 });
       around.title = `Build a deck around ${card.name}`;
       around.setAttribute("aria-label", `Build a deck around ${card.name}`);
       around.addEventListener("click", (event) => {
@@ -275,13 +386,142 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
         deck = built;
         if (leaderSelect) leaderSelect.value = deck.leaderCardId;
         audio.play("sfx.ui.click");
+        resetPool();
         renderAll();
       });
       cell.appendChild(around);
+    }
+
+    /**
+     * Drag from the pool into the deck panel.
+     *
+     * Click-to-add stays exactly as it was — it is the keyboard path and the
+     * touch path — and this is the gesture a player who has used any other card
+     * game will try first. The ghost is a real copy of the card's own pixels
+     * rather than a rectangle, because the thing being dragged is the card.
+     */
+    entry.stopDrag = draggable(cell, {
+      ghost: () => (entry.canvas ? canvasGhost(entry.canvas, 132) : document.createElement("div")),
+      zones: () => (sidePanel && canAdd(card) ? [sidePanel] : []),
+      onDrop: (zone) => {
+        if (zone) addCard(card);
+        else audio.play("sfx.ui.back");
+      },
+    });
+
+    return entry;
+  }
+
+  function renderPool(): void {
+    if (!poolHost) return;
+    const leader = content.leaders[deck.leaderCardId] as LeaderCardDef | undefined;
+    if (!leader) return;
+
+    if (poolOrder.length === 0) {
+      poolOrder = legalCardPool(content, leader).sort(
+        (a, b) => a.cost - b.cost || a.name.localeCompare(b.name)
+      );
+    }
+
+    const profileNow = getProfile();
+    let at = 0;
+    let shown = 0;
+
+    for (const card of poolOrder) {
+      const visible =
+        !search || `${card.name} ${card.text} ${card.tags.join(" ")}`.toLowerCase().includes(search);
+      let cell = poolCells.get(card.id);
+      if (!cell) {
+        if (!visible) continue;
+        cell = buildPoolCell(card);
+        poolCells.set(card.id, cell);
       }
 
-      poolHost.appendChild(cell);
+      if (!visible) {
+        if (cell.attached) {
+          cell.root.remove();
+          cell.attached = false;
+        }
+        continue;
+      }
+
+      const owned = profileNow.collection[card.id] ?? 0;
+      const cap = Math.min(maxCopies(card), owned);
+      const inDeck = countOf(card.id);
+      const atLimit = inDeck >= cap;
+      cell.root.classList.toggle("unowned", owned <= 0);
+      cell.root.classList.toggle("at-limit", atLimit);
+      cell.root.setAttribute("aria-disabled", String(owned <= 0 || atLimit));
+      const badge = owned <= 0 ? "Not owned" : `${inDeck}/${cap}`;
+      if (cell.badge.textContent !== badge) cell.badge.textContent = badge;
+
+      const here = poolHost.children[at];
+      if (here !== cell.root) poolHost.insertBefore(cell.root, here ?? null);
+      cell.attached = true;
+      at += 1;
+      shown += 1;
     }
+
+    if (poolCount) poolCount.textContent = search ? `${shown} of ${poolOrder.length}` : "";
+  }
+
+  // ---- the deck list -------------------------------------------------------
+
+  interface Row {
+    root: HTMLElement;
+    count: HTMLElement;
+    stopDrag: () => void;
+  }
+  const rows = new Map<string, Row>();
+  const bucketHeads = new Map<number, HTMLElement>();
+
+  function bucketHead(cost: number, total: number): HTMLElement {
+    let head = bucketHeads.get(cost);
+    if (!head) {
+      head = document.createElement("div");
+      head.className = "deck-bucket-head";
+      bucketHeads.set(cost, head);
+    }
+    head.innerHTML =
+      `<span>${cost === 7 ? "7+" : cost} Hype</span>` +
+      `<span class="deck-bucket-rule" aria-hidden="true"></span>` +
+      `<b>${total}</b>`;
+    return head;
+  }
+
+  function buildRow(card: CardDef): Row {
+    const entry = document.createElement("button");
+    entry.className = "deck-row";
+    entry.type = "button";
+    entry.dataset["card"] = card.id;
+    entry.style.setProperty("--row-color", CURRENT_PALETTE[card.current].key);
+    entry.innerHTML =
+      `<span class="deck-row-cost num">${card.cost}</span>` +
+      `<span class="deck-row-name">${card.name}</span>` +
+      currentTag(card.current) +
+      rarityTag(card.rarity) +
+      `<span class="deck-row-count num">×1</span>`;
+    entry.title = `${card.name} — ${card.text}`;
+    entry.setAttribute("aria-label", `Remove one ${card.name}`);
+    entry.addEventListener("click", () => removeCard(card.id));
+
+    /** Dragging a row out of the panel removes a copy — the reverse gesture. */
+    const stopDrag = draggable(entry, {
+      ghost: () => {
+        const ghost = document.createElement("div");
+        ghost.className = "deck-row hb-ghost-row";
+        ghost.style.setProperty("--row-color", CURRENT_PALETTE[card.current].key);
+        ghost.innerHTML = entry.innerHTML;
+        ghost.style.width = `${entry.getBoundingClientRect().width}px`;
+        return ghost;
+      },
+      zones: () => (poolHost ? [poolHost] : []),
+      onDrop: (zone) => {
+        if (zone) removeCard(card.id);
+      },
+    });
+
+    return { root: entry, count: entry.querySelector<HTMLElement>(".deck-row-count")!, stopDrag };
   }
 
   function renderList(): void {
@@ -289,36 +529,148 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     const counts = new Map<string, number>();
     for (const id of deck.cards) counts.set(id, (counts.get(id) ?? 0) + 1);
 
-    const rows = [...counts.entries()]
+    const entries = [...counts.entries()]
       .map(([id, count]) => ({ card: content.cards[id], count }))
       .filter((row): row is { card: CardDef; count: number } => row.card !== undefined)
       .sort((a, b) => a.card.cost - b.card.cost || a.card.name.localeCompare(b.card.name));
 
-    listHost.innerHTML = "";
-    for (const row of rows) {
-      const palette = CURRENT_PALETTE[row.card.current];
-      const entry = document.createElement("button");
-      entry.className = "deck-row";
-      entry.type = "button";
-      entry.dataset["card"] = row.card.id;
-      entry.style.setProperty("--row-color", palette.key);
-      entry.innerHTML = `
-        <span class="deck-row-cost">${row.card.cost}</span>
-        <span class="deck-row-name">${row.card.name}</span>
-        <span class="deck-row-current" title="${palette.label}">${palette.label.charAt(0)}</span>
-        <span class="deck-row-rarity" style="color:${RARITY_STYLE[row.card.rarity].color}">◆</span>
-        <span class="deck-row-count">×${row.count}</span>`;
-      entry.title = `${row.card.name} — ${row.card.text}`;
-      entry.addEventListener("click", () => removeCard(row.card.id));
-      listHost.appendChild(entry);
+    /**
+     * Cost-bucket headers, so a thirty-card list reads as a curve rather than as
+     * a column. They are the same landmarks the collection shelves use, which is
+     * the point: one vocabulary for "these cards cost this much".
+     */
+    const wanted: HTMLElement[] = [];
+    let bucket = -1;
+    for (const entry of entries) {
+      const cost = Math.min(entry.card.cost, 7);
+      if (cost !== bucket) {
+        bucket = cost;
+        const total = entries
+          .filter((row) => Math.min(row.card.cost, 7) === cost)
+          .reduce((sum, row) => sum + row.count, 0);
+        wanted.push(bucketHead(cost, total));
+      }
+      let row = rows.get(entry.card.id);
+      if (!row) {
+        row = buildRow(entry.card);
+        rows.set(entry.card.id, row);
+      }
+      const label = `×${entry.count}`;
+      if (row.count.textContent !== label) row.count.textContent = label;
+      row.root.classList.toggle("is-max", entry.count >= maxCopies(entry.card));
+      wanted.push(row.root);
     }
+
+    // patch the children into the wanted order, creating and removing only what
+    // actually changed — the whole reason an insert can be animated at all
+    let index = 0;
+    let arrived = 0;
+    for (const node of wanted) {
+      const here = listHost.children[index];
+      if (here !== node) {
+        const fresh = !node.isConnected;
+        listHost.insertBefore(node, here ?? null);
+        if (fresh && node.classList.contains("deck-row")) enterRow(node, arrived++);
+      }
+      index += 1;
+    }
+    while (listHost.children.length > wanted.length) listHost.lastElementChild?.remove();
+
+    for (const [id, row] of rows) {
+      if (!row.root.isConnected) {
+        row.stopDrag();
+        rows.delete(id);
+      }
+    }
+
+    // the row that just changed lights, so an add is visible in the list as well
+    // as in the counter
+    if (lastTouched) {
+      const row = rows.get(lastTouched);
+      if (row && motionEnabled()) {
+        row.root.classList.remove("is-touched");
+        void row.root.offsetWidth;
+        row.root.classList.add("is-touched");
+      }
+      lastTouched = null;
+    }
+
+    if (listCount) {
+      listCount.textContent = `${entries.length} row${entries.length === 1 ? "" : "s"} · ${deck.cards.length} cards`;
+    }
+
+    if (legendHost && legendHost.childElementCount === 0) {
+      legendHost.innerHTML =
+        `<span>${rarityTag("common")} Common</span>` +
+        `<span>${rarityTag("rare")} Rare</span>` +
+        `<span>${rarityTag("epic")} Epic</span>` +
+        `<span>${rarityTag("legendary")} Legendary</span>`;
+    }
+  }
+
+  // ---- stats and the curve -------------------------------------------------
+
+  interface CurveBar {
+    root: HTMLElement;
+    fill: HTMLElement;
+    count: HTMLElement;
+  }
+  let curveBars: CurveBar[] = [];
+  let curveTarget: HTMLElement | null = null;
+  let curveNote: HTMLElement | null = null;
+
+  /**
+   * The chart frame, built once.
+   *
+   * `.curve-fill` declared `transition: height` and never ran it, because
+   * `renderStats` replaced the whole `innerHTML` on every keystroke — a
+   * transition on an element that is destroyed before the next frame is dead
+   * code. Building the frame once and mutating the heights is what makes the
+   * declared transition real, and it is also why the bars can stagger.
+   */
+  function buildCurve(): void {
+    if (!curveHost || curveBars.length > 0) return;
+    const frame = document.createElement("div");
+    frame.className = "curve-frame";
+    const bars = document.createElement("div");
+    bars.className = "curve-bars";
+
+    for (let cost = 0; cost <= 7; cost += 1) {
+      const bar = document.createElement("div");
+      bar.className = "curve-bar";
+      const fill = document.createElement("div");
+      fill.className = "curve-fill";
+      const count = document.createElement("div");
+      count.className = "curve-count";
+      bar.append(fill, count);
+      bar.style.setProperty("--bar-delay", `${cost * 34}ms`);
+      bars.appendChild(bar);
+      curveBars.push({ root: bar, fill, count });
+    }
+
+    curveTarget = document.createElement("div");
+    curveTarget.className = "curve-target";
+    curveTarget.setAttribute("aria-hidden", "true");
+    bars.appendChild(curveTarget);
+    frame.appendChild(bars);
+
+    const axis = document.createElement("div");
+    axis.className = "curve-axis";
+    axis.innerHTML = [0, 1, 2, 3, 4, 5, 6, "7+"].map((label) => `<span>${label}</span>`).join("");
+
+    curveNote = document.createElement("p");
+    curveNote.className = "muted curve-note";
+    curveNote.id = "db-curve-note";
+
+    const eyebrow = document.createElement("div");
+    eyebrow.className = "eyebrow";
+    eyebrow.textContent = "Hype Curve";
+    curveHost.append(eyebrow, frame, axis, curveNote);
   }
 
   function renderStats(): void {
     if (!statsHost || !curveHost) return;
     const size = content.balance.deck.size;
-    const leader = content.leaders[deck.leaderCardId];
-    const faction = leader ? content.factions[leader.faction] : null;
 
     const typeCounts = new Map<string, number>();
     let totalCost = 0;
@@ -332,60 +684,75 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
 
     statsHost.innerHTML = `
       <div class="deck-count ${deck.cards.length === size ? "complete" : ""}">
-        <span class="deck-count-value">${deck.cards.length}</span><span class="deck-count-max">/${size}</span>
+        <span class="deck-count-value num">${deck.cards.length}</span><span class="deck-count-max num">/${size}</span>
       </div>
       <div class="deck-meta">
-        <div style="color:${FACTION_COLOR[leader?.faction ?? "neutral"]}">${faction?.name ?? ""}</div>
-        <div class="muted">Avg cost ${avgCost}</div>
+        <div class="muted">Average cost <b class="num">${avgCost}</b></div>
         <div class="deck-types">${[...typeCounts.entries()]
-          .map(([type, count]) => `<span class="type-pill">${type.slice(0, 4)} ${count}</span>`)
+          .sort((a, b) => b[1] - a[1])
+          .map(([type, count]) => `<span class="type-pill">${TYPE_PLURAL[type] ?? type} <b class="num">${count}</b></span>`)
           .join("")}</div>
       </div>`;
 
-    // curve histogram
+    buildCurve();
+
     const buckets = new Array(8).fill(0) as number[];
     for (const id of deck.cards) {
       const card = content.cards[id];
       if (!card) continue;
-      buckets[Math.min(card.cost, 7)] = (buckets[Math.min(card.cost, 7)] ?? 0) + 1;
+      const at = Math.min(card.cost, 7);
+      buckets[at] = (buckets[at] ?? 0) + 1;
     }
+
     /**
-     * The histogram, plus the one sentence it cannot draw.
-     *
-     * Bars show what the curve *is*; `worstBucket` says where it is furthest
-     * from what it *should be*, which is the question somebody looking at a
-     * histogram is actually asking. The field was computed and returned by
-     * `deckNeeds` and read by nothing — the same inert-field bug this block has
-     * found five times elsewhere, sitting in code written to fix it.
+     * Bars show what the curve *is*; the ghost line and the note say where it is
+     * furthest from what it should be, which is the question somebody looking at
+     * a histogram is actually asking.
      */
     const need = deckNeeds(content, deck);
-    const peak = Math.max(1, ...buckets);
-    const thin =
-      need.worstBucket !== null
-        ? `<p class="muted curve-note" id="db-curve-note">Thinnest at ${
-            need.worstBucket === 7 ? "7+" : need.worstBucket
-          } Hype — ${need.curve[need.worstBucket] ?? 0} short of the target curve.</p>`
-        : `<p class="muted curve-note" id="db-curve-note">The curve is where it wants to be.</p>`;
-    curveHost.innerHTML = `<div class="eyebrow">Hype Curve</div><div class="curve-bars">${buckets
-      .map(
-        (count, cost) =>
-          `<div class="curve-bar ${cost === need.worstBucket ? "is-thin" : ""}"><div class="curve-fill" style="height:${
-            (count / peak) * 100
-          }%"></div>
-           <div class="curve-count">${count}</div><div class="curve-label">${cost === 7 ? "7+" : cost}</div></div>`
-      )
-      .join("")}</div>${thin}`;
+    const targetPeak = Math.max(...Object.values(TARGET_CURVE));
+    const peak = Math.max(targetPeak, ...buckets);
+
+    for (const [cost, bar] of curveBars.entries()) {
+      const count = buckets[cost] ?? 0;
+      const height = (count / peak) * 100;
+      bar.fill.style.height = `${height}%`;
+      bar.root.style.setProperty("--fill-h", `${height}%`);
+      bar.root.classList.toggle("is-zero", count === 0);
+      bar.root.classList.toggle("is-empty", count === 0);
+      bar.root.classList.toggle("is-thin", cost === need.worstBucket);
+      if (bar.count.textContent !== String(count)) bar.count.textContent = String(count);
+      bar.root.title = `${cost === 7 ? "7+" : cost} Hype — ${count} card${count === 1 ? "" : "s"}${
+        TARGET_CURVE[cost] ? `, target ${TARGET_CURVE[cost]}` : ""
+      }`;
+    }
+
+    if (curveTarget) {
+      // one dashed line at the target's own mean, which is the shape the bars are
+      // being compared against rather than an arbitrary rule
+      const mean = Object.values(TARGET_CURVE).reduce((a, b) => a + b, 0) / Object.keys(TARGET_CURVE).length;
+      curveTarget.style.height = `${(mean / peak) * 100}%`;
+    }
+
+    if (curveNote) {
+      curveNote.textContent =
+        need.worstBucket !== null
+          ? `Thinnest at ${need.worstBucket === 7 ? "7+" : need.worstBucket} Hype — ${
+              need.curve[need.worstBucket] ?? 0
+            } short of the target curve.`
+          : "The curve is where it wants to be.";
+    }
   }
 
   function renderValidation(): void {
     if (!validationHost) return;
     const problems = validateDeck(content, deck);
     if (problems.length === 0) {
-      validationHost.innerHTML = '<div class="validation-ok">✓ Legal deck — ready to play</div>';
+      validationHost.innerHTML = `<div class="validation-ok">${icon("check", { size: 15 })}<span>Legal deck — ready to play</span></div>`;
       return;
     }
     validationHost.innerHTML = `<div class="validation-problems">${problems
-      .map((p) => `<div class="validation-problem">• ${p.message}</div>`)
+      .map((p) => `<div class="validation-problem">${icon("warning", { size: 15 })}<span>${p.message}</span></div>`)
       .join("")}</div>`;
   }
 
@@ -397,16 +764,9 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     /**
      * The last gate before a deck leaves this screen.
      *
-     * `validateDeck` deliberately says nothing about ownership — six systems
-     * deal decks of cards you do not own — so the builder has to. Without this,
-     * **pasting a deck code was a way straight past the pool's one `if`**: a
-     * borrowed thirty-card list validates perfectly, saves, becomes the active
-     * deck and is dealt in a real match. That is the same bug this screen's
-     * Auto-Build had, in a third corner, and it reaches the same place.
-     *
-     * A deck saved before its cards were dismantled lands here too, which is why
-     * the message points at the "You cannot field these" panel rather than just
-     * refusing.
+     * `validateDeck` deliberately says nothing about ownership — six systems deal
+     * decks of cards you do not own — so the builder has to. Without this,
+     * pasting a deck code was a way straight past the pool's one `if`.
      */
     const unowned = (): string | null => {
       const missing = replacementsFor(content, deck, getProfile().collection);
@@ -442,13 +802,9 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
           return;
         }
         /**
-         * `saveDeck` returns −1 when every slot is full.
-         *
-         * Unhandled, the player pressed Save on a full account, nothing was
-         * written, the screen said *"✓ Saved and set as your active deck"*, and
-         * the local `deckIndex` became −1 — so the next Save would try to append
-         * again rather than overwrite. `setActiveDeck` clamps, so the account's
-         * pointer survives; the lie on screen is the part that does not.
+         * `saveDeck` returns −1 when every slot is full. Unhandled, the player
+         * pressed Save on a full account, nothing was written, and the screen
+         * said "Saved and set as your active deck".
          */
         const saved = saveDeck(structuredClone(deck), getProfile().decks[deckIndex] ? deckIndex : undefined);
         if (saved < 0) {
@@ -463,16 +819,13 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
         setActiveDeck(deckIndex);
         audio.play("sfx.ui.click");
         /**
-         * Re-render everything, not just the validation line.
-         *
-         * The Compare button's label is the unsaved-changes indicator, so it has
-         * to be recomputed the moment there is something new to compare against
-         * — otherwise it keeps reading "Compare" over a deck that has just been
-         * saved, which is the one moment it is guaranteed to be wrong.
+         * Re-render everything. The Compare button's label is the
+         * unsaved-changes indicator, so it has to be recomputed the moment there
+         * is something new to compare against.
          */
         renderAll();
         if (validationHost) {
-          validationHost.innerHTML = '<div class="validation-ok">✓ Saved and set as your active deck</div>';
+          validationHost.innerHTML = `<div class="validation-ok">${icon("check", { size: 15 })}<span>Saved and set as your active deck</span></div>`;
         }
       }),
       makeButton("Auto-Complete", "btn-ghost", () => {
@@ -486,19 +839,15 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
         }
       }),
       /**
-       * The button label is also the unsaved-changes indicator.
-       *
-       * "Compare (+3 −1)" answers *"have I changed anything since I saved?"*
-       * without opening anything, which is the question the diff is usually
-       * being opened to answer.
+       * The button label is also the unsaved-changes indicator: "Compare (+3 −1)"
+       * answers *"have I changed anything since I saved?"* without opening
+       * anything, which is the question the diff is usually opened to answer.
        */
       makeButton(
         (() => {
           const diff = diffDecks(content, savedDeck(), deck);
           if (diff.unsaved) return "Compare";
           if (diff.identical) return "Compare — saved";
-          // a rename, a new cover or a new card back changes no counts, and
-          // "(+0 −0)" would read as "nothing changed" on a deck with unsaved work
           if (diff.added === 0 && diff.removed === 0) return "Compare — unsaved";
           return `Compare (+${diff.added} −${diff.removed})`;
         })(),
@@ -549,18 +898,14 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
         }
         deck = imported;
         if (leaderSelect) leaderSelect.value = deck.leaderCardId;
+        resetPool();
         renderAll();
       }),
       makeButton("Delete", "btn-ghost", () => {
         /**
-         * `getProfile()`, not the mount-time snapshot.
-         *
-         * `Store.update` replaces its cache with a fresh clone, so `profile`
-         * captured when the screen was built never sees anything saved since —
-         * and after saving into a new slot this guard read `undefined` and
-         * **Delete silently did nothing**. The snapshot is fine for the two
-         * places that read it before anything can have changed; everywhere else
-         * has to ask.
+         * `getProfile()`, not the mount-time snapshot. `Store.update` replaces
+         * its cache with a fresh clone, so `profile` captured when the screen was
+         * built never sees anything saved since.
          */
         if (getProfile().decks[deckIndex]) {
           deleteDeck(deckIndex);
@@ -569,7 +914,6 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       })
     );
   }
-
 
   // ---- assistance (§4.3.2) -------------------------------------------------
 
@@ -584,10 +928,7 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
 
   /**
    * The suggestions panel, and the Compare-versions panel that replaces it.
-   *
-   * Both read the account's real collection, which is the whole point: §14
-   * requires the builder's assistance to run from what you own, and the button
-   * this replaces did not.
+   * Both read the account's real collection, which is the whole point.
    */
   function renderAssist(): void {
     if (!assistHost) return;
@@ -612,21 +953,18 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       return;
     }
 
-    const rows = (title: string, id: string, body: string): string =>
+    const rowsOf = (title: string, id: string, body: string): string =>
       body ? `<div class="assist-block" id="${id}"><div class="eyebrow">${title}</div>${body}</div>` : "";
 
     assistHost.innerHTML = [
-      rows(
+      rowsOf(
         "Suggested next",
         "db-suggestions",
         /**
-         * The strength bar reads `Suggestion.score`, which was returned and
-         * never looked at.
-         *
-         * It is drawn relative to the best row rather than on an absolute scale,
-         * because the number has no units — what a player can use is *"the top
-         * one is far better than the rest"* versus *"these five are much of a
-         * muchness"*, and the list order alone cannot tell those apart.
+         * The strength bar reads `Suggestion.score`, drawn relative to the best
+         * row rather than on an absolute scale: the number has no units, and
+         * what a player can use is "the top one is far better than the rest"
+         * versus "these five are much of a muchness".
          */
         ((best) =>
           suggestions
@@ -635,7 +973,7 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
               <button class="assist-row" data-add="${esc(suggestion.cardId)}" data-reason="${
                 suggestion.reason
               }" data-score="${suggestion.score}">
-                <span class="assist-cost">${suggestion.cost}</span>
+                <span class="assist-cost num">${suggestion.cost}</span>
                 <span class="assist-name">${esc(suggestion.name)}</span>
                 <span class="assist-strength" aria-hidden="true"><i style="width:${Math.round(
                   (suggestion.score / best) * 100
@@ -645,7 +983,7 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
             )
             .join(""))(Math.max(1, ...suggestions.map((s) => s.score)))
       ),
-      rows(
+      rowsOf(
         "You cannot field these",
         "db-replacements",
         missing
@@ -669,14 +1007,14 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
           )
           .join("")
       ),
-      rows(
+      rowsOf(
         "Worth crafting",
         "db-craft",
         craft
           .map(
             (target) => `
               <div class="assist-row assist-craft" data-craft="${esc(target.cardId)}">
-                <span class="assist-cost">${target.cost}</span>
+                <span class="assist-cost num">${target.cost}</span>
                 <span class="assist-name">${esc(target.name)}</span>
                 <span class="assist-why muted">${esc(target.why)} — you own ${
                   (collection[target.cardId] ?? 0)
@@ -727,9 +1065,9 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
 
     const line = (row: (typeof diff.rows)[number]): string => `
       <div class="assist-row diff-row ${row.delta > 0 ? "diff-added" : "diff-removed"}" data-diff="${esc(row.cardId)}">
-        <span class="assist-cost">${row.cost}</span>
+        <span class="assist-cost num">${row.cost}</span>
         <span class="assist-name">${esc(row.name)}</span>
-        <span class="diff-counts">${row.before} → ${row.after}</span>
+        <span class="diff-counts num">${row.before} → ${row.after}</span>
       </div>`;
 
     return `<div class="assist-block" id="db-diff">
@@ -746,7 +1084,6 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     </div>`;
   }
 
-
   // ---- identity: Current split, cover, card back (§4.3.2) ------------------
 
   /** Which identity picker is open, if any. Both are lists, so only one at a time. */
@@ -755,11 +1092,10 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
   /**
    * §4.3.2's *"Current split donut with Resonance/Confluence indicator"*.
    *
-   * The donut is a conic gradient rather than an SVG or a canvas: it is one
-   * element, it scales with the interface size for free, and there is nothing to
-   * redraw when a card is added. The **verdict line under it** is the part that
-   * matters — a picture says what the split is, and the sentence says what it
-   * buys you.
+   * The donut is a conic gradient rather than an SVG or a canvas: one element,
+   * scales with the interface size for free, nothing to redraw when a card is
+   * added. The **verdict line under it** is the part that matters — a picture
+   * says what the split is, and the sentence says what it buys you.
    */
   function renderIdentity(): void {
     if (!identityHost) return;
@@ -850,11 +1186,9 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     }
 
     /**
-     * Card backs you **own**, plus the house default.
-     *
-     * The same rule as everything else on this screen: the picker offers what
-     * the account has. `myCosmetics` already filters to owned ids, so an
-     * unearned back is not on the list rather than shown and refused.
+     * Card backs you **own**, plus the house default. `myCosmetics` already
+     * filters to owned ids, so an unearned back is not on the list rather than
+     * shown and refused.
      */
     const owned = myCosmetics(content).filter((cosmetic) => cosmetic.kind === "cardBack");
     const choices: { id: string | null; name: string; color: string; emblem: string | null }[] = [
@@ -934,6 +1268,11 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
   return {
     root,
     dispose: () => {
+      painter.stop();
+      unbindPoolFades();
+      unbindSideFades();
+      for (const cell of poolCells.values()) cell.stopDrag();
+      for (const row of rows.values()) row.stopDrag();
       delete (window as unknown as { hypeboundBuilder?: unknown }).hypeboundBuilder;
     },
   };

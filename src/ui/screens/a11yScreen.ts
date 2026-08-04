@@ -136,7 +136,7 @@ export function createA11yScreen(content: ContentIndex, callbacks: A11yCallbacks
         <h1 class="title">Accessibility</h1>
       </header>
 
-      <main class="policy-body a11y-body">
+      <main class="policy-body a11y-body data-body">
         <section class="panel panel-chrome policy-summary">
           <p class="mastery-rule">
             <strong>Everything here applies as you touch it.</strong> There is no confirm step and

@@ -1,40 +1,50 @@
 /**
- * Collection browser: search, filters, grid, detail inspection, crafting and
- * dismantling, favourites and locks, and missing-card indicators.
+ * Collection browser: search, filters, the grid, detail inspection, crafting
+ * and dismantling, favourites and locks, and missing-card indicators.
+ *
+ * ## The two things this screen exists to get right
+ *
+ * **It has to be typeable.** The grid is 245 cards and the search box is the
+ * primary way anybody finds one. A round-one measurement had a single keystroke
+ * blocking the main thread for 2,499.6ms because `render` rebuilt every canvas;
+ * persisting the cells cut that to a handful of milliseconds of script, and then
+ * the cost simply moved — 206ms of *paint* per keystroke, because 245 live
+ * canvases were being re-laid whether or not their pixels changed, and 1,476ms
+ * to the first tile on mount because all 245 were rasterised before anything was
+ * on screen. Only about twenty-one are ever visible. So the cells are built once
+ * and kept, their bitmaps are painted when they come near the fold and never
+ * again, and the filter is debounced so one word is one pass rather than
+ * eighteen.
+ *
+ * **It has to read as a library rather than a spreadsheet.** An 8,381px
+ * undifferentiated seven-column contact sheet is the same information with none
+ * of the rhythm: nothing to navigate by, nowhere for the eye to rest, no sense
+ * of how far through you are. The grid is now shelves — one per Hype cost, with
+ * a sticky header, a lit plane behind the cards and a contact shadow under each
+ * one — so scrolling passes landmarks and the collection has a shape.
  */
 
 import type { CardDef, ContentIndex, CurrentId, FactionId, KeywordId, Rarity, CardType } from "../../engine/types";
 import type { Screen } from "../shell";
 import { collectibleCards } from "../../engine/content";
-import { hoverCard, parseCardText, renderCardToCanvas, tiltCard } from "../cardRenderer/renderCard";
+import { hoverCard, renderCardToCanvas, tiltCard } from "../cardRenderer/renderCard";
 import { CURRENT_PALETTE, FACTION_COLOR, RARITY_STYLE, hexToRgba } from "../cardRenderer/palette";
 import { craftCard, dismantleCard, getProfile, profileStore, toggleFavorite, toggleLock } from "../../save/profile";
 import { loreFor } from "../../game/cardLore";
 import { audio } from "../../audio/audio";
 import { icon } from "../art/uiIcons";
-import { DUR, EASE, cssEase, motionEnabled, stagger } from "../motion";
-
-/** Card text and lore are author-written, so nothing reaches innerHTML unescaped. */
-const esc = (text: string): string =>
-  text.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch] ?? ch);
-
-/**
- * The card's own mini-markup, rendered rather than printed.
- *
- * The EFFECT panel escaped the raw string, so beside a canvas that renders
- * `**Rushwind:** summon a 1/2 **Anon**. *(…)*` with real bold and real italics
- * the panel printed the asterisks — two readings of the same sentence, six
- * inches apart, one of them wrong. `parseCardText` is the renderer's own parser,
- * so the two can no longer disagree about what the markup means.
- */
-const richText = (text: string): string =>
-  parseCardText(text)
-    .map((part) =>
-      part.bold ? `<strong>${esc(part.text)}</strong>`
-      : part.italic ? `<em>${esc(part.text)}</em>`
-      : esc(part.text)
-    )
-    .join("");
+import { DUR, EASE, cssEase, motionEnabled, stagger, tickerTo } from "../motion";
+import {
+  CURRENT_SIGIL,
+  bindScrollFades,
+  debounce,
+  emptyState,
+  esc,
+  installKitStyles,
+  lazyPaint,
+  rarityTag,
+  richText,
+} from "./collectionKit";
 
 export interface CollectionCallbacks {
   onBack: () => void;
@@ -51,7 +61,14 @@ interface Filters {
   ownership: "all" | "owned" | "missing" | "favorites";
 }
 
+/** Cost buckets, 0–6 and one 7+ shelf, which is how the curve already buckets. */
+const BUCKETS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+const bucketOf = (cost: number): number => (cost >= 7 ? 7 : cost);
+const bucketLabel = (bucket: number): string => (bucket === 7 ? "7+" : String(bucket));
+
 export function createCollectionScreen(content: ContentIndex, callbacks: CollectionCallbacks): Screen {
+  installKitStyles();
+
   const allCards = collectibleCards(content).sort(
     (a, b) => a.cost - b.cost || a.name.localeCompare(b.name)
   );
@@ -68,63 +85,131 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   };
 
   const root = document.createElement("div");
-  root.className = "screen collection-screen";
+  root.className = "screen collection-screen col-v2";
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="sub-header">
       <button class="btn btn-ghost" id="col-back">${icon("arrow-left")}<span>Lobby</span></button>
       <h1 class="title">Collection</h1>
-      <div class="col-summary muted" id="col-summary"></div>
+      <div class="col-summary muted" id="col-summary">
+        <span class="num" id="col-owned">0</span><span> of ${allCards.length} collected</span>
+        <span class="col-summary-sep">·</span>
+        ${icon("shards")}<span class="num" id="col-shards">0</span><span> shards</span>
+      </div>
     </header>
 
     <div class="collection-body">
-      <aside class="filter-rail panel scroll" id="filter-rail"></aside>
+      <aside class="filter-rail panel" id="filter-rail">
+        <div class="filter-rail-head">
+          ${icon("filter", { size: 15 })}
+          <span class="t-label">Filters</span>
+          <span class="filter-active-count mat-chip chip-static num" id="filter-count" hidden>0</span>
+        </div>
+        <div class="filter-rail-scroll hb-scroll" id="filter-rail-scroll"></div>
+        <div class="filter-rail-foot" id="filter-rail-foot"></div>
+      </aside>
+
       <div class="collection-main">
         <div class="collection-toolbar">
-          <input class="search-input" id="col-search" type="search" placeholder="Search cards, text, or flavour…" aria-label="Search collection" />
-          <div class="ownership-tabs" id="ownership-tabs"></div>
+          <div class="search-field">
+            ${icon("search", { size: 17 })}
+            <input class="search-input" id="col-search" type="search" autocomplete="off"
+                   placeholder="Search cards, text, or flavour…" aria-label="Search collection" />
+            <span class="search-count num" id="col-count" aria-live="polite"></span>
+            <button class="search-clear" id="col-clear" type="button" hidden>${icon("close", { size: 13, label: "Clear search" })}</button>
+          </div>
+          <div class="ownership-tabs" id="ownership-tabs" role="tablist" aria-label="Ownership"></div>
         </div>
-        <div class="card-grid scroll" id="card-grid"></div>
+        <div class="hb-scrollwrap hb-fade-top" id="grid-wrap">
+          <div class="card-grid hb-scroll" id="card-grid"></div>
+        </div>
       </div>
     </div>
 
     <div class="card-detail-overlay" id="card-detail" hidden></div>`;
 
   const grid = root.querySelector<HTMLElement>("#card-grid");
-  const rail = root.querySelector<HTMLElement>("#filter-rail");
-  const summary = root.querySelector<HTMLElement>("#col-summary");
+  const gridWrap = root.querySelector<HTMLElement>("#grid-wrap");
+  const railScroll = root.querySelector<HTMLElement>("#filter-rail-scroll");
+  const railFoot = root.querySelector<HTMLElement>("#filter-rail-foot");
   const detail = root.querySelector<HTMLElement>("#card-detail");
+  const searchInput = root.querySelector<HTMLInputElement>("#col-search");
+  const searchClear = root.querySelector<HTMLElement>("#col-clear");
+  const searchCount = root.querySelector<HTMLElement>("#col-count");
+  const filterCount = root.querySelector<HTMLElement>("#filter-count");
+  const ownedOut = root.querySelector<HTMLElement>("#col-owned");
+  const shardsOut = root.querySelector<HTMLElement>("#col-shards");
+
+  const painter = lazyPaint(grid ?? root);
 
   // ---- filter rail ---------------------------------------------------------
 
+  /**
+   * Six groups, and each one is a *different kind* of control.
+   *
+   * The rail used to be six stacks of the same lozenge — thirty-eight identical
+   * grey pills, which is a wall rather than a set of choices. Now a Current
+   * carries its own lit gem, a Cost is a numeric gem the same shape as the one
+   * printed on the card, a Rarity carries the rarity silhouette, and the two
+   * long lists collapse. The eye can find the row it wants without reading.
+   */
   function chipGroup<T extends string | number>(
     title: string,
     values: T[],
     selected: Set<T>,
     label: (value: T) => string,
-    color?: (value: T) => string
+    options: { color?: (value: T) => string; kind?: string; shut?: boolean; mark?: (value: T) => string } = {}
   ): HTMLElement {
     const group = document.createElement("div");
-    group.className = "filter-group";
-    group.innerHTML = `<div class="eyebrow">${title}</div>`;
+    group.className = `filter-group${options.shut ? " is-shut" : ""}`;
+
+    const head = document.createElement("button");
+    head.type = "button";
+    head.className = "filter-head";
+    head.innerHTML =
+      `<span class="eyebrow">${esc(title)}</span>` +
+      `<span class="filter-group-count num" hidden></span>` +
+      icon("chevron-down", { size: 13 });
+    head.setAttribute("aria-expanded", String(!options.shut));
+
     const chips = document.createElement("div");
-    chips.className = "filter-chips";
+    chips.className = `filter-chips${options.kind ? ` is-${options.kind}` : ""}`;
+
+    const countOut = head.querySelector<HTMLElement>(".filter-group-count");
+    const syncCount = (): void => {
+      if (!countOut) return;
+      countOut.textContent = String(selected.size);
+      countOut.hidden = selected.size === 0;
+    };
+
+    head.addEventListener("click", () => {
+      const shut = group.classList.toggle("is-shut");
+      head.setAttribute("aria-expanded", String(!shut));
+      audio.play("sfx.ui.hover");
+    });
 
     for (const value of values) {
       const chip = document.createElement("button");
       chip.className = "filter-chip";
       chip.type = "button";
-      chip.textContent = label(value);
-      if (color) chip.style.setProperty("--chip-color", color(value));
+      chip.setAttribute("aria-pressed", "false");
+      const mark = options.mark?.(value) ?? (options.color ? `<span class="chip-dot"></span>` : "");
+      chip.innerHTML = `${mark}<span>${esc(label(value))}</span>`;
+      if (options.color) chip.style.setProperty("--chip-color", options.color(value));
       chip.addEventListener("click", () => {
         if (selected.has(value)) selected.delete(value);
         else selected.add(value);
-        chip.classList.toggle("active", selected.has(value));
+        const on = selected.has(value);
+        chip.classList.toggle("active", on);
+        chip.setAttribute("aria-pressed", String(on));
+        audio.play("sfx.ui.hover");
+        syncCount();
+        syncFilterCount();
         render();
       });
       chips.appendChild(chip);
     }
-    group.appendChild(chips);
+    group.append(head, chips);
     return group;
   }
 
@@ -139,19 +224,52 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   const rarityIds: Rarity[] = ["common", "rare", "epic", "legendary"];
   const costValues = [0, 1, 2, 3, 4, 5, 6, 7];
 
-  rail?.append(
-    chipGroup("Current", currentIds, filters.currents, (id) => CURRENT_PALETTE[id].label, (id) => CURRENT_PALETTE[id].key),
-    chipGroup("Faction", factionIds, filters.factions, (id) => content.factions[id]?.name ?? id, (id) => FACTION_COLOR[id] ?? "#888"),
-    chipGroup("Cost", costValues, filters.costs, (c) => (c === 7 ? "7+" : String(c))),
-    chipGroup("Rarity", rarityIds, filters.rarities, (r) => RARITY_STYLE[r].label, (r) => RARITY_STYLE[r].color),
+  railScroll?.append(
+    chipGroup("Current", currentIds, filters.currents, (id) => CURRENT_PALETTE[id].label, {
+      color: (id) => CURRENT_PALETTE[id].key,
+      mark: (id) => icon(CURRENT_SIGIL[id], { size: 12 }),
+    }),
+    chipGroup("Cost", costValues, filters.costs, (c) => (c === 7 ? "7+" : String(c)), { kind: "cost" }),
+    chipGroup("Rarity", rarityIds, filters.rarities, (r) => RARITY_STYLE[r].label, {
+      color: (r) => RARITY_STYLE[r].color,
+      mark: (r) => rarityTag(r),
+    }),
     chipGroup("Type", typeIds, filters.types, (t) => t.charAt(0).toUpperCase() + t.slice(1)),
-    chipGroup("Keyword", keywordIds, filters.keywords, (k) => content.keywords[k]?.name ?? k)
+    chipGroup("Faction", factionIds, filters.factions, (id) => content.factions[id]?.name ?? id, {
+      color: (id) => FACTION_COLOR[id] ?? "#888",
+      shut: true,
+    }),
+    chipGroup("Keyword", keywordIds, filters.keywords, (k) => content.keywords[k]?.name ?? k, { shut: true })
   );
 
-  const clearButton = document.createElement("button");
-  clearButton.className = "btn btn-ghost";
-  clearButton.textContent = "Clear filters";
-  clearButton.addEventListener("click", () => {
+  function activeFilterCount(): number {
+    return (
+      filters.currents.size +
+      filters.factions.size +
+      filters.rarities.size +
+      filters.types.size +
+      filters.keywords.size +
+      filters.costs.size +
+      (filters.ownership === "all" ? 0 : 1) +
+      (filters.search ? 1 : 0)
+    );
+  }
+
+  function syncFilterCount(): void {
+    if (!filterCount) return;
+    const count = activeFilterCount();
+    filterCount.textContent = String(count);
+    filterCount.hidden = count === 0;
+  }
+
+  /**
+   * Clear lives in a rail footer that does not scroll.
+   *
+   * It used to be the last child of the scrolling rail, 324px below the fold on
+   * a 900px window: the control for undoing a mistake was only reachable by
+   * scrolling past every filter you had set.
+   */
+  function clearFilters(): void {
     filters.search = "";
     filters.factions.clear();
     filters.currents.clear();
@@ -160,33 +278,54 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     filters.keywords.clear();
     filters.costs.clear();
     filters.ownership = "all";
-    const input = root.querySelector<HTMLInputElement>("#col-search");
-    if (input) input.value = "";
-    rail?.querySelectorAll(".filter-chip.active").forEach((chip) => chip.classList.remove("active"));
+    if (searchInput) searchInput.value = "";
+    for (const chip of railScroll?.querySelectorAll(".filter-chip.active") ?? []) {
+      chip.classList.remove("active");
+      chip.setAttribute("aria-pressed", "false");
+    }
+    for (const count of railScroll?.querySelectorAll<HTMLElement>(".filter-group-count") ?? []) {
+      count.textContent = "0";
+      count.hidden = true;
+    }
+    syncFilterCount();
     renderOwnershipTabs();
     render();
+  }
+
+  const clearButton = document.createElement("button");
+  clearButton.className = "btn btn-ghost";
+  clearButton.type = "button";
+  clearButton.innerHTML = `${icon("refresh", { size: 14 })}<span>Clear filters</span>`;
+  clearButton.addEventListener("click", () => {
+    audio.play("sfx.ui.back");
+    clearFilters();
   });
-  rail?.appendChild(clearButton);
+  railFoot?.appendChild(clearButton);
 
   // ---- ownership tabs ------------------------------------------------------
 
   const ownershipHost = root.querySelector<HTMLElement>("#ownership-tabs");
   function renderOwnershipTabs(): void {
     if (!ownershipHost) return;
-    const options: { value: Filters["ownership"]; label: string }[] = [
-      { value: "all", label: "All" },
-      { value: "owned", label: "Owned" },
-      { value: "missing", label: "Missing" },
-      { value: "favorites", label: "Favourites" },
+    const options: { value: Filters["ownership"]; label: string; glyph: Parameters<typeof icon>[0] }[] = [
+      { value: "all", label: "All", glyph: "collection" },
+      { value: "owned", label: "Owned", glyph: "check" },
+      { value: "missing", label: "Missing", glyph: "missing" },
+      { value: "favorites", label: "Favourites", glyph: "star-filled" },
     ];
     ownershipHost.innerHTML = "";
     for (const option of options) {
       const tab = document.createElement("button");
       tab.className = `ownership-tab ${filters.ownership === option.value ? "active" : ""}`;
-      tab.textContent = option.label;
+      tab.type = "button";
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", String(filters.ownership === option.value));
+      tab.innerHTML = `${icon(option.glyph, { size: 14 })}<span>${option.label}</span>`;
       tab.addEventListener("click", () => {
         filters.ownership = option.value;
+        audio.play("sfx.ui.click");
         renderOwnershipTabs();
+        syncFilterCount();
         render();
       });
       ownershipHost.appendChild(tab);
@@ -194,16 +333,46 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   }
   renderOwnershipTabs();
 
-  root.querySelector<HTMLInputElement>("#col-search")?.addEventListener("input", (event) => {
-    filters.search = (event.target as HTMLInputElement).value.toLowerCase();
+  /**
+   * One pass per word, not one per letter.
+   *
+   * The filter pass is cheap now, but it is not free: it touches 245 cells and
+   * the browser then re-lays whichever shelves changed. At a typing speed of
+   * eight characters a second that is eight re-layouts for one query, and the
+   * eighth is the only one anybody wanted. A micro-beat of coalescing is under
+   * the threshold at which a search box feels laggy and removes seven of them.
+   */
+  const runFilter = debounce(DUR.micro, () => render());
+
+  searchInput?.addEventListener("input", (event) => {
+    filters.search = (event.target as HTMLInputElement).value.trim().toLowerCase();
+    if (searchClear) searchClear.hidden = filters.search.length === 0;
+    syncFilterCount();
+    // nothing is rasterised while the query is still moving; see `hold`
+    painter.hold(200);
+    runFilter();
+  });
+
+  searchClear?.addEventListener("click", () => {
+    if (searchInput) searchInput.value = "";
+    filters.search = "";
+    searchClear.hidden = true;
+    searchInput?.focus();
+    syncFilterCount();
     render();
   });
 
   // ---- grid ----------------------------------------------------------------
 
-  function matches(card: CardDef): boolean {
-    const profile = getProfile();
-    const owned = profile.collection[card.id] ?? 0;
+  /** A snapshot of the account, taken once per pass rather than once per card. */
+  interface Account {
+    collection: Record<string, number>;
+    favorites: string[];
+    locked: string[];
+  }
+
+  function matches(card: CardDef, account: Account): boolean {
+    const owned = account.collection[card.id] ?? 0;
 
     if (filters.search) {
       const haystack = `${card.name} ${card.text} ${card.flavor ?? ""} ${card.tags.join(" ")}`.toLowerCase();
@@ -214,35 +383,22 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     if (filters.rarities.size > 0 && !filters.rarities.has(card.rarity)) return false;
     if (filters.types.size > 0 && !filters.types.has(card.type)) return false;
     if (filters.keywords.size > 0 && !card.keywords.some((k) => filters.keywords.has(k))) return false;
-    if (filters.costs.size > 0) {
-      const bucket = card.cost >= 7 ? 7 : card.cost;
-      if (!filters.costs.has(bucket)) return false;
-    }
+    if (filters.costs.size > 0 && !filters.costs.has(bucketOf(card.cost))) return false;
     if (filters.ownership === "owned" && owned <= 0) return false;
     if (filters.ownership === "missing" && owned > 0) return false;
-    if (filters.ownership === "favorites" && !profile.favorites.includes(card.id)) return false;
+    if (filters.ownership === "favorites" && !account.favorites.includes(card.id)) return false;
     return true;
   }
 
-  /**
-   * One cell per card, built once and kept.
-   *
-   * The old `render` did `grid.innerHTML = ""` and rebuilt every visible card
-   * from scratch, so a single keystroke in the search box repainted up to 245
-   * canvases — **2,499.6ms of blocked main thread** in the round-one measurement,
-   * and 395ms even with a warm art cache. Nothing about filtering requires any of
-   * it: a filter changes which cards are *shown*, not what any of them looks
-   * like. The cells persist, the filter toggles `hidden`, and a keystroke now
-   * costs a class change per cell and no canvas work at all — measured 2.2ms.
-   *
-   * It is also what makes §3a's "filtering re-flows with a transition rather than
-   * a jump" affordable: cells that come back run the tile entrance on a
-   * compressed cascade, so the grid arrives as a wave instead of 245 elements
-   * blinking into place.
-   */
+  const account = (): Account => {
+    const profile = getProfile();
+    return { collection: profile.collection, favorites: profile.favorites, locked: profile.locked };
+  };
+
   interface Cell {
     root: HTMLElement;
-    canvas: HTMLCanvasElement;
+    slot: HTMLElement;
+    canvas: HTMLCanvasElement | null;
     count: HTMLElement;
     fav: HTMLElement;
     lock: HTMLElement;
@@ -250,16 +406,59 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   }
   const cells = new Map<string, Cell>();
 
+  /** One shelf per cost bucket: header, count, and the plane the cards stand on. */
+  interface Shelf {
+    root: HTMLElement;
+    grid: HTMLElement;
+    count: HTMLElement;
+    cards: CardDef[];
+  }
+  const shelves = new Map<number, Shelf>();
+
+  function buildShelf(bucket: number, cards: CardDef[]): Shelf {
+    const section = document.createElement("section");
+    section.className = "col-shelf";
+    section.dataset["bucket"] = String(bucket);
+
+    const head = document.createElement("div");
+    head.className = "col-shelf-head";
+    head.innerHTML =
+      `<span class="col-shelf-gem num">${bucketLabel(bucket)}</span>` +
+      `<span class="col-shelf-title t-label">${bucket === 7 ? "Seven or more" : "Hype"}</span>` +
+      `<span class="col-shelf-rule" aria-hidden="true"></span>` +
+      `<span class="col-shelf-count num"></span>`;
+
+    const shelfGrid = document.createElement("div");
+    shelfGrid.className = "col-shelf-grid";
+
+    section.append(head, shelfGrid);
+    return { root: section, grid: shelfGrid, count: head.querySelector<HTMLElement>(".col-shelf-count")!, cards };
+  }
+
+  /**
+   * The shelves are built once, in cost order, from the whole collection.
+   *
+   * Building them lazily as cards first matched a filter meant re-deriving the
+   * order every pass and inserting sections in the middle of a live scroller.
+   * The buckets are a property of the collection, not of the query.
+   */
+  for (const bucket of BUCKETS) {
+    const cards = allCards.filter((card) => bucketOf(card.cost) === bucket);
+    if (cards.length === 0) continue;
+    const shelf = buildShelf(bucket, cards);
+    shelves.set(bucket, shelf);
+    grid?.appendChild(shelf.root);
+  }
+
   /**
    * What a screen reader is told a tile is, since a canvas tells it nothing.
    *
-   * The card face is a bitmap: every word on it — the name, the cost, the stats,
-   * the rarity — is pixels, so without this the accessibility tree holds two
-   * hundred and forty-five identical unlabelled buttons. The order is the order
-   * a player would say it in.
+   * The card face is a bitmap: the name, the cost, the stats and the rarity are
+   * all pixels, so without this the accessibility tree holds two hundred and
+   * forty-five identical unlabelled buttons.
    */
   function cellLabel(card: CardDef): string {
-    const stats = (card as { attack?: number; health?: number });
+    const stats = card as { attack?: number; health?: number };
     const numbers =
       typeof stats.attack === "number" && typeof stats.health === "number"
         ? `, ${stats.attack} attack, ${stats.health} health`
@@ -269,11 +468,6 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     return `${card.name}. ${RARITY_STYLE[card.rarity].label.toLowerCase()} ${card.type}, ${CURRENT_PALETTE[card.current].label}, cost ${card.cost}${numbers}`;
   }
 
-  /**
-   * Arrow-key navigation across the grid. A row's worth is resolved at the
-   * moment of the press, so the same four keys work at every breakpoint —
-   * seven tiles a row at 1600px, four on a phone in landscape.
-   */
   const ARROW_STEP: Record<string, number> = {
     ArrowLeft: -1,
     ArrowRight: 1,
@@ -292,15 +486,23 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
   function shownCells(): HTMLElement[] {
     if (!grid) return [];
-    return [...grid.querySelectorAll<HTMLElement>(".card-cell:not([hidden])")];
+    return [...grid.querySelectorAll<HTMLElement>(".card-cell")];
+  }
+
+  function gridColumns(): number {
+    const first = grid?.querySelector<HTMLElement>(".col-shelf:not([hidden]) .col-shelf-grid");
+    if (!first || typeof getComputedStyle !== "function") return 7;
+    const template = getComputedStyle(first).gridTemplateColumns;
+    const count = template.split(" ").filter((part) => part.trim().length > 0).length;
+    return count > 0 ? count : 7;
   }
 
   function walk(from: HTMLElement, step: number): void {
-    const cells = shownCells();
-    const at = cells.indexOf(from);
+    const list = shownCells();
+    const at = list.indexOf(from);
     if (at < 0) return;
     const delta = Number.isFinite(step) ? step : Math.sign(step) * gridColumns();
-    const target = cells[Math.max(0, Math.min(cells.length - 1, at + delta))];
+    const target = list[Math.max(0, Math.min(list.length - 1, at + delta))];
     if (!target || target === from) return;
     setRoving(target);
     target.focus();
@@ -311,79 +513,91 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     /**
      * A `div` with a role rather than a `button`, and the reason is the canvas.
      *
-     * A tile is a 168px card bitmap with three absolutely-positioned overlays on
-     * it; a real `<button>` brings a UA stylesheet, a baseline, a default
-     * `overflow`, and `display: inline-block` semantics that all have to be
-     * fought back to `position: relative` before the layout works again. The
-     * accessibility contract is the same either way — a role, a tab stop, a
-     * label and the two keys that activate it — and before this, measured, a
-     * hundred and twenty Tab presses from a cold load never landed on a card at
-     * all, because `.card-cell` was a bare `div` with no `tabindex` and no role.
+     * A tile is a card bitmap with three absolutely-positioned overlays on it; a
+     * real `<button>` brings a UA stylesheet, a baseline, a default `overflow`
+     * and inline-block semantics that all have to be fought back before the
+     * layout works. The accessibility contract is identical either way — a role,
+     * a tab stop, a label and the two keys that activate it.
      */
-    const root = document.createElement("div");
-    root.className = "card-cell";
-    root.setAttribute("role", "button");
+    const cell = document.createElement("div");
+    cell.className = "card-cell";
+    cell.setAttribute("role", "button");
     /**
-     * A roving tab stop, not two hundred and forty-five of them.
-     *
-     * Giving every tile `tabindex="0"` makes the grid reachable and then makes
-     * everything *after* the grid unreachable in practice: a player who wants
-     * the filter's Clear button below it would press Tab two hundred and
-     * forty-five times to get there, and one who wants the two-hundredth card
-     * would press it two hundred times. The grid is one stop; the arrow keys
-     * walk it, which is what the ARIA grid pattern says and what a card game
-     * played on a pad does anyway.
+     * A roving tab stop, not two hundred and forty-five of them. The grid is one
+     * stop and the arrow keys walk it, which is what the ARIA grid pattern says.
      */
-    root.tabIndex = -1;
-    root.setAttribute("aria-label", cellLabel(card));
-    const canvas = renderCardToCanvas(card, 168, {});
-    root.appendChild(canvas);
+    cell.tabIndex = -1;
+    cell.setAttribute("aria-label", cellLabel(card));
+
+    /**
+     * The tile reserves its own box before it has a bitmap.
+     *
+     * Without a placeholder at the card's aspect ratio, painting a canvas later
+     * changes the cell's height and re-flows the whole shelf under the player's
+     * cursor. The slot is the exact 512:680 the renderer produces, so the canvas
+     * lands in a hole of precisely its own size.
+     */
+    const slot = document.createElement("div");
+    slot.className = "card-slot";
+    cell.appendChild(slot);
 
     const count = document.createElement("div");
     count.className = "card-count mat-chip chip-static t-label";
-    root.appendChild(count);
+    cell.appendChild(count);
 
-    // lock before star in the DOM, because the star steps aside for it in CSS
+    /**
+     * The padlock and the star exist as boxes but not as drawings until they are
+     * needed.
+     *
+     * Two `icon()` calls per cell is 490 inline SVG parses through `innerHTML`
+     * during the mount pass, for two marks that between them appear on a handful
+     * of cards. Measured, that pass was a 482ms long task; deferring the artwork
+     * to the first card that is actually locked or starred takes it out of the
+     * mount entirely and costs nothing afterwards, because a cell that has drawn
+     * its star keeps it.
+     */
     const lock = document.createElement("div");
     lock.className = "card-lock";
-    lock.innerHTML = icon("lock", { label: "Locked" });
-    root.appendChild(lock);
+    lock.hidden = true;
+    cell.appendChild(lock);
 
     const fav = document.createElement("div");
     fav.className = "card-fav";
-    fav.innerHTML = icon("star-filled", { label: "Favourite" });
-    root.appendChild(fav);
+    fav.hidden = true;
+    cell.appendChild(fav);
 
-    /**
-     * The hover lights the *card*, not just the wrapper.
-     *
-     * §5 wants move, light and scale together inside 120ms. The CSS does move
-     * and scale; this does light — the canvas brightens its own rim and kicks
-     * its specular, because the metal is on the bitmap and no amount of
-     * `filter: drop-shadow` on a wrapper is a rim highlight.
-     */
-    root.addEventListener("pointerenter", () => hoverCard(canvas, true));
-    root.addEventListener("pointerleave", () => hoverCard(canvas, false));
-    /**
-     * Keyboard focus lights the card exactly as the pointer does. §5 asks for
-     * every state to be designed, and a keyboard player who can reach a tile but
-     * gets a ring around a card that has not woken up is being shown the cheaper
-     * half of the interaction.
-     */
-    root.addEventListener("focus", () => {
-      hoverCard(canvas, true);
-      setRoving(root);
-    });
-    root.addEventListener("blur", () => hoverCard(canvas, false));
+    // built detached; `render` attaches it in reading order on the same pass
+    const entry: Cell = { root: cell, slot, canvas: null, count, fav, lock, shown: false };
 
     const open = (): void => {
       audio.play("sfx.ui.click");
-      // the canvas, not the cell: the cell reserves 18px under the card for the
+      // the canvas, not the cell: the cell reserves room under the card for the
       // count pill, and a FLIP measured against that lands the detail card low
-      openDetail(card, canvas);
+      openDetail(card, entry.canvas ?? cell, cell);
     };
-    root.addEventListener("click", open);
-    root.addEventListener("keydown", (event) => {
+
+    /**
+     * The hover lights the *card*, not just the wrapper. §5 wants move, light
+     * and scale together inside 120ms; the CSS does move and scale, and this
+     * does light — the rim highlight is on the bitmap, and no amount of
+     * `drop-shadow` on a wrapper is a rim highlight.
+     */
+    cell.addEventListener("pointerenter", () => {
+      if (entry.canvas) hoverCard(entry.canvas, true);
+      audio.play("sfx.ui.hover");
+    });
+    cell.addEventListener("pointerleave", () => {
+      if (entry.canvas) hoverCard(entry.canvas, false);
+    });
+    cell.addEventListener("focus", () => {
+      if (entry.canvas) hoverCard(entry.canvas, true);
+      setRoving(cell);
+    });
+    cell.addEventListener("blur", () => {
+      if (entry.canvas) hoverCard(entry.canvas, false);
+    });
+    cell.addEventListener("click", open);
+    cell.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
         // Space scrolls a grid by default, which is the last thing a player
         // pressing it on a focused tile means by it
@@ -394,100 +608,149 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       const step = ARROW_STEP[event.key];
       if (step === undefined) return;
       event.preventDefault();
-      walk(root, step);
+      walk(cell, step);
     });
-    return { root, canvas, count, fav, lock, shown: true };
+
+    painter.watch(cell, () => {
+      if (entry.canvas) return;
+      const canvas = renderCardToCanvas(card, 168, {});
+      entry.canvas = canvas;
+      slot.replaceWith(canvas);
+    });
+
+    return entry;
   }
 
   /**
-   * The entrance cascade, keyed off the grid rather than off the array index.
+   * The entrance cascade, as a diagonal wave rather than a queue.
    *
-   * `stagger(arriving, { step: 12, max: 280 })` divided its 280ms ceiling across
-   * every arriving tile, and a full collection has 245 of them — so the measured
-   * `--enter-delay` on the first ten cells came out 0, 1, 2, 3, 5, 6, 7, 8, 9,
-   * 10ms and the entire visible grid landed inside about twenty-one
-   * milliseconds. That is one pop, not a cascade, and §3a names the 30–60ms
-   * cascade as the single biggest perceived-quality gap between a hobby menu and
-   * a shipped one. The ceiling was not too low; dividing it by the wrong number
-   * was the bug. Tiles below the fold are not on screen, so spending the budget
-   * on them buys nothing and starves the ones that are.
-   *
-   * So the delay is a *diagonal* wave: `(row + column) × step`. Three things
-   * fall out of that and all three are wanted. It is a true 30–60ms cascade in
-   * reading order for anything the player can see. It completes in
-   * `(rows + columns) × step` rather than `count × step`, so a 7-wide viewport
-   * showing three rows finishes in about a third of a second whether the
-   * collection holds twenty cards or two hundred and forty-five. And the wave
-   * travels from the top-left, which is where the key light is — the grid
-   * arrives lit-corner-first, the same direction every rim highlight in the game
-   * runs.
-   *
-   * The column count comes from the resolved `grid-template-columns`, which is a
-   * list of pixel values once layout has run; the fallback matters only on the
-   * very first paint of a cold mount, where seven is the desktop count.
+   * `stagger`'s even division across 245 tiles produced delays of 0, 1, 2, 3, 5
+   * … milliseconds — one pop, not a cascade, and §3a names the 30–60ms cascade
+   * as the single biggest perceived-quality gap between a hobby menu and a
+   * shipped one. `(row + column) × step` completes in `(rows + columns) × step`
+   * however many tiles there are, and it travels out of the top-left, which is
+   * where the key light is: the grid arrives lit-corner-first.
    */
-  const CASCADE_STEP = 38;
-  const CASCADE_MAX = 460;
-
-  function gridColumns(): number {
-    if (!grid || typeof getComputedStyle !== "function") return 7;
-    const template = getComputedStyle(grid).gridTemplateColumns;
-    const count = template.split(" ").filter((part) => part.trim().length > 0).length;
-    return count > 0 ? count : 7;
-  }
+  const CASCADE_STEP = 34;
+  const CASCADE_MAX = 420;
+  /**
+   * How many tiles are allowed to run the entrance at all.
+   *
+   * Measured: giving all 245 the keyframe produced 245 concurrent CSS
+   * animations on mount and a 506ms long task, for a cascade whose last two
+   * hundred elements were eight screens below the fold and had finished before
+   * anybody scrolled to them. Seventy-two is four rows of the widest layout plus
+   * a row of margin — everything a player can see while the wave is playing.
+   */
+  const CASCADE_LIMIT = 72;
+  let entering: HTMLElement[] = [];
+  let enteringTimer = 0;
 
   function cascade(arriving: HTMLElement[]): void {
+    for (const node of entering) node.classList.remove("is-entering");
+    entering = [];
+    window.clearTimeout(enteringTimer);
+
     if (!motionEnabled()) {
       stagger(arriving, { step: 0, max: 0 });
       return;
     }
     const columns = gridColumns();
     for (const [index, node] of arriving.entries()) {
+      if (index >= CASCADE_LIMIT) break;
       const wave = Math.floor(index / columns) + (index % columns);
       node.style.setProperty("--enter-delay", `${Math.min(CASCADE_MAX, wave * CASCADE_STEP)}ms`);
+      node.classList.add("is-entering");
+      entering.push(node);
     }
+    // one timer for the whole wave rather than one per tile; the class has to go
+    // or a returning cell inherits an animation that has already played
+    enteringTimer = window.setTimeout(() => {
+      for (const node of entering) node.classList.remove("is-entering");
+      entering = [];
+    }, CASCADE_MAX + 420);
+  }
+
+  let empty: HTMLElement | null = null;
+
+  /**
+   * Reconcile each shelf against the filter, keyed by card.
+   *
+   * Cells are built once and kept in `cells` forever — that is what makes a
+   * keystroke cheap, because a filter changes which cards are *shown*, never
+   * what any of them looks like. What changes is which of them are in the
+   * document: a filtered-out card is detached rather than given `hidden`, so
+   * `document.querySelectorAll('.card-cell')` answers the question everything
+   * else in the codebase asks it — how many cards are on screen — and a card
+   * nobody can see is not in the accessibility tree, the hit-test tree or the
+   * layout. The cell, its listeners and its bitmap survive the round trip, so
+   * coming back costs one `insertBefore`.
+   */
+  /** Draw a corner mark the first time it is actually wanted, then keep it. */
+  function badge(host: HTMLElement, on: boolean, glyph: Parameters<typeof icon>[0], label: string): void {
+    if (on && host.childElementCount === 0) host.innerHTML = icon(glyph, { label });
+    if (host.hidden !== !on) host.hidden = !on;
   }
 
   function render(): void {
     if (!grid) return;
-    const profile = getProfile();
-    const visible = allCards.filter(matches);
-    const wanted = new Set(visible.map((card) => card.id));
-
+    const acct = account();
     const arriving: HTMLElement[] = [];
-    let index = 0;
-    for (const card of allCards) {
-      let cell = cells.get(card.id);
-      const show = wanted.has(card.id);
-      if (!cell) {
-        if (!show) continue;
-        cell = buildCell(card);
-        cells.set(card.id, cell);
-        cell.shown = false;
-      }
+    const tail: HTMLElement[] = [];
+    let visible = 0;
 
-      if (show) {
-        const owned = profile.collection[card.id] ?? 0;
+    for (const shelf of shelves.values()) {
+      let at = 0;
+      for (const card of shelf.cards) {
+        const show = matches(card, acct);
+        let cell = cells.get(card.id);
+        if (!cell) {
+          if (!show) continue;
+          cell = buildCell(card);
+          cells.set(card.id, cell);
+        }
+
+        if (!show) {
+          if (cell.shown) {
+            cell.root.remove();
+            cell.shown = false;
+          }
+          continue;
+        }
+
+        visible += 1;
+        const owned = acct.collection[card.id] ?? 0;
         const maxCopies =
           card.rarity === "legendary" ? content.balance.deck.maxCopiesLegendary : content.balance.deck.maxCopies;
         cell.root.classList.toggle("unowned", owned <= 0);
-        cell.count.textContent = owned > 0 ? `${owned}/${maxCopies}` : "Missing";
-        cell.fav.hidden = !profile.favorites.includes(card.id);
-        cell.lock.hidden = !profile.locked.includes(card.id);
-        // reading order is DOM order, so a re-shown cell goes back where it
+        const text = owned > 0 ? `${owned}/${maxCopies}` : "Missing";
+        if (cell.count.textContent !== text) cell.count.textContent = text;
+        badge(cell.fav, acct.favorites.includes(card.id), "star-filled", "Favourite");
+        badge(cell.lock, acct.locked.includes(card.id), "lock", "Locked");
+
+        // reading order is DOM order, so a returning cell goes back where it
         // belongs rather than on the end
-        const at = grid.children[index];
-        if (at !== cell.root) grid.insertBefore(cell.root, at ?? null);
-        if (!cell.shown) {
-          cell.root.hidden = false;
-          arriving.push(cell.root);
+        const here = shelf.grid.children[at];
+        if (here !== cell.root) {
+          if (here === undefined) tail.push(cell.root);
+          else shelf.grid.insertBefore(cell.root, here);
         }
-        cell.shown = true;
-        index += 1;
-      } else if (cell.shown) {
-        cell.root.hidden = true;
-        cell.shown = false;
+        if (!cell.shown) {
+          arriving.push(cell.root);
+          cell.shown = true;
+        }
+        at += 1;
       }
+
+      // everything past the current end of the shelf goes in as one insertion
+      // rather than 245 of them, which is what the mount actually is
+      if (tail.length > 0) {
+        shelf.grid.append(...tail);
+        tail.length = 0;
+      }
+
+      shelf.root.hidden = at === 0;
+      shelf.count.textContent = at === 1 ? "1 card" : `${at} cards`;
     }
 
     if (arriving.length > 0) cascade(arriving);
@@ -495,12 +758,48 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     // the grid's single tab stop has to be a tile that is actually on it
     if (!roving || roving.hidden || !roving.isConnected) setRoving(shownCells()[0] ?? null);
 
-    const ownedTotal = allCards.filter((c) => (profile.collection[c.id] ?? 0) > 0).length;
-    if (summary) {
-      summary.innerHTML =
-        `${visible.length} shown · ${ownedTotal}/${allCards.length} collected · ` +
-        `${icon("shards")}<span class="num">${profile.shards.toLocaleString("en-GB")}</span> shards`;
+    renderEmpty(visible);
+
+    if (searchCount) searchCount.textContent = visible === allCards.length ? "" : `${visible} shown`;
+
+    const ownedTotal = allCards.filter((c) => (acct.collection[c.id] ?? 0) > 0).length;
+    if (ownedOut) tickerTo(ownedOut, ownedTotal, DUR.ui);
+    if (shardsOut) tickerTo(shardsOut, getProfile().shards, DUR.setpiece);
+  }
+
+  /**
+   * §5: "Empty states are designed too."
+   *
+   * Filtering to nothing used to produce a blank 1300×800 rectangle. This names
+   * what is in the way — because "no results" without "of what" is the same
+   * blank rectangle with a caption — and offers the one control that fixes it.
+   */
+  function renderEmpty(visible: number): void {
+    if (!gridWrap) return;
+    if (visible > 0) {
+      empty?.remove();
+      empty = null;
+      return;
     }
+    // rebuilt rather than reused: the copy names the filters that are in the
+    // way, so a message left over from the previous query is a message that is
+    // wrong about the current one
+    empty?.remove();
+    const named: string[] = [];
+    if (filters.search) named.push(`“${filters.search}”`);
+    if (filters.ownership !== "all") named.push(filters.ownership === "favorites" ? "favourites" : filters.ownership);
+    const chips = activeFilterCount() - named.length;
+    if (chips > 0) named.push(`${chips} filter${chips === 1 ? "" : "s"}`);
+
+    empty = emptyState({
+      glyph: "collection",
+      title: "Nothing in the racks",
+      body: named.length
+        ? `Nothing matches ${named.join(" and ")}. The shelves are still there — the filter is not.`
+        : "There is nothing here to show yet.",
+      action: { label: "Clear filters", onClick: clearFilters },
+    });
+    grid?.appendChild(empty);
   }
 
   // ---- detail --------------------------------------------------------------
@@ -510,58 +809,105 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
    *
    * Two panes: the card itself, large and tilted, and a panel that switches
    * between what the card DOES and what it IS. The split exists because those
-   * two readings never want each other's room — rules text wants to be scanned,
-   * lore wants to be read, and in one column one of them was always in the way.
+   * two readings never want each other's room — rules text is scanned, lore is
+   * read, and in one column one of them was always in the way.
    */
   type DetailTab = "effect" | "story";
   let detailTab: DetailTab = "effect";
 
   /**
-   * The detail leaves the way it arrived, which it previously did not.
+   * The overlay's keyboard and backdrop handlers are registered **once**.
    *
-   * Opening runs a FLIP out of the tile the player pressed — measured, 178ms of
-   * real travel with never a second card on screen. Closing was
-   * `detail.hidden = true`: a hard cut, on the one surface in the screen with
-   * the most elaborate entrance in it. §3a is explicit that everything that
-   * appears has an entrance *and* everything that leaves has an exit, and a cut
-   * after a shared-element grow is worse than a cut after nothing, because the
-   * player has just been taught that this object moves.
-   *
-   * The exit is the entrance's own vocabulary reversed rather than a second
-   * idea: the overlay drops back through the scale it rose from, on the leave
-   * easing, which is sharper than the arrival — things go faster than they come,
-   * §3. `hidden` still lands, just at the end; the class is cleared first so a
-   * re-open never inherits a half-run animation.
+   * They used to be registered inside `openDetail`, which meant every arrow
+   * press added another `keydown` listener and then fired all of them: ten
+   * presses produced hundreds of listeners, each calling `step` → `openDetail` →
+   * register another, and the card you landed on was unpredictable. Closing by
+   * any route left them all attached. The backdrop's own listener carried
+   * `{ once: true }`, so the first click *anywhere inside* the overlay consumed
+   * it and clicking the backdrop stopped closing the modal for the rest of the
+   * session. One registration, module-scoped state, removed on dispose.
    */
+  let openCard: CardDef | null = null;
+  let siblings: CardDef[] = [];
+  let openIndex = 0;
+  let returnFocus: HTMLElement | null = null;
   let closing = 0;
 
   function closeDetail(): void {
     if (!detail || detail.hidden) return;
     window.clearTimeout(closing);
-    if (!motionEnabled()) {
+    openCard = null;
+    const back = returnFocus;
+    returnFocus = null;
+    const done = (): void => {
+      detail.classList.remove("cd-leaving");
       detail.hidden = true;
+      detail.innerHTML = "";
+      // the tile the player came from takes focus back, so a keyboard user is
+      // not dropped at the top of the document
+      if (back?.isConnected) back.focus();
+    };
+    if (!motionEnabled()) {
+      done();
       return;
     }
     detail.classList.add("cd-leaving");
-    closing = window.setTimeout(() => {
-      detail.classList.remove("cd-leaving");
-      detail.hidden = true;
-    }, DUR.ui - 40);
+    closing = window.setTimeout(done, DUR.ui - 40);
   }
 
-  function openDetail(card: CardDef, from?: HTMLElement): void {
+  function step(delta: number): void {
+    const next = siblings[openIndex + delta];
+    if (!next) return;
+    /**
+     * `navigate`, not `click`. Stepping through the filtered grid is the one
+     * genuinely lateral movement in the interface and the sound was written for
+     * it — a short sideways swish rather than a button press.
+     */
+    audio.play("sfx.ui.navigate");
+    openDetail(next);
+  }
+
+  const onOverlayKey = (event: KeyboardEvent): void => {
+    if (!detail || detail.hidden || !openCard) return;
+    if (event.key === "Escape") closeDetail();
+    else if (event.key === "ArrowLeft") step(-1);
+    else if (event.key === "ArrowRight") step(1);
+    else return;
+    event.preventDefault();
+  };
+  window.addEventListener("keydown", onOverlayKey);
+
+  detail?.addEventListener("click", (event) => {
+    if (event.target === detail) closeDetail();
+  });
+
+  /** Which of the player's decks run this card — the vertical slack, filled. */
+  function decksWith(cardId: string): string[] {
+    return getProfile()
+      .decks.filter((deck) => deck.cards.includes(cardId))
+      .map((deck) => deck.name);
+  }
+
+  function openDetail(card: CardDef, from?: HTMLElement, opener?: HTMLElement): void {
     if (!detail) return;
     const profile = getProfile();
     const owned = profile.collection[card.id] ?? 0;
+    const maxCopies =
+      card.rarity === "legendary" ? content.balance.deck.maxCopiesLegendary : content.balance.deck.maxCopies;
     const palette = CURRENT_PALETTE[card.current];
     const craftCost = content.balance.economy.craftCost[card.rarity];
     const dustValue = content.balance.economy.dustValue[card.rarity];
     const lore = loreFor(card);
 
     /** The cards currently on screen, so the arrows walk the list you filtered. */
-    const siblings = allCards.filter(matches);
-    const index = siblings.findIndex((entry) => entry.id === card.id);
+    const acct = account();
+    siblings = allCards.filter((entry) => matches(entry, acct));
+    openIndex = siblings.findIndex((entry) => entry.id === card.id);
+    openCard = card;
+    if (opener) returnFocus = opener;
 
+    window.clearTimeout(closing);
+    detail.classList.remove("cd-leaving");
     detail.hidden = false;
     detail.innerHTML = "";
     detail.style.setProperty("--detail-key", palette.key);
@@ -581,9 +927,12 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
     const head = document.createElement("header");
     head.className = "cd-head";
-    head.innerHTML = `
-      <h2 class="cd-name">${esc(card.name)}</h2>
-      <span class="cd-subtitle">/ ${esc(subtitle)}</span>`;
+    head.innerHTML =
+      `<h2 class="cd-name">${esc(card.name)}</h2>` +
+      `<span class="cd-subtitle">/ ${esc(subtitle)}</span>` +
+      (openIndex >= 0
+        ? `<span class="cd-position mat-chip chip-static num">${openIndex + 1} of ${siblings.length}</span>`
+        : "");
 
     const closeBtn = document.createElement("button");
     closeBtn.className = "cd-close";
@@ -598,29 +947,15 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
     const tilt = document.createElement("div");
     tilt.className = "cd-tilt";
-    /**
-     * No `phase` here.
-     *
-     * The literal `0.3` this used to pass was the tell the audit named for a
-     * dead foil: nothing advanced it, so no card in HYPEBOUND ever shimmered.
-     * `cardClock` has driven the phase since, which made the argument harmless
-     * and left it lying in the file to mislead the next reader — a constant that
-     * looks like it sets something and is overwritten before the first paint.
-     */
     const cardCanvas = renderCardToCanvas(card, 420, { premium: card.rarity === "legendary" });
     tilt.appendChild(cardCanvas);
     artWrap.appendChild(tilt);
 
     /**
-     * The tilt follows the pointer and returns to a resting angle that is
-     * deliberately not square-on. A card lying flat reads as a picture of a
-     * card; the whole point of this screen is that it is the object.
-     *
-     * The same two numbers go to the renderer as well as to the transform. A
-     * card that turns while its sheen keeps its own schedule reads as a light
-     * playing over a picture; a card whose sheen moves *because* it turned reads
-     * as a surface catching the light, and it is the same dx and dy either way —
-     * they were being computed and half-used.
+     * The tilt follows the pointer and rests at an angle that is deliberately
+     * not square-on: a card lying flat reads as a picture of a card, and the
+     * whole point of this screen is that it is the object. The same two numbers
+     * go to the renderer, so the sheen moves *because* the card turned.
      */
     const REST_Y = 17;
     const REST_X = 9;
@@ -644,10 +979,9 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
      * The clicked tile grows into the detail card — §3a's own worked example.
      *
      * A FLIP rather than a clone: the detail card is measured where it has
-     * landed, transformed back onto the tile the player pressed, and then
-     * released. There is never a second card on screen and never a frame where
-     * the object the player is following is not drawn, which is the whole point
-     * of shared-element continuity.
+     * landed, transformed back onto the tile the player pressed, then released.
+     * There is never a second card on screen and never a frame in which the
+     * object the player is following is not drawn.
      */
     const growFrom = (source: HTMLElement): void => {
       if (!motionEnabled()) return;
@@ -669,18 +1003,6 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       });
     };
 
-    const step = (delta: number): void => {
-      const next = siblings[index + delta];
-      if (!next) return;
-      /**
-       * `navigate`, not `click`. Stepping through the filtered grid is the one
-       * genuinely lateral movement in the interface, and the sound was written
-       * for it — a short sideways swish rather than a button press. Everywhere
-       * else that a button changes screen, `click` is still right.
-       */
-      audio.play("sfx.ui.navigate");
-      openDetail(next);
-    };
     for (const [delta, glyph, label] of [
       [-1, "chevron-left", "Previous card"],
       [1, "chevron-right", "Next card"],
@@ -689,7 +1011,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       arrow.className = `cd-arrow cd-arrow-${delta < 0 ? "prev" : "next"}`;
       arrow.type = "button";
       arrow.innerHTML = icon(glyph, { label });
-      arrow.disabled = !siblings[index + delta];
+      arrow.disabled = !siblings[openIndex + delta];
       arrow.addEventListener("click", () => step(delta));
       artWrap.appendChild(arrow);
     }
@@ -703,12 +1025,19 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     tabs.setAttribute("role", "tablist");
 
     const body = document.createElement("div");
-    body.className = "cd-tab-body scroll";
+    body.className = "cd-tab-body hb-scroll";
 
+    /**
+     * Keyword reminders go through the same parser the canvas uses. They are
+     * authored in the same mini-markup as the card text, and escaping them alone
+     * printed the asterisks — the exact defect this screen was called out for.
+     */
     const keywordList = card.keywords
       .map((id) => {
         const keyword = content.keywords[id];
-        return keyword ? `<li><strong>${esc(keyword.name)}</strong> — ${esc(keyword.reminderText)}</li>` : "";
+        return keyword
+          ? `<li><strong>${esc(keyword.name)}</strong> — ${richText(keyword.reminderText)}</li>`
+          : "";
       })
       .filter(Boolean)
       .join("");
@@ -734,6 +1063,8 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       statRow("Current", palette.label) +
       statRow("Rarity", RARITY_STYLE[card.rarity].label) +
       statRow("Type", card.type[0]!.toUpperCase() + card.type.slice(1));
+
+    const inDecks = decksWith(card.id);
 
     const renderBody = (): void => {
       if (detailTab === "story") {
@@ -762,8 +1093,16 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
           Deals +1 damage to: ${beats.length ? esc(beats.join(", ")) : "nothing (neutral)"}<br />
           Takes +1 damage from: ${beatenBy.length ? esc(beatenBy.join(", ")) : "nothing (neutral)"}
         </p>
+        <div class="eyebrow">In your decks</div>
+        ${
+          inDecks.length
+            ? `<div class="cd-decks">${inDecks
+                .map((name) => `<span class="cd-deck-chip mat-chip chip-static">${esc(name)}</span>`)
+                .join("")}</div>`
+            : `<p class="muted">Not in any saved deck.</p>`
+        }
         <div class="eyebrow">Collection</div>
-        <p class="muted">You own <strong class="num">${owned}</strong>. Craft for ${icon("shards")}<span class="num">${craftCost}</span>, dismantle for ${icon("shards")}<span class="num">${dustValue}</span>.</p>`;
+        <p class="muted">You own <strong class="num">${owned}</strong> of ${maxCopies}. Craft for ${icon("shards")}<span class="num">${craftCost}</span>, dismantle for ${icon("shards")}<span class="num">${dustValue}</span>.</p>`;
     };
 
     for (const [id, label] of [
@@ -798,9 +1137,20 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
     const craftBtn = document.createElement("button");
     craftBtn.className = "btn btn-primary";
-    craftBtn.innerHTML = `${icon("plus")}<span>Craft</span>${icon("shards")}<span class="num">${craftCost}</span>`;
-    craftBtn.disabled = profile.shards < craftCost;
+    /**
+     * At the copy limit the button says so rather than spending forty shards on
+     * a third copy of a two-max common. The badge on the tile already presents
+     * `2/2` as a cap; a button that ignores it is a missing disabled state with
+     * a real currency cost attached.
+     */
+    const atLimit = owned >= maxCopies;
+    craftBtn.innerHTML = atLimit
+      ? `${icon("check")}<span>Maximum copies</span>`
+      : `${icon("plus")}<span>Craft</span>${icon("shards")}<span class="num">${craftCost}</span>`;
+    craftBtn.disabled = atLimit || profile.shards < craftCost;
+    craftBtn.title = atLimit ? `You already own the maximum ${maxCopies}.` : "";
     craftBtn.addEventListener("click", () => {
+      if (owned >= maxCopies) return;
       if (craftCard(content, card.id)) {
         audio.play("sfx.ui.click");
         render();
@@ -851,34 +1201,39 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     stage.append(head, layout);
     detail.appendChild(stage);
     if (from) growFrom(from);
-
-    /** Arrow keys walk the grid, Escape closes. */
-    const onKey = (event: KeyboardEvent): void => {
-      if (detail.hidden) {
-        window.removeEventListener("keydown", onKey);
-        return;
-      }
-      if (event.key === "Escape") closeDetail();
-      else if (event.key === "ArrowLeft") step(-1);
-      else if (event.key === "ArrowRight") step(1);
-      else return;
-      event.preventDefault();
-    };
-    window.addEventListener("keydown", onKey);
-
-    detail.addEventListener(
-      "click",
-      (event) => {
-        if (event.target === detail) closeDetail();
-      },
-      { once: true }
-    );
+    // On the first open, focus lands inside the overlay so the next Tab stays
+    // in it. Stepping between siblings does not steal it back, because a player
+    // holding Right does not want the ring jumping every 200ms.
+    if (opener) closeBtn.focus({ preventScroll: true });
   }
 
   root.querySelector("#col-back")?.addEventListener("click", () => callbacks.onBack());
 
+  syncFilterCount();
   const unsubscribe = profileStore.subscribe(() => render());
+  const unbindFades = gridWrap && grid ? bindScrollFades(gridWrap, grid) : () => {};
   render();
 
-  return { root, dispose: () => unsubscribe() };
+  /** Automation hook, the same shape the other screens expose. */
+  (window as unknown as { hypeboundCollection?: unknown }).hypeboundCollection = {
+    shown: () => shownCells().length,
+    open: (id: string) => {
+      const card = allCards.find((entry) => entry.id === id);
+      if (card) openDetail(card);
+      return Boolean(card);
+    },
+    close: closeDetail,
+  };
+
+  return {
+    root,
+    dispose: () => {
+      unsubscribe();
+      unbindFades();
+      painter.stop();
+      window.removeEventListener("keydown", onOverlayKey);
+      window.clearTimeout(closing);
+      delete (window as unknown as { hypeboundCollection?: unknown }).hypeboundCollection;
+    },
+  };
 }

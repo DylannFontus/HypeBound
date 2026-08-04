@@ -28,6 +28,7 @@ import {
 import { playableModifiers } from "../../game/remix";
 import { getProfile } from "../../save/profile";
 import { audio } from "../../audio/audio";
+import { enter, icon, titleCase, unspec } from "./data/kit";
 
 export interface CustomCallbacks {
   onBack: () => void;
@@ -46,11 +47,21 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
   let settings = defaultSettings(content);
   let deckIndex = getProfile().activeDeckIndex;
 
+  /**
+   * One rule knob.
+   *
+   * The control itself is module A's `.field`, which is what stopped the five
+   * white Windows boxes: `appearance: none`, a glass fill, a 315° rim and all six
+   * interaction states. What is added here is the *label rhythm* — a tracked
+   * caption over the field and the standard value under it — so four knobs in a
+   * row read as a set rather than as four sentences that happen to contain
+   * inputs.
+   */
   const number = (id: string, label: string, value: number, min: number, max: number, note: string): string => `
-    <label class="custom-knob" for="${id}">
-      <span class="custom-knob-label">${esc(label)}</span>
-      <input class="input" type="number" id="${id}" value="${value}" min="${min}" max="${max}" />
-      <span class="muted custom-knob-note">${esc(note)}</span>
+    <label class="custom-knob field-group" for="${id}">
+      <span class="custom-knob-label t-label">${esc(label)}</span>
+      <input class="field input" type="number" id="${id}" value="${value}" min="${min}" max="${max}" />
+      <span class="custom-knob-note field-note">${esc(note)}</span>
     </label>`;
 
   function render(): void {
@@ -66,43 +77,62 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="custom-back">← Back</button>
+        <button class="btn btn-ghost" id="custom-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Custom Lobby</h1>
         <span class="muted">Never touches Ranked</span>
       </header>
 
-      <div class="custom-body">
+      <div class="custom-body data-body">
         <section class="panel custom-panel">
-          <div class="eyebrow">Seats</div>
-          <div class="custom-seats">
-            <button class="btn ${settings.opponent === "ai" ? "btn-primary" : "btn-ghost"}" data-opponent="ai">
-              vs AI
+          <h2 class="t-heading custom-panel-title">Seats</h2>
+          <div class="custom-seats" role="radiogroup" aria-label="Opponent">
+            <button type="button" class="custom-seat ${
+              settings.opponent === "ai" ? "mat-hero" : "mat-panel"
+            } act r-tile" role="radio" aria-checked="${settings.opponent === "ai"}" data-opponent="ai">
+              ${icon("mode-ai", 22)}
+              <span>
+                <strong>vs AI</strong>
+                <em>One seat, one device, a difficulty you pick.</em>
+              </span>
             </button>
-            <button class="btn ${settings.opponent === "hotseat" ? "btn-primary" : "btn-ghost"}" data-opponent="hotseat">
-              Hotseat — two players, one device
+            <button type="button" class="custom-seat ${
+              settings.opponent === "hotseat" ? "mat-hero" : "mat-panel"
+            } act r-tile" role="radio" aria-checked="${settings.opponent === "hotseat"}" data-opponent="hotseat">
+              ${icon("emote", 22)}
+              <span>
+                <strong>Hotseat</strong>
+                <em>Two players, one device, passed between turns.</em>
+              </span>
             </button>
           </div>
           ${
             settings.opponent === "ai"
-              ? `<label class="custom-knob" for="custom-difficulty">
-                   <span class="custom-knob-label">AI difficulty</span>
-                   <select class="input" id="custom-difficulty">
+              ? `<label class="custom-knob field-group" for="custom-difficulty">
+                   <span class="custom-knob-label t-label">AI difficulty</span>
+                   <select class="select input" id="custom-difficulty">
                      ${DIFFICULTIES.map(
-                       (d) => `<option value="${d}" ${d === settings.difficulty ? "selected" : ""}>${d}</option>`
+                       (d) =>
+                         `<option value="${d}" ${d === settings.difficulty ? "selected" : ""}>${esc(
+                           titleCase(d)
+                         )}</option>`
                      ).join("")}
                    </select>
                  </label>`
-              : `<p class="muted">The device is passed between turns. The board is covered before the
+              : `<p class="t-body">The device is passed between turns. The board is covered before the
                  next player sees it, and the cover does not time out.</p>`
           }
         </section>
 
         <section class="panel custom-panel">
-          <div class="eyebrow">Your deck</div>
+          <h2 class="t-heading custom-panel-title">Your deck</h2>
           ${
             decks.length === 0
-              ? `<p class="muted" id="custom-nodeck">You have no saved decks. Build one first.</p>`
-              : `<select class="input" id="custom-deck">
+              ? `<div class="empty" id="custom-nodeck">
+                   ${icon("deck-builder", 36)}
+                   <h3 class="t-heading">No saved decks</h3>
+                   <p class="t-body">A custom match still needs a legal deck. Build one and it appears here.</p>
+                 </div>`
+              : `<select class="select input" id="custom-deck">
                    ${decks
                      .map(
                        (entry, index) =>
@@ -122,28 +152,35 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
         </section>
 
         <section class="panel custom-panel">
-          <div class="eyebrow">Rules</div>
+          <h2 class="t-heading custom-panel-title">Rules</h2>
           <div class="custom-knobs">
             ${number("custom-health", "Starting health", settings.startingHealth, CUSTOM_LIMITS.health.min, CUSTOM_LIMITS.health.max, `standard ${standard.startingHealth}`)}
             ${number("custom-deck-size", "Deck size", settings.deckSize, CUSTOM_LIMITS.deck.min, CUSTOM_LIMITS.deck.max, `standard ${standard.deckSize}`)}
             ${number("custom-hand-first", "Opening hand — first", settings.handFirst, CUSTOM_LIMITS.hand.min, CUSTOM_LIMITS.hand.max, `standard ${standard.handFirst}`)}
             ${number("custom-hand-second", "Opening hand — second", settings.handSecond, CUSTOM_LIMITS.hand.min, CUSTOM_LIMITS.hand.max, `standard ${standard.handSecond}`)}
           </div>
-          <label class="custom-knob" for="custom-timer">
-            <span class="custom-knob-label">Turn timer</span>
-            <input class="input" type="number" id="custom-timer"
-                   value="${settings.turnSeconds ?? ""}" min="${CUSTOM_LIMITS.timer.min}" max="${CUSTOM_LIMITS.timer.max}"
-                   ${settings.turnSeconds === null ? "disabled" : ""} />
-            <label class="custom-toggle">
-              <input type="checkbox" id="custom-timer-off" ${settings.turnSeconds === null ? "checked" : ""} />
-              <span>off</span>
+          <div class="custom-timer-row">
+            <label class="custom-knob field-group" for="custom-timer">
+              <span class="custom-knob-label t-label">Turn timer</span>
+              <input class="field input" type="number" id="custom-timer"
+                     value="${settings.turnSeconds ?? ""}" min="${CUSTOM_LIMITS.timer.min}" max="${
+                       CUSTOM_LIMITS.timer.max
+                     }"
+                     ${settings.turnSeconds === null ? "disabled" : ""} />
+              <span class="custom-knob-note field-note">seconds per turn</span>
             </label>
-          </label>
+            <label class="custom-toggle field-row">
+              <input class="switch" type="checkbox" id="custom-timer-off" ${
+                settings.turnSeconds === null ? "checked" : ""
+              } />
+              <span>No timer</span>
+            </label>
+          </div>
         </section>
 
         <section class="panel custom-panel">
-          <div class="eyebrow">Remix modifier</div>
-          <select class="input" id="custom-modifier">
+          <h2 class="t-heading custom-panel-title">Remix modifier</h2>
+          <select class="select input" id="custom-modifier">
             <option value="">None</option>
             ${playableModifiers()
               .map(
@@ -156,22 +193,28 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
           </select>
           ${
             settings.modifierId
-              ? `<p class="muted" id="custom-modifier-text">${esc(
+              ? `<p class="t-body" id="custom-modifier-text">${esc(
                   playableModifiers().find((m) => m.id === settings.modifierId)?.text ?? ""
                 )}</p>`
-              : `<p class="muted">Any rule from this week's catalogue, applied to both seats.</p>`
+              : `<p class="t-body">Any rule from this week's catalogue, applied to both seats.</p>`
           }
         </section>
 
         <section class="panel custom-panel ${flags.length > 0 ? "custom-unpaid" : ""}">
-          <div class="eyebrow">Rewards</div>
+          <h2 class="t-heading custom-panel-title">Rewards</h2>
           ${
             flags.length === 0
-              ? `<p id="custom-pays">This match pays the Sparring schedule, against the shared daily cap.</p>`
-              : `<p class="validation-problem" id="custom-pays">This match pays <strong>nothing</strong>:</p>
+              ? `<p class="custom-pays-ok" id="custom-pays">${icon(
+                  "check",
+                  15
+                )} This match pays the Sparring schedule, against the shared daily cap.</p>`
+              : `<p class="validation-problem" id="custom-pays">${icon(
+                  "warning",
+                  15
+                )} This match pays <strong>nothing</strong>:</p>
                  <ul class="custom-flags">${flags.map((flag) => `<li>${esc(flag)}</li>`).join("")}</ul>`
           }
-          <p class="muted">Custom results never affect Ranked.</p>
+          <p class="t-body">Custom results never affect Ranked.</p>
         </section>
 
         ${
@@ -180,16 +223,24 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
             : ""
         }
 
-        <button class="btn btn-primary custom-start" id="custom-start"
+        <button type="button" class="mat-hero act r-chip custom-start" id="custom-start"
                 ${decks.length === 0 || banned.length > 0 || problems.length > 0 ? "disabled" : ""}>
-          Start ${settings.opponent === "hotseat" ? "Hotseat" : "match"}
+          ${icon("play", 17)} Start ${settings.opponent === "hotseat" ? "Hotseat" : "match"}
         </button>
 
         <section class="panel custom-panel custom-locked">
-          <div class="eyebrow">Not in this build</div>
-          ${[...DEFERRED_CUSTOM.entries()]
-            .map(([name, reason]) => `<p class="muted"><strong>${esc(name)}</strong> — ${esc(reason)}</p>`)
-            .join("")}
+          <h2 class="t-heading custom-panel-title">Not in this build</h2>
+          <ul class="custom-locked-list">
+            ${[...DEFERRED_CUSTOM.entries()]
+              .map(
+                ([name, reason]) => `
+                  <li class="mat-panel custom-locked-item">
+                    ${icon("lock", 14)}
+                    <span><strong>${esc(name)}</strong> — ${esc(unspec(reason))}</span>
+                  </li>`
+              )
+              .join("")}
+          </ul>
         </section>
       </div>`;
 
@@ -237,6 +288,8 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
       audio.play("sfx.ui.confirm");
       callbacks.onStart(clampSettings(content, settings), deckIndex);
     });
+
+    enter(root, ".custom-panel", 40);
   }
 
   render();

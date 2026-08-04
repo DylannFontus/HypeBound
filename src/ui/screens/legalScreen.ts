@@ -17,6 +17,7 @@
 import type { Screen } from "../shell";
 import { attributions, policiesData } from "../../game/policies";
 import { audio } from "../../audio/audio";
+import { longDate } from "./data/kit";
 
 export interface LegalCallbacks {
   onBack: () => void;
@@ -26,7 +27,16 @@ export interface LegalCallbacks {
 const esc = (value: string): string =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-const DATE = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+/**
+ * Pinned to en-GB, in UTC, from the one formatter.
+ *
+ * This was `new Intl.DateTimeFormat(undefined, …)`, which takes the
+ * *browser* locale and printed "EFFECTIVE 30 JUILLET 2026" on a page whose
+ * every other word is English. The game has no localisation layer, so
+ * `undefined` was not correct-by-default localisation — it was uncontrolled
+ * formatting, and it made every screenshot machine-dependent.
+ */
+const DATE = { format: (at: Date): string => longDate(at) };
 
 export function createLegalScreen(callbacks: LegalCallbacks): Screen {
   const root = document.createElement("div");
@@ -41,7 +51,7 @@ export function createLegalScreen(callbacks: LegalCallbacks): Screen {
       <h1 class="title">Legal</h1>
     </header>
 
-    <main class="policy-body">
+    <main class="policy-body data-body">
       ${documents
         .map(
           (document) => `
@@ -63,7 +73,7 @@ export function createLegalScreen(callbacks: LegalCallbacks): Screen {
               }
               ${
                 document.id === "attribution"
-                  ? `<table class="patch-table policy-table">
+                  ? `<table class="d-table patch-table policy-table">
                        <thead><tr><th>Package</th><th>Version</th><th>Licence</th><th>Used for</th></tr></thead>
                        <tbody>
                          ${credits

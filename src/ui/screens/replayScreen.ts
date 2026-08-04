@@ -20,8 +20,25 @@ import { createMatch } from "../../engine/state";
 import { applyIntent, beginScriptedMatch } from "../../engine/reducer";
 import { resolveMatchContent } from "../../engine/content";
 import { getProfile, REPLAYABLE_HISTORY, type MatchHistoryEntry } from "../../save/profile";
-import { CURRENT_PALETTE } from "../cardRenderer/palette";
+import { CURRENT_PALETTE, FACTION_COLOR } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
+import {
+  chip,
+  colourFor,
+  count,
+  crestMark,
+  disposeBag,
+  enter,
+  esc,
+  fadeOnScroll,
+  icon,
+  logStamp,
+  modeName,
+  quantify,
+  rankCrest,
+  RANK_PX,
+  rovingList,
+} from "./data/kit";
 
 export interface ReplayCallbacks {
   onBack: () => void;
@@ -35,8 +52,6 @@ interface HistoryFilter {
   factionId: string;
   result: string;
 }
-
-const DATE = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 /** One board snapshot per intent, plus the opening position. */
 interface Frame {
@@ -114,30 +129,53 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
 
   const root = document.createElement("div");
   root.className = "screen replay-screen";
+  const bag = disposeBag();
+
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="sub-header">
-      <button class="btn btn-ghost" id="replay-back">← Lobby</button>
+      <button class="btn btn-ghost" id="replay-back">${icon("arrow-left", 16)} Lobby</button>
       <h1 class="title">Match History</h1>
-      <div class="sub-header-meta muted">${history.length} match${history.length === 1 ? "" : "es"} on record</div>
+      <div class="sub-header-meta">${quantify(history.length, "match", "matches")} on record</div>
     </header>
-    <div class="replay-filters" id="replay-filters"></div>
+    <div class="replay-filters d-chips" id="replay-filters"></div>
     <div class="replay-body">
-      <aside class="replay-list scroll" id="replay-list"></aside>
+      <aside class="replay-list" id="replay-list"></aside>
       <section class="replay-stage panel" id="replay-stage"></section>
     </div>`;
 
   const list = root.querySelector("#replay-list")!;
   const stage = root.querySelector("#replay-stage")!;
 
-  if (history.length === 0) {
-    stage.innerHTML = `<div class="replay-empty muted">Play a match and it will appear here.</div>`;
-  }
+  /**
+   * Two empty states, both designed, both saying something different.
+   *
+   * The old pair were bare sentences dropped into an 1100×730 void: "Play a
+   * match and it will appear here." on the left in 12px grey with no plate
+   * behind it, and "Pick a match on the left." centred in the stage. §5 asks for
+   * a designed empty, and a screen with two of them worded differently is also
+   * §7's consistency complaint.
+   */
+  const showNoHistory = (): void => {
+    stage.innerHTML = `
+      <div class="empty d-enter replay-empty">
+        ${icon("mode-replays", 40)}
+        <h3 class="t-heading">No matches on record</h3>
+        <p class="t-body">Every match this device plays is recorded here, and the most recent ${REPLAYABLE_HISTORY} keep a full replay you can scrub turn by turn.</p>
+      </div>`;
+  };
 
   const showEmptyPrompt = (): void => {
-    stage.innerHTML = `<div class="replay-empty muted">Pick a match on the left.</div>`;
+    stage.innerHTML = `
+      <div class="empty d-enter replay-empty">
+        ${icon("crosshair", 40)}
+        <h3 class="t-heading">Pick a match</h3>
+        <p class="t-body">Choose one on the left and the board it was played on rebuilds here, intent by intent.</p>
+      </div>`;
   };
-  if (history.length > 0) showEmptyPrompt();
+
+  if (history.length === 0) showNoHistory();
+  else showEmptyPrompt();
 
   const open = (entry: MatchHistoryEntry): void => {
     const { frames, error } = buildFrames(entry, content);
@@ -159,33 +197,83 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
     const rematchDifficulty = entry.mode.startsWith("ai-") ? entry.mode.slice(3) : null;
     const opponentName = content.leaders[entry.opponentLeaderCardId]?.name ?? "—";
 
+    const myFaction = content.leaders[entry.leaderCardId]?.faction ?? "neutral";
+    const accent = FACTION_COLOR[myFaction as never] ?? "#b56cff";
+
+    /**
+     * The scrubber, drawn rather than inherited.
+     *
+     * It was a bare `<input type="range">` whose only rule was `flex: 1 1 auto`,
+     * so it rendered as Chrome's #007AFF track and blue knob — a colour that
+     * appears nowhere else in the palette, 900px wide, and therefore the most
+     * saturated object on a magenta-and-violet screen. §7 calls an OS scrollbar
+     * in a fantasy card game a tear in the world; an OS slider is the same sin
+     * and louder.
+     *
+     * `.slider` is module A's control, so this now shares its groove, its
+     * chamfered thumb and all six of its states with the settings audio rail.
+     * `--slider-fill` is the property that module A's track reads to paint the
+     * filled portion, and it is kept in step by the `input` handler below.
+     * `--ticks` puts a mark at every turn boundary, so the timeline reads as
+     * turns rather than as a volume control.
+     */
     stage.innerHTML = `
       <div class="replay-head">
-        <div>
-          <div class="eyebrow">${entry.mode} · ${DATE.format(new Date(entry.playedAt))}</div>
-          <h2 class="title">${entry.deckName}</h2>
-          <div class="muted">vs ${opponentName} · ${entry.turns} turns${
-            entry.summary
-              ? ` · peak Obsession ${entry.summary.peakObsession} · ${entry.summary.cardsPlayed} cards played`
-              : ""
-          }</div>
+        <span class="d-rank replay-head-crest" style="--rank-size:56px;--rank-art:url('${rankCrest({
+          size: RANK_PX,
+          tier: entry.result === "win" ? 4 : entry.result === "draw" ? 2 : 1,
+          tiers: 5,
+          colour: accent,
+        })}')" aria-hidden="true"></span>
+        <div class="replay-head-text">
+          <div class="t-label">${esc(modeName(entry.mode))} · ${esc(logStamp(entry.playedAt))}</div>
+          <h2 class="title t-display">${esc(entry.deckName)}</h2>
+          <div class="replay-head-meta">
+            vs ${esc(opponentName)} · ${quantify(entry.turns, "turn")}${
+              entry.summary
+                ? ` · peak Obsession <span class="num">${count(entry.summary.peakObsession)}</span> · <span class="num">${count(
+                    entry.summary.cardsPlayed
+                  )}</span> cards played`
+                : ""
+            }
+          </div>
         </div>
         <div class="replay-head-actions">
-          ${rematchDifficulty ? `<button class="btn btn-ghost" id="replay-rematch">Run it back</button>` : ""}
+          ${
+            rematchDifficulty
+              ? `<button type="button" class="mat-chip act r-chip" id="replay-rematch">${icon(
+                  "refresh",
+                  14
+                )} Run it back</button>`
+              : ""
+          }
           <div class="replay-result replay-${entry.result}">${entry.result.toUpperCase()}</div>
         </div>
       </div>
-      ${error ? `<div class="replay-warning">Replay stopped early: ${error}</div>` : ""}
+      ${error ? `<div class="replay-warning">${icon("warning", 15)} Replay stopped early: ${esc(error)}</div>` : ""}
       <div class="replay-board" id="replay-board"></div>
       <div class="replay-caption" id="replay-caption"></div>
       <div class="replay-controls">
-        <button class="btn btn-ghost" id="replay-first" aria-label="First">⏮</button>
-        <button class="btn btn-ghost" id="replay-prev" aria-label="Previous">◀</button>
-        <input type="range" id="replay-scrub" min="0" max="${frames.length - 1}" value="${index}"
-               aria-label="Timeline" />
-        <button class="btn btn-ghost" id="replay-next" aria-label="Next">▶</button>
-        <button class="btn btn-ghost" id="replay-last" aria-label="Last">⏭</button>
-        <span class="replay-counter muted" id="replay-counter"></span>
+        <button type="button" class="mat-chip act r-chip replay-step" id="replay-first" aria-label="First frame">${icon(
+          "skip-start",
+          16
+        )}</button>
+        <button type="button" class="mat-chip act r-chip replay-step" id="replay-prev" aria-label="Previous frame">${icon(
+          "chevron-left",
+          16
+        )}</button>
+        <input class="slider replay-scrub" type="range" id="replay-scrub" min="0" max="${frames.length - 1}"
+               value="${index}" aria-label="Timeline"
+               style="--ticks:${Math.max(1, frames.length - 1)}" />
+        <button type="button" class="mat-chip act r-chip replay-step" id="replay-next" aria-label="Next frame">${icon(
+          "chevron-right",
+          16
+        )}</button>
+        <button type="button" class="mat-chip act r-chip replay-step" id="replay-last" aria-label="Last frame">${icon(
+          "skip-end",
+          16
+        )}</button>
+        <span class="replay-counter num" id="replay-counter"></span>
       </div>`;
 
     const board = stage.querySelector("#replay-board")!;
@@ -223,6 +311,14 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
       caption.textContent = frame.label;
       counter.textContent = `${index} / ${frames.length - 1}`;
       scrub.value = String(index);
+      /*
+       * `shell.ts` syncs `--slider-fill` on `input`, which covers a drag and
+       * does not cover the four step buttons — they set `.value` from script and
+       * no event fires. Without this line the track's filled portion stays where
+       * the last drag left it while the thumb walks away from it.
+       */
+      const span = frames.length - 1;
+      scrub.style.setProperty("--slider-fill", `${span > 0 ? ((index / span) * 100).toFixed(2) : "0"}%`);
     };
 
     const go = (next: number): void => {
@@ -264,40 +360,57 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
   const renderFilters = (): void => {
     const modes = [...new Set(history.map((entry) => baseMode(entry.mode)))].sort();
     const factions = [...new Set(history.map((entry) => factionOf(entry.leaderCardId)).filter(Boolean))].sort();
-    const group = (key: keyof HistoryFilter, options: { id: string; label: string }[]): string =>
-      options
-        .map(
-          (option) =>
-            `<button class="btn mastery-tab ${filter[key] === option.id ? "active" : ""}"
-                     data-filter="${key}" data-value="${option.id}">${option.label}</button>`
-        )
-        .join("");
+
+    /**
+     * One chip component, one active state.
+     *
+     * The result group used to render its selection as a solid filled pill and
+     * the mode group two centimetres away rendered its selection as an outline —
+     * two answers to "what does selected look like" in the same 40px row, which
+     * means a player cannot learn either. And the mode chips printed the raw
+     * engine ids, so this screen said "ai" while the statistics screen one click
+     * away said "Practice" about the same matches.
+     */
+    const group = (
+      key: keyof HistoryFilter,
+      label: string,
+      options: { id: string; label: string; accent?: string }[]
+    ): string => `
+      <div class="replay-filter-group" role="radiogroup" aria-label="${esc(label)}">
+        <span class="t-label replay-filter-label">${esc(label)}</span>
+        ${options
+          .map((option) =>
+            chip({
+              label: option.label,
+              value: option.id,
+              active: filter[key] === option.id,
+              key: "value",
+              accent: option.accent,
+            }).replace("<button ", `<button data-filter="${key}" `)
+          )
+          .join("")}
+      </div>`;
 
     filterBar.innerHTML = `
-      <div class="replay-filter-group">
-        ${group("result", [
-          { id: "all", label: "All" },
-          { id: "win", label: "Wins" },
-          { id: "loss", label: "Losses" },
-        ])}
-      </div>
-      <div class="replay-filter-group">
-        ${group("mode", [
-          { id: "all", label: "All modes" },
-          ...modes.map((id) => ({ id, label: id })),
-        ])}
-      </div>
+      ${group("result", "Result", [
+        { id: "all", label: "All" },
+        { id: "win", label: "Wins" },
+        { id: "loss", label: "Losses" },
+      ])}
+      ${group("mode", "Mode", [
+        { id: "all", label: "All modes" },
+        ...modes.map((id) => ({ id, label: modeName(id) })),
+      ])}
       ${
         factions.length > 1
-          ? `<div class="replay-filter-group">
-               ${group("factionId", [
-                 { id: "all", label: "All factions" },
-                 ...factions.map((id) => ({
-                   id,
-                   label: content.factions[id as keyof typeof content.factions]?.name ?? id,
-                 })),
-               ])}
-             </div>`
+          ? group("factionId", "Faction", [
+              { id: "all", label: "All factions" },
+              ...factions.map((id) => ({
+                id,
+                label: content.factions[id as keyof typeof content.factions]?.name ?? id,
+                accent: colourFor(id),
+              })),
+            ])
           : ""
       }`;
 
@@ -313,41 +426,52 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
   };
 
   function renderList(): void {
+    bag.run();
     list.innerHTML = "";
     const shown = matching();
 
     if (shown.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "muted replay-note";
-      empty.textContent =
-        history.length === 0 ? "Play a match and it will appear here." : "No matches match those filters.";
+      const empty = document.createElement("div");
+      empty.className = "empty d-enter replay-list-empty";
+      empty.innerHTML =
+        history.length === 0
+          ? `${icon("campfire", 32)}<h3 class="t-heading">Nothing yet</h3><p class="t-body">Your first match lands at the top of this list.</p>`
+          : `${icon("filter", 32)}<h3 class="t-heading">No match fits</h3><p class="t-body">Loosen a filter above.</p>`;
       list.appendChild(empty);
-      showEmptyPrompt();
+      if (history.length === 0) showNoHistory();
+      else showEmptyPrompt();
       return;
     }
 
     shown.forEach((entry, i) => {
       const button = document.createElement("button");
-      button.className = `replay-entry replay-${entry.result}`;
+      button.className = `replay-entry mat-panel act d-enter replay-${entry.result}`;
       button.type = "button";
       const replayable = Boolean(entry.record);
       button.disabled = !replayable;
       const opponent = content.leaders[entry.opponentLeaderCardId]?.name ?? "—";
+      const faction = content.leaders[entry.leaderCardId]?.faction ?? "neutral";
+      button.style.setProperty("--row-accent", colourFor(faction));
       // the Obsession peak §4.5.5 asks for, on the matches that recorded it
-      const obsession = entry.summary ? ` · Obs ${entry.summary.peakObsession}` : "";
+      const obsession = entry.summary ? ` · Obs ${count(entry.summary.peakObsession)}` : "";
       button.innerHTML = `
-        <span class="replay-entry-result">${entry.result[0]!.toUpperCase()}</span>
+        ${crestMark(faction, 34)}
         <span class="replay-entry-body">
-          <span class="replay-entry-deck">${entry.deckName}</span>
-          <span class="replay-entry-meta muted">vs ${opponent} · ${entry.turns} turns${obsession}</span>
-          <span class="replay-entry-meta muted">${entry.mode} · ${DATE.format(new Date(entry.playedAt))}${
+          <span class="replay-entry-deck">${esc(entry.deckName)}</span>
+          <span class="replay-entry-meta">vs ${esc(opponent)} · ${quantify(entry.turns, "turn")}${obsession}</span>
+          <span class="replay-entry-meta">${esc(modeName(entry.mode))} · ${esc(logStamp(entry.playedAt))}${
             replayable ? "" : " · not replayable"
           }</span>
-        </span>`;
+        </span>
+        <span class="replay-entry-result" aria-label="${entry.result}">${entry.result[0]!.toUpperCase()}</span>`;
       button.addEventListener("click", () => {
         audio.play("sfx.ui.click");
-        list.querySelectorAll(".replay-entry").forEach((n) => n.classList.remove("selected"));
+        list.querySelectorAll(".replay-entry").forEach((n) => {
+          n.classList.remove("selected");
+          n.removeAttribute("aria-current");
+        });
         button.classList.add("selected");
+        button.setAttribute("aria-current", "true");
         open(entry);
       });
       list.appendChild(button);
@@ -356,14 +480,18 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
 
     if (history.length > REPLAYABLE_HISTORY) {
       const note = document.createElement("p");
-      note.className = "muted replay-note";
+      note.className = "replay-note";
       note.textContent = `Only the ${REPLAYABLE_HISTORY} most recent matches keep a full replay.`;
       list.appendChild(note);
     }
+
+    enter(list, ".d-enter", 26);
+    bag.add(rovingList(list as HTMLElement, ".replay-entry"));
   }
 
   renderFilters();
   renderList();
+  bag.add(fadeOnScroll(list as HTMLElement));
 
   root.querySelector("#replay-back")!.addEventListener("click", () => callbacks.onBack());
 
@@ -378,5 +506,5 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
     },
   };
 
-  return { root };
+  return { root, dispose: () => bag.run() };
 }

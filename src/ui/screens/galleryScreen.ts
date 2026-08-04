@@ -37,6 +37,16 @@ import { biasBoard, getProfile, leaderMastery } from "../../save/profile";
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { FACTION_COLOR } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
+import { icon } from "../art/uiIcons";
+import { motionEnabled } from "../motion";
+import {
+  CURRENT_SIGIL,
+  bindScrollFades,
+  esc,
+  installKitStyles,
+  lazyPaint,
+  portraitCanvas,
+} from "./collectionKit";
 
 export interface GalleryCallbacks {
   onBack: () => void;
@@ -44,20 +54,29 @@ export interface GalleryCallbacks {
   onMastery: () => void;
 }
 
-const esc = (value: string): string =>
-  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-
 /** How many characters a faction shows before the list asks you to filter. */
 const SHOWN = 90;
 
+/** The portrait box. 3:4, so every row's baselines agree whatever the name does. */
+const TILE_W = 168;
+const TILE_H = 224;
+
 export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCallbacks): Screen {
+  installKitStyles();
+
   const root = document.createElement("div");
-  root.className = "screen gallery-screen";
+  root.className = "screen gallery-screen gal-v2";
 
   /** "all", or a faction id */
   let filter = "all";
   /** the character whose page is open, or null for the grid */
   let openId: string | null = null;
+  /**
+   * Ninety portraits is ninety canvases, and at most about twenty-eight are on
+   * screen. They are painted as they come near the fold and never again.
+   */
+  let painter: ReturnType<typeof lazyPaint> | null = null;
+  let unbindFades: () => void = () => {};
 
   const factions = Object.values(content.factions).filter((faction) => faction.id !== "neutral");
   const leaderIds = new Set(selectableLeaders(content).map((leader) => leader.id));
@@ -86,16 +105,68 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
 
   const colorOf = (factionId: string): string => FACTION_COLOR[factionId as FactionId] ?? FACTION_COLOR.neutral;
 
-  const tile = (card: CardDef): string => {
+  /**
+   * A cast tile: a face, a scrim and a name.
+   *
+   * It used to be a coloured capital letter in a near-black rectangle with a 1px
+   * border and a 3px stripe — the Gmail-contacts convention, which is an admin
+   * dashboard pattern and not a character gallery. It also had no fixed height,
+   * so a two-line name pushed its role label 34px below its neighbours' and one
+   * row carried three different baselines.
+   *
+   * Every character in the game already has a painting or the renderer's own
+   * placeholder, and the top of a card's art window is a portrait crop by
+   * construction. Fixed 3:4, name on a scrim, faction crest at the top-right,
+   * faction colour as a lit gradient along the bottom edge rather than as a hard
+   * border on the left.
+   */
+  const buildTile = (card: CardDef): HTMLElement => {
     const owned = (getProfile().collection[card.id] ?? 0) > 0;
     const isLeader = leaderIds.has(card.id);
-    return `
-      <li class="gallery-tile ${owned || isLeader ? "" : "unseen"}" data-id="${esc(card.id)}"
-          style="--c:${esc(colorOf(card.faction))}">
-        <span class="gallery-tile-initial">${esc(card.name.charAt(0))}</span>
-        <span class="gallery-tile-name">${esc(card.name)}</span>
-        <span class="gallery-tile-role muted">${isLeader ? "Leader" : (content.currents[card.current]?.name ?? card.current)}</span>
-      </li>`;
+    const seen = owned || isLeader;
+
+    const item = document.createElement("li");
+    item.className = "gallery-cell";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `gallery-tile${seen ? "" : " unseen"}`;
+    button.dataset["id"] = card.id;
+    button.style.setProperty("--c", colorOf(card.faction));
+    button.setAttribute(
+      "aria-label",
+      `${card.name}, ${isLeader ? "leader" : content.currents[card.current]?.name ?? card.current}, ${
+        content.factions[card.faction as FactionId]?.name ?? card.faction
+      }${seen ? "" : " — not yet seen"}`
+    );
+
+    const slot = document.createElement("div");
+    slot.className = "card-slot gallery-tile-slot";
+    button.appendChild(slot);
+
+    button.insertAdjacentHTML(
+      "beforeend",
+      `<span class="gallery-tile-crest">${icon(CURRENT_SIGIL[card.current], { size: 13 })}</span>` +
+        (seen ? "" : `<span class="gallery-tile-locked">${icon("lock", { size: 12, label: "Not yet seen" })}</span>`) +
+        `<span class="gallery-tile-body">` +
+        `<span class="gallery-tile-name">${esc(card.name)}</span>` +
+        `<span class="gallery-tile-role">${isLeader ? "Leader" : esc(content.currents[card.current]?.name ?? card.current)}</span>` +
+        `</span>`
+    );
+
+    button.addEventListener("click", () => {
+      openId = card.id;
+      audio.play("sfx.ui.click");
+      render();
+    });
+    button.addEventListener("pointerenter", () => audio.play("sfx.ui.hover"));
+
+    painter?.watch(button, () => {
+      slot.replaceWith(portraitCanvas(card, TILE_W, TILE_H));
+    });
+
+    item.appendChild(button);
+    return item;
   };
 
   const page = (card: CardDef): string => {
@@ -193,10 +264,15 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
       : everyone.filter((card) => filter === "all" || card.faction === filter).slice(0, SHOWN);
     const total = open ? 0 : everyone.filter((card) => filter === "all" || card.faction === filter).length;
 
+    painter?.stop();
+    unbindFades();
+    unbindFades = () => {};
+    painter = null;
+
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="gallery-back">← Back</button>
+        <button class="btn btn-ghost" id="gallery-back">${icon("arrow-left")}<span>Back</span></button>
         <h1 class="title">Characters</h1>
       </header>
 
@@ -215,10 +291,36 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
                    )
                    .join("")}
                </nav>
-               <ul class="gallery-grid" id="gallery-grid">${shown.map(tile).join("")}</ul>
-               ${total > shown.length ? `<p class="muted">Showing ${shown.length} of ${total} — pick a faction to see the rest.</p>` : ""}`
+               <div class="hb-scrollwrap hb-fade-top" id="gallery-wrap">
+                 <ul class="gallery-grid hb-scroll" id="gallery-grid"></ul>
+               </div>
+               ${total > shown.length ? `<p class="muted gallery-note">Showing ${shown.length} of ${total} — pick a faction to see the rest.</p>` : ""}`
         }
       </main>`;
+
+    if (!open) {
+      const grid = root.querySelector<HTMLElement>("#gallery-grid");
+      const wrap = root.querySelector<HTMLElement>("#gallery-wrap");
+      if (grid) {
+        painter = lazyPaint(grid, "500px 0px");
+        const columns = 7;
+        for (const [index, card] of shown.entries()) {
+          const item = buildTile(card);
+          /* the diagonal wave the collection uses, so the two grids in the same
+             domain arrive the same way */
+          const tile = item.firstElementChild as HTMLElement | null;
+          if (tile) {
+            const wave = Math.floor(index / columns) + (index % columns);
+            tile.style.setProperty(
+              "--enter-delay",
+              motionEnabled() ? `${Math.min(420, wave * 34)}ms` : "0ms"
+            );
+          }
+          grid.appendChild(item);
+        }
+        if (wrap) unbindFades = bindScrollFades(wrap, grid);
+      }
+    }
 
     if (open) {
       // the portrait and the card strip are canvases, so they are drawn rather
@@ -250,13 +352,6 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
         render();
       });
     }
-    for (const item of root.querySelectorAll<HTMLElement>(".gallery-tile")) {
-      item.addEventListener("click", () => {
-        openId = item.dataset["id"] ?? null;
-        audio.play("sfx.ui.click");
-        render();
-      });
-    }
   };
 
   render();
@@ -284,6 +379,8 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
   return {
     root,
     dispose: () => {
+      painter?.stop();
+      unbindFades();
       delete (window as unknown as { hypeboundGallery?: unknown }).hypeboundGallery;
     },
   };

@@ -52,11 +52,14 @@
 
 .hand-card {
   position: absolute;
-  /* Hangs off the bottom edge by a sliver rather than by a seventh of itself.
-     At -0.14 the whole lower stat row of every card in hand was below the fold,
-     so a ten-card hand showed cost gems and art and nothing you plan a turn
-     with. -0.03 keeps the frame's bottom rail on screen. */
-  bottom: calc(var(--hand-card-height) * -0.03);
+  /* Nothing in the hand is ever below the fold.
+     At -0.14 the whole lower stat row of every card was off screen, so a
+     ten-card hand showed cost gems and art and nothing you plan a turn with.
+     `--fan-drop` is written by handBar.layout() and is the exact number of
+     pixels the fan's outermost tilted corner reaches below an untilted card,
+     so the strip sits on top of its own deepest point rather than on a
+     hand-guessed offset that is right at one card size. */
+  bottom: var(--fan-drop, 0px);
   cursor: grab;
   transform-origin: 50% 100%;
   transform: rotate(var(--tilt, 0deg)) translateY(var(--lift, 0px));
@@ -243,21 +246,29 @@
 
 /* ---- leader plates ------------------------------------------------------ */
 
+/*
+ * The plate is `.mat-chip` (see hud.ts) — the 315° gradient, the lit rim, the
+ * unlit lip, the soft drop, the 2px contact shadow and the grain all arrive
+ * with the class. What is left here is the shape and the fact that it is a
+ * button. It carried `background: var(--glass-strong); border: 1px solid
+ * var(--glass-border)` and nothing else, which is §1's banned pair, and which
+ * put a second sun ten pixels from the action log's top-lit panel.
+ */
 .leader-plate {
   position: absolute;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-2);
-  border-radius: var(--radius-pill);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(14px);
+  border-radius: var(--r-chip, var(--radius-pill));
+  --r-self: var(--r-chip, var(--radius-pill));
   cursor: pointer;
-  transition: border-color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
+  transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast) var(--ease-out);
   max-width: 340px;
 }
-.leader-plate:hover { border-color: var(--leader-color, var(--accent)); transform: translateX(-50%) translateY(-2px); }
+/* A leftover from when both plates were centre-anchored: `translateX(-50%)` on
+   hover threw the plate half its own width to the left. Neither is centred any
+   more, and the lift is the interaction. */
 
 /*
  * The bottom-left corner is ONE column, and it is a real one now.
@@ -298,7 +309,8 @@
 }
 
 .leader-plate-enemy { top: var(--sp-3); left: var(--sp-4); }
-.leader-plate:hover { transform: translateY(-2px); }
+.leader-plate:hover { transform: translateY(-2px) scale(1.015); --rim-boost: 2; }
+.leader-plate:active { transform: scale(0.99); --cast-lift: 0; }
 
 .leader-orb {
   position: relative;
@@ -341,15 +353,14 @@
 
 /* ---- obsession dials ---------------------------------------------------- */
 
+/* `.mat-panel` in hud.ts carries the surface; this is the shape and the size. */
 .obsession-dial {
   position: absolute;
   width: 214px;
   padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(12px);
-  transition: border-color var(--dur-med), box-shadow var(--dur-med);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
+  transition: box-shadow var(--dur-med);
 }
 .obsession-enemy { top: var(--sp-3); left: 50%; transform: translateX(-50%); }
 
@@ -371,12 +382,21 @@
 .obs-value { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; }
 .obs-max { font-size: var(--fs-xs); color: var(--text-faint); font-weight: 400; }
 
-.obs-track { display: flex; gap: 3px; margin-top: 5px; }
+/* The track is a cut recess (`.mat-well`), so the pips read as light sitting
+   inside it rather than as ten rectangles printed on a panel. */
+.obs-track {
+  display: flex;
+  gap: 3px;
+  margin-top: 5px;
+  padding: 2px;
+  border-radius: var(--r-field, 6px);
+  --r-self: var(--r-field, 6px);
+}
 .obs-pip {
   flex: 1;
   height: 10px;
   border-radius: 2px;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.08);
   border: 1px solid transparent;
   transition: background var(--dur-fast), box-shadow var(--dur-fast);
 }
@@ -390,28 +410,99 @@
 
 /* ---- hype crystals ------------------------------------------------------ */
 
+/*
+ * ---- the Hype tray -------------------------------------------------------
+ *
+ * The game's primary resource used to be a 50x50 cluster of 15x21 hexagons
+ * sitting raw on the backdrop photograph, over the brightest orange rooftop
+ * lights in the art, with `flex-wrap` waiting to reflow it onto two lines at
+ * ten crystals — and `renderHype` only drew as many sockets as you had earned,
+ * so on turn one the whole resource was **one dot**. §4 says text over imagery
+ * always has a plate; §5 says empty states are designed; §6 says saturation is
+ * a resource.
+ *
+ * Now it is a tray. `.mat-well` (hud.ts) cuts it into the frame, all ten
+ * sockets are present from the first turn so the ramp teaches itself, the
+ * crystals are two-thirds larger, and nothing wraps.
+ */
 .hype-wrap {
   position: absolute;
   right: var(--sp-4);
   bottom: var(--sp-3);
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
+  /*
+   * A darker cut than the stock well, for one measured reason: this tray is the
+   * only surface in the game that sits directly over the brightest pixels in
+   * the backdrop art — the orange rooftop lights in the bottom-right corner —
+   * and at the stock 0.72/0.5 the recess disappeared into them. Same recipe,
+   * same light direction, deeper cut. It is a tint, not a second material.
+   */
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(2 1 6 / 0.93) 0%, rgb(20 14 40 / 0.78) 100%);
 }
-.hype-label { font-size: var(--fs-xs); letter-spacing: 0.16em; color: var(--text-faint); margin-top: 3px; }
-.hype-row { display: flex; align-items: center; gap: 4px; justify-content: flex-end; flex-wrap: wrap; max-width: 320px; }
+.hype-label { color: var(--text-dim); align-self: flex-end; }
+.hype-row { display: flex; align-items: center; gap: var(--sp-2); justify-content: flex-end; flex-wrap: nowrap; }
+.hype-sockets { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
 
 .hype-crystal {
-  width: 15px; height: 21px;
+  width: 22px; height: 30px;
   clip-path: polygon(50% 0%, 100% 30%, 100% 70%, 50% 100%, 0% 70%, 0% 30%);
-  background: rgba(255,255,255,0.12);
-  transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
+  /* An empty socket inside your current maximum: a cut, lit from the
+     bottom-right like every other recess in the game. It has to read against
+     the tray it is cut into, which is nearly black, so the lower rim carries
+     most of the shape. */
+  background: linear-gradient(var(--light-angle, 315deg), rgba(0,0,0,0.7) 0%, rgba(94,132,190,0.34) 100%);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
+  transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-med) var(--ease-snap);
 }
 .hype-crystal.filled {
-  background: linear-gradient(180deg, #bfe9ff, #2f93ff 55%, #0f3f8a);
-  box-shadow: 0 0 10px rgba(58, 167, 255, 0.75);
+  background: linear-gradient(var(--light-angle, 315deg), #d6f2ff, #2f93ff 55%, #0f3f8a);
+  box-shadow: 0 0 12px rgba(58, 167, 255, 0.7);
+  animation: hype-fill var(--dur-med) var(--ease-snap) backwards;
 }
-.hype-count { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700; margin-left: var(--sp-2); font-variant-numeric: tabular-nums; }
+/*
+ * Beyond what you have earned. Flatter, darker and *smaller* than an empty
+ * socket you can still fill this turn, so "spent" and "not yet yours" are two
+ * different shapes rather than two shades of the same one — §6's rule that
+ * nothing signals by colour alone applies to a resource meter more than to
+ * anything else on the screen.
+ */
+.hype-crystal.locked {
+  background: linear-gradient(var(--light-angle, 315deg), rgba(0,0,0,0.55) 0%, rgba(255,255,255,0.12) 100%);
+  box-shadow: none;
+  transform: scale(0.66);
+}
+
+@keyframes hype-fill {
+  from { transform: scale(0.5); filter: brightness(2.2); }
+  to   { transform: none; filter: none; }
+}
+:root[data-reduced-motion="true"] .hype-crystal.filled { animation: none; }
+
+.hype-count { font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 700; line-height: 1; }
 .hype-of { font-size: var(--fs-sm); color: var(--text-faint); font-weight: 400; }
-.hype-locked { margin-left: var(--sp-2); font-size: var(--fs-sm); color: var(--warning); }
+.hype-locked-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: var(--r-chip, 999px);
+  --r-self: var(--r-chip, 999px);
+  font-size: var(--fs-xs);
+  color: var(--warning);
+}
+.hype-locked-chip svg { width: 13px; height: 13px; display: block; }
+
+@media (max-height: 520px) {
+  .hype-crystal { width: 15px; height: 21px; }
+  .hype-wrap { padding: 4px var(--sp-2); }
+  .hype-count { font-size: var(--fs-md); }
+}
 
 /* ---- end turn + timer --------------------------------------------------- */
 
@@ -470,7 +561,45 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: conic-gradient(transparent calc(var(--timer, 1) * 360deg), rgba(11, 5, 26, 0.86) 0);
+  /*
+   * The clock empties clockwise from twelve, and its edge is lit.
+   *
+   * It used to run `conic-gradient(transparent calc(--timer * 360deg), dark 0)`,
+   * which puts the spent arc *between* the remaining time and twelve o'clock —
+   * so the ring darkened backwards into the top, and two seconds into a turn the
+   * whole visible effect was a 10x6px dark chip immediately anticlockwise of
+   * twelve. Photographed at 3x, that is precisely the "stray grey notch clipped
+   * by the ring at 12 o'clock" this control has been failed for: it was not an
+   * artefact, it was the clock, running the wrong way and with nothing to say it
+   * was a clock.
+   *
+   * Now the spent arc grows clockwise from twelve like every dial anyone has
+   * ever read, and the boundary carries a two-degree specular cap so the eye
+   * reads a hand travelling round a track rather than a bite taken out of a
+   * plate. Two layers on one element, both conic, both composited.
+   */
+  --spent: calc((1 - var(--timer, 1)) * 360deg);
+  background:
+    conic-gradient(
+      transparent calc(var(--spent) - 2.2deg),
+      rgba(255, 244, 214, 0.9) calc(var(--spent) - 2.2deg),
+      rgba(255, 244, 214, 0.9) var(--spent),
+      transparent var(--spent)
+    ),
+    conic-gradient(rgba(11, 5, 26, 0.86) var(--spent), transparent 0);
+  /*
+   * And the layer is not drawn at all while there is nothing spent to draw.
+   *
+   * At a full clock every stop above lands on 0deg, CSS collapses the pair, and
+   * Chrome antialiases a zero-width band into a faint mark — the same class of
+   * artefact the old inverted conic produced at 360deg, and no epsilon closes
+   * it, because it is the antialiasing of a degenerate stop rather than a gap
+   * between two. Gating the opacity is the only reliable answer. The multiplier
+   * makes it opaque by the time 2.5% of the turn has gone, which is under a
+   * second of a thirty-second clock, so the arc is never caught fading in and a
+   * full ring is genuinely one unbroken piece of light.
+   */
+  opacity: clamp(0, calc((1 - var(--timer, 1)) * 40), 1);
   transition: opacity var(--dur-med) var(--ease-out);
 }
 .timer-ring.rope { background-image: none; background-color: var(--danger); }
@@ -688,11 +817,48 @@
   transition: max-height var(--dur-med) var(--ease-out);
 }
 .history-panel.collapsed { max-height: 40px; overflow: hidden; }
-.history-head { display: flex; align-items: center; justify-content: space-between; }
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Opaque, and above the list, so a line scrolling under the header is
+     covered rather than guillotined mid-glyph — which is what the captures
+     showed at the top of the panel in every full-board shot. */
+  position: relative;
+  z-index: 1;
+}
 .history-toggle { min-height: 26px; min-width: 26px; padding: 0; font-size: var(--fs-xs); }
-.history-list { flex: 1 1 auto; font-size: var(--fs-xs); display: flex; flex-direction: column; gap: 2px; padding-right: 4px; }
+.history-list {
+  flex: 1 1 auto;
+  font-size: var(--fs-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 4px;
+  overflow-y: auto;
+  /* §7: the list fades into its own edges instead of being cut by them. */
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 14px, #000 calc(100% - 10px), transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 14px, #000 calc(100% - 10px), transparent);
+}
 .history-entry { color: var(--text-dim); line-height: 1.35; animation: history-in var(--dur-fast) var(--ease-out) both; }
 .history-entry.damage { color: #ffb0b8; }
+/*
+ * A turn marker is a heading, not a line of body text with an em dash in front
+ * of it. §4 asks for a real hierarchy and the log had exactly one role for
+ * every line it prints; this is the one division a player actually navigates
+ * by, so it gets the label role and a rule that fades at both ends (§7).
+ */
+.history-entry.turn {
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  color: var(--text);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.18) 22%, rgba(255,255,255,0.18) 78%, transparent) 1;
+}
+.history-entry.turn:first-child { margin-top: 0; padding-top: 0; border-image: none; }
 
 @keyframes history-in {
   from { opacity: 0; transform: translateX(-6px); }
@@ -729,10 +895,9 @@
   align-items: center;
   gap: var(--sp-2);
   padding: 5px var(--sp-4);
-  border-radius: var(--radius-pill);
-  background: var(--glass-strong);
-  border: 1px solid var(--accent);
-  box-shadow: var(--glow-accent);
+  border-radius: var(--r-chip, var(--radius-pill));
+  --r-self: var(--r-chip, var(--radius-pill));
+  box-shadow: var(--mat-cast), var(--glow-accent);
   font-size: var(--fs-sm);
   animation: trigger-in var(--dur-fast) var(--ease-snap) both;
 }
@@ -760,10 +925,9 @@
   flex-direction: column;
   gap: 2px;
   padding: var(--sp-2);
-  border-radius: var(--radius);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(14px);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
+  z-index: 2;
 }
 .emote-menu.open { display: flex; }
 .emote-item { padding: 7px var(--sp-4); border-radius: var(--radius-sm); font-size: var(--fs-sm); text-align: left; white-space: nowrap; }
@@ -831,14 +995,12 @@
 .toast-layer { position: absolute; left: 50%; bottom: calc(var(--hand-card-height) + 90px); transform: translateX(-50%); display: flex; flex-direction: column; gap: var(--sp-2); align-items: center; pointer-events: none; }
 .toast {
   padding: var(--sp-2) var(--sp-5);
-  border-radius: var(--radius-pill);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border-bright);
-  backdrop-filter: blur(14px);
+  border-radius: var(--r-chip, var(--radius-pill));
+  --r-self: var(--r-chip, var(--radius-pill));
   font-size: var(--fs-sm);
   animation: toast-in var(--dur-fast) var(--ease-snap) both;
 }
-.toast-error { border-color: var(--danger); color: #ffc0c8; }
+.toast-error { color: #ffc0c8; box-shadow: var(--mat-cast), 0 0 18px rgba(255,77,106,0.45); }
 .toast.out { animation: toast-out var(--dur-med) var(--ease-in-out) both; }
 
 @keyframes toast-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
@@ -896,14 +1058,11 @@
   flex-direction: column;
   gap: 2px;
   padding: var(--sp-2) var(--sp-4);
-  border-radius: var(--radius);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border-bright);
-  backdrop-filter: blur(14px);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
   font-size: var(--fs-xs);
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: var(--shadow);
 }
 .dp-damage { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 800; color: #ff5f7a; }
 .dp-bonus { color: var(--accent-gold); font-weight: 600; }
@@ -976,7 +1135,26 @@
 }
 .mulligan-head { text-align: center; }
 .mulligan-head .title { margin: var(--sp-1) 0; }
-.mulligan-cards { display: flex; gap: var(--sp-3); flex-wrap: wrap; justify-content: center; }
+/*
+ * One row, always.
+ *
+ * `flex-wrap: wrap` broke a six-card opening hand 5+1 at 1600px, leaving one
+ * orphan on a second line with Confirm crammed underneath it — a CSS default
+ * deciding the layout of the first thing a player ever sees in a match. The
+ * reference deals its mulligan as a single row on a lit table at every hand
+ * size. The compression comes from the cards giving up width together rather
+ * than from one of them falling off the end.
+ */
+.mulligan-cards {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: flex-end;
+  max-width: 100%;
+}
+.mulligan-card { flex: 0 1 auto; min-width: 0; }
+.mulligan-card canvas { max-width: 100%; height: auto; }
 
 .mulligan-card {
   position: relative;
@@ -989,19 +1167,41 @@
 .mulligan-card:hover { transform: translateY(-10px) scale(1.04); }
 .mulligan-card canvas { display: block; border-radius: 10px; }
 .mulligan-card.selected canvas { filter: grayscale(0.7) brightness(0.6); }
+/*
+ * A stamped seal, not a magenta bar across the card's name.
+ *
+ * It was `inset: auto 0 40% 0` filled with `var(--danger)` — a full-bleed,
+ * hard-cornered rectangle laid over the name plate of a card whose frame is
+ * rounded, so its square corners stuck out past the card's own silhouette and
+ * the one piece of information you need to decide a mulligan was destroyed by
+ * the mark that says you are discarding it. §1 bans a solid fill at that size
+ * and §7 asks for consistent corners.
+ *
+ * Hearthstone turns the card face-down; MTG Arena dims it and drops it back
+ * toward the deck. Both keep the card readable while marked. This is the same
+ * idea at the cost of a rotate: a seal in the lower corner, clear of the name,
+ * inside the card's radius, over a scrim that darkens the whole card evenly.
+ */
 .mulligan-mark {
   position: absolute;
-  inset: auto 0 40% 0;
-  padding: 4px;
-  background: var(--danger);
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  padding: 4px var(--sp-3);
+  border-radius: var(--r-chip, 999px);
+  background: linear-gradient(var(--light-angle, 315deg), #ff8fa3, var(--danger) 60%, #8d0f28);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.34), inset 0 -1px 0 rgba(0,0,0,0.5), 0 3px 10px rgba(0,0,0,0.6);
   color: #fff;
   font-size: var(--fs-xs);
   font-weight: 800;
   letter-spacing: 0.12em;
   opacity: 0;
-  transition: opacity var(--dur-fast);
+  transform: rotate(-7deg) scale(0.7);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-snap);
 }
-.mulligan-card.selected .mulligan-mark { opacity: 1; }
+.mulligan-card.selected .mulligan-mark { opacity: 1; transform: rotate(-7deg) scale(1); }
+:root[data-reduced-motion="true"] .mulligan-mark { transition: opacity 90ms linear; transform: rotate(-7deg); }
 
 .chooser-panel, .confirm-panel, .settings-quick {
   padding: var(--sp-5);
@@ -1009,6 +1209,83 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
+}
+
+/* ---- "end your turn?" is asked at the rail, not behind a curtain -------- */
+
+/*
+ * Measured on a 60fps screencast of a handover: from t+59ms to t+367ms the
+ * centre of the play area was under `rgba(3,2,8,0.78)` and a 12px blur, for a
+ * routine, reversible, one-key-to-undo question. That is three hundred
+ * milliseconds a turn in which the board the question is *about* cannot be
+ * read — you are being asked whether you have spent your Hype while the Hype
+ * tray, your hand and your row are all behind a blackout.
+ *
+ * MTG Arena never covers the battlefield for this; it puts the warning beside
+ * the pass button. Hearthstone does not ask at all. So the panel moves onto the
+ * End Turn rail — the object the question is about and the object that answers
+ * it — and the scrim becomes a radial falloff anchored there: dark enough at
+ * the rail to seat the panel, and barely present over the mat, which stays
+ * legible and stays lit.
+ *
+ * Still modal, deliberately: it is a yes/no the game is waiting on, so the rest
+ * of the board must not take a click that would be lost. What changes is that
+ * you can see what you are answering about.
+ */
+.battle-overlay.confirm-overlay {
+  place-items: center end;
+  padding-right: calc(var(--sp-5) + 132px + var(--sp-5));
+  background: radial-gradient(
+    128% 116% at 88% 50%,
+    rgba(3, 2, 8, 0.88) 0%,
+    rgba(3, 2, 8, 0.74) 26%,
+    rgba(3, 2, 8, 0.34) 56%,
+    rgba(3, 2, 8, 0.14) 100%
+  );
+  /* No backdrop blur. The board underneath is a WebGL surface redrawing every
+     frame, and a continuously-changing backdrop-filter costs a full-screen
+     readback per frame for a panel that is on screen for a third of a second. */
+  backdrop-filter: none;
+}
+
+.battle-overlay.confirm-overlay .confirm-panel {
+  min-width: min(330px, 42vw);
+  /* It arrives from the rail it belongs to rather than fading in from nowhere,
+     which is what makes it read as the button's own answer sheet. */
+  animation: confirm-in var(--dur-fast) var(--ease-snap) both;
+}
+
+@keyframes confirm-in {
+  from { opacity: 0; transform: translateX(26px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+:root[data-reduced-motion="true"] .battle-overlay.confirm-overlay .confirm-panel { animation: none; }
+
+/*
+ * Below the rail's own width there is nowhere beside the button to stand, so
+ * the panel goes to the bottom edge instead — still off the rows, still not on
+ * top of the cards the question is about.
+ */
+@media (max-width: 1080px), (max-height: 560px) {
+  .battle-overlay.confirm-overlay {
+    place-items: end center;
+    padding: 0 var(--sp-4) var(--sp-4);
+    background: radial-gradient(
+      140% 90% at 50% 100%,
+      rgba(3, 2, 8, 0.88) 0%,
+      rgba(3, 2, 8, 0.6) 40%,
+      rgba(3, 2, 8, 0.16) 100%
+    );
+  }
+  .battle-overlay.confirm-overlay .confirm-panel {
+    min-width: min(420px, 92vw);
+    animation-name: confirm-in-up;
+  }
+  @keyframes confirm-in-up {
+    from { opacity: 0; transform: translateY(22px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+  }
 }
 .chooser-title { font-family: var(--font-display); margin: 0; }
 .chooser-list { display: flex; flex-direction: column; gap: var(--sp-2); }
@@ -1080,9 +1357,25 @@
 /* ---- responsive tightening for small landscape phones ------------------- */
 
 @media (max-height: 520px) {
-  .history-panel { max-height: 140px; width: 210px; }
-  .obsession-dial { width: 170px; }
-  .timer-ring { width: 104px; height: 104px; }
+  /*
+   * The log and the End Turn ring stopped sharing a corner.
+   *
+   * Measured at 844x390 with bounding rects: `.history-panel` spanned
+   * x 618-828 / y 74-214 and `.turn-wrap` spanned x 720-824 / y 143-247, so a
+   * hundred pixels of the most important control on the screen sat underneath
+   * a scrolling text panel. §9 makes the phone size a hard constraint, and two
+   * HUD elements occupying the same pixels is the corner-pinned-absolutes
+   * failure the recon named as the worst thing here.
+   *
+   * The log is docked directly under the control cluster and stops above the
+   * ring's top edge; the ring comes down to 84px, which still clears the 44px
+   * touch target with room over. Nothing is layered on anything.
+   */
+  .history-panel { top: 52px; max-height: 92px; width: 186px; }
+  .obsession-dial { width: 152px; }
+  .timer-ring { width: 84px; height: 84px; }
+  .end-turn-icon { width: 18px; height: 18px; }
+  .end-turn-btn .end-turn-text { font-size: var(--fs-xs); letter-spacing: 0.02em; }
   .leader-orb { width: 46px; height: 46px; }
   .confluence-bar { max-width: 230px; }
   .conf-text { display: none; }
@@ -1107,9 +1400,21 @@
     left: auto;
     right: calc(var(--sp-3) + 148px);
     transform: none;
-    width: 136px;
+    width: 152px;
   }
+
+  /*
+   * "RIVAL · OBSESSION" wrapped to two lines inside a 136px dial and took the
+   * value off its own baseline with it, so the two dials — which exist to be
+   * compared with each other at a glance — read as different objects on a
+   * phone. The label is one short phrase; it is allowed to shrink rather than
+   * break.
+   */
+  .obs-label { font-size: 0.62rem; letter-spacing: 0.06em; }
 }
+
+/* A resource label never wraps: the pair only works if both read identically. */
+.obs-label { white-space: nowrap; }
 
 /* ---- coach overlay (tutorial, puzzles, story) ---------------------------- */
 
@@ -1149,12 +1454,9 @@
   bottom: 20vh;
   width: min(360px, 32vw);
   padding: var(--sp-4) var(--sp-5);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border-bright);
   border-left: 3px solid var(--accent);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(10px);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
   pointer-events: auto;
   display: flex;
   flex-direction: column;
@@ -1253,29 +1555,24 @@
   width: 230px;
 }
 
+/* `.mat-panel .act` in hud.ts: surface and six states from the foundation. */
 .ability-btn {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-2);
   text-align: left;
-  border-radius: var(--radius);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-strong);
-  backdrop-filter: blur(10px);
+  border-radius: var(--r-tile, var(--radius));
+  --r-self: var(--r-tile, var(--radius));
   color: var(--text-dim);
   cursor: not-allowed;
-  transition: border-color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
 }
 
 .ability-btn.ready {
   color: var(--text);
-  border-color: var(--accent);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: var(--mat-cast), 0 0 16px color-mix(in srgb, var(--accent) 35%, transparent);
   cursor: pointer;
 }
-
-.ability-btn.ready:hover { transform: translateY(-2px); border-color: var(--accent-bright); }
 
 .ability-cost {
   flex: 0 0 auto;

@@ -15,6 +15,7 @@ import type {
   EngineEvent,
   PlayerView,
   Seat,
+  TargetRef,
 } from "../../engine/types";
 import type { MatchClocks } from "../../net/transport";
 import { getAsset } from "../art/assetLoader";
@@ -101,16 +102,36 @@ export class BattleHud {
   ) {
     this.root = el("div", "battle-hud");
 
+    /**
+     * Every raised surface on this HUD is one of the foundation's four
+     * materials, and this is where that is decided.
+     *
+     * The recon measured two lighting models on one screen: `.history-panel`
+     * used `.panel`, which carries an inset top rim and a drop shadow, while the
+     * leader plate, the Obsession dial and the ability buttons each hand-rolled
+     * `background: var(--glass-strong); border: 1px solid var(--glass-border)`.
+     * §1 bans that twice over — "a solid background on any surface larger than
+     * an icon" and "a `border: 1px solid` as the only edge treatment" — and §1's
+     * key-light rule makes it worse than a style inconsistency: the log panel
+     * was lit from the top-left and the dial ten pixels beside it was not, which
+     * is the two-suns defect stated in the foundation contract as the single
+     * thing fifteen parallel builders will get wrong.
+     *
+     * Composition rather than a private bevel, per the contract. `.mat-chip` for
+     * the pills and the small inline objects, `.mat-panel` for the structural
+     * plates, `.mat-well` for the recessed tracks. The rim, the lip, the drop,
+     * the 2px contact shadow and the grain arrive with the class.
+     */
     // ---- enemy plate (top centre) -----------------------------------------
-    this.enemyPlate = el("div", "leader-plate leader-plate-enemy");
+    this.enemyPlate = el("div", "leader-plate mat-chip leader-plate-enemy");
     this.enemyPlate.addEventListener("click", () => this.view && this.callbacks.onInspectLeader(this.view.opponent.seat));
     this.root.appendChild(this.enemyPlate);
 
-    this.playerPlate = el("div", "leader-plate leader-plate-player");
+    this.playerPlate = el("div", "leader-plate mat-chip leader-plate-player");
     this.playerPlate.addEventListener("click", () => this.view && this.callbacks.onInspectLeader(this.view.seat));
 
-    this.obsessionEnemy = el("div", "obsession-dial obsession-enemy");
-    this.obsessionPlayer = el("div", "obsession-dial obsession-player");
+    this.obsessionEnemy = el("div", "obsession-dial mat-panel obsession-enemy");
+    this.obsessionPlayer = el("div", "obsession-dial mat-panel obsession-player");
     this.abilityBar = el("div", "ability-bar");
 
     /**
@@ -128,9 +149,17 @@ export class BattleHud {
     corner.append(this.obsessionPlayer, this.playerPlate, this.abilityBar);
     this.root.append(this.obsessionEnemy, corner);
 
-    // ---- hype crystals (bottom right) -------------------------------------
-    const hypeWrap = el("div", "hype-wrap");
-    const hypeLabel = el("div", "hype-label", "HYPE");
+    /**
+     * ---- the Hype tray (bottom right) -------------------------------------
+     *
+     * A tray with sockets cut into it, not a row of dots on a photograph.
+     * `.mat-well` is the foundation's recess — inner shadow at the top-left,
+     * faint rim light at the bottom-right, casts nothing — which is exactly
+     * what a resource tray is, and it gives the crystals something to sit in
+     * and spill onto instead of the brightest orange lights in the backdrop art.
+     */
+    const hypeWrap = el("div", "hype-wrap mat-well");
+    const hypeLabel = el("div", "hype-label t-label", "Hype");
     this.hypeRow = el("div", "hype-row");
     hypeWrap.append(this.hypeRow, hypeLabel);
     this.root.appendChild(hypeWrap);
@@ -237,7 +266,7 @@ export class BattleHud {
     const emoteBtn = el("button", "btn btn-ghost btn-icon");
     emoteBtn.innerHTML = icon("emote", { label: "Emotes" });
     emoteBtn.setAttribute("aria-label", "Emotes");
-    const emoteMenu = el("div", "emote-menu");
+    const emoteMenu = el("div", "emote-menu mat-panel");
     for (const emote of this.callbacks.emotes ?? DEFAULT_EMOTES) {
       const item = el("button", "emote-item", emote);
       item.addEventListener("click", () => {
@@ -366,7 +395,7 @@ export class BattleHud {
         <span class="obs-label">${label} · Obsession</span>
         <span class="obs-value">${value}<span class="obs-max">/${max}</span></span>
       </div>
-      <div class="obs-track">${pips}</div>
+      <div class="obs-track mat-well">${pips}</div>
       ${obsessed ? '<div class="obs-warning">⚠ OBSESSED — takes +1 damage</div>' : ""}`;
   }
 
@@ -398,7 +427,7 @@ export class BattleHud {
 
       const button = document.createElement("button");
       button.type = "button";
-      button.className = `ability-btn ability-${kind}${enabled ? " ready" : ""}`;
+      button.className = `ability-btn mat-panel act ability-${kind}${enabled ? " ready" : ""}`;
       button.disabled = !enabled;
       button.innerHTML = `
         <span class="ability-cost">${ability.obsessionCost}</span>
@@ -416,21 +445,38 @@ export class BattleHud {
     }
   }
 
+  /**
+   * All ten sockets, always.
+   *
+   * It used to emit `min(cap, max(shown, 1))` crystals, so on turn one the
+   * game's primary resource was **one dot** in the corner and the player was
+   * given no way to learn that it ramps to ten. Hearthstone's mana row is ten
+   * permanent sockets in a carved tray from the first turn, and the empty ones
+   * are the whole lesson: they say "this is how big this gets" without a word
+   * of tutorial. Three states, and they differ by more than colour (§6): a
+   * filled crystal is lit, a spent one is an empty socket inside your current
+   * maximum, and a locked one is a socket you have not earned yet, drawn flatter
+   * and darker so the ramp reads as a boundary rather than as a gradient.
+   */
   private renderHype(view: PlayerView): void {
     const { hype, hypeMax, hypeLockedNextTurn } = view.you;
     const cap = this.content.balance.hype.cap;
-    const shown = Math.max(hypeMax, hype);
 
     const crystals: string[] = [];
-    for (let i = 0; i < Math.min(cap, Math.max(shown, 1)); i++) {
-      const filled = i < hype;
-      crystals.push(`<span class="hype-crystal ${filled ? "filled" : "spent"}"></span>`);
+    for (let i = 0; i < cap; i++) {
+      const state = i < hype ? "filled" : i < hypeMax ? "spent" : "locked";
+      crystals.push(`<span class="hype-crystal ${state}"></span>`);
     }
     this.hypeRow.innerHTML =
-      crystals.join("") +
-      `<span class="hype-count">${hype}<span class="hype-of">/${hypeMax}</span></span>` +
-      (hypeLockedNextTurn > 0 ? `<span class="hype-locked" title="Overload">⛓ ${hypeLockedNextTurn}</span>` : "");
-    this.hypeRow.setAttribute("aria-label", `Hype ${hype} of ${hypeMax}`);
+      `<span class="hype-sockets">${crystals.join("")}</span>` +
+      `<span class="hype-count num">${hype}<span class="hype-of">/${hypeMax}</span></span>` +
+      (hypeLockedNextTurn > 0
+        ? `<span class="hype-locked-chip mat-chip" title="Overload — this much Hype is locked next turn">${icon("lock")}<span class="num">${hypeLockedNextTurn}</span></span>`
+        : "");
+    this.hypeRow.setAttribute(
+      "aria-label",
+      `Hype ${hype} of ${hypeMax}, maximum ${cap}${hypeLockedNextTurn > 0 ? `, ${hypeLockedNextTurn} locked next turn` : ""}`
+    );
   }
 
   private renderConfluences(confluences: readonly ConfluenceAvailability[], yourTurn: boolean): void {
@@ -492,7 +538,13 @@ export class BattleHud {
     const line = describeEvent(event, this.content, view);
     if (!line) return;
     const entry = el("div", "history-entry", line);
-    entry.classList.add(event.e.startsWith("damage") ? "damage" : "neutral");
+    entry.classList.add(
+      event.e === "turnStarted" || event.e === "waveArrived" || event.e === "matchEnded"
+        ? "turn"
+        : event.e.startsWith("damage")
+          ? "damage"
+          : "neutral"
+    );
     this.historyList.appendChild(entry);
     while (this.historyList.childElementCount > 120) this.historyList.firstElementChild?.remove();
     this.historyList.scrollTop = this.historyList.scrollHeight;
@@ -500,7 +552,7 @@ export class BattleHud {
 
   /** Show the trigger queue as it resolves, so cascades are readable. */
   showTrigger(cardName: string, trigger: string): void {
-    const chip = el("div", "trigger-chip");
+    const chip = el("div", "trigger-chip mat-chip");
     chip.innerHTML = `<span class="trigger-card">${cardName}</span><span class="trigger-kind">${trigger}</span>`;
     this.triggerRail.appendChild(chip);
     window.setTimeout(() => {
@@ -510,7 +562,7 @@ export class BattleHud {
   }
 
   toast(message: string, kind: "info" | "error" = "info"): void {
-    const toast = el("div", `toast toast-${kind}`, message);
+    const toast = el("div", `toast mat-chip toast-${kind}`, message);
     this.toastLayer.appendChild(toast);
     window.setTimeout(() => {
       toast.classList.add("out");
@@ -676,6 +728,26 @@ export function describeEvent(event: EngineEvent, content: ContentIndex, view: P
     (cardId && content.cards[cardId]?.name) ?? "a card";
   const who = (seat: Seat): string => (seat === view.seat ? "You" : "Rival");
 
+  /**
+   * The thing that was hit, by name.
+   *
+   * The log used to say "a character took 1" — for an event whose whole purpose
+   * is to tell you what happened to *which* thing. Both boards are public
+   * information in the view, so there is no reason to be vague; the fallback
+   * only fires for something that has already left the board by the time the
+   * line is written, which is the one case where a name genuinely is not
+   * available.
+   */
+  const target = (ref: TargetRef): string => {
+    if (ref.kind === "leader") return `${who(ref.seat)}${ref.seat === view.seat ? "r" : "'s"} leader`;
+    for (const board of [view.you.board, view.opponent.board]) {
+      for (const character of board) {
+        if (character?.instanceId === ref.instanceId) return name(character.cardId);
+      }
+    }
+    return "a character";
+  };
+
   switch (event.e) {
     case "turnStarted":
       return `— ${who(event.seat)} turn ${event.turn} (${event.hype}/${event.hypeMax} Hype)`;
@@ -684,13 +756,19 @@ export function describeEvent(event: EngineEvent, content: ContentIndex, view: P
     case "attackDeclared":
       return null; // covered by the damage line
     case "damageDealt": {
-      const target = event.target.kind === "leader" ? `${who(event.target.seat)} leader` : "a character";
+      const hit = target(event.target);
       const bonus = event.elementalBonus ? " (Current advantage +1)" : "";
-      if (event.absorbedByShield) return `Shield absorbed the hit on ${target}`;
-      return `${target} took ${event.amount}${bonus}`;
+      if (event.absorbedByShield) return `Shield absorbed the hit on ${hit}`;
+      // Zero damage is not an event; it is an effect that did nothing, and a log
+      // line for it teaches the player to stop reading the log.
+      if (event.amount <= 0) return null;
+      return `${hit} took ${event.amount}${bonus}`;
     }
     case "healed":
-      return event.blocked ? "Healing was blocked" : `Restored ${event.amount} health`;
+      if (event.blocked) return "Healing was blocked";
+      // "Restored 0 health" appeared twice in one captured match.
+      if (event.amount <= 0) return null;
+      return `${target(event.target)} restored ${event.amount} health`;
     case "characterDefeated":
       return `${name(event.instance.cardId)} was defeated`;
     case "confluenceActivated": {

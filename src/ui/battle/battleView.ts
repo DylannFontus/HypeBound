@@ -26,7 +26,7 @@ import { totalAttack } from "../../engine/effects";
 import { createBattleScene, BOARD, type BattleSceneHandles, type QualityTier } from "./scene";
 import { resolveBoardImage } from "../art/boards";
 import { createBoard, type BoardHandles } from "./board";
-import { CardObject } from "./cardMesh";
+import { CardObject, getCardTexture, type CardFaceState } from "./cardMesh";
 import { LeaderObject } from "./leaderMesh";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { createTargetingLayer, type TargetingLayer } from "./targeting";
@@ -172,6 +172,7 @@ export class BattleView {
     this.board.setResources("enemy", view.opponent.deckCount, view.opponent.discard.length);
     this.syncBoard();
     this.layout();
+    this.warmHandFaces(view);
   }
 
   /**
@@ -301,11 +302,9 @@ export class BattleView {
           this.flyIntoSlot(object, entry.position, entry.scale, character.current as CurrentId);
         }
 
-        object.syncFromCharacter(
-          character,
-          this.highlightFor(character),
-          totalAttack(this.stateProxy(), this.content, character)
-        );
+        const attack = totalAttack(this.stateProxy(), this.content, character);
+        object.syncFromCharacter(character, this.highlightFor(character), attack);
+        this.warmAlternateFaces(character, attack, row.side);
       });
     }
 
@@ -474,6 +473,198 @@ export class BattleView {
         },
       });
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Card faces, drawn before the frame that needs them
+  // -------------------------------------------------------------------------
+
+  /**
+   * ## The 164ms the game stopped, every time a card was played
+   *
+   * Measured on a 60fps screencast of a play: three *identical* frames from
+   * t+12ms to t+160ms after the mouse-up, and a `longtask` entry of 164ms
+   * starting at t+2ms. The card was not animating badly during that window; the
+   * browser was not painting at all. A CPU profile over the same window put
+   * 104ms of it in one call chain — `syncBoard` → `new CardObject` →
+   * `getCardTexture` → `renderCard` — with `drawImage` and `fillRect` at the
+   * bottom of it. A board token's face is a full card drawn into a 2D canvas at
+   * 1.6x, and it was being drawn **on the frame the token appeared**, which is
+   * the single frame in the whole interaction that could least afford it.
+   *
+   * Worse, it happened twice: `CardObject`'s constructor asks for the plain face
+   * and `syncFromCharacter` immediately asks for the board face with live stats,
+   * so the first render is thrown away before it is ever shown.
+   *
+   * And it is not only the play. `highlightFor` gives a friendly character the
+   * "can act" ring on your turn and nothing on the rival's, so **every friendly
+   * token re-renders its face at every handover**. Profiled across one turn
+   * change: 434ms inside `syncBoard`, 407ms of it inside `renderCard`.
+   *
+   * None of those renders is avoidable and none of them is wrong — they are
+   * simply happening at the wrong time. Every one of them is predictable
+   * seconds in advance: the moment a card leaves the hand we know the two faces
+   * its token will ask for, and the moment a token is on the board we know the
+   * two highlights it will alternate between for the rest of the match. So they
+   * are drawn *then*, in the browser's idle time, into the cache
+   * `getCardTexture` already keeps — and the frame that needs them gets a map
+   * lookup instead of a card render.
+   *
+   * One face per idle callback, deliberately. A card render is ~50ms and an idle
+   * slice is ~50ms; two in a row is a dropped frame in the quiet moment rather
+   * than in the loud one, which is not a trade worth making.
+   */
+  private readonly faceQueue: { key: string; card: CardDef; state: CardFaceState }[] = [];
+  private readonly faceWarmed = new Set<string>();
+  private faceScheduled = false;
+
+  /** Mirrors `cacheKey` in cardMesh closely enough to dedupe our own queue. */
+  private faceKey(card: CardDef, state: CardFaceState): string {
+    return [
+      card.id,
+      state.attack ?? "-",
+      state.health ?? "-",
+      state.maxHealth ?? "-",
+      state.highlight ?? "none",
+      state.statEmphasis ? "s" : "",
+    ].join("|");
+  }
+
+  private warmFace(card: CardDef, state: CardFaceState, urgent = false): void {
+    const key = this.faceKey(card, state);
+    if (this.faceWarmed.has(key)) return;
+    /**
+     * The set is a *hint*, not a ledger: `getCardTexture` keeps 160 faces and
+     * evicts by least-recently-used, so a long match can drop something this
+     * still believes is warm. Being wrong costs one uncached render, which is
+     * exactly what the situation was before, so it is allowed to be wrong. It
+     * is cleared wholesale rather than pruned because there is nothing here
+     * worth the bookkeeping.
+     */
+    if (this.faceWarmed.size > 220) this.faceWarmed.clear();
+    this.faceWarmed.add(key);
+    if (urgent) this.faceQueue.unshift({ key, card, state });
+    else this.faceQueue.push({ key, card, state });
+    // A queue that outgrows the moment it was filled for is stale work; drop the
+    // tail rather than spending idle time drawing faces nobody is waiting for.
+    while (this.faceQueue.length > 32) {
+      const dropped = this.faceQueue.pop();
+      if (dropped) this.faceWarmed.delete(dropped.key);
+    }
+    this.scheduleFaceWarm(urgent);
+  }
+
+  /**
+   * A hard floor between two warm renders, and it is not a tidiness knob.
+   *
+   * Without it the queue drained as fast as the browser handed out idle slices,
+   * and three ~55ms card renders landed inside one window: measured on a
+   * screencast of a drag, a **180ms long task 360ms before the drop**. The drag
+   * ghost is moved by a pointermove handler on the main thread, so that block is
+   * the card freezing under the cursor — a new stutter bought with the one this
+   * whole mechanism exists to remove, which is not a trade. Spaced out, the
+   * worst case is a single dropped frame at a time, and a drag has several
+   * hundred milliseconds to spend.
+   */
+  private static readonly FACE_WARM_SPACING = 120;
+
+  private scheduleFaceWarm(urgent: boolean): void {
+    if (this.faceScheduled || this.faceQueue.length === 0) return;
+    this.faceScheduled = true;
+
+    const draw = (): void => {
+      this.faceScheduled = false;
+      if (this.disposed) return;
+      const entry = this.faceQueue.shift();
+      if (entry) getCardTexture(entry.card, entry.state);
+      this.scheduleFaceWarm(false);
+    };
+
+    const ask = (): void => {
+      if (this.disposed) return;
+      const idle = (
+        window as unknown as {
+          requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number;
+        }
+      ).requestIdleCallback;
+      // The timeout is the contract: a drag is over in well under a second, so
+      // the faces it needs cannot wait for a genuinely idle browser.
+      if (idle) idle(draw, { timeout: urgent ? 400 : 3000 });
+      else window.setTimeout(draw, 0);
+    };
+
+    window.setTimeout(ask, BattleView.FACE_WARM_SPACING);
+  }
+
+  /**
+   * The faces a card in the player's hand will want the instant it is released.
+   *
+   * Called on pickup, which buys the several hundred milliseconds of drag the
+   * renders need. The stats are read off the card definition rather than
+   * predicted through the effect engine: a static buff would give the arriving
+   * token different numbers and this would miss, which costs exactly what the
+   * old behaviour cost and nothing more.
+   */
+  /**
+   * Every character in the hand, warmed during the turn rather than the drag.
+   *
+   * Warming at pickup was the first version and it moved the stall rather than
+   * removing it: three card renders inside a drag showed up on the screencast
+   * as 60–140ms blocks at t-286, t+274 and t+369, and the drag ghost is moved by
+   * a main-thread pointermove handler, so those are the card lagging behind the
+   * cursor. A turn, by contrast, is *seconds* of a human deciding what to do,
+   * and it is the most genuinely idle time this screen ever has. By the time a
+   * card is picked up its faces are already drawn and the drag is clean too.
+   *
+   * No playability check: it would cost a `checkPlayable` per card per sync to
+   * save a render the player is likely to want anyway, and `warmFace` already
+   * dedupes, so each distinct card is drawn once for the whole match.
+   */
+  private warmHandFaces(view: PlayerView): void {
+    for (const instance of view.you.hand) {
+      const card = this.content.cards[instance.cardId];
+      if (card?.type !== "character") continue;
+      this.warmFace(card, {});
+      this.warmFace(card, {
+        attack: card.attack,
+        health: card.health,
+        maxHealth: card.health,
+        statEmphasis: true,
+        highlight: "none",
+      });
+    }
+  }
+
+  private warmPlayFaces(card: CardDef): void {
+    // what CardObject's constructor asks for before it knows anything
+    this.warmFace(card, {}, true);
+    if (card.type !== "character") return;
+    const health = card.health;
+    for (const highlight of ["none", "playable"] as const) {
+      this.warmFace(card, { attack: card.attack, health, maxHealth: health, statEmphasis: true, highlight }, true);
+    }
+  }
+
+  /**
+   * The highlight a token on the board is not currently wearing.
+   *
+   * A friendly character alternates between the "can act" ring and nothing
+   * every single handover, and picks up "selected" the moment it is dragged; an
+   * enemy lights as a "target" whenever a drag makes it one. Two or three faces
+   * per token, drawn once, and the flip is free forever after.
+   */
+  private warmAlternateFaces(character: CharacterInstance, attack: number, side: "player" | "enemy"): void {
+    const card = this.content.cards[character.cardId];
+    if (!card) return;
+    const base: CardFaceState = {
+      attack,
+      health: character.health,
+      maxHealth: character.maxHealth,
+      statEmphasis: true,
+    };
+    const highlights =
+      side === "player" ? (["none", "playable", "selected"] as const) : (["none", "target"] as const);
+    for (const highlight of highlights) this.warmFace(card, { ...base, highlight });
   }
 
   /**
@@ -945,6 +1136,10 @@ export class BattleView {
     const instance = view.you.hand.find((c) => c.instanceId === instanceId);
     const card = instance ? this.content.cards[instance.cardId] : undefined;
     if (!card) return;
+
+    // The drag is the only spare time this interaction has; spend it drawing the
+    // faces the drop would otherwise draw on the frame it lands.
+    this.warmPlayFaces(card);
 
     this.externalDrag = {
       instanceId,
@@ -1438,12 +1633,43 @@ export class BattleView {
   // Frame loop
   // -------------------------------------------------------------------------
 
+  /**
+   * The ambient clock — the one the board's idle animation is a function of.
+   *
+   * It is deliberately not `clock.elapsedTime`: under reduced motion it simply
+   * stops advancing, so **every** time-driven effect on this board dies at
+   * once, at the single place all of them are fed from.
+   *
+   * This is a guard rail rather than a repair. `scene.render` and
+   * `board.update` each already pin their own drift, wash and grain when the
+   * setting is on, and a difference heatmap of two frames 1.1s apart with it
+   * enabled shows a genuinely still board — the only moving pixels on the whole
+   * screen are the turn clock's own arc, which is functional and must keep
+   * ticking. (An earlier reading of "reduced motion removes only 23% of the
+   * board's movement" was the measuring script's fault, not the board's: it
+   * turned the setting on via `await import("/src/save/settings.ts")` inside the
+   * page, which in a Vite dev build is a *second* copy of the module — the app's
+   * carries an HMR `?t=` query — so it wrote to a store nothing was reading.
+   * The heatmap it produced was of a board with motion fully enabled.)
+   *
+   * What the clock buys is that the next ambient effect anybody adds to the mat
+   * cannot quietly fail the setting: §3's line is that everything driven by
+   * elapsed time is decorative by construction and dies, while everything
+   * functional here — the tokens' easing, the flights, the lunges, every
+   * `tween` — is driven by `delta` or by its own timeline and is untouched.
+   *
+   * It resumes from where it stopped rather than jumping, so turning the
+   * setting off mid-match does not snap every ambient phase to a new value.
+   */
+  private ambientClock = 0;
+
   private loop = (): void => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
 
     const delta = Math.min(this.clock.getDelta(), 0.05);
-    const elapsed = this.clock.elapsedTime;
+    if (!getSettings().reducedMotion) this.ambientClock += delta;
+    const elapsed = this.ambientClock;
 
     for (const object of this.boardObjects.values()) object.update(delta);
     /**

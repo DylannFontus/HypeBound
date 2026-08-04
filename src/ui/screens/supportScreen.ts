@@ -66,15 +66,16 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
         </div>
       </header>
 
-      <main class="policy-body">
+      <main class="policy-body data-body">
         <section class="panel panel-chrome support-faq">
           <div class="stats-table-head">
-            <h2 class="profile-section-title">Frequently asked</h2>
+            <h2 class="t-heading">Frequently asked</h2>
             <span class="muted" id="support-count">${shown.length} of ${faq.length}</span>
           </div>
-          <label class="patch-search">
-            <span class="muted">Search</span>
-            <input type="search" id="support-search" value="${esc(query)}" placeholder="save, odds, bug, multiplayer" />
+          <label class="patch-search field-group">
+            <span class="t-label">Search</span>
+            <input class="field" type="search" id="support-search" value="${esc(query)}"
+                   placeholder="save, odds, bug, multiplayer" />
           </label>
           ${
             shown.length === 0
@@ -92,13 +93,13 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
         </section>
 
         <section class="panel panel-chrome support-report">
-          <h2 class="profile-section-title">Report a bug</h2>
+          <h2 class="t-heading">Report a bug</h2>
           <p class="muted">
             There is no ticket queue offline, so this exports a file you can attach wherever you are
             reporting. It is shown in full below first — there is nothing in it that identifies you,
             and no part of your save.
           </p>
-          <table class="patch-table policy-table" id="support-diagnostic">
+          <table class="d-table patch-table policy-table" id="support-diagnostic">
             <tbody>
               ${Object.entries(report)
                 .map(
@@ -119,7 +120,7 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
         </section>
 
         <section class="panel panel-chrome policy-note">
-          <h2 class="profile-section-title">Safety, and spending</h2>
+          <h2 class="t-heading">Safety, and spending</h2>
           <p class="muted">
             There is no chat, no friends list and no player-to-player messaging in this build, so
             there is nobody to report and nothing to block. Those tools arrive with the server, along

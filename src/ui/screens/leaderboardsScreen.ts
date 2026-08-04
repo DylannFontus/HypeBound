@@ -3,63 +3,151 @@
  *
  * The design marks this screen **ONLINE** and is unusually specific about what
  * the offline build should do: *"requires the server (no fake ladder is ever
- * rendered offline — explainer panel only)"*. So that is the whole screen. There
- * is no placeholder table, no greyed-out sample ranking, and no "coming soon"
- * over a mock — because a mock ladder is a lie that people screenshot.
+ * rendered offline — explainer panel only)"*. That editorial decision is right
+ * and it stays: there is no placeholder table, no greyed-out sample ranking, no
+ * invented names, because a mock ladder is a lie that people screenshot.
  *
- * It exists at all rather than being a dead link because §4.5.4 lists it among
- * the profile's exits, and a button that goes nowhere teaches players not to
- * trust buttons. This one goes somewhere and tells the truth when it gets there.
+ * ## What was wrong was the execution, not the decision
+ *
+ * Two paragraphs of grey prose in two identical rounded rectangles occupying the
+ * top 55% of the frame, and the remaining 45% empty. §5 asks an empty state to
+ * be *designed* — "a moment to be charming, not a blank grid" — and this was the
+ * blank grid. Gwent offline still shows your rank medal, your MMR and the ladder
+ * art behind a "server unavailable" plate; MTGA renders your tier badge and pips
+ * entirely locally. A rank crest is the most-screenshotted object in a
+ * competitive card game and this build did not have one.
+ *
+ * So it has one now, and it is honest:
+ *
+ * **The crest shows local standing, computed from this device's own history.**
+ * Not a ladder position — there is nobody to be above — but placement progress,
+ * which is a real number the client owns: how many matches you have played of
+ * the ten a placement would need. Unplaced draws the empty socket rather than a
+ * gem, which is the truthful state and also the one that makes the filled
+ * version mean something.
+ *
+ * **The ladder behind it is a silhouette.** Carved empty rows receding into the
+ * dark, painted by the same generator as the event key art, with no name and no
+ * number on any of them. It composes the frame and it claims nothing.
  */
 
 import type { ContentIndex } from "../../engine/types";
 import type { Screen } from "../shell";
+import { getProfile } from "../../save/profile";
 import { audio } from "../../audio/audio";
+import { count, countUp, enter, icon, ladderPlate, meter, quantify, rankCrest, RANK_PX } from "./data/kit";
 
 export interface LeaderboardsCallbacks {
   onBack: () => void;
   onStats: () => void;
 }
 
+/** What a placement would need, if there were a ladder to be placed on. */
+const PLACEMENT_MATCHES = 10;
+
 export function createLeaderboardsScreen(_content: ContentIndex, callbacks: LeaderboardsCallbacks): Screen {
   const root = document.createElement("div");
   root.className = "screen leaderboards-screen";
 
+  const profile = getProfile();
+  const played = profile.stats.matchesPlayed;
+  const toPlace = Math.max(0, PLACEMENT_MATCHES - played);
+  const placed = toPlace === 0;
+  const wins = profile.stats.wins;
+  const rate = played > 0 ? Math.round((wins / played) * 100) : 0;
+
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="screen-header">
-      <button class="btn btn-ghost" id="leaderboards-back">← Back</button>
+      <button class="btn btn-ghost" id="leaderboards-back">${icon("arrow-left", 16)} Back</button>
       <h1 class="title">Leaderboards</h1>
     </header>
 
-    <main class="leaderboards-body">
-      <section class="panel panel-chrome leaderboards-explainer">
-        <h2 class="profile-section-title">Not yet — and not faked either</h2>
-        <p>
+    <main class="leaderboards-body data-body">
+      <section class="panel panel-chrome lb-standing" style="--lb-plate:url('${ladderPlate(1200, 400)}')">
+        <div class="lb-standing-art" aria-hidden="true"></div>
+        <div class="lb-standing-inner">
+          <div class="lb-crest">
+            <span class="d-rank" style="--rank-size:132px;--rank-art:url('${rankCrest({
+              size: RANK_PX,
+              tier: placed ? Math.min(5, 1 + Math.floor(wins / 5)) : 0,
+              tiers: 20,
+            })}')">
+              ${placed ? `<span class="d-rank-value">${count(Math.min(5, 1 + Math.floor(wins / 5)))}</span>` : ""}
+            </span>
+            <span class="t-label">${placed ? "Local standing" : "Unplaced"}</span>
+          </div>
+
+          <div class="lb-standing-text">
+            <p class="t-label lb-eyebrow">Season server offline</p>
+            <h2 class="t-display">${placed ? "Placed, locally" : "Not placed yet"}</h2>
+            <p class="t-body">
+              ${
+                placed
+                  ? `This device has your record and can rank you against yourself. It cannot rank you against
+                     anybody else until the season server exists, and it will not pretend to.`
+                  : `A placement takes ${quantify(PLACEMENT_MATCHES, "match", "matches")}. You have
+                     ${quantify(played, "match", "matches")} on record, so there
+                     ${toPlace === 1 ? "is one to go" : `are ${count(toPlace)} to go`}.`
+              }
+            </p>
+            ${meter({
+              value: Math.min(1, played / PLACEMENT_MATCHES),
+              steps: PLACEMENT_MATCHES,
+              animate: true,
+              className: "lb-meter",
+            })}
+            <dl class="d-stats lb-stats">
+              <div class="d-stat"><dt>Matches</dt><dd class="num" data-count="${played}" data-digits="4">0</dd></div>
+              <div class="d-stat"><dt>Wins</dt><dd class="num" data-count="${wins}" data-digits="4">0</dd></div>
+              <div class="d-stat"><dt>Win rate</dt><dd class="num">${rate}%</dd></div>
+            </dl>
+            <div class="lb-actions">
+              <button type="button" class="mat-hero act r-chip" id="leaderboards-stats">
+                ${icon("log", 16)} Your own statistics
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel-chrome leaderboards-explainer d-enter">
+        <h2 class="t-heading">Not yet — and not faked either</h2>
+        <p class="t-body">
           Leaderboards need the server, and this build does not have one. Rather than show
           you a sample ladder with invented names on it, there is nothing here.
         </p>
-        <p class="muted">
+        <p class="t-body">
           When it arrives it will carry the ranked ladder (top 200, with your own position
           pinned), Fan Club standings and event boards, filtered by region, season and
           faction — and a season archive, so a climb you made is still readable after the
           season that contained it has ended.
         </p>
-        <p class="muted">
+        <p class="t-body">
           Boards will be cleaned retroactively. A rank that came from something other than
           playing does not get to stay on a page with your name under it.
         </p>
-        <div class="stats-actions">
-          <button class="btn btn-ghost" id="leaderboards-stats">Your own statistics →</button>
-        </div>
       </section>
 
-      <section class="panel panel-chrome leaderboards-note">
-        <h3 class="profile-section-title">What does work offline</h3>
-        <p class="muted">
-          Everything that measures you against yourself: the statistics dashboard, match
-          history with full replays, Faction and Leader Mastery, the Bias Board and
-          achievements. None of those needed a server, which is why they shipped first.
+      <section class="panel panel-chrome leaderboards-note d-enter">
+        <h3 class="t-heading">What does work offline</h3>
+        <ul class="lb-works">
+          ${[
+            ["log", "The statistics dashboard"],
+            ["mode-replays", "Match history, with full replays"],
+            ["mastery", "Faction and Leader Mastery"],
+            ["kw-parasocial", "The Bias Board"],
+            ["achievement", "Achievements"],
+          ]
+            .map(
+              ([id, label]) =>
+                `<li class="mat-chip lb-work d-enter">${icon(id as never, 15)}<span>${label}</span></li>`
+            )
+            .join("")}
+        </ul>
+        <p class="t-body">
+          Everything that measures you against yourself. None of it needed a server, which is
+          why it shipped first.
         </p>
       </section>
     </main>`;
@@ -69,6 +157,9 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
     callbacks.onBack();
   });
   root.querySelector("#leaderboards-stats")?.addEventListener("click", () => callbacks.onStats());
+
+  enter(root);
+  countUp(root);
 
   return { root };
 }

@@ -161,15 +161,26 @@
 
 :root[data-reduced-motion="true"] .lobby-bg::before { animation: none; }
 
-/* The venue rig: two slow bars of light raking the room, on periods that share
-   no short multiple so they never cross twice in the same place. */
+/**
+ * The venue rig: two slow bars of light raking the room.
+ *
+ * Both lie on the rig axis. They were authored at 74° and 104°, which put two
+ * more suns on the back wall of a screen where every panel, every rim and every
+ * contact shadow obeys 315° — the exact defect the foundation contract calls its
+ * single most load-bearing line, thirty degrees apart from each other as well as
+ * from the key. Being parallel is also what makes them read as *one* rig with
+ * two lamps in it rather than as a crossing pattern: they are separated by where
+ * they sit on the plate and by how fast they travel, not by pointing different
+ * ways. The periods still share no short multiple, so they never cross twice in
+ * the same place.
+ */
 .lobby-bg::after {
   content: "";
   position: absolute;
   inset: -20% -30%;
   background:
-    linear-gradient(74deg, transparent 37%, color-mix(in srgb, var(--lobby-key) 13%, transparent) 41%, transparent 45%),
-    linear-gradient(104deg, transparent 57%, rgb(82 200 255 / 0.07) 61%, transparent 65%);
+    linear-gradient(var(--light-sweep), transparent 30%, color-mix(in srgb, var(--lobby-key) 13%, transparent) 35%, transparent 40%),
+    linear-gradient(var(--light-sweep), transparent 58%, rgb(82 200 255 / 0.07) 63%, transparent 68%);
   animation: lobby-sweep 17s var(--ease-in-out) infinite alternate;
 }
 
@@ -3410,8 +3421,10 @@ button.story-card:not(:disabled):hover {
   display: grid;
   place-items: center;
 }
+/* Lit like everything else: a card back is a surface, and 150° was a surface
+   lit from fifteen degrees off the sun the rest of the shop obeys. */
 .reveal-back {
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.09), rgba(0, 0, 0, 0.45));
+  background: linear-gradient(var(--light-sweep), rgba(255, 255, 255, 0.09), rgba(0, 0, 0, 0.45));
   border: 1px solid var(--glass-border);
 }
 .reveal-front { opacity: 0; transform: scale(0.94); transition: opacity 0.18s ease, transform 0.18s var(--ease-out); }
@@ -3663,7 +3676,10 @@ button.story-card:not(:disabled):hover {
   background:
     radial-gradient(72% 82% at 12% 6%, color-mix(in srgb, var(--f) 42%, transparent), transparent 74%),
     radial-gradient(66% 48% at 26% 112%, color-mix(in srgb, var(--c) 26%, transparent), transparent 72%),
-    linear-gradient(100deg, transparent 34%, rgb(6 3 14 / 0.5) 78%);
+    /* The shade that falls away from the key, so it falls along the key's own
+       axis. At 100° it fell across the plate instead of down it, which is a
+       second light source stated as a shadow. */
+    linear-gradient(var(--light-sweep), transparent 34%, rgb(6 3 14 / 0.5) 78%);
   transition: background var(--dur-setpiece) var(--ease-arrive);
 }
 
@@ -5608,7 +5624,13 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.72fr);
+  /* `min(340px, 100%)` rather than a bare `340px`. A fixed minimum on a grid
+     track cannot shrink, so at `--ui-scale: 1.4` the form's own intrinsic width
+     pushed the body to 1314px inside a 1280px viewport and the whole screen
+     gained a horizontal scrollbar. The track keeps its comfortable minimum right
+     up to the point where honouring it would cost the player the right-hand edge
+     of the form. */
+  grid-template-columns: minmax(0, 1fr) minmax(min(340px, 100%), 0.72fr);
   grid-template-rows: auto auto;
   gap: var(--sp-4);
   padding: var(--sp-3) var(--sp-6) var(--sp-5);
@@ -5651,6 +5673,43 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   -webkit-mask-image: radial-gradient(172% 152% at 38% 36%, #000 52%, rgb(0 0 0 / 0.62) 86%, transparent 100%);
 }
 .signin-room-art { width: 100%; height: 100%; object-fit: cover; }
+
+/**
+ * The room drifts, and the person in it breathes.
+ *
+ * Measured against the queue with the same instrument — a screencast, one frame
+ * in four, counting pixels that changed by more than a just-noticeable amount —
+ * this screen was moving 0.34% of itself against the queue's 0.85%, and every
+ * bit of that 0.34% belonged to the persistent atmosphere and the foundation's
+ * sheen. The two biggest objects on the screen, the venue and the leader, were
+ * photographs. §3: "idle is never dead".
+ *
+ * Both are transforms on layers that are already composited, on long periods
+ * that share no short multiple, at amplitudes under 1% — the room slides about
+ * eight pixels over twenty-three seconds and her shoulders rise by a pixel. The
+ * `-6% -4%` inset the room already had is what pays for the travel, so nothing
+ * uncovers an edge.
+ */
+.signin-room-art { animation: signin-room-drift 23s var(--ease-in-out) infinite alternate; }
+.signin-portrait-art {
+  /* From the feet. A breath that scales about the centre lifts the figure off
+     the floor, and she is standing on it. */
+  transform-origin: 50% 100%;
+  animation: signin-breathe 7.5s var(--ease-in-out) infinite;
+}
+
+@keyframes signin-room-drift {
+  from { translate: -0.5% 0; scale: 1.008 1.008; }
+  to { translate: 0.5% -0.4%; scale: 1 1; }
+}
+
+@keyframes signin-breathe {
+  0%, 100% { scale: 1 1; }
+  50% { scale: 1.003 1.009; }
+}
+
+:root[data-reduced-motion="true"] .signin-room-art,
+:root[data-reduced-motion="true"] .signin-portrait-art { animation: none; }
 
 /**
  * A floor for the composition, so it ends in ground rather than in a hole.
@@ -5816,19 +5875,47 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   min-height: min(44vh, 380px);
   --r-self: var(--r-panel);
   border-radius: var(--r-panel);
+  /**
+   * Two panels of the same size in the same material at the same value are
+   * twins, and one of them is the thing the screen exists for. The rank is set
+   * with the material's own knobs rather than with a second recipe: the form
+   * floats higher and catches more of the key, the stage beside it sits back
+   * and takes less. Same sun, same family, two ranks.
+   */
+  --rim-boost: 1.35;
+  --mat-amp: 0.82;
 }
-.signin-stage { min-height: min(44vh, 380px); }
+.signin-stage {
+  min-height: min(44vh, 380px);
+  --rim-boost: 0.78;
+  --mat-amp: 0.36;
+}
 
 .signin-panel { grid-column: 2; grid-row: 1; }
 /* The disclosure runs under the stage and the form, not under the portrait: a
    line of legal text set across a person's knees is not a layout. */
 .signin-note { grid-column: 1 / -1; grid-row: 2; }
 
+/**
+ * The signed-in panel prints a hostname, and a hostname does not wrap.
+ *
+ * "Signed in at vnvaqwbnmawcnvhodbel.supabase.co" is one unbreakable word, so
+ * it set the panel's min-content width: measured at `--ui-scale: 1.4` the panel
+ * wanted 405px inside a 338px column and the whole screen gained a horizontal
+ * scrollbar. `anywhere` rather than `break-word` because the string genuinely
+ * has no break opportunity in it, and a project id sliced across two lines is
+ * still readable where a clipped one is not.
+ */
 .signin-lead { line-height: 1.55; }
+.signin-panel { overflow-wrap: anywhere; }
 .signin-form { display: flex; flex-direction: column; gap: var(--sp-4); }
 .signin-field { display: flex; flex-direction: column; gap: var(--sp-1); }
 .signin-field .t-label { color: var(--text-faint); }
-.signin-field .field { min-height: 46px; font-size: var(--fs-md); }
+/* `min-width: 0` on the control and on the panel: an `<input>` carries an
+   intrinsic width of about twenty characters, which at 1.4× ui-scale is wider
+   than the column it lives in and is what the grid was being stretched by. */
+.signin-field .field { min-height: 46px; font-size: var(--fs-md); min-width: 0; width: 100%; }
+.signin-panel, .signin-stage, .queue-call { min-width: 0; }
 
 .signin-actions { display: flex; flex-direction: column; gap: var(--sp-2); align-items: stretch; }
 
@@ -5845,6 +5932,12 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   align-items: center;
   justify-content: center;
   width: 100%;
+  /* A hero plate is a bar sign, and a bar sign 780px wide with 26px end-caps
+     reads as three stripes rather than as one piece of hardware. It stays the
+     widest thing in its panel and stops growing at the width where its own
+     furniture stops being furniture. */
+  max-width: 30rem;
+  align-self: center;
   min-height: 56px;
   font-family: var(--font-display);
   font-size: var(--fs-lg);
@@ -5957,7 +6050,6 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     align-content: start;
   }
   .signin-stage { display: none; }
-  .signin-portrait { display: none; }
   .signin-screen.has-leader .signin-body { grid-template-columns: minmax(0, 1fr); padding-left: var(--sp-3); }
   .signin-panel, .signin-note { grid-column: 1; grid-row: auto; }
   /**
@@ -5978,6 +6070,72 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   .signin-form { gap: var(--sp-3); }
   .signin-submit { min-height: 48px; font-size: var(--fs-md); }
   .signin-note { grid-column: auto; }
+  /* Narrow enough that the person cannot stand beside the form: she lies behind
+     it instead, knocked back far enough to read type over. Deleting her is what
+     the lobby's audit called "not a responsive strategy", and this screen is the
+     one a stranger is asked to trust. */
+  .signin-portrait {
+    width: min(70vw, 420px);
+    opacity: 0.34;
+    filter: blur(2px) saturate(0.85);
+  }
+}
+
+/**
+ * A phone in landscape is short, not narrow: the room and the person stay, side
+ * by side with the form.
+ *
+ * The rule above used to `display: none` both of them at 844×390, and what was
+ * left was a login box on a dark field — no venue, no leader, no reason to
+ * believe this is the same game. There is width here, only not height: 844 is
+ * wider than the 780px this layout needs for two columns, so it gets two, and
+ * everything stays on screen without a scroll.
+ */
+@media (max-height: 560px) and (min-width: 700px) {
+  .signin-body,
+  .signin-screen.has-leader .signin-body {
+    grid-template-columns: minmax(0, 0.82fr) minmax(320px, 1.05fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-content: stretch;
+    align-items: stretch;
+    padding: var(--sp-2) var(--sp-4) var(--sp-3);
+    padding-left: min(28vw, 300px);
+    /**
+     * `auto`, never `hidden`.
+     *
+     * At `--ui-scale: 1.4` this viewport gives the form 305px of room for 478px
+     * of control, and a clipped scroller puts the submit button somewhere the
+     * player cannot reach — the same class of defect as the lobby's unreachable
+     * Inbox. `safe center` on the panel below keeps the layout centred whenever
+     * it fits and refuses to centre something taller than its box, so the spill
+     * always goes downward into a scroller rather than upward behind the header.
+     */
+    overflow-y: auto;
+  }
+  .signin-panel {
+    grid-column: 2;
+    grid-row: 1;
+    padding: var(--sp-3) var(--sp-4);
+    justify-content: safe center;
+    min-height: 0;
+  }
+  .signin-note { grid-column: 1 / -1; grid-row: 2; }
+  .signin-note-body { max-height: 40vh; }
+  .signin-portrait {
+    display: block;
+    width: min(36vw, 340px);
+    opacity: 1;
+    filter: drop-shadow(8px 12px 26px rgb(0 0 0 / 0.7));
+  }
+  .signin-field .field { min-height: 40px; }
+  .signin-form { gap: var(--sp-2); }
+  .signin-submit { min-height: 44px; }
+  .signin-toggle { min-height: 36px; }
+  /* The signed-in variant carries three lines about what signing out does and
+     does not do, and at 16px they pushed the Sign out button four pixels past
+     the bottom of a 390px phone. The sentence is not cut; it is set at the size
+     the rest of the front door uses for a caption. */
+  .signin-panel .muted { font-size: var(--fs-sm); line-height: 1.45; }
 }
 
 /* ---------------------------------------------------------------------------
@@ -6021,6 +6179,17 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
    * frames on a screen whose whole job is to be alive while nothing happens.
    */
   --queue-period: 4s;
+
+  /**
+   * Where the person is standing, as a fraction of the viewport.
+   *
+   * The backlight behind her, the pool of light at her feet and the layout
+   * column she stands in all have to agree, and two of those three live in the
+   * world layer while the third lives in the body — so the number is declared on
+   * the screen, which is the only ancestor of both. A halo that is not behind
+   * the figure is a second lamp in the room.
+   */
+  --queue-subject-x: 26%;
 }
 
 .queue-world {
@@ -6038,30 +6207,60 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   z-index: 1;
 }
 
+/**
+ * Two columns, because a centred stack left half the room empty.
+ *
+ * Everything on this screen used to be one centred file: the figure, then the
+ * sentence, then the count, then the offer, then the note, each one narrower
+ * than the last. Measured at 1600×900 that put nothing at all in x=0..400 or
+ * x=1200..1600 — half the picture — and the 95th-percentile pixel sat at 80.3
+ * against the lobby's 155.2, which is §6's value-structure failure stated as a
+ * number: squint at it and no light mass resolves anywhere.
+ *
+ * So the room gets a subject and a sign. The figure stands in the left half on
+ * the floor the room draws; the call board is a lit object in the right half
+ * carrying everything the player is reading. Two masses on a dark ground is a
+ * composition; five centred blocks is a receipt.
+ *
+ * `--queue-subject-x` is where the left column's centre lands, and it is a
+ * property rather than a literal because the backlight behind the figure has to
+ * agree with it at every viewport — a halo that is not behind her is a second
+ * lamp in the room.
+ */
 .queue-body {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(min(330px, 100%), 0.8fr);
   grid-template-rows: minmax(0, 1fr) auto;
-  gap: var(--sp-3);
+  gap: var(--sp-4) var(--sp-5);
   padding: var(--sp-3) var(--sp-6) var(--sp-4);
   width: 100%;
   margin: 0 auto;
 }
 
+/* Nobody to stand there: the board takes the room rather than leaving a column
+   of floor with nothing on it. */
+.queue-screen:not(.has-leader) { --queue-subject-x: 50%; }
+.queue-screen:not(.has-leader) .queue-body { grid-template-columns: minmax(0, 1fr); }
+.queue-screen:not(.has-leader) .queue-stage { display: none; }
+.queue-screen:not(.has-leader) .queue-call { max-width: 46rem; margin: 0 auto; }
+
 .queue-stage {
   position: relative;
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--sp-2);
   min-height: 0;
 }
 
-/* The note is the one thing on this screen that is a column of text, so it is
-   the one thing that is measured. */
-.queue-note { max-width: 92ch; margin: 0 auto; }
+/* The note runs the width of both columns rather than being centred on the
+   screen: a bar centred under an asymmetric composition lines up with nothing,
+   and the floor of the room is where the room's own furniture should end. */
+.queue-note { grid-column: 1 / -1; }
 
 .queue-stage > * { position: relative; }
 
@@ -6077,6 +6276,45 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   -webkit-mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.85) 0%, #000 22%, #000 52%, rgb(0 0 0 / 0.42) 78%, transparent 98%);
 }
 .queue-room-art { width: 100%; height: 100%; object-fit: cover; }
+
+/**
+ * The lamp at the back of the room, and the reason the figure belongs to it.
+ *
+ * A cut-out lit only from the front is a photograph laid on a backdrop however
+ * softly its edges are feathered — the file comment on `queueScreen.ts` called
+ * the old version "a poster somebody left there" and shipped it anyway. What
+ * fixes that is not more feathering, it is light *behind* her: a practical on
+ * the back wall at the horizon, so her silhouette is read against something
+ * brighter than she is and the two layers are demonstrably in the same room.
+ *
+ * It is also the screen's light mass. §6 asks that a squint resolve into light
+ * and dark, and before this the brightest 5% of the queue sat at luminance 80
+ * against the lobby's 155 — a whole screen of mid-purple with a person in it.
+ * Centred on `--queue-subject-x` so it is always behind whoever is standing
+ * there, and breathing on a multiple of the room's own clock so it belongs to
+ * the same rig as the beam.
+ */
+.queue-backlight {
+  position: absolute;
+  left: var(--queue-subject-x, 50%);
+  top: 46%;
+  width: min(56vw, 760px);
+  height: min(52vh, 430px);
+  translate: -50% -64%;
+  pointer-events: none;
+  background:
+    radial-gradient(46% 50% at 50% 54%, rgb(244 226 255 / 0.34), rgb(196 132 255 / 0.19) 40%, transparent 74%),
+    radial-gradient(70% 26% at 50% 54%, rgb(126 214 255 / 0.12), transparent 78%);
+  filter: blur(16px);
+  animation: queue-backlight-breathe calc(var(--queue-period) * 2.25) var(--ease-in-out) infinite;
+}
+
+@keyframes queue-backlight-breathe {
+  0%, 100% { opacity: 0.82; scale: 1 1; }
+  50% { opacity: 1; scale: 1.035 1.02; }
+}
+
+:root[data-reduced-motion="true"] .queue-backlight { animation: none; }
 
 /**
  * The floor, in perspective, which is the thing that was missing.
@@ -6207,11 +6445,15 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     radial-gradient(38% 30% at 22% 26%, rgb(181 108 255 / 0.2), transparent 72%),
     radial-gradient(34% 26% at 79% 20%, rgb(82 200 255 / 0.15), transparent 74%),
     radial-gradient(74% 34% at 50% 44%, rgb(150 110 235 / 0.2), transparent 76%),
-    /* The pool the lamp throws around the figure's feet. Without it the light
-       stops at her silhouette and the floor either side of her is a dark plane
-       with a grid on it. */
-    radial-gradient(58% 28% at 50% 76%, rgb(132 96 214 / 0.24), transparent 74%),
-    radial-gradient(120% 40% at 50% 112%, rgb(24 14 50 / 0.55), transparent 80%);
+    /* The pool the lamp throws around the figure's feet, centred on her rather
+       than on the viewport — she is in the left column now, and a pool of light
+       in the middle of the floor with nobody in it is a third lamp. */
+    radial-gradient(46% 26% at var(--queue-subject-x, 50%) 78%, rgb(146 108 232 / 0.3), transparent 74%),
+    radial-gradient(54% 22% at var(--queue-subject-x, 50%) 92%, rgb(120 88 200 / 0.16), transparent 78%),
+    /* The floor still ends in ground rather than in a hole, but less of one:
+       at 0.55 the near field measured 47% dark-and-flat with the note bar
+       standing in it, which is a lit room whose foreground is switched off. */
+    radial-gradient(120% 40% at 50% 114%, rgb(24 14 50 / 0.36), transparent 82%);
   animation: queue-haze-drift calc(var(--queue-period) * 3.5) var(--ease-in-out) infinite;
 }
 
@@ -6235,9 +6477,23 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(128% 96% at 50% 40%, transparent 34%, rgb(5 2 12 / 0.58) 100%),
+    /**
+     * The fall-off is centred on the lamp, not on the viewport.
+     *
+     * With it in the middle the floor was equally lit from wall to wall, and the
+     * call board — a lit object — had exactly the same value as the ground behind
+     * it: squinted at 44px the whole right half resolved into one mass with a
+     * couple of white dashes in it. Light does not work that way and neither does
+     * §6. The pool is around the figure because that is where the searchlight is;
+     * the wall the sign hangs on is further from it, so the sign reads.
+     */
+    radial-gradient(104% 92% at 34% 42%, transparent 24%, rgb(5 2 12 / 0.72) 100%),
     linear-gradient(180deg, rgb(6 3 14 / 0.44) 0%, transparent 14%),
-    linear-gradient(0deg, rgb(5 2 12 / 0.44) 0%, transparent 24%);
+    /* Shallower than it was: this and the haze's own floor darkener were both
+       pulling the bottom of the frame down and between them they put the near
+       field — the part of the room the player is standing closest to — into the
+       dark. One of them is enough to say "ground". */
+    linear-gradient(0deg, rgb(5 2 12 / 0.28) 0%, transparent 18%);
 }
 
 /**
@@ -6251,7 +6507,17 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
  */
 .queue-plinth {
   position: relative;
-  height: min(58vh, 480px);
+  /**
+   * Big enough to be the subject, and standing below the horizon.
+   *
+   * At `min(58vh, 480px)` inside a centred column she was 167px wide by the
+   * time the AI offer had claimed its share of the stack, with her feet at 44%
+   * of the viewport — *above* the horizon the floor draws at 46%, which is a
+   * figure standing in the sky. Given a column of her own she takes 74% of the
+   * height and her contact line lands near 79%, well down the near field of the
+   * floor plane, which is the only place a person can be standing on it.
+   */
+  height: min(74vh, 620px);
   aspect-ratio: 1 / 1.78;
   flex: 0 1 auto;
   min-height: 0;
@@ -6275,6 +6541,8 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   animation: queue-breathe calc(var(--queue-period) * 1.75) var(--ease-in-out) infinite;
 }
 .queue-leader-art {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -6285,6 +6553,30 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
      a border radius. Centred low so the reflection at the foot survives it. */
   mask-image: radial-gradient(74% 74% at 50% 52%, #000 58%, rgb(0 0 0 / 0.45) 88%, transparent 100%);
   -webkit-mask-image: radial-gradient(74% 74% at 50% 52%, #000 58%, rgb(0 0 0 / 0.45) 88%, transparent 100%);
+}
+
+/**
+ * Depth of field, in two layers of one plate.
+ *
+ * The venue behind her is at `blur(14px)`; her own painting has a sunset window
+ * and a red curtain in it, drawn at full sharpness. That mismatch — not the
+ * edge, which is feathered on all four sides in the painter itself — is what
+ * reads as a photograph laid on a photograph. Blurring the whole plate and then
+ * bringing *only the figure* back into focus puts her painting at the room's
+ * focal depth and her at the camera's, which is what a lens does.
+ *
+ * The blur is a little under the venue's, because she is nearer than the wall.
+ * Both layers are the same memoised plate, so the second one costs a blit.
+ */
+.queue-leader-far {
+  filter: blur(9px) saturate(0.86) brightness(0.94);
+}
+.queue-leader-near {
+  /* Wide and tall enough to hold the whole person — head to heel. The first
+     cut at 43×54 put her hair and her shoes in the far layer, which is a lens
+     focused on somebody's chest. */
+  mask-image: radial-gradient(47% 62% at 50% 47%, #000 52%, rgb(0 0 0 / 0.5) 84%, transparent 100%);
+  -webkit-mask-image: radial-gradient(47% 62% at 50% 47%, #000 52%, rgb(0 0 0 / 0.5) 84%, transparent 100%);
 }
 
 @keyframes queue-breathe {
@@ -6327,8 +6619,13 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   inset: 0;
   pointer-events: none;
   mix-blend-mode: screen;
+  /* On the rig axis. It was authored at 100° — a rim running across the figure
+     from the left wall, on a screen where every other edge in the game is lit
+     from 315°. The beam is a moving lamp, but a rim it raises still has to
+     agree with the sun, or the figure is the one object in the room with its
+     own weather. */
   background: linear-gradient(
-    100deg,
+    var(--light-sweep),
     color-mix(in srgb, var(--accent-bright) 36%, transparent) 0%,
     transparent 38%
   );
@@ -6361,77 +6658,249 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 .queue-world[data-state="found"] ~ .queue-body .queue-leader-lit {
   animation: none;
   opacity: 0.8;
-  background: linear-gradient(100deg, color-mix(in srgb, var(--success) 44%, transparent) 0%, transparent 40%);
+  background: linear-gradient(var(--light-sweep), color-mix(in srgb, var(--success) 44%, transparent) 0%, transparent 40%);
 }
 
-.queue-readout {
-  text-align: center;
+/**
+ * The call board: the sign on the wall of the room, and the screen's one bright
+ * object.
+ *
+ * Everything the player reads while waiting is on it — the state, the wait, the
+ * real count, the record, and the offer when it arrives — so the eye has one
+ * place to go instead of five stacked centred blocks. It is an object in the
+ * room rather than a dialog over it: the material's own 315° light, a marquee of
+ * lamps along its head that chases on the room's clock, and a key wash in the
+ * corner the sun comes from.
+ *
+ * The offer opens *inside* it rather than appearing underneath, which is what
+ * stops the four-minute mark from shoving the composition down the screen.
+ */
+.queue-call {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  justify-self: stretch;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--sp-1);
-  padding-top: var(--sp-2);
-}
-/* Type over imagery always has a scrim, a shadow or a plate (§4). This one sits
-   on the floor of a lit room, so it takes the shadow. */
-.queue-state {
-  font-size: clamp(1.25rem, 3.2vh, 2rem);
-  text-shadow: 0 2px 12px rgb(4 2 10 / 0.85), 0 1px 2px rgb(4 2 10 / 0.9);
-}
-.queue-detail {
-  font-size: var(--fs-sm);
-  color: var(--text-dim);
-  text-shadow: 0 1px 6px rgb(4 2 10 / 0.9);
+  justify-content: center;
+  gap: var(--sp-4);
+  /**
+   * A size of its own, so the sign is a mass rather than a caption.
+   *
+   * In the ordinary searching state the board holds four short lines and was
+   * 150px tall in a 900px frame — squinted, it disappeared into the floor even
+   * after the value step, because a light object the size of a sentence is a
+   * highlight and not a mass. At a third of the frame it is furniture, and it
+   * stops resizing when the four-minute offer opens inside it, which is the
+   * other thing a sign on a wall does not do.
+   */
+  min-height: min(38vh, 330px);
+  padding: var(--sp-5) var(--sp-5) var(--sp-5);
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+  /**
+   * Raised, and a rung further up the value ladder, because it is the only
+   * object in the room that is not part of the room.
+   *
+   * `.mat-panel` is one value wherever it is put, and here it is put on a *lit*
+   * floor: squinted at 44px the first version of this board did not resolve at
+   * all — the same purple as the ground it was standing on, findable only by its
+   * rim, which is §6's named failure. §A1 exposes `--mat-fill` for exactly this
+   * ("set `--mat-fill: …` and add `.mat`"), and the ladder it belongs to already
+   * puts a chip above a panel because a chip is an object lying *on* something.
+   * A sign hanging in a room is the same argument. Same recipe, same 315° vector,
+   * one rank up and near-opaque so the value stops depending on what is behind
+   * it.
+   *
+   * The top stop is 66/50/108 rather than the 78/60/126 the first pass used,
+   * and the difference is a contrast ratio: the board's own small labels are set
+   * in `--text-dim`, and against the lighter plate that pair measured 4.1:1.
+   * §9 does not bend for a value ladder.
+   */
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(66 50 108 / 0.97) 0%, rgb(26 18 50 / 0.98) 100%);
+  --rim-boost: 1.4;
+  --mat-amp: 0.95;
 }
 
-.queue-count {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--sp-3);
-  margin-top: var(--sp-3);
-  padding: var(--sp-2) var(--sp-5);
-  --r-self: var(--r-chip);
+/**
+ * The key wash, and the value step that makes the board an object.
+ *
+ * `.mat-panel` is the same value wherever it is put, which is right — one
+ * material, one light — and it means a panel standing in a *lit room* has no
+ * more value than the floor behind it. Measured before this, the board's face
+ * and the floor either side of it were within a few levels of each other and
+ * the plate was legible only by its rim. Lifting the lit corner with white
+ * rather than with a hue keeps it the same material at a higher rank, which is
+ * the ladder the chip already climbs and the panel did not.
+ *
+ * Over the material and under the content, so this reads as light falling on
+ * the plate rather than as a tint mixed into it.
+ */
+.queue-call::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    /* 0.075, not the 0.11 this started at. The hot corner of the key lands on
+       the board's own title, and at 0.11 that label measured 3.71:1 against the
+       plate it is printed on — a light that makes a surface read at the cost of
+       the words on it is not a win. */
+    linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.075) 0%, rgb(255 255 255 / 0.018) 48%, transparent 74%),
+    radial-gradient(72% 62% at 8% 0%, rgb(206 158 255 / 0.2), transparent 72%),
+    radial-gradient(64% 46% at 96% 104%, rgb(82 200 255 / 0.13), transparent 74%);
+}
+.queue-call > * { position: relative; }
+
+/**
+ * The marquee. A row of lamps with one light running along them.
+ *
+ * The glint is deliberately small and the lamps are deliberately even, because
+ * the first version of this was a soft blob a third of the rail wide and it read
+ * as a **progress bar sitting at 45%** — which is the one thing this screen is
+ * built never to say. A light travelling over lamps that are all already lit
+ * cannot be mistaken for a fill: nothing behind it is darker than what is ahead
+ * of it.
+ *
+ * The travel is a transform rather than an animated `background-position`:
+ * moving a paint property across a wide element is what halved the lobby's frame
+ * rate once already, and one transformed pseudo-element composites for nothing.
+ * It runs on `--queue-period`, so the marquee, the beam on the floor, the
+ * backlight and the figure's breath are all the same clock.
+ */
+.queue-call-rail {
+  /* Pinned to the head of the sign rather than carried in the flow. The board
+     centres its content, and a marquee that centres with it floats seventy
+     pixels below the top edge of the thing it is supposed to be the top of. */
+  position: absolute;
+  top: var(--sp-4);
+  left: var(--sp-5);
+  right: var(--sp-5);
+  height: 8px;
+  overflow: hidden;
   border-radius: var(--r-chip);
-  background: linear-gradient(var(--light-sweep), rgb(60 44 96 / 0.6), rgb(20 13 37 / 0.72));
+  background: radial-gradient(circle at 4px 4px, rgb(233 214 255 / 0.62) 0 2px, transparent 2.6px) 0 0 / 34px 100%
+    repeat-x;
+}
+.queue-call-rail::after {
+  content: "";
+  position: absolute;
+  inset: -7px auto;
+  left: 0;
+  width: 15%;
+  background: radial-gradient(50% 140% at 50% 50%, rgb(248 236 255 / 0.9), rgb(217 165 255 / 0.32) 46%, transparent 74%);
+  animation: queue-chase calc(var(--queue-period) * 2) var(--ease-in-out) infinite alternate;
+}
+
+@keyframes queue-chase {
+  from { translate: 0 0; }
+  to { translate: 566.6% 0; }
+}
+
+:root[data-reduced-motion="true"] .queue-call-rail::after { animation: none; }
+
+.queue-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
+}
+.queue-call-head { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text); }
+
+/* The one live thing on the board that is not a light: a pip that says the
+   socket is open. It stops with the sweep, because a pulsing dot on a dead
+   connection is the interface lying. */
+.queue-pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #f4e2ff, var(--accent-bright));
+  box-shadow: 0 0 10px rgb(217 165 255 / 0.7), inset 0 -1px 0 rgb(0 0 0 / 0.35);
+  animation: queue-pip-pulse var(--queue-period) var(--ease-in-out) infinite;
+}
+@keyframes queue-pip-pulse {
+  0%, 100% { opacity: 0.45; scale: 0.86; }
+  50% { opacity: 1; scale: 1; }
+}
+.queue-world[data-state="stopped"] ~ .queue-body .queue-pip,
+:root[data-reduced-motion="true"] .queue-pip { animation: none; opacity: 0.7; }
+.queue-world[data-state="stopped"] ~ .queue-body .queue-pip {
+  background: radial-gradient(circle at 34% 30%, #ffd0d8, var(--danger));
+  box-shadow: none;
+}
+
+.queue-state {
+  font-size: clamp(1.3rem, 3.4vh, 2.05rem);
+  line-height: 1.12;
+  text-wrap: balance;
+}
+.queue-detail { font-size: var(--fs-sm); color: var(--text-dim); }
+
+/**
+ * The number, in a well, at the size of the thing it is.
+ *
+ * It is the only fact on the screen and it was a chip in a stack of chips. Now
+ * it is recessed into the board — `.mat-well`'s arrangement, inverted light, no
+ * cast — with the figure set in the display face at three times the body size,
+ * because §4's "numbers a player reads under pressure" is exactly what four
+ * minutes of waiting on a count of 1 is.
+ */
+.queue-count {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  --r-self: var(--r-field);
+  border-radius: var(--r-field);
+  background: linear-gradient(var(--light-sweep), rgb(10 6 22 / 0.66), rgb(38 26 68 / 0.5));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.08),
-    inset 0 -1px 0 rgb(0 0 0 / 0.5),
-    0 4px 14px -6px rgb(0 0 0 / 0.7);
+    inset 0 2px 5px rgb(0 0 0 / 0.55),
+    inset 0 -1px 0 rgb(255 255 255 / 0.07);
+  animation: queue-count-in var(--dur-ui) var(--ease-arrive) backwards;
 }
 .queue-count[hidden] { display: none; }
 .queue-count-value {
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 4.4vh, 2.6rem);
+  font-size: clamp(2rem, 5.2vh, 3rem);
   font-weight: 800;
+  line-height: 1;
   --num-align: center;
   color: var(--accent-bright);
+  text-shadow: 0 0 22px rgb(217 165 255 / 0.45);
 }
-.queue-count .t-label { color: var(--text-faint); }
-.queue-record { color: var(--text-faint); }
+.queue-count .t-label { color: var(--text-dim); line-height: 1.35; }
+.queue-record { color: var(--text-dim); }
 .queue-record[hidden] { display: none; }
 
-/* The offer, at the same radius as the panel it sits in rather than the 6px it
-   used to have — two disagreeing radii on nested boxes is §7's exact example. */
+@keyframes queue-count-in {
+  from { opacity: 0; translate: 0 8px; }
+  to { opacity: 1; translate: none; }
+}
+:root[data-reduced-motion="true"] .queue-count { animation: none; }
+
+/* The offer opens inside the board, under a fading rule, so four minutes in
+   nothing on the screen moves except this. */
 .queue-offer {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--sp-3);
-  padding: var(--sp-4) var(--sp-5);
-  max-width: 46ch;
-  text-align: center;
-  --r-self: var(--r-panel);
-  border-radius: var(--r-panel);
   animation: queue-offer-in var(--dur-setpiece) var(--ease-arrive) backwards;
 }
 .queue-offer[hidden] { display: none; }
+.queue-offer-rule { width: 100%; margin-bottom: var(--sp-1); }
 .queue-offer-head { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--accent-gold); }
 .queue-offer-text { font-size: var(--fs-sm); line-height: 1.55; margin: 0; color: var(--text-dim); }
 .queue-offer-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 48px;
+  align-self: stretch;
+  min-height: 50px;
   padding: 0 var(--sp-5);
   font-family: var(--font-display);
   font-weight: 700;
@@ -6465,26 +6934,56 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 .queue-note p { margin: 0; font-size: var(--fs-sm); line-height: 1.55; color: var(--text-dim); }
 
 /**
- * Short viewports: the stage stops centring and starts scrolling.
+ * A phone in landscape is short, not narrow, so the two columns stay.
  *
- * With the AI offer on screen the stage wants roughly 390px of content in about
- * 250px of room, and a centred flex column overflows *both* ways — measured at
- * 844×390 the searchlight was behind the header and the offer's button was off
- * the bottom. Anchored to the top with the column scrolling, everything stays
- * reachable and the light simply gets smaller.
+ * The previous rule turned 844×390 into a scroller and everything went below
+ * the fold — the offer's button was off the bottom and the count was cut in
+ * half by the viewport edge. Side by side, the same content fits in 295px of
+ * room with nothing clipped and nothing scrolled: the figure shrinks, the board
+ * tightens its rhythm, and the essay about what the number means is the one
+ * thing that goes, because it is the one thing that is not needed to act.
  */
 @media (max-height: 540px) {
   .queue-body {
-    grid-template-rows: auto;
+    grid-template-rows: minmax(0, 1fr);
+    gap: var(--sp-3);
     padding: var(--sp-2) var(--sp-4) var(--sp-3);
-    overflow-y: auto;
   }
-  .queue-stage { justify-content: flex-start; gap: var(--sp-2); }
-  .queue-plinth { height: min(46vh, 180px); flex: 0 0 auto; }
-  .queue-count { margin-top: var(--sp-1); padding: var(--sp-1) var(--sp-4); }
-  .queue-offer { padding: var(--sp-3) var(--sp-4); gap: var(--sp-2); }
+  /* The head padding is the rail's room. At `--sp-3` the lamps were drawn
+     across the top of the board's own label. */
+  .queue-call { gap: var(--sp-2); padding: var(--sp-4) var(--sp-4) var(--sp-3); min-height: 0; }
+  .queue-call-rail { height: 6px; top: 6px; left: var(--sp-4); right: var(--sp-4); }
+  .queue-readout { gap: var(--sp-1); }
+  .queue-state { font-size: clamp(1.05rem, 4.6vh, 1.5rem); }
+  .queue-count { margin-top: 0; padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
+  .queue-count-value { font-size: clamp(1.4rem, 7vh, 2rem); }
+  .queue-offer { gap: var(--sp-2); }
+  .queue-offer-text { display: none; }
   .queue-offer-btn { min-height: 44px; }
   .queue-note { display: none; }
+  /* The out-of-focus radius is in CSS pixels and the figure is 162 of them wide
+     here rather than 348, so the same 9px reads as twice the defocus and she
+     goes soft. A lens stopped down for a smaller subject. */
+  .queue-leader-far { filter: blur(5px) saturate(0.86) brightness(0.94); }
+}
+
+/**
+ * Genuinely narrow: the columns stack and the figure becomes a band.
+ *
+ * Below this the board cannot hold a sentence beside a person, so she moves to
+ * the top of the frame and the board takes the full width under her. Still no
+ * scroll, and still a room — deleting the subject is what the lobby's audit
+ * called "not a responsive strategy".
+ */
+@media (max-width: 780px) and (min-height: 541px) {
+  .queue-screen { --queue-subject-x: 50%; }
+  .queue-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  }
+  .queue-call { grid-column: 1; grid-row: 2; }
+  .queue-plinth { height: min(42vh, 360px); }
 }
 
 /* ---------------------------------------------------------------------------

@@ -51,6 +51,7 @@
     "verify:custom": "node scripts/verify-custom.mjs"
   },
   "dependencies": {
+    "postprocessing": "^6.39.4",
     "three": "^0.170.0",
     "zod": "^3.24.0"
   },

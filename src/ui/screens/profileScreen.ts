@@ -5,17 +5,45 @@
  * equipped title (all editable via cosmetic picker); account level and XP;
  * faction mastery bars; lifetime headline stats."*
  *
- * Until now the lobby's player chip led to Settings, because there was nothing
- * to show — no title, no frame, nothing to wear. This screen is the other half
- * of the cosmetics layer: the tracks grant, and this is where a player finds out
- * what they were granted and puts it on.
+ * ## What was here, and why it was the domain's worst screen
+ *
+ * The avatar was `displayName.charAt(0).toUpperCase()` at 2rem on a flat grey
+ * disc with a single `ctx.arc` stroke round it. The recon named it defect 1 and
+ * it deserved the slot: this is the identity screen — the one a player opens to
+ * find out who the game thinks they are — and it was styled like a contact chip
+ * in a mail client. Hearthstone frames your hero portrait in a carved medallion
+ * with the rank badge pinned to the rim; MTGA gives you an avatar, a tier crest
+ * and pips. HYPEBOUND shipped a letter.
+ *
+ * Four things changed and they are all the same change:
+ *
+ * **The avatar is a portrait.** `paintLeaderPortrait` already existed, is
+ * already used by the lobby, the queue and the sign-in screen, and already
+ * handles the case that matters here — a card whose painting has not been made
+ * yet falls through to the card renderer's own deliberate placeholder. It draws
+ * the leader the player has actually played most, which makes the profile
+ * *theirs* rather than generic, and the monogram survives as the honest fallback
+ * for an account with no matches and no deck.
+ *
+ * **The ring is a struck crest**, not a stroked circle: the faction's own
+ * emblem, hexagonal, lit from 315° like every other object in the game.
+ *
+ * **The level is a rank object.** A shield with a tier gem, the same crest that
+ * goes on Leaderboards and in the match-history header, so the domain has one
+ * thing it is recognised by rather than nine unrelated panels.
+ *
+ * **Cosmetics show the item.** "None earned" appeared four times and "Default"
+ * four times — eight strings and no picture of what a title, a frame or a badge
+ * even is. Every slot now draws its swatch, and the ones not yet earned are
+ * drawn dimmed with what earns them, which is what the locker looks like in all
+ * three reference games.
  *
  * The parts of §4.5.4 that need the server (profile visibility, other players'
  * profiles, add friend / challenge / block) are absent rather than stubbed, in
  * keeping with how every other online feature is treated.
  */
 
-import type { ContentIndex } from "../../engine/types";
+import type { CardDef, ContentIndex, FactionId } from "../../engine/types";
 import type { Screen } from "../shell";
 import type { Cosmetic, CosmeticKind } from "../../game/cosmetics";
 import { WEARABLE_KINDS } from "../../game/cosmetics";
@@ -31,7 +59,23 @@ import {
   xpForLevel,
 } from "../../save/profile";
 import { drawEmblem, hexToRgb } from "../cosmetics/emblem";
+import { paintLeaderPortrait } from "../art/leaderPortrait";
 import { audio } from "../../audio/audio";
+import {
+  colourFor,
+  count,
+  countUp,
+  crestMark,
+  disposeBag,
+  emblemFor,
+  enter,
+  esc,
+  icon,
+  meter,
+  rankCrest,
+  RANK_PX,
+  rovingList,
+} from "./data/kit";
 
 export interface ProfileCallbacks {
   onBack: () => void;
@@ -44,9 +88,6 @@ export interface ProfileCallbacks {
   onLeaderboards: () => void;
 }
 
-const esc = (value: string): string =>
-  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-
 const SLOT_LABEL: Record<CosmeticKind, string> = {
   cardBack: "Card back",
   title: "Title",
@@ -55,26 +96,96 @@ const SLOT_LABEL: Record<CosmeticKind, string> = {
   emote: "Emotes",
 };
 
-/** Draw a frame's crest ring into a canvas — the avatar's border. */
-function paintFrame(canvas: HTMLCanvasElement, frame: Cosmetic | null): void {
+/** What earns the slot, said once, so an empty locker is informative. */
+const SLOT_SOURCE: Record<CosmeticKind, string> = {
+  cardBack: "Faction Mastery rank 10",
+  title: "Leader Mastery, rank 3",
+  frame: "Faction Mastery rank 15",
+  badge: "The Bias Board, at Parasocial",
+  emote: "Faction and Leader Mastery",
+};
+
+/**
+ * The leader whose portrait this account wears.
+ *
+ * Most-played first, because a profile should be a picture of what somebody has
+ * actually done; the active deck's leader second, so a brand-new account that
+ * has chosen a starter is still somebody; and null last, which is the genuine
+ * "no identity yet" case the monogram is for.
+ */
+function faceOf(content: ContentIndex): CardDef | null {
+  const profile = getProfile();
+  const tally = new Map<string, number>();
+  for (const entry of profile.history) {
+    tally.set(entry.leaderCardId, (tally.get(entry.leaderCardId) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [id, played] of tally) {
+    if (played > bestCount) {
+      best = id;
+      bestCount = played;
+    }
+  }
+  const fallback = profile.decks[profile.activeDeckIndex]?.leaderCardId ?? profile.decks[0]?.leaderCardId ?? null;
+  const chosen = best ?? fallback;
+  return chosen ? (content.leaders[chosen] ?? null) : null;
+}
+
+/**
+ * The ring around the portrait, painted rather than stroked.
+ *
+ * Two passes, which is the difference between a border and a bevel: a dark outer
+ * stroke for the whole circumference, then a lit arc from 200° to 340° — the
+ * top-left, where the key light is — so the ring is a metal object catching a
+ * lamp rather than a coloured outline. The frame's own emblem is struck into the
+ * band at eight points, which is what the ring is *for* on a screen where the
+ * frame cosmetic is otherwise invisible.
+ */
+function paintFrame(canvas: HTMLCanvasElement, frame: Cosmetic | null, factionId: string | null): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const size = canvas.width;
   ctx.clearRect(0, 0, size, size);
-  const [r, g, b] = hexToRgb(frame?.color ?? "#8f8aa8");
+  const colour = frame?.color ?? (factionId ? colourFor(factionId) : "#8f8aa8");
+  const [r, g, b] = hexToRgb(colour);
+  const mid = size / 2;
+  const radius = size * 0.445;
+  const band = size * 0.05;
 
-  ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.9)`;
-  ctx.lineWidth = size * 0.035;
+  // the unlit body of the ring
+  ctx.strokeStyle = `rgba(${Math.round(r * 0.32)}, ${Math.round(g * 0.28)}, ${Math.round(b * 0.4)}, 0.95)`;
+  ctx.lineWidth = band;
   ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size * 0.46, 0, Math.PI * 2);
+  ctx.arc(mid, mid, radius, 0, Math.PI * 2);
   ctx.stroke();
 
-  if (!frame) return;
-  // the faction's own emblem, small, behind the initial
-  ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
-  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.12)`;
-  ctx.lineWidth = size * 0.012;
-  drawEmblem(ctx, frame.emblem ?? "diamond", size / 2, size / 2, size / 260);
+  // the lit arc: 200°–340°, i.e. the top-left quadrant and its neighbours
+  ctx.strokeStyle = `rgba(${Math.min(255, r + 60)}, ${Math.min(255, g + 55)}, ${Math.min(255, b + 60)}, 0.95)`;
+  ctx.lineWidth = band * 0.42;
+  ctx.beginPath();
+  ctx.arc(mid, mid, radius - band * 0.28, (200 * Math.PI) / 180, (340 * Math.PI) / 180);
+  ctx.stroke();
+
+  // the cut on the shadow side
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth = band * 0.3;
+  ctx.beginPath();
+  ctx.arc(mid, mid, radius + band * 0.34, (10 * Math.PI) / 180, (150 * Math.PI) / 180);
+  ctx.stroke();
+
+  // the emblem, struck into the band at eight points
+  const emblem = frame?.emblem ?? (factionId ? emblemFor(factionId) : "diamond");
+  ctx.lineWidth = Math.max(1, size * 0.006);
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2 - Math.PI / 2;
+    const x = mid + Math.cos(angle) * radius;
+    const y = mid + Math.sin(angle) * radius;
+    const lit = Math.cos(angle + (3 * Math.PI) / 4) * 0.5 + 0.5;
+    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.3 + lit * 0.55})`;
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.1)`;
+    drawEmblem(ctx, emblem, x, y, size / 2600);
+  }
 }
 
 /** A card back, drawn small for the preview. `null` draws the house design. */
@@ -83,8 +194,8 @@ function paintBack(canvas: HTMLCanvasElement, back: Cosmetic | null, color: stri
   if (!ctx) return;
   const emblem = back?.emblem ?? "diamond";
   const [r, g, b] = hexToRgb(color);
-  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  grad.addColorStop(0, `rgb(${Math.round(r * 0.34)}, ${Math.round(g * 0.34)}, ${Math.round(b * 0.42)})`);
+  const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  grad.addColorStop(0, `rgb(${Math.round(r * 0.42)}, ${Math.round(g * 0.4)}, ${Math.round(b * 0.5)})`);
   grad.addColorStop(1, "#0b0518");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -92,9 +203,17 @@ function paintBack(canvas: HTMLCanvasElement, back: Cosmetic | null, color: stri
   ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.18)`;
   ctx.lineWidth = 1.5;
   drawEmblem(ctx, emblem, canvas.width / 2, canvas.height / 2, canvas.width / 200);
-  ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.35)`;
-  ctx.lineWidth = 3;
-  ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+  // a lit top-left edge and a cut bottom-right one, like every other plate
+  ctx.strokeStyle = "rgba(255,255,255,0.16)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(1.5, canvas.height - 2);
+  ctx.lineTo(1.5, 1.5);
+  ctx.lineTo(canvas.width - 2, 1.5);
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.4)`;
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
 }
 
 export function createProfileScreen(content: ContentIndex, callbacks: ProfileCallbacks): Screen {
@@ -103,8 +222,10 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
 
   /** which slot's picker is open, or null */
   let picking: CosmeticKind | null = null;
+  const bag = disposeBag();
 
   const render = (): void => {
+    bag.run();
     const profile = getProfile();
     const owned = myCosmetics(content);
     const title = wearing(content, "title");
@@ -118,35 +239,63 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
     const points = board.points;
     const unclaimed = achievementsUnclaimed(content);
 
+    const face = faceOf(content);
+    const factionId = (face?.faction as string | undefined) ?? profile.starterFaction ?? null;
+    const accent = frame?.color ?? (factionId ? colourFor(factionId) : "#b56cff");
+
     const xpNeeded = xpForLevel(profile.accountLevel);
     const winRate =
       profile.stats.matchesPlayed > 0 ? Math.round((profile.stats.wins / profile.stats.matchesPlayed) * 100) : 0;
 
+    /**
+     * A cosmetic slot, showing the thing rather than the word "Default".
+     *
+     * Worn, owned-but-not-worn and not-yet-earned are three visibly different
+     * states: worn draws the swatch lit and names it; owned collapses to a
+     * picker; unearned draws the swatch at a quarter and says what earns it.
+     */
     const slotRow = (kind: CosmeticKind, worn: Cosmetic | null): string => {
-      const count = owned.filter((cosmetic) => cosmetic.kind === kind).length;
+      const mine = owned.filter((cosmetic) => cosmetic.kind === kind);
+      const swatch = (cosmetic: Cosmetic | null, dim: boolean): string =>
+        `<span class="profile-swatch-plate${dim ? " is-dim" : ""}"
+               style="--c:${esc(cosmetic?.color ?? "#6a6382")}"
+               aria-hidden="true">${icon(kind === "title" ? "star" : kind === "badge" ? "achievement" : kind === "frame" ? "profile" : "deck", 18)}</span>`;
+
       return `
         <li class="profile-slot ${picking === kind ? "open" : ""}" data-slot="${kind}">
           <div class="profile-slot-head">
-            <span class="profile-slot-label">${SLOT_LABEL[kind]}</span>
-            <span class="profile-slot-worn">${worn ? esc(worn.name) : "<span class='muted'>Default</span>"}</span>
-            <button class="btn btn-ghost profile-slot-toggle" data-slot="${kind}">
-              ${count === 0 ? "None earned" : picking === kind ? "Close" : `Change (${count})`}
-            </button>
+            ${swatch(worn, worn === null)}
+            <span class="profile-slot-text">
+              <span class="profile-slot-label t-label">${SLOT_LABEL[kind]}</span>
+              <span class="profile-slot-worn">${worn ? esc(worn.name) : "Default"}</span>
+            </span>
+            ${
+              mine.length === 0
+                ? `<span class="profile-slot-locked">${icon("lock", 14)} ${esc(SLOT_SOURCE[kind])}</span>`
+                : `<button type="button" class="mat-chip act r-chip profile-slot-toggle" data-slot="${kind}"
+                           aria-expanded="${picking === kind}">
+                     ${picking === kind ? "Close" : `Change`}
+                     <span class="num" data-digits="2">${count(mine.length)}</span>
+                   </button>`
+            }
           </div>
           ${
             picking === kind
               ? `<div class="profile-picker">
-                   <button class="btn btn-ghost profile-option ${worn === null ? "active" : ""}" data-slot="${kind}" data-id="">
-                     Default
+                   <button type="button" class="mat-panel act r-tile profile-option ${worn === null ? "active" : ""}"
+                           data-slot="${kind}" data-id="">
+                     ${swatch(null, true)} Default
                    </button>
-                   ${owned
-                     .filter((cosmetic) => cosmetic.kind === kind)
+                   ${mine
                      .map(
                        (cosmetic) => `
-                         <button class="btn btn-ghost profile-option ${worn?.id === cosmetic.id ? "active" : ""}"
+                         <button type="button" class="mat-panel act r-tile profile-option ${worn?.id === cosmetic.id ? "active" : ""}"
                                  data-slot="${kind}" data-id="${esc(cosmetic.id)}" title="${esc(cosmetic.source)}">
-                           <span class="profile-swatch" style="--c:${esc(cosmetic.color)}"></span>
-                           ${esc(cosmetic.name)}
+                           ${swatch(cosmetic, false)}
+                           <span class="profile-option-text">
+                             <span>${esc(cosmetic.name)}</span>
+                             <span class="t-label">${esc(cosmetic.source)}</span>
+                           </span>
                          </button>`
                      )
                      .join("")}
@@ -156,54 +305,97 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
         </li>`;
     };
 
+    const link = (id: string, label: string, iconId: Parameters<typeof icon>[0], badgeCount = 0): string => `
+      <button type="button" class="mat-panel act r-tile profile-link d-enter" id="${id}">
+        ${icon(iconId, 20)}
+        <span>${esc(label)}</span>
+        ${badgeCount > 0 ? `<span class="d-badge">${icon("chest", 12)}<span class="num">${count(badgeCount)}</span></span>` : ""}
+        ${icon("chevron-right", 16, "profile-link-go")}
+      </button>`;
+
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="profile-back">← Back</button>
+        <button class="btn btn-ghost" id="profile-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Profile</h1>
       </header>
 
-      <main class="profile-body">
-        <section class="panel panel-chrome profile-identity">
+      <main class="profile-body data-body">
+        <section class="panel panel-chrome profile-identity" style="--profile-accent:${esc(accent)}">
           <div class="profile-avatar-wrap">
-            <canvas class="profile-frame-canvas" id="profile-frame" width="220" height="220"></canvas>
-            <div class="profile-avatar" style="--c:${esc(frame?.color ?? "#8f8aa8")}">
-              ${esc(profile.displayName.charAt(0).toUpperCase())}
+            <canvas class="profile-frame-canvas" id="profile-frame" width="240" height="240"></canvas>
+            <div class="profile-avatar" style="--c:${esc(accent)}">
+              ${
+                face
+                  ? `<canvas id="profile-face" width="200" height="200" aria-hidden="true"></canvas>`
+                  : `<span class="profile-monogram">${esc(profile.displayName.charAt(0).toUpperCase())}</span>`
+              }
             </div>
-            ${badge ? `<span class="profile-badge" style="--c:${esc(badge.color)}" title="${esc(badge.source)}">${esc(badge.name.charAt(0))}</span>` : ""}
+            ${
+              badge
+                ? `<span class="profile-badge" style="--c:${esc(badge.color)}" title="${esc(badge.source)}">
+                     ${icon("achievement", 15)}
+                   </span>`
+                : ""
+            }
           </div>
+
           <div class="profile-identity-text">
-            <h2 class="profile-name">${esc(profile.displayName)}</h2>
+            <p class="t-label profile-eyebrow">${
+              face ? esc(content.factions[face.faction as FactionId]?.name ?? "") : "Unaffiliated"
+            }</p>
+            <h2 class="profile-name t-display">${esc(profile.displayName)}</h2>
             <p class="profile-title ${title ? "" : "muted"}" id="profile-title">
               ${title ? esc(title.name) : "No title equipped"}
             </p>
             <div class="profile-level">
-              <span>Level ${profile.accountLevel}</span>
-              <span class="profile-xp"><span style="width:${Math.min(100, (profile.accountXp / xpNeeded) * 100)}%"></span></span>
-              <span class="muted">${profile.accountXp} / ${xpNeeded} XP</span>
+              <span class="profile-level-label t-label">Level ${profile.accountLevel}</span>
+              ${meter({
+                value: xpNeeded > 0 ? profile.accountXp / xpNeeded : 1,
+                steps: 0,
+                colour: accent,
+                animate: true,
+                className: "profile-xp-meter",
+              })}
+              <span class="profile-level-xp">
+                <span class="num" data-count="${profile.accountXp}" data-digits="5">${count(profile.accountXp)}</span>
+                <span class="muted"> / ${count(xpNeeded)} XP</span>
+              </span>
             </div>
           </div>
-          <dl class="profile-stats">
-            <div><dt>Matches</dt><dd>${profile.stats.matchesPlayed}</dd></div>
-            <div><dt>Wins</dt><dd>${profile.stats.wins}</dd></div>
-            <div><dt>Win rate</dt><dd>${winRate}%</dd></div>
-            <div><dt>Cards</dt><dd>${Object.keys(profile.collection).length}</dd></div>
-            <div><dt>Points</dt><dd>${points}</dd></div>
-          </dl>
-          <div class="profile-links">
-            <button class="btn btn-ghost" id="profile-achievements">
-              Achievements${unclaimed > 0 ? ` <span class="mastery-badge">${unclaimed}</span>` : ""} →
-            </button>
-            <button class="btn btn-ghost" id="profile-history">Match history →</button>
-            <button class="btn btn-ghost" id="profile-stats">Statistics →</button>
-            <button class="btn btn-ghost" id="profile-gallery">Characters →</button>
-            <button class="btn btn-ghost" id="profile-leaderboards">Leaderboards →</button>
+
+          <div class="profile-rank">
+            <span class="d-rank" style="--rank-size:96px;--rank-art:url('${rankCrest({
+              size: RANK_PX,
+              tier: profile.accountLevel,
+              tiers: 50,
+              colour: accent,
+            })}')">
+              <span class="d-rank-value">${count(profile.accountLevel)}</span>
+            </span>
+            <span class="t-label">Account level</span>
           </div>
+
+          <dl class="d-stats profile-stats">
+            <div class="d-stat"><dt>Matches</dt><dd class="num" data-count="${profile.stats.matchesPlayed}" data-digits="4">0</dd></div>
+            <div class="d-stat"><dt>Wins</dt><dd class="num" data-count="${profile.stats.wins}" data-digits="4">0</dd></div>
+            <div class="d-stat"><dt>Win rate</dt><dd class="num">${winRate}%</dd></div>
+            <div class="d-stat"><dt>Cards</dt><dd class="num" data-count="${Object.keys(profile.collection).length}" data-digits="4">0</dd></div>
+            <div class="d-stat"><dt>Points</dt><dd class="num" data-count="${points}" data-digits="4">0</dd></div>
+          </dl>
         </section>
 
+        <nav class="profile-links" aria-label="Your records">
+          ${link("profile-achievements", "Achievements", "achievement", unclaimed)}
+          ${link("profile-history", "Match history", "mode-replays")}
+          ${link("profile-stats", "Statistics", "log")}
+          ${link("profile-gallery", "Characters", "collection")}
+          ${link("profile-leaderboards", "Leaderboards", "mode-ranked")}
+        </nav>
+
         <section class="panel panel-chrome profile-cosmetics">
-          <h3 class="profile-section-title">Cosmetics</h3>
-          <p class="muted profile-hint">
+          <h3 class="t-heading profile-section-title">Cosmetics</h3>
+          <p class="t-body profile-hint">
             Earned by playing — Faction and Leader Mastery, and the Bias Board. Nothing here can be bought.
           </p>
           <ul class="profile-slots">
@@ -213,49 +405,89 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
             ${slotRow("cardBack", back)}
           </ul>
           <div class="profile-back-preview">
-            <canvas id="profile-back-canvas" width="120" height="168"></canvas>
-            <p class="muted">${back ? `Your cards show the ${esc(back.name)}.` : "Your cards show the house back."}</p>
+            <canvas id="profile-back-canvas" width="132" height="184"></canvas>
+            <p class="t-body">${back ? `Your cards show the ${esc(back.name)}.` : "Your cards show the house back."}</p>
           </div>
         </section>
 
         <section class="panel panel-chrome profile-emotes">
-          <h3 class="profile-section-title">Emote wheel <span class="muted">${emotes.length}</span></h3>
-          <p class="muted profile-hint">
+          <h3 class="t-heading profile-section-title">
+            Emote wheel <span class="num profile-count">${count(emotes.length)}</span>
+          </h3>
+          <p class="t-body profile-hint">
             The six you start with are never taken away. Mastery adds to the wheel rather than replacing it.
           </p>
           <ul class="profile-emote-list">
-            ${emotes.map((phrase) => `<li class="profile-emote">${esc(phrase)}</li>`).join("")}
+            ${emotes
+              .map(
+                (phrase) =>
+                  `<li class="profile-emote mat-chip d-enter">${icon("emote", 14)}<span>${esc(phrase)}</span></li>`
+              )
+              .join("")}
           </ul>
         </section>
 
         <section class="panel panel-chrome profile-mastery">
-          <h3 class="profile-section-title">Faction Mastery</h3>
+          <div class="profile-mastery-head">
+            <h3 class="t-heading profile-section-title">Faction Mastery</h3>
+            <button type="button" class="mat-chip act r-chip" id="profile-mastery">
+              Open Mastery ${icon("chevron-right", 14)}
+            </button>
+          </div>
           ${
             tracks.length === 0
-              ? `<p class="muted">Play a match and the faction you played it with appears here.</p>`
-              : `<ul class="profile-tracks">
+              ? `<div class="empty d-enter">
+                   ${icon("mastery", 40)}
+                   <h3 class="t-heading">No track has started yet</h3>
+                   <p class="t-body">Every match pays XP into the faction you played it with — win or lose. Play one and the ten tracks below start filling.</p>
+                 </div>`
+              : `<ul class="profile-tracks" id="profile-tracks">
                    ${tracks
-                     .map(
-                       (track) => `
-                         <li class="profile-track">
+                     .map((track) => {
+                       const colour = colourFor(track.factionId);
+                       return `
+                         <li class="profile-track d-enter">
+                           ${crestMark(track.factionId, 34)}
                            <span class="profile-track-name">${esc(track.name)}</span>
-                           <span class="profile-track-bar"><span style="width:${track.maxed ? 100 : Math.min(100, (track.intoRank / Math.max(1, track.toNext)) * 100)}%"></span></span>
-                           <span class="muted">Rank ${track.rank}</span>
-                         </li>`
-                     )
+                           ${meter({
+                             value: track.maxed ? 1 : track.toNext > 0 ? track.intoRank / track.toNext : 0,
+                             steps: 0,
+                             colour,
+                             animate: true,
+                           })}
+                           <span class="profile-track-rank t-label">${
+                             track.maxed ? "Mastered" : `Rank ${count(track.rank)}`
+                           }</span>
+                         </li>`;
+                     })
                      .join("")}
                  </ul>`
           }
-          <button class="btn btn-ghost" id="profile-mastery">Open Mastery →</button>
         </section>
       </main>`;
 
     const frameCanvas = root.querySelector<HTMLCanvasElement>("#profile-frame");
-    if (frameCanvas) paintFrame(frameCanvas, frame);
+    if (frameCanvas) paintFrame(frameCanvas, frame, factionId);
+
+    /**
+     * The portrait itself, blitted from the shared painter's memoised plate.
+     *
+     * A 4:4 crop with the bias the painter already applies upward, because every
+     * painting in the set puts the head in the top third and a centred cover
+     * crop reliably decapitates it — which is the whole reason that option
+     * exists.
+     */
+    const faceCanvas = root.querySelector<HTMLCanvasElement>("#profile-face");
+    if (faceCanvas && face) {
+      const plate = paintLeaderPortrait(face, { width: 200, aspect: 1, bias: 0.16, scrim: 0.25 });
+      const ctx = faceCanvas.getContext("2d");
+      if (ctx) ctx.drawImage(plate, 0, 0, faceCanvas.width, faceCanvas.height);
+    }
+
     const backCanvas = root.querySelector<HTMLCanvasElement>("#profile-back-canvas");
     // the preview shows the house design when nothing is worn, so the panel is
     // never an empty rectangle captioned "your cards show the house back"
-    if (backCanvas) paintBack(backCanvas, back, back?.color ?? "#b56cff");
+    if (backCanvas) paintBack(backCanvas, back, back?.color ?? accent);
 
     root.querySelector("#profile-back")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");
@@ -285,6 +517,10 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
         render();
       });
     }
+
+    enter(root);
+    countUp(root);
+    bag.add(rovingList(root.querySelector<HTMLElement>(".profile-links"), ".profile-link"));
   };
 
   render();
@@ -302,12 +538,14 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
       return ok;
     },
     emotes: () => emoteWheel(content),
+    face: () => faceOf(content)?.id ?? null,
     refresh: render,
   };
 
   return {
     root,
     dispose: () => {
+      bag.run();
       delete (window as unknown as { hypeboundProfile?: unknown }).hypeboundProfile;
     },
   };

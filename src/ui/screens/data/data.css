@@ -1,0 +1,847 @@
+/**
+ * The data-and-system screens, as one place rather than twenty-three.
+ *
+ * Twenty-three routes — profile, mastery, statistics, leaderboards, match
+ * history, news, patch notes, inbox, events, the four mode hubs, the lab, the
+ * custom lobby, settings, and the six policy screens — were audited twice and
+ * scored 4.5 and 4. Both audits landed on the same root cause and it was not a
+ * missing gradient: **each screen had decided everything for itself.** Three
+ * different page containers inside one domain, two different active-chip styles
+ * in the same 40px row, list rows that were `<li>` on four screens and
+ * `<button>` on a fifth, and eight row types with no hover at all.
+ *
+ * This file is that decision made once. It sits *on top of* `foundation.css`
+ * rather than beside it: every surface in here is a `.mat-*` material, every
+ * radius is a role token, every duration and easing is a `--dur-*`/`--ease-*`,
+ * and the only things declared are the ones the foundation cannot know —
+ * how a mastery tile is laid out, what a reward rung looks like, where the key
+ * art goes.
+ *
+ * ## Four rules it holds to
+ *
+ * **One measure.** `.data-body` is the container for all twenty-three. A player
+ * walking profile → statistics → events used to watch the text column jump from
+ * 1580px to 1180px to the full 1600px with no gutter at all, which reads as
+ * three different applications. One max-width, one `clamp()` gutter, one scroll
+ * treatment, one bottom fade.
+ *
+ * **The light is at 315°, so every gradient here is either the rig axis or
+ * exactly square to the viewport.** There is no third case in this file.
+ *
+ * **Nothing signals by colour alone.** The faction crest carries a *shape*; the
+ * result pips carry a *direction*; the rank ladder carries pip *count*. Colour
+ * is always the second channel.
+ *
+ * **The decorative layer dies under reduced motion and the functional one does
+ * not.** Every animation in here is listed in §9 and switched off there, and
+ * every one of them animates `transform`, `opacity` or `filter` only — the
+ * lobby lost half its frame rate to one `background-position` and that lesson
+ * is written into `foundation.css` in forty lines. Not repeating it.
+ */
+
+/* -------------------------------------------------------------------------
+   1. One page container
+   ------------------------------------------------------------------------- */
+
+/**
+ * `.data-body` is composed onto whatever bespoke body class a screen already
+ * has, so a screen keeps its own grid and inherits the measure. The selector is
+ * `.screen .data-body` rather than `.data-body` on purpose: `screens.css` is
+ * another module's file and states `padding: var(--sp-3) 0` on `.events-body`
+ * at equal specificity, so this has to win on weight rather than on the load
+ * order of two stylesheets nobody should have to reason about.
+ */
+.screen .data-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  width: 100%;
+  max-width: var(--data-measure, 1220px);
+  margin-inline: auto;
+  padding-block: var(--sp-5) var(--sp-8);
+  padding-inline: clamp(16px, 3.4vw, 48px);
+}
+
+/** The two-column reading screens want more room than a single stack does. */
+.screen .data-body.data-wide {
+  --data-measure: 1440px;
+}
+
+/**
+ * A panel inside a scrolling column may grow and must never shrink.
+ *
+ * This is one line and it is load-bearing. Most of these bodies are
+ * `flex-direction: column`, and a flex item whose own `overflow` is not
+ * `visible` has an automatic minimum size of **zero** rather than of its
+ * content — so the moment the profile's hero panel was given `overflow: hidden`
+ * to clip its light wash, flexbox squashed it from 210px to 60px and the panel
+ * below climbed on top of it. The panel is not the bug; the default is. Grid
+ * children ignore `flex-shrink` entirely, so the two-column reading screens are
+ * unaffected.
+ */
+.screen .data-body > * {
+  flex-shrink: 0;
+}
+
+/**
+ * A scroll that ends in a fade rather than in a cut word.
+ *
+ * At 1280×720 the news article was clipped through the middle of "all it does."
+ * with no gradient and no affordance, which is the clearest possible signal that
+ * nobody opened the build at the minimum supported size. The mask ramps over the
+ * last 40px so text visibly continues; `--fade-off` is set to 1 by the kit when
+ * the pane is scrolled to the end, so the last line is never dimmed while it is
+ * also the last line.
+ */
+.d-fade {
+  --fade-a: 1;
+  --fade-b: 1;
+  mask-image: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, calc(1 - var(--fade-a))) 0,
+    #000 40px,
+    #000 calc(100% - 40px),
+    rgba(0, 0, 0, calc(1 - var(--fade-b))) 100%
+  );
+}
+
+/* -------------------------------------------------------------------------
+   2. The row — one interactive treatment for nine screens
+   ------------------------------------------------------------------------- */
+
+/**
+ * Every list row in the domain is a `<button class="d-row mat-panel act">`.
+ *
+ * The `act` half is the foundation's six-state mixin and carries hover, press,
+ * focus and disabled; what is added here is only the geometry a row needs and
+ * the one thing a *row* does that a button does not — a lit left edge that grows
+ * when the row is the open one, so selection is not carried by fill alone.
+ */
+.d-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+}
+
+/**
+ * The selection edge, drawn on `::before`.
+ *
+ * `::after` belongs to `foundation.css` — it is the specular band, and taking it
+ * would silently switch off the breathing on every row in the domain. The file
+ * says so out loud and this is the consumer it was warning.
+ */
+.d-row::before {
+  content: "";
+  position: absolute;
+  inset-block: 22%;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, var(--row-accent, var(--accent-bright)), var(--row-accent, var(--accent)));
+  opacity: 0;
+  transform: scaleY(0.3);
+  transform-origin: center;
+  transition:
+    opacity var(--dur-micro) var(--ease-arrive),
+    transform var(--dur-ui) var(--ease-overshoot);
+}
+
+@media (hover: hover) {
+  .d-row:hover::before {
+    opacity: 0.55;
+    transform: scaleY(0.72);
+  }
+}
+
+.d-row[aria-current="true"]::before,
+.d-row.is-open::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.d-row[aria-current="true"],
+.d-row.is-open {
+  --rim-boost: 1.8;
+}
+
+/** The unread mark: a dot *and* a weight change, so it survives greyscale. */
+.d-row.is-unread .d-row-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.d-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-chip);
+  background: var(--row-accent, var(--accent-hot));
+  box-shadow: 0 0 8px var(--row-accent, var(--accent-hot));
+  flex: 0 0 auto;
+}
+
+.d-row:not(.is-unread) .d-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+}
+
+.d-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.d-row-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.d-row-sub {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.d-row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* -------------------------------------------------------------------------
+   3. Pictures
+   ------------------------------------------------------------------------- */
+
+/**
+ * The crest.
+ *
+ * A hexagonal plate painted in `art.ts`, dropped in as a background so it can
+ * sit under a material's own grain and be moved by a `transform` on hover
+ * without the row needing an extra element. `--crest` is written inline by the
+ * caller; nothing here knows which faction it is.
+ */
+.d-crest {
+  flex: 0 0 auto;
+  width: var(--crest-size, 44px);
+  height: var(--crest-size, 44px);
+  background-image: var(--crest);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.55));
+  transition: transform var(--dur-ui) var(--ease-overshoot);
+}
+
+@media (hover: hover) {
+  .d-row:hover .d-crest,
+  .d-tile:hover .d-crest {
+    transform: translateY(-1px) rotate(-3deg) scale(1.06);
+  }
+}
+
+/** Event key art and news heroes: a real plate with a real aspect ratio. */
+.d-key {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-nested);
+  background-image: var(--key-art);
+  background-size: cover;
+  background-position: center;
+  aspect-ratio: var(--key-aspect, 16 / 9);
+  isolation: isolate;
+}
+
+/**
+ * The scrim under type that stands on key art.
+ *
+ * §4: "text over imagery always has a scrim, a shadow, or a plate. Never raw."
+ * 180° — square to the viewport, which the one-sun rule allows for a scrim
+ * because a scrim carries no direction of light.
+ */
+.d-key-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(4 2 10 / 0.05) 0%, rgb(4 2 10 / 0.55) 58%, rgb(4 2 10 / 0.9) 100%);
+}
+
+.d-key-caption {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/** A reward, drawn as an object. 6 shapes, so the kind reads before the text. */
+.d-reward-tile {
+  flex: 0 0 auto;
+  width: var(--reward-size, 44px);
+  height: var(--reward-size, 44px);
+  border-radius: var(--r-field);
+  background-image: var(--reward-art);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.5));
+}
+
+/** The rank crest — the object the domain is meant to be recognised by. */
+.d-rank {
+  flex: 0 0 auto;
+  width: var(--rank-size, 76px);
+  height: var(--rank-size, 76px);
+  background-image: var(--rank-art);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 4px 12px rgb(0 0 0 / 0.6));
+  display: grid;
+  place-items: center;
+}
+
+/**
+ * The number, in the shield's centre band, under the gem.
+ *
+ * `.num`'s job is the tabular slot; the display face, the weight and the −0.02em
+ * are §4's numeric role. The shadow is a plate under the type rather than a
+ * glow: a crest is a lit metal object and light type on it needs something dark
+ * behind it, which §4 asks for by name.
+ */
+.d-rank-value {
+  font-family: var(--font-display);
+  font-size: calc(var(--rank-size, 76px) * 0.3);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--text);
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 0.9),
+    0 0 12px rgb(0 0 0 / 0.75);
+  transform: translateY(calc(var(--rank-size, 76px) * 0.035));
+}
+
+/* -------------------------------------------------------------------------
+   4. Meters
+   ------------------------------------------------------------------------- */
+
+/**
+ * A progress rail that is a groove with something in it.
+ *
+ * `.mat-well` is the groove and `.well-fill` is the object sitting in it —
+ * both are module A's, and the whole point of using them is that the meter on a
+ * mastery tile is made of the same substance as the meter in the battle HUD. All
+ * that is added here is the rank tick marks, which are what turn "how far along"
+ * into "how many more", and the width transition.
+ */
+.d-meter {
+  position: relative;
+  height: 10px;
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  overflow: hidden;
+  /*
+   * The well, one step lighter than the material ships.
+   *
+   * `--fill-well` is tuned for a socket the size of an input on a panel. A 10px
+   * rail on a *tile* on a panel is two surfaces deeper and the stock recipe
+   * disappears into it — measured on the mastery grid, an empty rail was
+   * indistinguishable from the tile it sat in, so a track at rank 1 looked
+   * identical to a track with no rail at all. Same recipe, same 315° axis, one
+   * notch of lift so the groove is legible at 10px on the third surface down.
+   */
+  --fill-well: linear-gradient(var(--light-sweep), rgb(2 1 6 / 0.85) 0%, rgb(52 38 92 / 0.62) 100%);
+}
+
+.d-meter > i {
+  display: block;
+  height: 100%;
+  width: var(--meter-value, 0%);
+  border-radius: inherit;
+  transition: width var(--dur-meter, 760ms) var(--ease-arrive);
+}
+
+/**
+ * The ticks. 90° — square to the viewport, and a divider rather than a light.
+ * `--meter-steps` is the number of segments; a 20-rank track gets 19 lines.
+ */
+.d-meter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgb(0 0 0 / 0.42) 0 1px,
+    transparent 1px calc(100% / var(--meter-steps, 10))
+  );
+  background-size: calc(100% / var(--meter-steps, 10)) 100%;
+  opacity: 0.75;
+}
+
+.d-meter.is-tickless::after {
+  display: none;
+}
+
+/** A leading glow at the fill edge, so the meter has a head rather than a cut. */
+.d-meter > i::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  margin-inline-start: -10px;
+  background: linear-gradient(90deg, rgb(255 255 255 / 0), rgb(255 255 255 / 0.55));
+  filter: blur(1px);
+}
+
+/* -------------------------------------------------------------------------
+   5. Tiles — the mastery grid, the mode hubs, the story chapters
+   ------------------------------------------------------------------------- */
+
+.d-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--tile-min, 268px), 1fr));
+  gap: var(--sp-3);
+}
+
+.d-tile {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  width: 100%;
+}
+
+.d-tile > .d-crest {
+  grid-row: 1 / 3;
+  --crest-size: 52px;
+}
+
+.d-tile-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.d-tile-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.d-tile-sub {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.d-tile-foot {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+.d-tile > .d-meter {
+  grid-column: 1 / -1;
+  margin-top: var(--sp-1);
+}
+
+/**
+ * The claimable badge: a gift, and a count.
+ *
+ * It used to be a bare integer sitting one line under another bare integer — the
+ * rank — so the mastery tile printed the same number twice and meant two
+ * different things by it. A glyph plus a number cannot be confused with a rank.
+ */
+.d-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-invert);
+  background: linear-gradient(var(--light-sweep), var(--accent-gold), #d99a2b);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    inset 0 -1px 0 rgb(0 0 0 / 0.3),
+    0 2px 6px rgb(0 0 0 / 0.5);
+}
+
+.d-badge .hb-icon {
+  font-size: 0.95em;
+}
+
+/* -------------------------------------------------------------------------
+   6. Numbers, tables, stat blocks
+   ------------------------------------------------------------------------- */
+
+/**
+ * A headline statistic: a small tracked label over a big tabular figure.
+ *
+ * §4 asks for a hierarchy rather than four sizes of one weight, and the number
+ * a player reads under pressure has to be tabular so it does not shuffle the row
+ * when it gains a digit.
+ */
+.d-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: var(--sp-3) var(--sp-4);
+  margin: 0;
+}
+
+.d-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.d-stat > dt {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* `--num-align` rather than `text-align`, because `.num` reads that property and
+   a headline figure sits under a left-aligned label — a right-aligned number in
+   an auto-fit cell drifts away from the word it belongs to. */
+.d-stat > dd {
+  margin: 0;
+  --num-align: left;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--text);
+  line-height: 1.05;
+}
+
+.d-stat.is-quiet > dd {
+  font-size: var(--fs-lg);
+  color: var(--text-dim);
+}
+
+/** Right-align the numbers, left-align the label, and let a row be tracked. */
+.d-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-sm);
+}
+
+.d-table th,
+.d-table td {
+  padding: var(--sp-2) var(--sp-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+  border-bottom: 1px solid rgb(255 255 255 / 0.05);
+}
+
+.d-table th:first-child,
+.d-table td:first-child {
+  text-align: left;
+  font-variant-numeric: normal;
+}
+
+.d-table thead th {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+  border-bottom-color: rgb(255 255 255 / 0.1);
+}
+
+.d-table tbody tr:nth-child(even) {
+  background: rgb(255 255 255 / 0.015);
+}
+
+.d-table tbody tr {
+  transition: background var(--dur-micro) var(--ease-arrive);
+}
+
+.d-table tbody tr:hover {
+  background: rgb(255 255 255 / 0.05);
+}
+
+.d-table tbody tr:hover td:first-child {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/** A before → after diff, which is what a patch table is. */
+.d-was {
+  color: var(--text-faint);
+  text-decoration: line-through;
+  text-decoration-color: rgb(255 255 255 / 0.28);
+}
+
+.d-now {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.d-delta-up {
+  color: var(--success);
+}
+
+.d-delta-down {
+  color: var(--danger);
+}
+
+.d-new {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+}
+
+/* -------------------------------------------------------------------------
+   7. Chips — one component, one active state
+   ------------------------------------------------------------------------- */
+
+/**
+ * Two different selected styles used to appear in the same 40px-tall row: the
+ * result group filled solid and the mode group outlined. A player cannot learn
+ * what "selected" looks like from two examples that disagree.
+ *
+ * One state: the chip becomes a lit plate *and* grows an underline bar, so
+ * selection survives greyscale.
+ */
+.d-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.d-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 7px var(--sp-4);
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.d-chip .d-chip-count {
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.d-chip[aria-pressed="true"],
+.d-chip.is-on {
+  color: var(--text);
+  --rim-boost: 2;
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(112 78 178 / 0.95) 0%, rgb(52 30 104 / 0.96) 100%);
+}
+
+.d-chip[aria-pressed="true"] .d-chip-count,
+.d-chip.is-on .d-chip-count {
+  color: var(--accent-bright);
+}
+
+.d-chip[aria-pressed="true"]::before,
+.d-chip.is-on::before {
+  content: "";
+  position: absolute;
+  inset-inline: 22%;
+  inset-block-end: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-bright), transparent);
+}
+
+/* -------------------------------------------------------------------------
+   8. Entrances, and idle
+   ------------------------------------------------------------------------- */
+
+/**
+ * The list cascade.
+ *
+ * Module E already staggers a screen's top-level panels. What it cannot do is
+ * stagger the *rows inside* one, and ten mastery tiles, twenty ladder rungs and
+ * twenty-two history rows all arriving on the same frame is the single loudest
+ * "hobby menu" tell there is. `motion.ts`'s `stagger()` writes `--enter-delay`;
+ * this consumes it, and nothing else.
+ *
+ * `backwards` matters: without it the row is drawn at its final position for the
+ * frames before its delay elapses, which is a flash of the finished list
+ * followed by it re-assembling.
+ */
+.d-enter {
+  animation: d-rise var(--dur-ui) var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+}
+
+@keyframes d-rise {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/**
+ * A number that arrives rather than appears.
+ *
+ * `tickerTo` counts the value; this is the plate under it catching a little
+ * light as it lands, which is §3's "secondary motion" — the thing that separates
+ * animated from alive — for one-fifth of a second and then never again.
+ */
+.d-count-in {
+  animation: d-count-land var(--dur-setpiece) var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+}
+
+@keyframes d-count-land {
+  from {
+    opacity: 0.35;
+    filter: brightness(1.7);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   9. Reduced motion
+   ------------------------------------------------------------------------- */
+
+/**
+ * The decorative layer goes; the functional one stays and every screen stays
+ * fully usable. Both switches, because the saved setting and the OS preference
+ * are two different questions and a player who turns the OS one on after their
+ * first session must not have to find the in-game one.
+ */
+:root[data-reduced-motion="true"] .d-enter,
+:root[data-reduced-motion="true"] .d-count-in,
+:root[data-reduced-motion="true"] .d-meter > i,
+:root[data-reduced-motion="true"] .d-crest,
+:root[data-reduced-motion="true"] .d-row::before {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .d-enter,
+  .d-count-in,
+  .d-meter > i,
+  .d-crest,
+  .d-row::before {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   10. High contrast
+   ------------------------------------------------------------------------- */
+
+:root[data-contrast="high"] .d-row-sub,
+:root[data-contrast="high"] .d-row-meta,
+:root[data-contrast="high"] .d-tile-sub,
+:root[data-contrast="high"] .d-stat > dt {
+  color: var(--text-dim);
+}
+
+:root[data-contrast="high"] .d-meter::after {
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------------------
+   11. Small screens
+   -------------------------------------------------------------------------
+   844×390 landscape is the floor, and the failure there is never the width —
+   it is the height. A two-column reading screen has 390px of vertical room, so
+   the list pane has to stop being a fixed 340px column and become a short
+   scrolling strip above the article. */
+
+@media (max-width: 900px), (max-height: 460px) {
+  .screen .data-body {
+    padding-block: var(--sp-3) var(--sp-5);
+    padding-inline: clamp(12px, 3vw, 24px);
+  }
+
+  .d-grid {
+    --tile-min: 220px;
+  }
+
+  .d-rank {
+    --rank-size: 58px;
+  }
+}
+
+@media (max-height: 460px) {
+  .d-key {
+    --key-aspect: 21 / 6;
+  }
+}

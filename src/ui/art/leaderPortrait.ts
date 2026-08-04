@@ -70,7 +70,7 @@ import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { drawPlaceholderArt } from "../cardRenderer/placeholderArt";
 import { getCardArt, onArtLoaded } from "./artLoader";
 import { boardPath, BOARD_EXTENSIONS } from "./iconAssets";
-import { getAsset, onAssetLoaded } from "./assetLoader";
+import { awaitAsset, getAsset } from "./assetLoader";
 
 export interface PortraitOptions {
   /** Logical width in CSS pixels. Height follows `aspect`. */
@@ -540,18 +540,29 @@ export function paintVenue(factionId: FactionId | string, options: PortraitOptio
   if (!ctx) return canvas;
 
   /**
-   * A 4K board takes a second or two to decode, so the venue always arrives
-   * after the first frame. Fading it in is the difference between a room the
-   * lights come up in and a photograph appearing out of nowhere a beat after the
-   * screen has settled — §7's "nothing ever pops in", applied to an asset rather
-   * than to a component.
+   * A 4K board takes a second or two to decode, so the venue arrives after the
+   * first frame — the *first* time. Fading it in is the difference between a
+   * room the lights come up in and a photograph appearing out of nowhere a beat
+   * after the screen has settled: §7's "nothing ever pops in", applied to an
+   * asset rather than to a component.
+   *
+   * The second time, the asset is decoded and `paint()` below succeeds
+   * synchronously, before this element has ever been in the document — and then
+   * the fade is 700ms of a finished picture being withheld. It is measurable on
+   * exactly the navigation §3a budgets: sign-in and the queue both put the venue
+   * behind everything, so a warm room arriving over 700ms means the first third
+   * of a second on the new screen is darker than the screen is. So the fade is
+   * armed only when there is genuinely nothing to show yet.
    */
-  canvas.style.opacity = "0";
-  canvas.style.transition = "opacity var(--dur-setpiece, 700ms) var(--ease-arrive, ease-out)";
+  const arm = (): void => {
+    canvas.style.opacity = "0";
+    canvas.style.transition = "opacity var(--dur-setpiece, 700ms) var(--ease-arrive, ease-out)";
+  };
+
+  const preferred = boardPath(String(factionId));
 
   const paint = (): boolean => {
-    const art =
-      getAsset(boardPath(String(factionId)), BOARD_EXTENSIONS) ?? getAsset(boardPath("default"), BOARD_EXTENSIONS);
+    const art = getAsset(preferred, BOARD_EXTENSIONS) ?? getAsset(boardPath("default"), BOARD_EXTENSIONS);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, W, H);
@@ -562,9 +573,34 @@ export function paintVenue(factionId: FactionId | string, options: PortraitOptio
     return true;
   };
 
-  if (!paint()) {
-    const stop = onAssetLoaded(() => {
-      if (paint()) stop();
+  const drawn = paint();
+  if (!drawn) arm();
+  /** Whether that first paint was already the room it should be. */
+  const settled = drawn && getAsset(preferred, BOARD_EXTENSIONS) !== null;
+
+  /**
+   * Wait for *this faction's* room, not for whichever room decodes first.
+   *
+   * The old version repainted on the next asset — any asset — and stopped the
+   * moment one produced a picture. Both boards are requested on the same frame,
+   * so which of them won was a race, and the neutral board usually won: it is
+   * smaller. The visible result was the same screen showing two different rooms
+   * on two consecutive loads — measured on the queue at 1600×900 as a
+   * 95th-percentile pixel of 100 on one run and 80 on the next, with the top
+   * sixth of the frame going from 22% dark-and-flat to 51% purely on which PNG
+   * arrived first. A backdrop that is a coin toss is worse than either outcome.
+   *
+   * `awaitAsset` answers `null` for a faction with no painted room, which is
+   * both the honest state and the reason this is bounded: the fallback is then
+   * waited on once and nothing is left listening.
+   */
+  if (!settled) {
+    void awaitAsset(preferred, BOARD_EXTENSIONS).then((art) => {
+      if (art) {
+        paint();
+        return;
+      }
+      void awaitAsset(boardPath("default"), BOARD_EXTENSIONS).then(() => paint());
     });
   }
   return canvas;

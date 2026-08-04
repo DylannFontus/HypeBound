@@ -38,6 +38,8 @@ import {
 } from "../../game/doomscroll/run";
 import { activeRun, beginRun, doomscrollStore, finishRun, saveRun } from "../../save/doomscrollSave";
 import { completeDailyDoomscroll, getProfile, profileStore, todaysDoomscrollSeed } from "../../save/profile";
+import { enter, icon, quantify } from "./data/kit";
+import { paintLeaderPortrait } from "../art/leaderPortrait";
 
 export interface DoomscrollCallbacks {
   onBack: () => void;
@@ -93,7 +95,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       <h1 class="title" id="doom-title">The Doomscroll</h1>
       <div class="sub-header-meta muted" id="doom-meta"></div>
     </header>
-    <div class="doom-body" id="doom-body"></div>
+    <div class="doom-body data-body" id="doom-body"></div>
     <div class="doom-prompt-backdrop" id="doom-prompt" hidden></div>`;
 
   const body = root.querySelector<HTMLElement>("#doom-body")!;
@@ -123,14 +125,14 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     const save = doomscrollStore.get();
     titleEl.textContent = "The Doomscroll";
     metaEl.textContent = save.runsStarted > 0
-      ? `${save.runsStarted} run${save.runsStarted === 1 ? "" : "s"} · best ${save.bestActsCleared}/${data.acts.length} acts · ${save.lifetimeClout} Clout banked`
+      ? `${quantify(save.runsStarted, "run")} · best ${save.bestActsCleared}/${data.acts.length} acts · ${save.lifetimeClout} Clout banked`
       : "A run down the feed. Your collection is not involved.";
 
     const panel = document.createElement("div");
     panel.className = "doom-setup scroll";
     panel.innerHTML = `
       <div class="panel panel-chrome doom-setup-panel">
-        <div class="eyebrow">Descend</div>
+        <div class="t-label">Descend</div>
         <h2 class="title">Pick who is posting</h2>
         <p class="muted">
           You start with a ${data.leaders[0]!.deck.length}-card temporary deck and ${data.run.startingHealth} health that
@@ -141,15 +143,15 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
         <div class="doom-leader-grid" id="doom-leaders"></div>
         <div class="doom-seed-row">
           <label for="doom-seed">Run seed</label>
-          <input id="doom-seed" class="input" type="text" inputmode="numeric" />
-          <button class="btn btn-ghost" id="doom-reroll">Reroll</button>
-          <button class="btn btn-ghost" id="doom-daily">Today's run</button>
+          <input id="doom-seed" class="field input" type="text" inputmode="numeric" />
+          <button type="button" class="mat-chip act r-chip" id="doom-reroll">${icon("refresh", 14)} Reroll</button>
+          <button type="button" class="mat-chip act r-chip" id="doom-daily">${icon("events", 14)} Today's run</button>
         </div>
         <p class="muted doom-seed-note">
           Same seed and same choices give the same map, events, shops and offers — copy it to replay or share a run.
         </p>
         <p class="muted doom-seed-note" id="doom-daily-note">
-          <strong>Today's run</strong> is the same seed for everybody, and clearing it fills 09 §11's bonus daily slot.
+          <strong>Today's run</strong> is the same seed for everybody, and clearing it fills the bonus daily slot.
         </p>
       </div>`;
     body.replaceChildren(panel);
@@ -171,14 +173,34 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     const grid = panel.querySelector<HTMLElement>("#doom-leaders")!;
     for (const leader of data.leaders) {
       const card = document.createElement("button");
-      card.className = "doom-leader btn";
+      /*
+       * A leader choice is a portrait, not a 370x140 capsule.
+       *
+       * Two defects at once. `--radius-pill` on a 370x140 content card put a
+       * lozenge inside a 20px-radius panel — three corner radii on one screen,
+       * which §7 names — and the card had no picture on the screen where the
+       * whole decision is "who am I playing as". `paintLeaderPortrait` is the
+       * painter the lobby, the queue and the sign-in screen already use, with
+       * the left edge feathered so the art bleeds into the plate rather than
+       * ending at a rectangle.
+       */
+      card.className = "doom-leader mat-panel act r-panel d-enter";
       card.type = "button";
       const def = content.leaders[leader.leaderCardId];
       card.innerHTML = `
-        <div class="doom-leader-name">${escape(leader.name)}</div>
-        <div class="doom-leader-sub muted">${escape(def?.title ?? "")}</div>
-        <p class="doom-leader-blurb muted">${escape(leader.blurb)}</p>
-        <div class="doom-leader-deck muted">${leader.deck.length}-card deck · “${escape(leader.deckName)}”</div>`;
+        <span class="doom-leader-art" aria-hidden="true"></span>
+        <span class="doom-leader-text">
+          <span class="doom-leader-name">${escape(leader.name)}</span>
+          <span class="doom-leader-sub">${escape(def?.title ?? "")}</span>
+          <span class="doom-leader-blurb">${escape(leader.blurb)}</span>
+          <span class="doom-leader-deck">${leader.deck.length}-card deck · “${escape(leader.deckName)}”</span>
+        </span>`;
+      const artHost = card.querySelector<HTMLElement>(".doom-leader-art");
+      if (artHost && def) {
+        artHost.appendChild(
+          paintLeaderPortrait(def, { width: 168, aspect: 1.15, bias: 0.2, fadeLeft: 0.34, fadeBottom: 0.18, scrim: 0.3 })
+        );
+      }
       card.addEventListener("click", () => {
         audio.play("sfx.ui.click");
         const typed = Number(seedInput.value.trim());
@@ -190,6 +212,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       });
       grid.appendChild(card);
     }
+    enter(panel, ".doom-leader", 60);
   }
 
   // ---- run sidebar ---------------------------------------------------------
@@ -219,7 +242,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     // --- artifacts
     const artifacts = document.createElement("div");
     artifacts.className = "doom-side-block";
-    artifacts.innerHTML = `<div class="eyebrow">Artifacts</div>`;
+    artifacts.innerHTML = `<div class="t-label">Artifacts</div>`;
     if (active.artifacts.length === 0) {
       const none = document.createElement("p");
       none.className = "muted doom-empty";
@@ -254,7 +277,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       track.className = "doom-side-block doom-fragments";
       track.dataset["held"] = String(held);
       track.innerHTML = `
-        <div class="eyebrow">Signal Fragments</div>
+        <div class="t-label">Signal Fragments</div>
         <div class="doom-fragment-track" aria-label="${held} of ${finale.requiresFragments} Signal Fragments">
           ${Array.from({ length: finale.requiresFragments }, (_, i) =>
             `<span class="doom-fragment${i < held ? " doom-fragment-held" : ""}" aria-hidden="true">◈</span>`
@@ -271,14 +294,14 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     // --- deck
     const deckBlock = document.createElement("div");
     deckBlock.className = "doom-side-block doom-deck-block";
-    deckBlock.innerHTML = `<div class="eyebrow">Run deck (${active.deck.length})</div>`;
+    deckBlock.innerHTML = `<div class="t-label">Run deck (${active.deck.length})</div>`;
     deckBlock.appendChild(deckRows(active));
     aside.appendChild(deckBlock);
 
     // --- log
     const logBlock = document.createElement("div");
     logBlock.className = "doom-side-block doom-log-block";
-    logBlock.innerHTML = `<div class="eyebrow">Feed</div>`;
+    logBlock.innerHTML = `<div class="t-label">Feed</div>`;
     const log = document.createElement("div");
     log.className = "doom-log scroll";
     for (const line of [...active.log].reverse().slice(0, 20)) {
@@ -409,7 +432,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     // the act name is already in the screen header — repeating it here costs a
     // whole floor of map that the player needs to plan a route with
     heading.innerHTML = `
-      <div class="eyebrow">Act ${active.actIndex + 1} of ${data.acts.length}</div>
+      <div class="t-label">Act ${active.actIndex + 1} of ${data.acts.length}</div>
       <p class="muted">${escape(act.blurb)}</p>`;
     wrap.appendChild(heading);
 
@@ -505,7 +528,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     const panel = document.createElement("div");
     panel.className = "panel panel-chrome doom-brief";
     panel.innerHTML = `
-      <div class="eyebrow">${battle.kind === "boss" ? "Main Event" : battle.kind === "elite" ? "Elite" : "Battle"}</div>
+      <div class="t-label">${battle.kind === "boss" ? "Main Event" : battle.kind === "elite" ? "Elite" : "Battle"}</div>
       <h2 class="title">${escape(battle.title)}</h2>
       <p class="muted">${escape(battle.subtitle)}</p>
       <p class="muted doom-brief-note">
@@ -582,7 +605,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
 
     switch (prompt.kind) {
       case "cardPick": {
-        panel.innerHTML = `<div class="eyebrow">${escape(prompt.title)}</div>
+        panel.innerHTML = `<div class="t-label">${escape(prompt.title)}</div>
           <p class="muted">${escape(prompt.detail)}</p>`;
         const strip = document.createElement("div");
         strip.className = "doom-tile-strip";
@@ -595,7 +618,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
 
       case "artifactPick": {
-        panel.innerHTML = `<div class="eyebrow">${escape(prompt.title)}</div>
+        panel.innerHTML = `<div class="t-label">${escape(prompt.title)}</div>
           <p class="muted">Artifacts last the whole run and stack.</p>`;
         const strip = document.createElement("div");
         strip.className = "doom-tile-strip";
@@ -609,7 +632,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
 
       case "treasure": {
-        panel.innerHTML = `<div class="eyebrow">Sponsor Drop</div>
+        panel.innerHTML = `<div class="t-label">Sponsor Drop</div>
           <p class="muted">A box with your name spelled almost correctly.</p>`;
         if (prompt.artifactId) {
           const strip = document.createElement("div");
@@ -626,7 +649,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
 
       case "cardRemove": {
-        panel.innerHTML = `<div class="eyebrow">${escape(prompt.title)}</div>
+        panel.innerHTML = `<div class="t-label">${escape(prompt.title)}</div>
           <p class="muted">${
             prompt.cost > 0
               ? `Costs ${prompt.cost} Clout, charged when you actually cut something.`
@@ -640,7 +663,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
 
       case "cardUpgrade": {
-        panel.innerHTML = `<div class="eyebrow">${escape(prompt.title)}</div>
+        panel.innerHTML = `<div class="t-label">${escape(prompt.title)}</div>
           <p class="muted">${
             prompt.cost > 0
               ? `Costs ${prompt.cost} Clout, charged when you actually Remaster something.`
@@ -654,7 +677,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
 
       case "rest": {
-        panel.innerHTML = `<div class="eyebrow">Touch Grass Break</div>
+        panel.innerHTML = `<div class="t-label">Touch Grass Break</div>
           <h2 class="title">Outside</h2>
           <p class="muted">It is fine out here. There is a bird.</p>`;
         addAction(`Heal ${prompt.heal}`, { kind: "rest", option: "heal" }, "doom-rest-heal", false);
@@ -665,7 +688,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
 
       case "event": {
         const event = eventById(data, prompt.eventId);
-        panel.innerHTML = `<div class="eyebrow">Notification</div>
+        panel.innerHTML = `<div class="t-label">Notification</div>
           <h2 class="title">${escape(event?.title ?? "")}</h2>
           <p class="doom-event-text">${escape(event?.text ?? "")}</p>`;
         const list = document.createElement("div");
@@ -686,7 +709,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       case "shop": {
         const price = removalPrice(data, active);
         const discount = artifactTotal(data, active, "shopDiscountPercent");
-        panel.innerHTML = `<div class="eyebrow">Merch Table</div>
+        panel.innerHTML = `<div class="t-label">Merch Table</div>
           <h2 class="title">Everything is slightly overpriced</h2>
           <p class="muted">You have <strong id="doom-shop-clout">${active.clout}</strong> run-Clout.${
             discount > 0 ? ` Golden Play Button: ${discount}% off.` : ""
@@ -747,7 +770,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     const panel = document.createElement("div");
     panel.className = "panel panel-chrome doom-summary";
     panel.innerHTML = `
-      <div class="eyebrow">${
+      <div class="t-label">${
         summary.reachedFinale ? "You put it back together" : summary.cleared ? "You reached the bottom" : "The feed won"
       }</div>
       <h2 class="title">${

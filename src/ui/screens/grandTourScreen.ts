@@ -29,6 +29,7 @@ import { legendaryChoices, loanerDeckFor, tourProgress } from "../../game/progre
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
+import { enter, icon } from "./data/kit";
 
 export interface GrandTourCallbacks {
   onBack: () => void;
@@ -76,7 +77,7 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
         <div class="tour-count" id="tour-count">${progress.unlocked} of ${progress.total} unlocked</div>
       </header>
 
-      <main class="tour-body">
+      <main class="tour-body data-body">
         <section class="panel panel-chrome tour-intro">
           <p class="tour-rule">
             Win one match with a faction's <strong>loaner deck</strong> and that deck is
@@ -98,18 +99,27 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
             .map((stop) => {
               const leader = content.leaders[stop.leaderCardId];
               const palette = leader ? CURRENT_PALETTE[leader.primaryCurrent] : CURRENT_PALETTE.prism;
+              /*
+               * Three states, three marks. The old middle case printed a bare
+               * "✓ " glyph — a Unicode tick standing in for an icon, which is
+               * what §C exists to delete — and the locked case was the sentence
+               * "Not yet won" in grey with nothing to say it was a state rather
+               * than a caption.
+               */
               const state = stop.isStarter
-                ? "Your starting deck"
+                ? { mark: icon("star-filled", 13), text: "Your starting deck", tone: "is-starter" }
                 : stop.unlocked
-                  ? "Unlocked — deck in your collection"
-                  : "Not yet won";
+                  ? { mark: icon("check", 13), text: "Unlocked — deck in your collection", tone: "is-won" }
+                  : { mark: icon("crosshair", 13), text: "Not yet won", tone: "is-locked" };
               return `
                 <li class="tour-stop ${stop.unlocked ? "won" : "locked"}" style="--c:${palette.key}">
                   <div class="tour-stop-card" data-leader="${esc(stop.leaderCardId)}"></div>
                   <div class="tour-stop-text">
                     <div class="tour-stop-faction">${esc(stop.factionName)}</div>
                     <div class="tour-stop-leader muted">${esc(leader?.name ?? stop.leaderCardId)}</div>
-                    <div class="tour-stop-state">${stop.unlocked ? "✓ " : ""}${esc(state)}</div>
+                    <div class="tour-stop-state tour-none ${state.tone}">${state.mark}<span>${esc(
+                      state.text
+                    )}</span></div>
                   </div>
                   ${
                     stop.unlocked
@@ -124,7 +134,7 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
 
       <div class="difficulty-backdrop" id="tour-difficulty" hidden>
         <div class="difficulty-panel panel panel-chrome">
-          <div class="eyebrow" id="tour-difficulty-eyebrow"></div>
+          <div class="t-label" id="tour-difficulty-eyebrow"></div>
           <h2 class="title">Pick an opponent</h2>
           <p class="muted" id="tour-difficulty-note"></p>
           <div class="difficulty-list" id="tour-difficulty-list"></div>
@@ -191,7 +201,7 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
     anyChoosable: boolean
   ): string => `
     <section class="panel panel-chrome tour-reward">
-      <div class="eyebrow">Tour complete</div>
+      <div class="t-label">Tour complete</div>
       <h2 class="title">All ten, played and won</h2>
       <p class="tour-reward-line">
         <strong>${reward.clout.toLocaleString()} Clout</strong> ·

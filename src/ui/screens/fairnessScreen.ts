@@ -18,6 +18,7 @@ import type { OddsTable } from "../../game/fairness";
 import { bannerTable, conversionTable, dropTable, rateHistory, workedExamples } from "../../game/fairness";
 import { DATA_VERSION, latestRelease } from "../../game/news";
 import { audio } from "../../audio/audio";
+import { longDate } from "./data/kit";
 
 export interface FairnessCallbacks {
   onBack: () => void;
@@ -33,7 +34,16 @@ const esc = (value: string): string =>
  * Schedule dates are authored as UTC midnight, so they are formatted in UTC —
  * see the note in `src/game/inbox/`.
  */
-const DATE = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+/**
+ * Pinned to en-GB, in UTC, from the one formatter.
+ *
+ * This was `new Intl.DateTimeFormat(undefined, …)`, which takes the
+ * *browser* locale and printed "EFFECTIVE 30 JUILLET 2026" on a page whose
+ * every other word is English. The game has no localisation layer, so
+ * `undefined` was not correct-by-default localisation — it was uncontrolled
+ * formatting, and it made every screenshot machine-dependent.
+ */
+const DATE = { format: (at: Date): string => longDate(at) };
 
 const RARITY_LABEL: Record<string, string> = {
   legendary: "Legendary",
@@ -60,7 +70,7 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
           <span class="muted">${odds.price.toLocaleString()} Clout · ${odds.cards} card${odds.cards === 1 ? "" : "s"}</span>
         </div>
         <p class="muted">${esc(note)}</p>
-        <table class="patch-table fairness-odds">
+        <table class="d-table patch-table fairness-odds">
           <thead>
             <tr><th>Rarity</th><th>Per card</th>${featured ? "<th>Of which featured</th>" : ""}</tr>
           </thead>
@@ -94,7 +104,7 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
       </div>
     </header>
 
-    <main class="fairness-body">
+    <main class="fairness-body data-body">
       <section class="panel panel-chrome fairness-intro">
         <p class="mastery-rule">
           <strong>These are the numbers the game rolls with.</strong> This page and the roller read
@@ -127,7 +137,7 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
           A duplicate you cannot keep is converted at a better rate than dismantling one yourself,
           because you did not choose to receive it.
         </p>
-        <table class="patch-table">
+        <table class="d-table patch-table">
           <thead>
             <tr><th>Rarity</th><th>Dismantle</th><th>Forced conversion</th><th>Craft</th><th>Backstage Tokens</th></tr>
           </thead>
@@ -169,7 +179,7 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
                  and the newest snapshot has to equal the numbers this build actually runs on or the tests
                  fail — so this is a claim the build can support rather than one it merely makes.
                </p>`
-            : `<table class="patch-table">
+            : `<table class="d-table patch-table">
                  <thead><tr><th>Version</th><th>Key</th><th>Before</th><th>After</th></tr></thead>
                  <tbody>
                    ${history

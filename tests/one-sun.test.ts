@@ -59,11 +59,52 @@ import { fileURLToPath } from "node:url";
 import { LIGHT_RIG } from "../src/ui/art/texture";
 import { blankComments, blocks, comments, customProperties, evaluateAngle, lineOf, topLevelSplit } from "./helpers/css";
 
-/** The three sheets that draw surfaces. `screens.css` is per-screen decoration and out of module A's hands. */
-const SHEETS = ["foundation.css", "transitions.css", "battle.css"] as const;
+/**
+ * Every sheet that draws a surface, and that now includes `screens.css`.
+ *
+ * It used to be excluded on the grounds that per-screen decoration is out of
+ * module A's hands, which confused *who owns the file* with *whether the rule
+ * applies to it*. The rule is about what the player sees, and the player sees
+ * six thousand lines of it: the exclusion was hiding six authored obliques,
+ * among them the two bars of light raking the lobby's back wall at 74° and 104°
+ * — a screen whose every panel is lit from 315° with a pair of second suns
+ * crossing behind them. The contract's most load-bearing line does not have a
+ * carve-out for the largest stylesheet in the game.
+ */
+const SHEETS = ["foundation.css", "transitions.css", "battle.css", "screens.css"] as const;
 
-const read = (name: string): string =>
-  readFileSync(fileURLToPath(new URL(`../src/ui/theme/${name}`, import.meta.url)), "utf8");
+/**
+ * Read once, parse once, per sheet.
+ *
+ * Adding `screens.css` put a 6,600-line file through `blocks()` inside two
+ * nested loops and the suite started timing out at five seconds — a guard that
+ * cannot finish is a guard that gets deleted. Nothing here is stateful; the
+ * files do not change while the process runs.
+ */
+const cache = new Map<string, string>();
+const read = (name: string): string => {
+  const hit = cache.get(name);
+  if (hit !== undefined) return hit;
+  const raw = readFileSync(fileURLToPath(new URL(`../src/ui/theme/${name}`, import.meta.url)), "utf8");
+  cache.set(name, raw);
+  return raw;
+};
+
+const memo = <T>(make: (name: string) => T): ((name: string) => T) => {
+  const store = new Map<string, T>();
+  return (name: string): T => {
+    const hit = store.get(name);
+    if (hit !== undefined) return hit;
+    const made = make(name);
+    store.set(name, made);
+    return made;
+  };
+};
+
+const sheetBlocks = memo((name: string) => blocks(read(name)));
+const sheetBlank = memo((name: string) => blankComments(read(name)));
+const sheetComments = memo((name: string) => comments(read(name)));
+const sheetProps = memo((name: string) => customProperties(sheetBlocks(name)));
 
 /**
  * Names that mean "this gradient is a moving highlight".
@@ -96,9 +137,33 @@ interface AngleSite {
  * colour-stop position rather than a direction.
  */
 function angleSites(sheet: string): AngleSite[] {
-  const raw = read(sheet);
-  const css = blankComments(raw);
-  const scope = customProperties(blocks(raw));
+  const css = sheetBlank(sheet);
+  /**
+   * Module A's declarations first, then the sheet's own.
+   *
+   * `--light-sweep` is declared once, in `foundation.css`, and the assertion
+   * below that nobody re-declares it is what makes that safe to assume. A scope
+   * built from the sheet alone therefore resolved every `linear-gradient(var(
+   * --light-sweep), …)` in `screens.css` to `null` — fifteen of them — and
+   * "unresolved" is reported rather than passed, so adding the sheet to the list
+   * without this would have failed for the one reason that is not a defect. The
+   * sheet's own properties win on collision, which is how the cascade reads them.
+   */
+  const own = sheetProps(sheet);
+  const scope = { ...sheetProps("foundation.css"), ...own };
+  /**
+   * Resolve with module A's declarations, and fall back to the sheet's own.
+   *
+   * Substituting a token can *lose* an answer as well as find one:
+   * `--light-sweep` is declared as `calc(var(--light-angle) - 180deg)`, so a use
+   * site written `calc(var(--light-sweep, 135deg) + 90deg)` becomes a nested
+   * `calc` that the folder does not model — where before, with no declaration in
+   * scope, it took the fallback and folded cleanly to 225. Two real violations in
+   * `transitions.css` turned from "225deg, wrong" into "unresolved", which is a
+   * worse error message for the same defect. Trying the narrower scope second
+   * keeps every answer the test used to have and adds the fifteen it did not.
+   */
+  const angle = (text: string): number | null => evaluateAngle(text, scope) ?? evaluateAngle(text, own);
   const out: AngleSite[] = [];
 
   const context = (offset: number): { prop: string; selector: string } => {
@@ -140,7 +205,7 @@ function angleSites(sheet: string): AngleSite[] {
   while ((match = linear.exec(css)) !== null) {
     const { text } = firstArgument(match.index + match[0].length);
     if (/^to\s/i.test(text)) continue; // `to bottom` and friends are axis-aligned by construction
-    const degrees = evaluateAngle(text, scope);
+    const degrees = angle(text);
     if (degrees === null && !/\d\s*(deg|grad|rad|turn)|--[a-z-]*(angle|sweep)/i.test(text)) continue;
     out.push({ sheet, line: lineOf(css, match.index), kind: match[0].slice(0, -1), source: text, degrees, ...context(match.index) });
   }
@@ -155,12 +220,12 @@ function angleSites(sheet: string): AngleSite[] {
       line: lineOf(css, match.index),
       kind: match[0].slice(0, -1),
       source: text,
-      degrees: evaluateAngle(from[1] as string, scope),
+      degrees: angle(from[1] as string),
       ...context(match.index),
     });
   }
 
-  for (const block of blocks(raw)) {
+  for (const block of sheetBlocks(sheet)) {
     for (const declaration of block.declarations) {
       if (!/^--.*angle[a-z0-9-]*$/i.test(declaration.prop)) continue;
       out.push({
@@ -168,7 +233,7 @@ function angleSites(sheet: string): AngleSite[] {
         line: declaration.line,
         kind: "custom property",
         source: declaration.value,
-        degrees: evaluateAngle(declaration.value, scope),
+        degrees: angle(declaration.value),
         prop: declaration.prop,
         selector: block.prelude.replace(/\s+/g, " ").trim(),
       });
@@ -187,7 +252,7 @@ function angleSites(sheet: string): AngleSite[] {
  */
 function commentsInEnclosingRule(sheet: string, line: number): string[] {
   const raw = read(sheet);
-  const css = blankComments(raw);
+  const css = sheetBlank(sheet);
   const offset = raw.split("\n").slice(0, line).join("\n").length;
   const open = css.lastIndexOf("{", offset);
   if (open === -1) return [];
@@ -197,7 +262,7 @@ function commentsInEnclosingRule(sheet: string, line: number): string[] {
     if (css[close] === "{") depth += 1;
     else if (css[close] === "}") depth -= 1;
   }
-  return comments(raw)
+  return sheetComments(sheet)
     .filter((c) => c.start > open && c.end < close)
     .map((c) => c.text);
 }
@@ -212,7 +277,7 @@ function commentsInEnclosingRule(sheet: string, line: number): string[] {
 const JUSTIFIED: readonly { sheet: string; line: number; source: string; reason: string }[] = [
   {
     sheet: "foundation.css",
-    line: 378,
+    line: 382,
     source: "45deg",
     reason:
       "--chevron-arm-l. Every stop is either `transparent` or the ink, and every " +
@@ -222,7 +287,7 @@ const JUSTIFIED: readonly { sheet: string; line: number; source: string; reason:
   },
   {
     sheet: "foundation.css",
-    line: 2814,
+    line: 2955,
     source: "45deg",
     reason: "The same chevron arm, restated a hair heavier under data-contrast=\"high\".",
   },
@@ -310,7 +375,7 @@ describe("one sun", () => {
    * arithmetic still lands where it should.
    */
   it("keeps --light-sweep the exact reverse of --light-angle", () => {
-    const scope = customProperties(blocks(read("foundation.css")));
+    const scope = sheetProps("foundation.css");
     expect(evaluateAngle("var(--light-angle)", scope)).toBe(rig);
     expect(evaluateAngle("var(--light-sweep)", scope)).toBe(reverse);
   });
@@ -323,7 +388,7 @@ describe("one sun", () => {
    */
   it("agrees with every fallback written for the rig tokens", () => {
     for (const sheet of SHEETS) {
-      const css = blankComments(read(sheet));
+      const css = sheetBlank(sheet);
       const re = /var\(\s*(--light-(?:sweep|angle))\s*,([^()]*)\)/g;
       let match: RegExpExecArray | null;
       while ((match = re.exec(css)) !== null) {
@@ -345,7 +410,7 @@ describe("one sun", () => {
   it("uses no oblique keyword direction", () => {
     const offenders: string[] = [];
     for (const sheet of SHEETS) {
-      const css = blankComments(read(sheet));
+      const css = sheetBlank(sheet);
       const re = /gradient\(\s*(to\s+[a-z\s]+?)\s*,/gi;
       let match: RegExpExecArray | null;
       while ((match = re.exec(css)) !== null) {
@@ -364,7 +429,7 @@ describe("one sun", () => {
 describe("nobody re-declares the light", () => {
   it("declares --light-angle exactly once, in module A's own file", () => {
     const declarations = SHEETS.flatMap((sheet) =>
-      blocks(read(sheet))
+      sheetBlocks(sheet)
         .flatMap((block) => block.declarations)
         .filter((d) => d.prop === "--light-angle")
         .map(() => sheet)
@@ -373,11 +438,11 @@ describe("nobody re-declares the light", () => {
   });
 
   it("lets no sheet override --light-sweep away from the reverse of the key", () => {
+    const scope = sheetProps("foundation.css");
     for (const sheet of SHEETS) {
-      for (const block of blocks(read(sheet))) {
+      for (const block of sheetBlocks(sheet)) {
         for (const declaration of block.declarations) {
           if (declaration.prop !== "--light-sweep") continue;
-          const scope = customProperties(blocks(read("foundation.css")));
           expect(
             evaluateAngle(declaration.value, scope),
             `${sheet}:${declaration.line} redefines --light-sweep`

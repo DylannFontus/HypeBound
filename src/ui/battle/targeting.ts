@@ -78,7 +78,7 @@ export function createTargetingLayer(container: HTMLElement): TargetingLayer {
 
   // damage preview badge (DOM, so it inherits text scaling and fonts)
   const preview = document.createElement("div");
-  preview.className = "damage-preview";
+  preview.className = "damage-preview mat-panel";
   preview.hidden = true;
   container.appendChild(preview);
 

@@ -1,0 +1,154 @@
+/**
+ * The frame around the cinematic — and only the frame.
+ *
+ * Everything the player is looking at during the opening is drawn by three.js
+ * into the canvas below. What is left for CSS is the four things that are
+ * genuinely the page's job: putting the canvas over the whole window and above
+ * the app, holding a black plate behind it while the brand artwork decodes,
+ * saying how to skip, and taking the whole layer away at the end.
+ *
+ * ## Why there is a plate behind the canvas at all
+ *
+ * The first-run title cannot start until the two brand PNGs have decoded, and
+ * they are the largest images in the build. AAA bar §3a's "never a blank frame"
+ * applies to the very first frame of the session more than to any other, and the
+ * alternative to a deliberate black hold is the starter picker appearing for two
+ * hundred milliseconds and then being covered by a title sequence — which reads
+ * as a bug, because it is one everywhere else.
+ *
+ * The returning sting has no plate. It is mounted only once the artwork is
+ * already in the browser's cache, and it is over the live lobby by design.
+ *
+ * ## The layer takes clicks, and every click ends it
+ *
+ * `pointer-events: auto` looks wrong for a decorative overlay and is the correct
+ * behaviour here: a click during the title must skip the title, not press
+ * whatever happens to be under it. The listener is on `window` and does not stop
+ * propagation, so the audio system's own unlock-on-first-gesture handler still
+ * fires from the same event — which is the only way sound can legitimately join
+ * a sequence that starts before any interaction has happened.
+ */
+
+.hb-intro {
+  position: fixed;
+  inset: 0;
+  /*
+   * Above `.atmosphere-fore` (60) and above everything inside `#app`, which is
+   * `position: fixed` and therefore its own stacking context. Below
+   * `#rotate-overlay` (9999): being told to turn the phone round has to outrank
+   * a logo.
+   */
+  z-index: 400;
+  overflow: hidden;
+  /**
+   * Transparent to the mouse until the first frame is on screen.
+   *
+   * Bringing a three.js set up costs a few hundred milliseconds of shader
+   * compilation, once, on the first cinematic of a session — and for the
+   * returning sting that lands over a lobby the player can already see. A layer
+   * that takes clicks while it is drawing nothing would swallow a press on PLAY
+   * and give nothing back. `is-live` is set on the frame the picture appears, so
+   * the layer only becomes solid to the pointer once there is something there to
+   * click on.
+   */
+  pointer-events: none;
+  contain: layout paint style;
+  /* Only ever animated on the compositor. */
+  will-change: opacity;
+  opacity: 1;
+  transition: opacity var(--dur-ui, 260ms) var(--ease-leave, cubic-bezier(0.4, 0, 1, 1));
+}
+
+.hb-intro.is-live {
+  pointer-events: auto;
+}
+
+/** The hold plate. Present for the first-run title, absent for the sting. */
+.hb-intro[data-plate="true"] {
+  background: #04020a;
+}
+
+.hb-intro.is-leaving {
+  opacity: 0;
+}
+
+.hb-intro-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- the skip affordance ------------------------------------------------ */
+
+/**
+ * It says what to press, it is out of the composition's way, and it arrives
+ * late.
+ *
+ * Late because the first thing a player should read is the picture. A skip
+ * prompt on frame one tells them the thing they are about to watch is not worth
+ * watching; the same prompt at 1.4s tells them they are in control, which is
+ * the message. It is not shown at all for the returning sting, which is over
+ * before it could be read.
+ */
+.hb-intro-skip {
+  position: absolute;
+  right: clamp(16px, 3.2vw, 44px);
+  bottom: clamp(14px, 3vh, 38px);
+  padding: 6px 12px;
+  border-radius: var(--r-chip, 999px);
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-size: clamp(10px, 1.05vh, 12px);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(238 232 255 / 0.62);
+  background: rgb(6 3 14 / 0.42);
+  /*
+   * A rim on the lit edge and a lip on the unlit one, at chip amplitude — the
+   * same recipe as every other small object in the game. A plain translucent
+   * pill on top of a title sequence is the one thing on screen that would not
+   * have been lit by anybody.
+   */
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    inset 0 -1px 0 rgb(0 0 0 / 0.12);
+  opacity: 0;
+  animation: hb-intro-skip-in 520ms var(--ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 1400ms forwards;
+}
+
+@keyframes hb-intro-skip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/**
+ * Reduced motion: the title card is a still, so its furniture is a still too.
+ * The prompt is present from the first frame because there is no entrance for
+ * it to arrive on and it must not appear from nowhere partway through a hold.
+ */
+:root[data-reduced-motion="true"] .hb-intro-skip,
+:root[data-reduced-motion="true"] .hb-intro-skip {
+  animation: none;
+  opacity: 1;
+}
+
+:root[data-reduced-motion="true"] .hb-intro {
+  transition-duration: 110ms;
+}
+
+/**
+ * High contrast turns the decoration down everywhere else and it does the same
+ * here: the prompt goes to full-strength text on a solid plate rather than a
+ * 62% wash over a moving picture.
+ */
+:root[data-contrast="high"] .hb-intro-skip {
+  color: #ffffff;
+  background: #06030e;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.55);
+}

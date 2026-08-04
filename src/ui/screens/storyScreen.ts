@@ -21,6 +21,7 @@ import {
 } from "../../game/story/archive";
 import { chapterProgress, resetChapter, storyStore } from "../../save/storySave";
 import { audio } from "../../audio/audio";
+import { count, crestMark, enter, icon, meter, quantify } from "./data/kit";
 
 export interface StoryCallbacks {
   onBack: () => void;
@@ -64,11 +65,11 @@ function renderList(
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="sub-header">
-      <button class="btn btn-ghost" id="story-back">← Modes</button>
+      <button class="btn btn-ghost" id="story-back">${icon("arrow-left", 16)} Modes</button>
       <h1 class="title">Story Chapters</h1>
-      <div class="sub-header-meta muted">${story.chapters.length} chapter${story.chapters.length === 1 ? "" : "s"}</div>
+      <div class="sub-header-meta">${quantify(story.chapters.length, "chapter")}</div>
     </header>
-    <div class="story-list scroll" id="story-list"></div>`;
+    <div class="story-list data-body" id="story-list"></div>`;
 
   const list = root.querySelector("#story-list");
   root.querySelector("#story-back")?.addEventListener("click", () => callbacks.onBack());
@@ -81,24 +82,56 @@ function renderList(
     const lockedBy = story.chapters.find((entry) => entry.id === chapter.lockedUntil)?.title ?? chapter.lockedUntil;
 
     const card = document.createElement("button");
-    card.className = `story-card${unlocked ? "" : " story-locked"}`;
+    card.className = `story-card mat-panel act d-enter${unlocked ? "" : " story-locked"}`;
     card.type = "button";
     card.disabled = !unlocked;
     card.style.setProperty("--chapter-colour", colour);
+    /*
+     * The dead middle band is now the chapter's own crest and its meter.
+     *
+     * Measured on the recon capture, each row was 940px wide with roughly 400px
+     * of nothing between where the blurb stopped and where the bare fraction
+     * started — so the screen squinted down to a stack of identical mid-purple
+     * bars with holes in them. A crest is the faction, a meter is the progress,
+     * and the status is a real chip rather than 11px of tracked grey.
+     */
+    const doneCount = requiredEpisodes(chapter).filter((episode) => progress.cleared.includes(episode.id)).length;
+    const total = Math.max(1, requiredEpisodes(chapter).length);
     card.innerHTML = `
       <div class="story-card-bar"></div>
       <div class="story-card-body">
-        <div class="eyebrow">${chapter.faction ? escape(content.factions[chapter.faction]?.name ?? "") : "Story"}</div>
+        <div class="t-label">${chapter.faction ? escape(content.factions[chapter.faction]?.name ?? "") : "Story"}</div>
         <div class="story-card-title">${escape(chapter.title)}</div>
-        <p class="muted story-card-about">${escape(chapter.about)}</p>
+        <p class="story-card-about">${escape(chapter.about)}</p>
+      </div>
+      <div class="story-card-track">
+        ${chapter.faction ? crestMark(chapter.faction, 46, unlocked ? 1 : 0.4) : ""}
+        <div class="story-card-meter">
+          ${meter({
+            value: doneCount / total,
+            steps: total,
+            colour: chapter.faction ? undefined : undefined,
+            animate: true,
+          })}
+          <span class="story-card-count">
+            <span class="num">${count(doneCount)}</span> of <span class="num">${count(total)}</span> episodes
+          </span>
+        </div>
       </div>
       <div class="story-card-meta">
-        <div class="story-progress">${
-          requiredEpisodes(chapter).filter((episode) => progress.cleared.includes(episode.id)).length
-        } / ${requiredEpisodes(chapter).length}</div>
-        <div class="mode-status">${
-          !unlocked ? `Locked — finish “${escape(lockedBy ?? "")}”` : done ? "Complete" : progress.cleared.length ? "Continue" : "Start"
-        }</div>
+        <span class="story-status ${
+          !unlocked ? "is-locked" : done ? "is-done" : progress.cleared.length ? "is-going" : "is-new"
+        }">
+          ${
+            !unlocked
+              ? `${icon("lock", 14)} ${escape(lockedBy ?? "")}`
+              : done
+                ? `${icon("check", 14)} Complete`
+                : progress.cleared.length
+                  ? `${icon("play", 14)} Continue`
+                  : `${icon("play", 14)} Start`
+          }
+        </span>
       </div>`;
     if (unlocked) {
       card.addEventListener("click", () => {
@@ -124,14 +157,17 @@ function renderList(
   }
 
   if (story.chapters.length === 0 && story.broken.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "muted story-empty";
-    empty.textContent =
-      "There are no chapters yet. Copy data/story/TEMPLATE.story.txt, write one, and it appears here.";
+    const empty = document.createElement("div");
+    empty.className = "empty story-empty";
+    empty.innerHTML = `
+      ${icon("mode-story", 40)}
+      <h3 class="t-heading">No chapters yet</h3>
+      <p class="t-body">Copy <code>data/story/TEMPLATE.story.txt</code>, write one, and it appears here the moment you save.</p>`;
     list?.appendChild(empty);
   }
 
   if (story.chapters.length > 0) renderArchive(list, story.chapters);
+  if (list) enter(list, ".story-card", 34);
 }
 
 /**
