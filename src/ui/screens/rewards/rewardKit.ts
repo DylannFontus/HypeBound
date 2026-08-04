@@ -188,8 +188,23 @@ export function syncWallets(root: ParentNode): void {
  * the two halves of the event are one event.
  */
 export function flyReward(from: HTMLElement | DOMRect, kind: CoinKind, root: ParentNode = document): void {
-  const target = root.querySelector<HTMLElement>(`[data-wallet="${kind}"]`);
+  const find = (): HTMLElement | null => root.querySelector<HTMLElement>(`[data-wallet="${kind}"]`);
+  /*
+   * The chip is looked up *again* when the flyer lands, and that is the whole
+   * reason the pulse works.
+   *
+   * Every claim path in this domain calls `render()`, which replaces the
+   * screen's `innerHTML` — including the wallet. The flight takes 480ms and the
+   * rebuild happens on the next frame, so an element captured when the throw
+   * started has been detached for four hundred milliseconds by the time it
+   * arrives. Measured with a mutation observer: the flyer was created and
+   * animated correctly on every claim, and `rw-hit` was then added to a node
+   * that was no longer in the document, so the destination never once pulsed.
+   * The geometry can safely come from the old chip — the new one is in the same
+   * place — but the class has to go on whatever is there when it lands.
+   */
   const land = (): void => {
+    const target = find();
     if (!target) return;
     target.classList.remove("rw-hit");
     // force a reflow so the class can be re-applied on a claim that repeats
@@ -198,6 +213,7 @@ export function flyReward(from: HTMLElement | DOMRect, kind: CoinKind, root: Par
     globalThis.setTimeout(() => target.classList.remove("rw-hit"), 460);
   };
 
+  const target = find();
   if (!target || !motionEnabled() || typeof document === "undefined") {
     land();
     return;

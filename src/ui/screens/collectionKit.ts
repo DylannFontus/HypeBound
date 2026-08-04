@@ -327,7 +327,30 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
  * placeholder rather than inventing a substitute — the art gap is a schedule,
  * not a defect, and nothing here may fabricate a portrait.
  */
-export function portraitCanvas(card: CardDef, width: number, height: number): HTMLCanvasElement {
+export interface PortraitSpec {
+  /** Where the crop sits horizontally, 0–1. 0.5 centres; a banner biases right. */
+  focusX?: number;
+  /**
+   * Where the crop sits vertically, 0–1, default 0.18.
+   *
+   * A card painting puts the face high in a portrait window, so a tile that
+   * centres its crop takes the head off. 0.18 is right for a 3:4 tile; a wide
+   * banner that is going to be cropped a second time by `object-fit` wants
+   * nearly zero, or the two crops compound and the forehead goes.
+   */
+  focusY?: number;
+  /** Draw the bottom scrim the name sits on. Off when CSS is drawing its own. */
+  scrim?: boolean;
+  /** Called after every paint with whether the artist's PNG was the source. */
+  onArt?: (painted: boolean) => void;
+}
+
+export function portraitCanvas(
+  card: CardDef,
+  width: number,
+  height: number,
+  spec: PortraitSpec = {}
+): HTMLCanvasElement {
   const dpr = Math.min(typeof devicePixelRatio === "number" ? devicePixelRatio : 1, 2);
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(width * dpr);
@@ -337,6 +360,9 @@ export function portraitCanvas(card: CardDef, width: number, height: number): HT
 
   const ctx = canvas.getContext("2d");
   if (!ctx) return canvas;
+
+  const focusX = spec.focusX ?? 0.5;
+  const focusY = spec.focusY ?? 0.18;
 
   const paint = (): boolean => {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -354,18 +380,63 @@ export function portraitCanvas(card: CardDef, width: number, height: number): HT
       const scale = Math.max(width / art.naturalWidth, height / art.naturalHeight);
       const w = art.naturalWidth * scale;
       const h = art.naturalHeight * scale;
-      ctx.drawImage(art, (width - w) / 2, (height - h) * 0.18, w, h);
+      ctx.drawImage(art, (width - w) * focusX, (height - h) * focusY, w, h);
     } else {
-      drawPlaceholderArt(ctx, { x: 0, y: 0, w: width, h: height }, card.current, card.name);
+      /**
+       * The placeholder is drawn, then pulled back into the paintings' range.
+       *
+       * §10 forbids downweighting it — 176 cards wear it and it is a long-lived
+       * state that must read as deliberate. But §6 says saturation is a
+       * resource, and measured against the real portraits it was spending all
+       * of it: the renderer's procedural fields are an even mid-value at full
+       * chroma across the whole tile, while a painting is dark with a few lit
+       * passages. In a grid of ninety, the unpainted tiles were the loudest
+       * thing on the screen and the finished art receded behind them, which is
+       * precisely backwards.
+       *
+       * So it keeps its full construction and loses a third of its chroma and a
+       * fifth of its value — enough that the eye lands on the paintings first,
+       * not so much that the tile reads as broken. The `art pending` mark that
+       * goes with it is the caller's, in real type on the tile.
+       */
+      const draft = document.createElement("canvas");
+      draft.width = canvas.width;
+      draft.height = canvas.height;
+      const dctx = draft.getContext("2d");
+      if (dctx) {
+        dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawPlaceholderArt(dctx, { x: 0, y: 0, w: width, h: height }, card.current, card.name);
+        ctx.save();
+        ctx.filter = "saturate(0.62) brightness(0.8) contrast(1.04)";
+        ctx.drawImage(draft, 0, 0, width, height);
+        ctx.restore();
+      } else {
+        drawPlaceholderArt(ctx, { x: 0, y: 0, w: width, h: height }, card.current, card.name);
+      }
+      // a vignette, so an even field acquires the value structure a painting has
+      const corner = ctx.createRadialGradient(
+        width * 0.42,
+        height * 0.34,
+        Math.min(width, height) * 0.16,
+        width * 0.5,
+        height * 0.5,
+        Math.max(width, height) * 0.78
+      );
+      corner.addColorStop(0, "rgba(0,0,0,0)");
+      corner.addColorStop(1, "rgba(3,1,8,0.5)");
+      ctx.fillStyle = corner;
+      ctx.fillRect(0, 0, width, height);
     }
 
     // the scrim the name sits on — §4 never puts text straight onto imagery
-    const scrim = ctx.createLinearGradient(0, height * 0.42, 0, height);
-    scrim.addColorStop(0, "rgba(6,3,14,0)");
-    scrim.addColorStop(0.62, "rgba(6,3,14,0.62)");
-    scrim.addColorStop(1, "rgba(6,3,14,0.94)");
-    ctx.fillStyle = scrim;
-    ctx.fillRect(0, height * 0.42, width, height * 0.58);
+    if (spec.scrim !== false) {
+      const scrim = ctx.createLinearGradient(0, height * 0.42, 0, height);
+      scrim.addColorStop(0, "rgba(6,3,14,0)");
+      scrim.addColorStop(0.62, "rgba(6,3,14,0.62)");
+      scrim.addColorStop(1, "rgba(6,3,14,0.94)");
+      ctx.fillStyle = scrim;
+      ctx.fillRect(0, height * 0.42, width, height * 0.58);
+    }
 
     // the 315° key, so a portrait tile is lit like every other surface
     const key = ctx.createLinearGradient(0, 0, width, height);
@@ -375,6 +446,7 @@ export function portraitCanvas(card: CardDef, width: number, height: number): HT
     ctx.fillStyle = key;
     ctx.fillRect(0, 0, width, height);
 
+    spec.onArt?.(havePainting);
     return havePainting;
   };
 
@@ -406,6 +478,17 @@ export interface DragSpec {
   ghost: () => HTMLElement;
   /** Candidate drop zones, resolved once when the drag actually starts. */
   zones: () => HTMLElement[];
+  /**
+   * False when the gesture is understood and will still be refused — a 30/30
+   * deck, a third copy of a two-max common.
+   *
+   * Without it, "you cannot do this" was drawn as *nothing at all*: no zone lit,
+   * no colour on the ghost, and a card that simply went home when you let go of
+   * it. §5 asks for every state to be designed and refusal is a state; a drag
+   * that gives no answer is indistinguishable from a drag the game did not
+   * notice.
+   */
+  allowed?: () => boolean;
   /** Fired on release over a zone. `null` means released outside every zone. */
   onDrop: (zone: HTMLElement | null) => void;
   /** Optional live feedback as the pointer crosses a zone boundary. */
@@ -433,6 +516,7 @@ export function draggable(handle: HTMLElement, spec: DragSpec): () => void {
   let startY = 0;
   let live = false;
   let pointer = -1;
+  let allowed = true;
 
   const zoneAt = (x: number, y: number): HTMLElement | null => {
     for (const zone of zones) {
@@ -452,12 +536,15 @@ export function draggable(handle: HTMLElement, spec: DragSpec): () => void {
       ghost.remove();
       ghost = null;
     }
-    for (const zone of zones) zone.classList.remove("hb-drop-over", "hb-drop-live");
+    for (const zone of zones) {
+      zone.classList.remove("hb-drop-over", "hb-drop-live", "hb-drop-deny", "hb-drop-deny-over");
+    }
     handle.classList.remove("hb-dragging");
     document.body.classList.remove("hb-drag-active");
     over = null;
     live = false;
     pointer = -1;
+    allowed = true;
     spec.onOver?.(null);
     spec.onDrop(drop);
   };
@@ -468,18 +555,19 @@ export function draggable(handle: HTMLElement, spec: DragSpec): () => void {
       if (Math.hypot(event.clientX - startX, event.clientY - startY) < DRAG_THRESHOLD) return;
       live = true;
       zones = spec.zones();
+      allowed = spec.allowed ? spec.allowed() : true;
       ghost = spec.ghost();
-      ghost.className = `hb-drag-ghost ${ghost.className}`.trim();
+      ghost.className = `hb-drag-ghost${allowed ? "" : " is-refused"} ${ghost.className}`.trim();
       document.body.appendChild(ghost);
       handle.classList.add("hb-dragging");
       document.body.classList.add("hb-drag-active");
-      for (const zone of zones) zone.classList.add("hb-drop-live");
+      for (const zone of zones) zone.classList.add(allowed ? "hb-drop-live" : "hb-drop-deny");
     }
     place(event.clientX, event.clientY);
     const next = zoneAt(event.clientX, event.clientY);
     if (next !== over) {
-      over?.classList.remove("hb-drop-over");
-      next?.classList.add("hb-drop-over");
+      over?.classList.remove("hb-drop-over", "hb-drop-deny-over");
+      next?.classList.add(allowed ? "hb-drop-over" : "hb-drop-deny-over");
       over = next;
       spec.onOver?.(next);
     }
@@ -695,6 +783,10 @@ const KIT_CSS = String.raw`
   --shelf-lit: rgb(255 255 255 / 0.075);
   --shelf-lip: rgb(0 0 0 / 0.5);
   --rail-w: 268px;
+  /* The rack's row height, tied to the window rather than to a constant: three
+     rows plus the rail have to clear the body at both 900 and 720, and a fixed
+     208px clears one of them. */
+  --slot-h: clamp(128px, 22vh, 208px);
 }
 
 /* A scroll region that ends in air rather than at a guillotine (§7). The fade
@@ -801,6 +893,30 @@ body.hb-drag-active * { cursor: grabbing !important; }
     inset 0 0 26px rgb(181 108 255 / 0.3),
     0 0 22px rgb(181 108 255 / 0.24);
 }
+/*
+ * Refusal, drawn.
+ *
+ * The ghost loses its colour and gains a hard rim, the target says no in the
+ * same language it says yes, and the cursor changes — three cues, not one, so
+ * the answer does not depend on the player noticing a hue. §6's rule about
+ * never signalling by colour alone applies to a drag as much as to a chip.
+ */
+.hb-drag-ghost.is-refused {
+  filter: grayscale(0.75) brightness(0.62) drop-shadow(0 20px 26px rgb(0 0 0 / 0.7));
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !important; }
+.hb-drop-deny {
+  box-shadow: inset 0 0 0 1px rgb(255 90 120 / 0.22);
+  transition: box-shadow var(--dur-micro) var(--ease-arrive);
+}
+.hb-drop-deny-over {
+  box-shadow:
+    inset 0 0 0 2px var(--danger),
+    inset 0 0 26px rgb(255 90 120 / 0.16);
+}
 
 /* one row entrance, shared by the deck list and the slot rack */
 .hb-row-in { animation: hb-row-in var(--dur-ui) var(--ease-arrive) var(--enter-delay, 0ms) backwards; }
@@ -828,7 +944,17 @@ body.hb-drag-active * { cursor: grabbing !important; }
 .col-v2 .col-summary .hb-icon { width: 14px; height: 14px; align-self: center; color: var(--accent-bright); }
 .col-v2 .col-summary .num { color: var(--text); font-weight: 600; }
 .col-v2 .col-summary-sep { color: var(--text-faint); }
-.col-v2 .card-grid > .hb-empty { margin: 9vh auto; }
+/* The scroll region takes the room, whether or not it has anything in it. It
+   was sized to its content, which is invisible while there are eight thousand
+   pixels of cards in it and obvious the moment there are none: the empty plate
+   collapsed the grid to its own height and then sat at the top of a screen it
+   was supposed to be in the middle of. */
+.col-v2 .collection-main > .hb-scrollwrap { flex: 1 1 auto; }
+/* Centred in the room it is standing in, not pinned near the top of it. With
+   every shelf hidden the grid has one child, so switching it to a centring flex
+   box for that one case cannot disturb the shelf layout. */
+.col-v2 .card-grid:has(> .hb-empty) { display: flex; align-items: center; justify-content: center; }
+.col-v2 .card-grid > .hb-empty { margin: 0 auto; }
 
 /* ---- the filter rail ------------------------------------------------- */
 
@@ -1268,7 +1394,13 @@ body.hb-drag-active * { cursor: grabbing !important; }
   bottom: 1px; right: 3px;
   font-size: 0.66rem;
   padding: 1px 8px;
+  transition: color var(--dur-micro) var(--ease-arrive);
 }
+/* a full set is the resting state: present, legible, and not competing */
+.col-v2 .card-count.is-max { color: var(--text-faint); background: none; box-shadow: none; padding: 1px 4px; }
+.col-v2 .card-cell:hover .card-count.is-max { color: var(--text-dim); }
+/* a part-set is the one you would do something about */
+.col-v2 .card-count.is-partial { color: var(--accent-gold, #ffcf6a); }
 
 /* ---- the detail overlay ----------------------------------------------- */
 
@@ -1351,6 +1483,28 @@ body.hb-drag-active * { cursor: grabbing !important; }
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
 }
 .col-v2 .cd-actions .btn { min-height: 38px; }
+/*
+ * "Maximum copies" is a *finished* state, not a dimmed hero.
+ *
+ * The shared button dims a disabled primary and leaves the fill alone, so the
+ * one button in this domain that spends currency sat there as a full-chroma
+ * magenta lozenge with grey text on it — measured well under the 4.5:1 the
+ * accessibility floor requires, and reading as the screen's call to action
+ * while refusing to be pressed. A4 is explicit that a disabled state changes
+ * fill *and* border *and* icon. So it becomes what it is: a filled socket,
+ * recessed, with the tick and the label at full contrast on a dark ground.
+ */
+.col-v2 .cd-actions .btn-primary:disabled {
+  opacity: 1;
+  color: var(--text-dim);
+  background: linear-gradient(var(--light-sweep), rgb(6 3 14 / 0.86) 0%, rgb(30 21 56 / 0.62) 100%);
+  box-shadow:
+    inset 1.6px 2px 5px rgb(0 0 0 / 0.72),
+    inset 0 0 0 1px rgb(0 0 0 / 0.5),
+    inset -1px -1px 0 rgb(255 255 255 / 0.06);
+  text-shadow: none;
+}
+.col-v2 .cd-actions .btn-primary:disabled .hb-icon { color: var(--success, #6ee7a8); opacity: 0.85; }
 /* the tab body ends in air above the divider rather than being guillotined
    through the middle of a keyword reminder (§7) */
 .col-v2 .cd-actions::before {
@@ -1429,6 +1583,19 @@ body.hb-drag-active * { cursor: grabbing !important; }
 .db-v2 .builder-side {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  /*
+   * The column is stated, and it has to be.
+   *
+   * An implicit grid column is auto-sized, resolving to the larger of the
+   * available space and the row's min-content — so at --ui-scale 1.4 the header
+   * row's "30/30 · Average cost 2.6 · six type pills" was wider than the panel
+   * and every row in the panel grew with it, pushing the deck list's copy counts
+   * and the Clear button off the right of a 1280px window. Measured: 16px of
+   * overflow on .builder-side-head and everything below it. A minmax track
+   * with a zero floor lets the row be smaller than its contents, which is what
+   * makes the ellipsis and the wrapping below actually reachable.
+   */
+  grid-template-columns: minmax(0, 1fr);
   padding: 0;
   overflow: hidden;
   gap: 0;
@@ -1473,7 +1640,8 @@ body.hb-drag-active * { cursor: grabbing !important; }
 .db-v2 .search-input:focus { box-shadow: none; border: 0; outline: none; }
 .db-v2 .search-count { font-size: 0.7rem; color: var(--text-faint); white-space: nowrap; padding-right: var(--sp-2); }
 
-.db-v2 .deck-stats { display: flex; align-items: center; gap: var(--sp-3); }
+/* wraps rather than overflows once the text scale is turned up */
+.db-v2 .deck-stats { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; min-width: 0; }
 .db-v2 .deck-count { flex: 0 0 auto; white-space: nowrap; line-height: 1; }
 .db-v2 .deck-count-value { font-size: var(--fs-2xl); }
 .db-v2 .deck-meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -1566,7 +1734,7 @@ body.hb-drag-active * { cursor: grabbing !important; }
 /* ---- the deck list ----------------------------------------------------- */
 
 .db-v2 .deck-list-block { display: flex; flex-direction: column; gap: 4px; }
-.db-v2 .deck-list-head { display: flex; align-items: baseline; gap: var(--sp-2); }
+.db-v2 .deck-list-head { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; min-width: 0; }
 .db-v2 .deck-list-head .eyebrow { flex: 1 1 auto; margin: 0; }
 .db-v2 .deck-list-rows { display: flex; flex-direction: column; gap: 2px; }
 .db-v2 .deck-list { padding: 0; overflow: visible; display: block; }
@@ -1636,7 +1804,7 @@ body.hb-drag-active * { cursor: grabbing !important; }
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45), inset 0 -2px 3px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.55);
   text-shadow: 0 1px 1px rgb(0 0 0 / 0.6);
 }
-.db-v2 .deck-row-name { font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-v2 .deck-row-name { font-size: 0.8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-v2 .deck-row-count { font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--text-dim); min-width: 20px; text-align: right; }
 .db-v2 .deck-row.is-max .deck-row-count { color: var(--accent-gold); }
 .db-v2 .deck-legend { display: flex; flex-wrap: wrap; gap: var(--sp-2); font-size: 0.62rem; color: var(--text-faint); padding: 5px 4px 0; }
@@ -1737,7 +1905,13 @@ body.hb-drag-active * { cursor: grabbing !important; }
 }
 .db-v2 .validation-ok .hb-icon { width: 15px; height: 15px; color: var(--success, #6ee7a8); }
 .db-v2 .validation-problem .hb-icon { width: 15px; height: 15px; color: var(--danger); }
-.db-v2 .builder-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+/* The action row counts its own columns.
+   A 1fr track has an auto floor, so it can never be narrower than the
+   longest word in it — which at --ui-scale 1.4 pushed "Clear" past the right
+   edge of a 1280px window with the grid still insisting it was four columns
+   wide. Sizing by a rem floor means the row drops to two columns when the type
+   grows instead of overflowing at four. */
+.db-v2 .builder-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: 6px; }
 .db-v2 .builder-actions .btn { min-height: 38px; font-size: var(--fs-sm); }
 .db-v2 .builder-actions .btn:first-child { grid-column: 1 / -1; }
 
@@ -1753,9 +1927,32 @@ body.hb-drag-active * { cursor: grabbing !important; }
   pointer-events: none;
 }
 
+/*
+ * At 1280x720 the deck list was a four-row peephole again.
+ *
+ * The pinned footer fixed the unreachable Save button, but it fixed it by
+ * taking 150px off the middle row, and the header's six type pills wrapped to
+ * three lines in a 320px column: measured, the list — the object the player
+ * came here to edit — got 175px of a 610px panel. Nothing here is removed;
+ * every part is drawn tighter. The five actions go on two rows instead of
+ * three, the pills go on one line instead of three, and the list gains about a
+ * hundred pixels, which is three more rows of deck.
+ */
 @media (max-height: 800px) {
   .db-v2 .curve-frame { height: 58px; }
-  .db-v2 .builder-side-head { padding-top: var(--sp-2); padding-bottom: var(--sp-2); }
+  .db-v2 .builder-side-head { padding: var(--sp-2) var(--sp-3); }
+  .db-v2 .deck-types { gap: 3px; }
+  .db-v2 .type-pill { padding: 1px 6px; font-size: 0.58rem; gap: 4px; }
+  .db-v2 .type-pill b { font-size: 0.7rem; }
+  .db-v2 .deck-count-value { font-size: var(--fs-xl); }
+  .db-v2 .builder-side-foot { padding: var(--sp-2) var(--sp-3); gap: 5px; }
+  .db-v2 .builder-actions { grid-template-columns: repeat(auto-fit, minmax(5.2rem, 1fr)); gap: 5px; }
+  .db-v2 .builder-actions .btn { min-height: 32px; font-size: 0.68rem; padding: 0 8px; }
+  .db-v2 .builder-actions .btn:first-child { min-height: 38px; font-size: var(--fs-sm); }
+  .db-v2 .builder-actions .btn { white-space: nowrap; }
+  .db-v2 .builder-actions .btn-note { display: none; }
+  .db-v2 .builder-side-scroll { padding: var(--sp-2) var(--sp-2) var(--sp-3) var(--sp-3); gap: var(--sp-2); }
+  .db-v2 .curve-note { font-size: 0.64rem; }
 }
 @media (max-width: 1150px) and (min-width: 1001px) {
   .db-v2 .builder-body { grid-template-columns: minmax(0, 1fr) 320px; }
@@ -1841,11 +2038,17 @@ body.hb-drag-active * { cursor: grabbing !important; }
  * about what a surface is. Only the top corners are rounded, because the plane
  * runs off the bottom of the screen rather than ending in mid-air.
  */
+/* Five columns, not four, and pinned at five rather than auto-filled.
+   The active deck takes two columns by two rows, so a five-wide rack of three
+   rows is exactly fifteen cells for one hero and eleven sockets — no ragged
+   tail at any deck count, and no scroll. At four columns the same twelve slots
+   are four rows and the last one is below the fold at 1280x720, which means a
+   rack that cannot tell you your own capacity without being scrolled. */
 .ds-v2 .deck-slots-body {
-  max-width: 1460px;
+  max-width: 1520px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-  gap: var(--sp-4);
+  grid-template-columns: repeat(auto-fill, minmax(246px, 1fr));
+  gap: var(--sp-3);
   align-content: start;
   padding: var(--sp-4) var(--sp-5) var(--sp-6);
   border-radius: var(--r-panel) var(--r-panel) 0 0;
@@ -1874,19 +2077,48 @@ body.hb-drag-active * { cursor: grabbing !important; }
   background-repeat: no-repeat; background-size: 100% 1px, 100% 1px; background-position: 0 0, 0 100%;
 }
 
+/*
+ * A saved deck is a painted spine, and the paint is the whole tile.
+ *
+ * The rack of twelve fixed the empty room, and then made a new version of the
+ * same mistake: twelve boxes of equal weight, eleven of them empty, so squinting
+ * at the screen — §6's own test — resolved into one grey mass with no subject.
+ * A deck you own is the only thing on this screen worth looking at, so it gets
+ * the art, at the size of the tile, with the copy on a scrim over the dark side
+ * of it. The sockets did not change; they simply stopped being the loudest
+ * thing on the shelf.
+ *
+ * The isolation is load-bearing: the art sits at z-index -1 so it paints over
+ * the panel material and under the copy, and without a stacking context of its
+ * own it would go behind the rack's plane instead.
+ */
 .ds-v2 .deck-slot {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: var(--sp-2) var(--sp-3);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--sp-2);
   padding: var(--sp-3);
-  min-height: 190px;
+  min-height: var(--slot-h);
   border-radius: var(--r-panel);
   --r-self: var(--r-panel);
   animation: hb-row-in var(--dur-ui) var(--ease-arrive) var(--enter-delay, 0ms) backwards;
 }
-/* the active deck wears its faction as a lit edge, not as a 1px border */
+/*
+ * The active deck is the hero, and it takes a quarter of the rack.
+ *
+ * Two columns by two rows is not an arbitrary size: a five-wide rack of three
+ * rows is fifteen cells, the hero takes four of them and the other eleven slots
+ * take one each, so the shelf is exactly full at every deck count from one to
+ * twelve and never has a ragged tail. It is also the only tile on the screen
+ * that reads from across the room, which is the point — this is the deck the
+ * game will actually deal you.
+ */
 .ds-v2 .deck-slot.is-active {
+  grid-column: span 2;
+  grid-row: span 2;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.14),
     inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent),
@@ -1895,32 +2127,72 @@ body.hb-drag-active * { cursor: grabbing !important; }
     0 0 24px rgb(181 108 255 / 0.22);
 }
 .ds-v2 .deck-slot-cover {
-  grid-row: 1 / 3;
-  position: relative;
-  border-radius: var(--r-tile);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   overflow: hidden;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), inset 0 -1px 0 rgb(0 0 0 / 0.6), 0 4px 10px rgb(0 0 0 / 0.5);
+  border-radius: inherit;
 }
-.ds-v2 .deck-slot-cover canvas { display: block; width: 100%; height: 100%; }
+.ds-v2 .deck-slot-cover canvas {
+  display: block;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: 66% 4%;
+  animation: hb-tile-lit 260ms var(--ease-arrive) both;
+}
+/* Three scrims. The vertical one carries the copy — §4 never puts text straight
+   onto imagery — the horizontal ramp keeps a small tile legible when the text
+   fills most of it, and the 315° pass puts the same key light on the banner that
+   every other surface in the game carries. */
 .ds-v2 .deck-slot-cover::after {
   content: "";
   position: absolute; inset: 0;
-  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.1), transparent 42%, rgb(0 0 0 / 0.2));
   pointer-events: none;
+  background:
+    linear-gradient(to top, rgb(3 1 8 / 0.95) 0%, rgb(3 1 8 / 0.88) 26%, rgb(3 1 8 / 0.42) 54%, rgb(3 1 8 / 0.06) 82%),
+    linear-gradient(to right, rgb(6 3 14 / 0.78) 0%, rgb(6 3 14 / 0.44) 42%, rgb(6 3 14 / 0.08) 84%),
+    linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.09), transparent 38%, rgb(0 0 0 / 0.3));
 }
+/* the hero is tall enough that the copy only needs the bottom third, so the
+   painting keeps the rest of itself */
+.ds-v2 .deck-slot.is-active .deck-slot-cover::after {
+  background:
+    linear-gradient(to top, rgb(3 1 8 / 0.95) 0%, rgb(3 1 8 / 0.9) 30%, rgb(3 1 8 / 0.3) 56%, transparent 78%),
+    linear-gradient(to right, rgb(6 3 14 / 0.5) 0%, rgb(6 3 14 / 0.12) 44%, transparent 76%),
+    linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.1), transparent 40%, rgb(0 0 0 / 0.28));
+}
+/*
+ * The hero breathes (§3a: "the screen is alive at rest").
+ *
+ * A twenty-eight second drift of about two per cent, on transform only, on one
+ * element — the cheapest possible way for a screen whose subject is a still
+ * painting to stop being a still painting. Reduced motion stops it; the token
+ * below turns the whole decorative layer off in one place.
+ */
+@keyframes ds-cover-drift {
+  0%   { transform: scale(1.06) translate3d(0, 0, 0); }
+  50%  { transform: scale(1.1) translate3d(-1.1%, -0.9%, 0); }
+  100% { transform: scale(1.06) translate3d(0, 0, 0); }
+}
+.ds-v2 .deck-slot.is-active .deck-slot-cover canvas {
+  animation: hb-tile-lit 260ms var(--ease-arrive) both, ds-cover-drift 28s ease-in-out 260ms infinite;
+  will-change: transform;
+}
+:root[data-reduced-motion="true"] .ds-v2 .deck-slot.is-active .deck-slot-cover canvas,
+:root[data-reduced-motion="true"] .ds-v2 .deck-slot-cover canvas { animation: none; }
 .ds-v2 .deck-slot-index {
   position: absolute;
-  top: 5px; left: 6px;
-  z-index: 2;
-  font-size: 0.6rem;
-  letter-spacing: 0.1em;
-  padding: 1px 6px;
+  top: 10px; left: 12px;
+  font-size: 0.58rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  padding: 1px 7px;
   color: var(--text-dim);
-  background: rgb(4 2 10 / 0.7);
+  background: rgb(4 2 10 / 0.62);
   border-radius: var(--r-chip);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
 }
-.ds-v2 .deck-slot-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; align-self: start; }
+.ds-v2 .deck-slot-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; max-width: 30ch; }
 .ds-v2 .deck-slot-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ds-v2 .deck-slot-name {
   font-family: var(--font-display);
@@ -1939,8 +2211,11 @@ body.hb-drag-active * { cursor: grabbing !important; }
 .ds-v2 .deck-slot-meta .muted { font-size: 0.72rem; line-height: 1.4; }
 .ds-v2 .deck-slot-bar { display: flex; height: 5px; border-radius: var(--r-chip); overflow: hidden; box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.6); margin-top: 3px; }
 .ds-v2 .deck-slot-bar i { display: block; height: 100%; }
-.ds-v2 .deck-slot-actions { grid-column: 2; display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; }
+.ds-v2 .deck-slot-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; }
 .ds-v2 .deck-slot-actions .btn { min-height: 32px; font-size: 0.74rem; padding: 0 var(--sp-3); }
+/* the name gets the display face at feature size now that it is on paint rather
+   than in a 190px box beside a thumbnail */
+.ds-v2 .deck-slot.is-active .deck-slot-name { font-size: var(--fs-lg); }
 
 /* the unused slots: recessed sockets with an engraved number, so the rack is
    always full and the player can see their capacity */
@@ -1948,7 +2223,7 @@ body.hb-drag-active * { cursor: grabbing !important; }
   position: relative;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 7px;
-  min-height: 190px;
+  min-height: var(--slot-h);
   border: 0;
   border-radius: var(--r-panel);
   --r-self: var(--r-panel);
@@ -2007,9 +2282,32 @@ body.hb-drag-active * { cursor: grabbing !important; }
 }
 .ds-v2 .deck-slots-full { grid-column: 1 / -1; }
 
+/* Five, exactly, wherever there is room for five. Auto-fill would give six at
+   1280 and leave a three-cell hole in the last row; the rack's whole trick is
+   that its arithmetic comes out even. */
+@media (min-width: 1100px) {
+  .ds-v2 .deck-slots-body { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
 @media (max-width: 900px) {
-  .ds-v2 .deck-slots-body { grid-template-columns: minmax(0, 1fr); padding: var(--sp-3); }
-  .ds-v2 .deck-slot { grid-template-columns: 96px minmax(0, 1fr); }
+  /* one column: there is no second column for the hero to span into */
+  .ds-v2 .deck-slot.is-active { grid-column: auto; grid-row: auto; }
+}
+/* A phone in landscape has 390px of height, so the rack is short rows and a
+   scroll rather than three tall ones, and the hero stops spanning two of them. */
+@media (max-height: 480px) {
+  .ds-v2 { --slot-h: 128px; }
+  .ds-v2 .deck-slots-body { padding: var(--sp-2) var(--sp-3) var(--sp-4); gap: var(--sp-2); }
+  .ds-v2 .deck-slot.is-active { grid-row: auto; }
+  /* it is a one-cell tile again down here, so it wants the one-cell scrim: the
+     name sits over the middle of the painting rather than under it */
+  .ds-v2 .deck-slot.is-active .deck-slot-cover::after {
+    background:
+      linear-gradient(to top, rgb(3 1 8 / 0.95) 0%, rgb(3 1 8 / 0.88) 26%, rgb(3 1 8 / 0.42) 54%, rgb(3 1 8 / 0.06) 82%),
+      linear-gradient(to right, rgb(6 3 14 / 0.8) 0%, rgb(6 3 14 / 0.5) 44%, rgb(6 3 14 / 0.1) 86%),
+      linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.09), transparent 38%, rgb(0 0 0 / 0.3));
+  }
+  .ds-v2 .deck-socket-number { font-size: 1.9rem; }
+  .ds-v2 .deck-slot-record { display: none; }
 }
 
 /* =======================================================================
@@ -2120,6 +2418,37 @@ body.hb-drag-active * { cursor: grabbing !important; }
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 1px 3px rgb(0 0 0 / 0.6);
 }
 .gal-v2 .gallery-tile-crest .hb-icon { width: 13px; height: 13px; }
+/*
+ * "Art pending", named rather than implied.
+ *
+ * The renderer stamps its own watermark on a card above 300px of render width;
+ * a 168px gallery tile is far under that, so this was the one surface in the
+ * game where an unpainted character showed an abstract field with nothing
+ * saying why. §10 asks for exactly this: the state is long-lived and heavily
+ * seen, so it gets designed rather than hidden. Small, low-chroma, on the same
+ * label type as everything else, and it sits opposite the crest so it never
+ * collides with the name.
+ */
+.gal-v2 .gallery-tile-pending {
+  position: absolute;
+  top: 9px; left: 8px;
+  padding: 1px 6px;
+  font-size: 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.5);
+  background: rgb(4 2 10 / 0.55);
+  border-radius: var(--r-chip);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  opacity: 0;
+  transition: opacity var(--dur-ui) var(--ease-arrive);
+  pointer-events: none;
+}
+.gal-v2 .gallery-tile.no-art .gallery-tile-pending { opacity: 1; }
+/* the not-yet-seen padlock lives in the same corner; the mark steps aside for it
+   rather than stacking on top of it */
+.gal-v2 .gallery-tile:has(.gallery-tile-locked) .gallery-tile-pending { left: 34px; }
 @media (hover: hover) {
   .gal-v2 .gallery-tile:hover {
     transform: translateY(-5px) scale(1.03);

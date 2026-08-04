@@ -23,7 +23,8 @@
 import type { CardDef, ContentIndex } from "../../engine/types";
 import type { Screen } from "../shell";
 import type { AffinityView, MasteryReward, MasteryTrack, MasteryView } from "../../game/progression/mastery";
-import { DEFERRED_COSMETICS } from "../../game/progression/mastery";
+import { DEFERRED_COSMETICS, xpForRank } from "../../game/progression/mastery";
+import { factionMasteryConfig, leaderMasteryConfig } from "../../game/progression/data";
 import { masteryLore, type LoreKind } from "../../game/progression/masteryLore";
 import {
   biasBoard,
@@ -47,8 +48,7 @@ import {
   esc,
   icon,
   meter,
-  rankCrest,
-  RANK_PX,
+  rankMark,
   rewardMark,
   rovingList,
   shardsIcon,
@@ -77,6 +77,35 @@ const TRACK_RANKS = 20;
  * the next thing. Twenty identical rungs have no rhythm at all.
  */
 const MILESTONES = new Set([5, 10, 15, 20]);
+
+/**
+ * What a locked rung says on its right-hand end.
+ *
+ * It used to say "Rank 7" — which the *same row* already says, in a tabular
+ * numeral, four hundred pixels to the left. Recon defect 7 counted the rank
+ * printed three times per tile on the overview and the same duplication survived
+ * onto the ladder: twenty rows whose only right-hand content was the number that
+ * opens them. A column that repeats another column is a column with nothing in
+ * it, and this one is the widest thing on the row.
+ *
+ * So it answers the question a player actually has in front of a locked reward,
+ * which is *how far*. The distance is computed from the same curve the bar above
+ * it fills against — `xpForRank` on the track's own config — so the ladder and
+ * the meter cannot disagree about what rank 7 costs.
+ *
+ * Guarded, because `factionMasteryConfig()` parses and validates the progression
+ * file on first call and throws on a malformed one. A distance label is
+ * information; it must never be the thing that takes the screen down.
+ */
+function xpAwayFrom(track: MasteryTrack, xpNow: number, rank: number): number | null {
+  if (track === "affinity") return null;
+  try {
+    const config = track === "faction" ? factionMasteryConfig() : leaderMasteryConfig();
+    return Math.max(0, xpForRank(config, rank) - xpNow);
+  } catch {
+    return null;
+  }
+}
 
 /** What a reward says on the ladder, and what shape it is drawn as. */
 function rewardShape(reward: MasteryReward): RewardKind {
@@ -166,12 +195,7 @@ export function createMasteryScreen(content: ContentIndex, callbacks: MasteryCal
           })}
           <span class="d-tile-foot">
             <span class="mastery-rank-chip">
-              <span class="d-rank" style="--rank-size:30px;--rank-art:url('${rankCrest({
-                size: RANK_PX,
-                tier: view.rank,
-                tiers: TRACK_RANKS,
-                colour,
-              })}')" aria-hidden="true"></span>
+              ${rankMark({ tier: view.rank, tiers: TRACK_RANKS, colour }, 30)}
               <span class="mastery-rank-number">Rank <span class="num">${count(view.rank)}</span></span>
             </span>
             <span class="mastery-togo">${
@@ -313,7 +337,21 @@ export function createMasteryScreen(content: ContentIndex, callbacks: MasteryCal
                   ? `<span class="mastery-state">Pick one</span>`
                   : row.earned
                     ? `<span class="mastery-state mastery-waiting">Earned — waiting on the cosmetics layer</span>`
-                    : `<span class="mastery-state is-locked">${icon("lock", 13)} Rank ${count(row.rank)}</span>`
+                    : `<span class="mastery-state is-locked">${icon("lock", 13)} ${
+                        (() => {
+                          const away = xpAwayFrom(tab === "leader" ? "leader" : "faction", view.xp, row.rank);
+                          /*
+                           * Rank 1 costs nothing on the curve and is still not
+                           * earned, because a track nobody has played has no
+                           * ranks at all — see `buildView`. "0 XP away" is the
+                           * arithmetic being honest and the sentence being
+                           * wrong; the gate is a match, so say so.
+                           */
+                          if (away === null) return "Locked";
+                          if (away <= 0) return "One match away";
+                          return `<span class="num">${count(away)}</span> XP away`;
+                        })()
+                      }</span>`
           }
         </div>
       </li>`;

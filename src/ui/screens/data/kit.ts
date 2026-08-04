@@ -37,13 +37,34 @@
 import { icon as drawIcon, type IconId } from "../../art/uiIcons";
 import { count as fmtCount, date as fmtDate, dateTime as fmtDateTime, num as fmtNum } from "../../format";
 import { DUR, motionEnabled, stagger, tickerTo } from "../../motion";
-import { crest, colourFor, rewardTile, token, type RewardKind } from "./art";
+import {
+  banner,
+  crest,
+  colourFor,
+  cosmeticSwatch,
+  ladderPlate,
+  rankCrest,
+  rewardTile,
+  token,
+  type RewardKind,
+  type SwatchKind,
+} from "./art";
 import type { EmblemShape } from "../../cosmetics/emblem";
 import "./data.css";
 import "./rooms.css";
 
-export { crest, colourFor, banner, ladderPlate, rankCrest, rewardTile, emblemFor, token } from "./art";
-export type { RewardKind } from "./art";
+export {
+  crest,
+  colourFor,
+  banner,
+  cosmeticSwatch,
+  ladderPlate,
+  rankCrest,
+  rewardTile,
+  emblemFor,
+  token,
+} from "./art";
+export type { RewardKind, SwatchKind } from "./art";
 
 // ---------------------------------------------------------------------------
 // Copy
@@ -407,32 +428,54 @@ export function chip(options: ChipOptions): string {
  * session, scaled by the browser's own bilinear filter — which at these sizes is
  * indistinguishable from redrawing.
  *
- * 128 because it is the largest any consumer asks for (the story row at 46 on a
- * 2× display is 92), so nothing is ever upscaled.
+ * 96, and the number is a measurement rather than a round figure. The largest
+ * consumer is the Mastery detail header at 64, so 96 is 1.5x it — enough that a
+ * standard display never upscales and a retina one softens a flat hexagonal
+ * plate with one emblem on it by an amount no reviewer has been able to find in
+ * a 1:1 crop. It was 128, which is 2x the largest consumer and looked like the
+ * safe choice; measured, ten of them cost 137ms of blocked main thread against
+ * 38ms at 96, and that difference lands squarely inside the frame the Mastery
+ * grid's entrance cascade is trying to play on.
  */
-const CREST_PX = 128;
-
-/** Two lit states, not a continuum — see `CREST_PX` for why the key matters. */
-export function crestMark(factionId: string, size = 44, lit = 1): string {
-  return `<span class="d-crest" aria-hidden="true" style="--crest-size:${size}px;--crest:url('${crest(factionId, {
-    size: CREST_PX,
-    lit: lit >= 0.9 ? 1 : 0.45,
-  })}')"></span>`;
-}
+const CREST_PX = 96;
 
 /** The rank crest, likewise: one drawing per (tier, colour), scaled by CSS. */
 export const RANK_PX = 176;
 
-/** A reward, drawn as the object it is. One canonical size, for the same reason. */
-const REWARD_PX = 112;
+/**
+ * ...and a second canonical rank size, for the marks that are worn small.
+ *
+ * The one-size rule above is about *cache keys*, and it still holds. What it does
+ * not license is drawing a 176px plate for a 30px chip: the Mastery grid renders
+ * ten of them at 30px in the tile footer, which is 34 times the pixels the screen
+ * can show, and every one of those pixels is paid for twice — once rasterising
+ * and once in the PNG encode, which is the expensive half. Two sizes, chosen by
+ * what wears the mark rather than by each caller's taste, keeps the key count at
+ * two per (tier, colour) and takes the grid's encode down by an order of
+ * magnitude.
+ *
+ * 64 because the largest small consumer is the match-history header at 56, which
+ * is 112 on a 2x display — and a crest is a plate with a gem on it rather than
+ * fine linework, so a half-pixel of bilinear softening at 2x costs nothing a
+ * viewer can find.
+ */
+export const RANK_MARK_PX = 64;
 
-export function rewardMark(kind: RewardKind, colour: string, size = 44): string {
-  return `<span class="d-reward-tile" aria-hidden="true" style="--reward-size:${size}px;--reward-art:url('${rewardTile(
-    kind,
-    colour,
-    REWARD_PX
-  )}')"></span>`;
-}
+/**
+ * A reward, drawn as the object it is. One canonical size, for the same reason —
+ * and 88 rather than 112 for the same measurement, the largest consumer being a
+ * milestone rung at 54.
+ */
+const REWARD_PX = 88;
+
+/**
+ * A wearable cosmetic, drawn as the object it is. One canonical size, scaled.
+ *
+ * The locker asks for it at 40px and the picker at 34px; keying the drawing by
+ * either would be two full sets of five for a difference no eye can resolve. See
+ * `CREST_PX` for the measurement that argument comes from.
+ */
+const SWATCH_PX = 96;
 
 /**
  * An event currency's struck token, at a display size.
@@ -444,12 +487,239 @@ export function rewardMark(kind: RewardKind, colour: string, size = 44): string 
  */
 const TOKEN_PX = 96;
 
-export function tokenMark(emblem: EmblemShape, accent: string, size = 16): string {
-  return `<span class="d-token" aria-hidden="true" style="--token-size:${size}px;--token:url('${token(
+// ---------------------------------------------------------------------------
+// Deferred art
+// ---------------------------------------------------------------------------
+
+/**
+ * Why the pictures are no longer drawn while the markup is being written.
+ *
+ * Every generator in `art.ts` ends in `canvas.toDataURL("image/png")`, which is
+ * a synchronous rasterise-and-encode. Inlining the result into a `style`
+ * attribute means the whole set is produced *inside* the `innerHTML` assignment,
+ * on the one frame the screen is being mounted — which is the same frame the
+ * entrance cascade is supposed to start on.
+ *
+ * Measured with a `PerformanceObserver` on `longtask`, navigating lobby → route
+ * with a cold cache:
+ *
+ *     mastery ....... 512ms of blocked main thread
+ *     events ........ 385ms
+ *     news .......... 277ms (59 + 218)
+ *     profile ....... 127ms
+ *     stats .......... 54ms
+ *
+ * Half a second of frozen compositor on arrival at the Mastery grid. The cascade
+ * was correct — thirteen `d-rise` starts spread across 453ms, confirmed by
+ * `animationstart` — and a player saw none of it, because nothing painted until
+ * it was over. §9's "a beautiful effect that drops frames is a bug" and §3a's
+ * "no transition drops frames" both land on this, and it is invisible in a still.
+ *
+ * So a mark now ships as a **recipe** — `data-art="crest|idols|1"` — and
+ * `paintArt` resolves it after the first frame, in chunks with a time budget, on
+ * the shared rAF. The generators and their memo are unchanged: a warm cache
+ * resolves the whole screen in well under a millisecond and nobody sees a
+ * pending state at all; a cold one fills the marks in over a few frames while
+ * the cascade plays, which is loading that is part of the world rather than a
+ * hitch.
+ *
+ * The separator is `|` because no argument here can contain one — they are
+ * slugs, hex colours and integers — and the whole payload goes through `esc`.
+ */
+const ART_RECIPES: Record<string, { prop: string; make: (args: readonly string[]) => string }> = {
+  crest: {
+    prop: "--crest",
+    make: ([factionId, lit]) => crest(factionId ?? "", { size: CREST_PX, lit: lit === "1" ? 1 : 0.45 }),
+  },
+  reward: {
+    prop: "--reward-art",
+    make: ([kind, colour]) => rewardTile((kind ?? "locked") as RewardKind, colour ?? "#6a6382", REWARD_PX),
+  },
+  swatch: {
+    prop: "--swatch",
+    make: ([kind, colour, emblem, lit]) =>
+      cosmeticSwatch(
+        (kind ?? "badge") as SwatchKind,
+        colour ?? "#8d86a8",
+        (emblem ?? "diamond") as EmblemShape,
+        SWATCH_PX,
+        lit === "1"
+      ),
+  },
+  token: {
+    prop: "--token",
+    make: ([emblem, accent]) => token((emblem ?? "diamond") as EmblemShape, accent ?? "#b56cff", TOKEN_PX),
+  },
+  rank: {
+    prop: "--rank-art",
+    make: ([tier, tiers, colour, px]) =>
+      rankCrest({
+        size: Number(px) || RANK_PX,
+        tier: Number(tier) || 0,
+        tiers: Number(tiers) || 20,
+        colour: colour || undefined,
+      }),
+  },
+  key: {
+    prop: "--key-art",
+    make: ([accent, w, h, seed, emblem, radius, alpha]) =>
+      banner(accent ?? "#b56cff", {
+        width: Number(w) || 640,
+        height: Number(h) || 360,
+        seed: seed ?? "",
+        emblem: (emblem || "diamond") as EmblemShape,
+        radius: Number(radius) || 0,
+        patternAlpha: alpha === undefined || alpha === "" ? 0.06 : Number(alpha),
+      }),
+  },
+  ladder: {
+    // `--key-art` rather than a name of its own: a ladder plate is key art, and
+    // two consumers already mount it on `.d-key`. One property means a recipe can
+    // be moved between elements without also moving a custom property nobody
+    // remembers is load-bearing — which is exactly the bug that shipped a blank
+    // top half on the empty Match History plate.
+    prop: "--key-art",
+    make: ([w, h, accent]) => ladderPlate(Number(w) || 960, Number(h) || 320, accent || "#b56cff"),
+  },
+};
+
+/**
+ * The attribute form, for a picture that lands on an element a screen already
+ * owns — an event banner on its own header, the ladder plate on a panel.
+ */
+export function artAttr(recipe: keyof typeof ART_RECIPES, args: readonly (string | number)[]): string {
+  return `data-art="${esc([recipe, ...args.map(String)].join("|"))}"`;
+}
+
+/** The element form, for the marks that are their own little object. */
+function artMark(
+  className: string,
+  sizeVar: string,
+  size: number,
+  recipe: keyof typeof ART_RECIPES,
+  args: readonly (string | number)[]
+): string {
+  return `<span class="${className} d-art" aria-hidden="true" style="${sizeVar}:${size}px" ${artAttr(
+    recipe,
+    args
+  )}></span>`;
+}
+
+/** Two lit states, not a continuum — see `CREST_PX` for why the key matters. */
+export function crestMark(factionId: string, size = 44, lit = 1): string {
+  return artMark("d-crest", "--crest-size", size, "crest", [factionId, lit >= 0.9 ? 1 : 0]);
+}
+
+export function rewardMark(kind: RewardKind, colour: string, size = 44): string {
+  return artMark("d-reward-tile", "--reward-size", size, "reward", [kind, colour]);
+}
+
+export function swatchMark(kind: SwatchKind, colour: string, emblem: EmblemShape, size = 40, lit = true): string {
+  return artMark(`d-swatch${lit ? "" : " is-dim"}`, "--swatch-size", size, "swatch", [
+    kind,
+    colour,
     emblem,
-    accent,
-    TOKEN_PX
-  )}')"></span>`;
+    lit ? 1 : 0,
+  ]);
+}
+
+export function tokenMark(emblem: EmblemShape, accent: string, size = 16): string {
+  return artMark("d-token", "--token-size", size, "token", [emblem, accent]);
+}
+
+/**
+ * The rank object at a display size, drawn from whichever canonical plate suits.
+ *
+ * `RANK_MARK_PX` under 64 display pixels and `RANK_PX` above it, so the profile's
+ * 96px medallion and the Mastery grid's 30px chip do not share a 176px encode.
+ * The value inside it — the rank number — is the caller's, because it is type
+ * rather than art and belongs in the DOM where a screen reader can reach it.
+ */
+export function rankMark(
+  options: { tier: number; tiers: number; colour?: string },
+  size = 44,
+  inner = ""
+): string {
+  const px = size > 64 ? RANK_PX : RANK_MARK_PX;
+  return `<span class="d-rank d-art" style="--rank-size:${size}px" ${artAttr("rank", [
+    options.tier,
+    options.tiers,
+    options.colour ?? "",
+    px,
+  ])}>${inner}</span>`;
+}
+
+/**
+ * Resolve every pending recipe under `root`, off the frame that mounted it.
+ *
+ * Two frames of delay before the first drawing, deliberately: one for the
+ * browser to paint the markup and one for the entrance animations to have
+ * started, so a cold cache costs the cascade nothing. After that it works
+ * through the queue in `SLICE_MS` bites, yielding between them, which keeps the
+ * longest blocked frame at roughly one encode rather than at all of them.
+ */
+const SLICE_MS = 4;
+
+/**
+ * And a hard cap on *how many* land per frame, which the time budget alone does
+ * not give you.
+ *
+ * The budget measures the generator. It cannot measure what the browser does
+ * afterwards: setting a `background-image` to a fresh `data:` URI makes the
+ * engine base64-decode and PNG-decode the bitmap during the next style-and-paint
+ * pass, and that work is attributed to the frame rather than to the loop that
+ * queued it. Measured with the budget alone, twenty-five marks resolved in three
+ * bites and the middle one produced a **252ms** long task — the generators
+ * finished inside 4ms and the decodes did not.
+ *
+ * One per frame is where it settled. Two was already an order of magnitude
+ * better than the unspread version and still left a 120–200ms frame in the
+ * middle of the Mastery grid's arrival, which is exactly the window
+ * `never-a-blank-frame` refuses to let the probe go unsampled through. At one,
+ * a twenty-five-mark grid fills over twenty-five frames — four hundred
+ * milliseconds of pictures landing one at a time behind a cascade that is still
+ * playing, which is what "loading is part of the world" looks like, and no frame
+ * carrying more than a single draw and a single decode.
+ */
+const SLICE_ITEMS = 1;
+
+export function paintArt(root: ParentNode): void {
+  const queue = [...root.querySelectorAll<HTMLElement>("[data-art]")];
+  if (queue.length === 0) return;
+
+  const apply = (node: HTMLElement): void => {
+    const payload = node.dataset["art"];
+    if (payload === undefined) return;
+    node.removeAttribute("data-art");
+    const [name, ...args] = payload.split("|");
+    const recipe = name === undefined ? undefined : ART_RECIPES[name];
+    if (!recipe) return;
+    let url = "";
+    try {
+      url = recipe.make(args);
+    } catch {
+      // A picture is decoration. A malformed payload leaves the socket empty
+      // rather than taking the screen it decorates down with it.
+      return;
+    }
+    if (url === "") return;
+    node.style.setProperty(recipe.prop, `url('${url}')`);
+    node.classList.add("d-art-in");
+  };
+
+  let index = 0;
+  const drain = (): void => {
+    const started = performance.now();
+    let done = 0;
+    while (index < queue.length) {
+      apply(queue[index]!);
+      index += 1;
+      done += 1;
+      if (done >= SLICE_ITEMS || performance.now() - started > SLICE_MS) break;
+    }
+    if (index < queue.length) requestAnimationFrame(drain);
+  };
+  requestAnimationFrame(() => requestAnimationFrame(drain));
 }
 
 // ---------------------------------------------------------------------------
@@ -464,6 +734,10 @@ export function tokenMark(emblem: EmblemShape, accent: string, size = 16): strin
  */
 export function enter(root: ParentNode, selector = ".d-enter", step = 38): void {
   stagger(root.querySelectorAll(selector), { step, max: DUR.setpiece });
+  // Every screen in the domain already calls this after writing its markup, so
+  // it is also the one place the deferred pictures can be kicked off without
+  // twenty-three screens each having to remember.
+  paintArt(root);
 }
 
 /**

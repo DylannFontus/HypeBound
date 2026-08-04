@@ -103,6 +103,49 @@ const MARK_ASSET = "hb-mark-master";
 const WORDMARK_ASSET = "hb-wordmark";
 
 /**
+ * There is one wordmark, and only one of the two things drawing it may be lit.
+ *
+ * The sting's whole argument is §3a's shared-element rule: the brand does not
+ * blink out of existence in the middle of the screen and reappear in the header,
+ * it *travels* there. That was written, and then only half implemented — the
+ * lockup flew correctly and the header's own copy stayed lit underneath it the
+ * entire time. Photographed at 1600×900, t=420ms: HYPEBOUND across the middle of
+ * the lobby at 460px wide, and HYPEBOUND in the header rail at 84px, both at full
+ * strength. At t=700, mid-flight, the two were 23px apart and 32% different in
+ * size — a straight double exposure of the brand against itself for about a fifth
+ * of a second, on every launch, forever. On a phone in landscape it is worse,
+ * because the two are closer together.
+ *
+ * So the header lends its wordmark to the cinematic and takes it back. The
+ * attribute goes on the root element rather than on the header, because the
+ * header belongs to another module and this one is only allowed to know its
+ * class name — which it already had to, to fly anything at it.
+ *
+ * The handover point is late on purpose. By 88% of the flight the two bitmaps
+ * are within about two pixels and the same size, so the header coming back is a
+ * crossfade between a thing and itself; any earlier and it is a visible swap.
+ */
+const BRAND_HANDOVER = 0.88;
+
+/** Above this the cinematic's own wordmark is legible and must be the only one. */
+const BRAND_CLAIM = 0.15;
+
+/** What the root element currently says, so a frame loop is not a DOM write. */
+let brandClaim: string | null = null;
+
+function claimBrand(state: "flight" | null): void {
+  if (brandClaim === state) return;
+  brandClaim = state;
+  if (state === null) delete document.documentElement.dataset["introBrand"];
+  else document.documentElement.dataset["introBrand"] = state;
+}
+
+/** Read the sting's own composition and decide who owns the wordmark this frame. */
+function syncBrand(look: IntroLook): void {
+  claimBrand(look.wordOpacity > BRAND_CLAIM && look.dock < BRAND_HANDOVER ? "flight" : null);
+}
+
+/**
  * Start both fetches at import, which is as early as this module can act.
  *
  * `boot()` calls `startIntro()` a few statements later, so the practical gain is
@@ -386,6 +429,10 @@ async function composeStill(reel: Reel): Promise<void> {
     if (!reel.first) reel.look.wash = Math.max(reel.look.wash, 0.36);
     reel.look.grain = 0;
     reel.stage.apply(reel.look, reel.rest);
+    // The still is the settled frame of the same sequence, so it holds the same
+    // wordmark in the same place — and would double against the header exactly
+    // as the animated version did.
+    if (!reel.first) syncBrand(reel.look);
   };
 
   /**
@@ -482,6 +529,9 @@ export function playIntro(kind: IntroKind): () => void {
        * idle slot, with a two-second deadline so it is never merely leaked.
        */
       host.remove();
+      // Unconditional, and before anything that can throw: a borrowed wordmark
+      // that is never given back is a permanently empty header rail.
+      claimBrand(null);
       const free = (): void => stage.dispose();
       if (typeof requestIdleCallback === "function") requestIdleCallback(free, { timeout: 2000 });
       else setTimeout(free, 400);
@@ -514,6 +564,17 @@ export function playIntro(kind: IntroKind): () => void {
      */
     function skip(): void {
       if (finished || bailAt !== null) return;
+      /**
+       * The header takes its wordmark back on the gesture, not on the teardown.
+       *
+       * A skip dissolves the lockup over 150ms. Holding the loan for those
+       * 150ms would fade the travelling copy out over a header that is still
+       * blank and then snap the header's own copy on afterwards — a pop, at the
+       * exact moment the player has asked for the cinematic to stop being in the
+       * way. Handing it back first means the brand is simply already where it
+       * lives while the rest of the picture folds out around it.
+       */
+      claimBrand(null);
       if (still) {
         close();
         return;
@@ -629,6 +690,7 @@ export function playIntro(kind: IntroKind): () => void {
       }
 
       film.seek(clock);
+      if (!first && bailAt === null) syncBrand(look);
       if (bailAt !== null) {
         const out = Math.min(1, (wall - bailAt) / BAIL_MS);
         look.master *= 1 - out;
@@ -692,8 +754,13 @@ export async function frameIntro(kind: IntroKind, ms: number): Promise<() => voi
   await Promise.all([reel.artwork.mark, reel.artwork.wordmark]);
   reel.film.seek(ms);
   reel.stage.apply(reel.look, ms);
+  // The seam has to photograph what the player sees, and who owns the wordmark
+  // is part of that: without this the review frames of the sting were the one
+  // composition the sting never actually puts on screen.
+  if (!reel.first) syncBrand(reel.look);
   return () => {
     cancelled = true;
+    claimBrand(null);
     reel.stage.dispose();
     reel.host.remove();
   };

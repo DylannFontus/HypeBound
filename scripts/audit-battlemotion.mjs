@@ -385,15 +385,66 @@ try {
           }
         }
       }
-      return { out, clashes };
+      /**
+       * Two HUD panels sharing pixels, and text that does not fit its box.
+       *
+       * Neither shows up as an overflow: `.history-panel` crossing the control
+       * cluster by four pixels is inside the viewport, and an ellipsised ability
+       * is a perfectly valid layout. Both are the same underlying fault — a
+       * constant in device pixels next to something made of text — and both only
+       * appear at a text size nobody photographs. Measured at `--ui-scale: 1.4`
+       * before this was checked: the leader name lost a glyph, the leader
+       * ability printed a third of its own sentence, and the log sat on the
+       * emote/settings/concede row.
+       */
+      const named = (n) => String(n.className).split(" ").filter((c) => !c.startsWith("mat-")).slice(0, 2).join(".");
+      const panels = [...document.querySelectorAll(".battle-hud > *, .hud-corner > *")].filter((n) => {
+        const r = n.getBoundingClientRect();
+        return r.width > 4 && r.height > 4 && getComputedStyle(n).visibility !== "hidden";
+      });
+      const overlaps = [];
+      for (let i = 0; i < panels.length; i++) {
+        for (let j = i + 1; j < panels.length; j++) {
+          if (panels[i].contains(panels[j]) || panels[j].contains(panels[i])) continue;
+          const a = panels[i].getBoundingClientRect();
+          const b = panels[j].getBoundingClientRect();
+          const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+          const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          if (ox > 2 && oy > 2) overlaps.push(`${named(panels[i])} x ${named(panels[j])} ${Math.round(ox)}x${Math.round(oy)}px`);
+        }
+      }
+      const clipped = [];
+      for (const n of document.querySelectorAll(".battle-hud *")) {
+        if (n.clientWidth > 0 && n.scrollWidth > n.clientWidth + 2 && getComputedStyle(n).overflow !== "visible") {
+          clipped.push(`${named(n)} ${n.clientWidth}<${n.scrollWidth} "${(n.textContent || "").trim().slice(0, 24)}"`);
+        }
+      }
+      return { out, clashes, overlaps, clipped };
     });
     console.log(`\n=== ${label} (${w}x${h}) ===`);
     console.log(bad.out.length ? bad.out.map((s) => "  overflow: " + s).join("\n") : "  nothing leaves the viewport");
     console.log(bad.clashes.length ? `  overlapping End Turn: ${bad.clashes.join(", ")}` : "  End Turn is clear");
+    if (bad.overlaps.length) console.log(bad.overlaps.map((s) => "  HUD OVERLAP: " + s).join("\n"));
+    if (bad.clipped.length) console.log(bad.clipped.map((s) => "  CLIPPED: " + s).join("\n"));
   };
 
+  await overflow(1600, 900, "desktop");
   await overflow(1280, 720, "desktop small");
   await overflow(844, 390, "phone landscape");
+
+  /**
+   * And all three again at the largest interface size the settings offer.
+   *
+   * `--ui-scale` is the only knob the accessibility screen gives for text, and
+   * every layout constant written in device pixels is a promise that only holds
+   * at 1.0. Set on the root exactly the way `applySettings` sets it, so this is
+   * the same code path a player takes rather than a simulation of it.
+   */
+  await page.evaluate(() => document.documentElement.style.setProperty("--ui-scale", "1.4"));
+  await overflow(1600, 900, "desktop @ ui-scale 1.4");
+  await overflow(1280, 720, "desktop small @ ui-scale 1.4");
+  await overflow(844, 390, "phone landscape @ ui-scale 1.4");
+  await page.evaluate(() => document.documentElement.style.removeProperty("--ui-scale"));
 
   // ------------------------------------------------------- the resize path --
   await page.setViewportSize({ width: 1600, height: 900 });

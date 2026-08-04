@@ -191,10 +191,15 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
                 const visual = describeReward(reward, content, pass.season.id);
                 return (
                   rewardTileHtml(visual, {
-                    state: state === "available" ? "none" : state,
                     /* em, because the lane it sits in is em: a fixed 40px tile
-                       was a quarter of its own cell at --ui-scale 1.4. */
-                    art: "2.55em",
+                       was a quarter of its own cell at --ui-scale 1.4.
+                       3.6, not 2.55: at 2.55 the object occupied 40px of a
+                       134x147 plate and twenty tiers across a viewport read as
+                       a row of empty boxes with a mark in the corner of each.
+                       The whole argument for a rail over a table is that it
+                       shows you the thing, so the thing has to be the tile. */
+                    state: state === "available" ? "none" : state,
+                    art: "3.6em",
                     bare: true,
                     title: visual.name,
                   }) +
@@ -208,11 +213,25 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
         </div>`;
     };
 
+    /*
+     * The tier the player is working on, marked.
+     *
+     * On a new account every one of the fifty tiers is locked and every plate is
+     * the same grey, so the rail opens with nothing for the eye to land on and
+     * no answer to "where am I" — which is the first question this screen
+     * exists to answer and the reason it auto-scrolls at all. Hearthstone lights
+     * the next chest; MTG Arena puts a lit ring on the current node. This is
+     * that ring, and it is the only lit object on an untouched track.
+     */
+    const next = row.tier === pass.state.tier + 1;
+
     return `
-      <li class="pass-row ${row.unlocked ? "unlocked" : ""} ${row.onPaceLine ? "pace" : ""}" data-tier="${row.tier}">
+      <li class="pass-row ${row.unlocked ? "unlocked" : ""} ${row.onPaceLine ? "pace" : ""}"
+          data-tier="${row.tier}"${next ? ` data-next="1"` : ""}>
         ${cell("free")}
         <div class="pass-node mat-chip" data-milestone="${milestone ? 1 : 0}">
           <span class="num">${row.tier}</span>
+          ${next ? `<span class="rw-sr">Your next tier</span>` : ""}
         </div>
         ${cell("backstage")}
         ${

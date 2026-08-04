@@ -21,6 +21,7 @@ import type { MatchClocks } from "../../net/transport";
 import { getAsset } from "../art/assetLoader";
 import { iconPath } from "../art/iconAssets";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
+import { parseCardText } from "../cardRenderer/renderCard";
 import { icon } from "../art/uiIcons";
 import { getSettings } from "../../save/settings";
 import { audio } from "../../audio/audio";
@@ -47,6 +48,38 @@ export interface HudCallbacks {
  * since the wheel is the only communication channel in the game.
  */
 const DEFAULT_EMOTES = ["Greetings", "Well played", "Nice", "Oops", "Threaten", "Thanks"];
+
+/**
+ * A leader ability's own mini-markup, drawn rather than printed.
+ *
+ * `ability.text` is authored in the same `**bold**` / `*italic*` dialect the
+ * card faces use, and this went to `innerHTML` raw — which was invisible only
+ * because the rail clipped every ability to one ellipsised line. Given the
+ * second line the sentence needs, the button read "Deal 2 damage to a character
+ * and apply \*\*Scorched\*\* to it." — asterisks on the player's own leader
+ * power, six inches from the same keyword set in real bold on a card face.
+ * `parseCardText` is the canvas renderer's own parser, so the two cannot
+ * disagree, and everything that reaches the DOM is escaped on the way.
+ */
+const escapeHtml = (text: string): string =>
+  text.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch] ?? ch);
+
+const richAbilityText = (text: string): string =>
+  parseCardText(text)
+    .map((part) =>
+      part.bold
+        ? `<strong>${escapeHtml(part.text)}</strong>`
+        : part.italic
+          ? `<em>${escapeHtml(part.text)}</em>`
+          : escapeHtml(part.text)
+    )
+    .join("");
+
+/** The same sentence with the markup removed, for a `title` attribute. */
+const plainAbilityText = (text: string): string =>
+  parseCardText(text)
+    .map((part) => part.text)
+    .join("");
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -463,9 +496,13 @@ export class BattleHud {
         <span class="ability-cost">${ability.obsessionCost}</span>
         <span class="ability-body">
           <span class="ability-name">${ability.name}</span>
-          <span class="ability-text">${ability.text}</span>
+          <span class="ability-text">${richAbilityText(ability.text)}</span>
         </span>`;
-      button.title = used ? `${ability.name} — already ${spent}` : affordable ? ability.text : `Needs ${ability.obsessionCost} Obsession`;
+      button.title = used
+        ? `${ability.name} — already ${spent}`
+        : affordable
+          ? plainAbilityText(ability.text)
+          : `Needs ${ability.obsessionCost} Obsession`;
       button.setAttribute(
         "aria-label",
         `${ability.name}, costs ${ability.obsessionCost} Obsession. ${used ? `Already ${spent}.` : affordable ? "Ready." : "Not enough Obsession."}`

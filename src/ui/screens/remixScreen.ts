@@ -22,7 +22,7 @@ import {
 } from "../../game/remix";
 import { remixQuestView } from "../../save/profile";
 import { audio } from "../../audio/audio";
-import { banner, count, disposeBag, enter, icon, meter, quantify, rovingList, stamp, unspec } from "./data/kit";
+import { artAttr, count, disposeBag, enter, icon, meter, quantify, rovingList, stamp, unspec } from "./data/kit";
 
 export interface RemixCallbacks {
   onBack: () => void;
@@ -52,13 +52,7 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
      * the CTA had its left cap clipped. Seeded by the modifier id, so the rotation
      * looks like a different week when the week turns over.
      */
-    const key = banner("#e46bd6", {
-      width: 1280,
-      height: 194,
-      seed: current.id,
-      emblem: "spiral",
-      patternAlpha: 0.06,
-    });
+    const key = artAttr("key", ["#e46bd6", 1280, 194, current.id, "spiral", 0, 0.06]);
 
     root.innerHTML = `
       <div class="ambient-bg"></div>
@@ -70,7 +64,7 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
 
       <div class="remix-body data-body">
         <section class="panel d-pad d-enter remix-current" id="remix-current">
-          <div class="d-key remix-key" style="--key-art:url('${key}');--key-aspect:6.6/1" aria-hidden="true">
+          <div class="d-key remix-key" ${key} style="--key-aspect:6.6/1" aria-hidden="true">
             <div class="d-key-scrim"></div>
           </div>
           <div class="remix-current-text">

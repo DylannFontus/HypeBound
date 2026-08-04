@@ -145,6 +145,33 @@ function surface(w: number, h: number): { canvas: HTMLCanvasElement; ctx: Canvas
   return { canvas, ctx };
 }
 
+/**
+ * How a finished plate becomes a URI, and why the big ones are not PNGs.
+ *
+ * PNG is the right answer for a crest, a token or a reward tile: they are small
+ * and they have real transparency outside their silhouette. It is close to the
+ * worst possible answer for a **banner** — a 1024×384 plate that is opaque
+ * corner to corner and, by design, covered in grain. PNG is lossless, so noise
+ * is incompressible, and the cost lands three times over: the encode itself, a
+ * base64 string of several hundred kilobytes handed to the CSS parser, and the
+ * decode when the engine paints it.
+ *
+ * Measured with a `PerformanceObserver` on `longtask`, arriving at the Event Hub
+ * with a cold cache, the single 1024×384 hero banner produced a **420ms** long
+ * task on its own — a frame budget blown twenty-five times over by one picture,
+ * during the entrance cascade, and no amount of spreading the queue helps when
+ * one item is the whole problem.
+ *
+ * So an opaque plate is encoded as JPEG. It is the case JPEG is for, the quality
+ * is set where the gradients do not band, and every one of these plates is seen
+ * through a scrim, behind type, or blurred — there is no fine linework in them
+ * for the transform to eat. Anything with alpha keeps PNG, because JPEG has no
+ * alpha channel and would fill the silhouette with black.
+ */
+function encode(canvas: HTMLCanvasElement, opaque: boolean): string {
+  return opaque ? canvas.toDataURL("image/jpeg", 0.92) : canvas.toDataURL("image/png");
+}
+
 /** Ingredient 1 — the lit base. */
 function base(ctx: CanvasRenderingContext2D, w: number, h: number, accent: string): void {
   const [x0, y0, x1, y1] = keyVector(w, h);
@@ -620,7 +647,9 @@ export function banner(accent: string, options: BannerOptions = {}): string {
       bevel(ctx, w, h, 0);
     }
 
-    return canvas.toDataURL("image/png");
+    // Opaque unless the caller asked for rounded corners, which cut alpha
+    // out of them; see `encode` for why that decides the format.
+    return encode(canvas, radius === 0);
   });
 }
 
@@ -792,6 +821,185 @@ export function rewardTile(kind: RewardKind, colour: string, size = 64): string 
 
     grain(ctx, size, size, 0.8);
     bevel(ctx, size, size, s(12));
+    ctx.restore();
+    return canvas.toDataURL("image/png");
+  });
+}
+
+/**
+ * The five wearables, each drawn as the thing it is.
+ *
+ * The profile's Cosmetics locker printed the word "Default" four times down one
+ * column and "None earned" four times down the next — eight strings, no picture,
+ * and no way for a player who has never worn one to know what a *title* or a
+ * *badge* even looks like in this game. Recon called it defect 13 and it is the
+ * last place in the domain where something that should be an object is a word.
+ * In Hearthstone, MTG Arena and Gwent alike the locker shows the items
+ * themselves, dimmed when they are not yours yet, with the unlock condition
+ * under them; that is what this makes possible.
+ *
+ * Five shapes rather than five colours, for the same reason `rewardTile` has
+ * six: a nameplate, a ring, a shield, a card back and a speech plate are told
+ * apart in a greyscale screenshot and by a player who cannot separate the hues.
+ * Each carries the wearer's own emblem, so the swatch is a preview rather than a
+ * generic icon — and the *unearned* variant is the same drawing struck in dead
+ * metal, which is the honest version of "you do not have this" and still a
+ * picture.
+ */
+export type SwatchKind = "title" | "frame" | "badge" | "cardBack" | "emote";
+
+export function cosmeticSwatch(
+  kind: SwatchKind,
+  colour: string,
+  emblem: EmblemShape = "diamond",
+  size = 96,
+  lit = true
+): string {
+  return cached(`swatch|${kind}|${colour}|${emblem}|${size}|${lit}`, () => {
+    const target = surface(size, size);
+    if (!target) return "";
+    const { canvas, ctx } = target;
+    const s = (v: number): number => v * (size / 96);
+    const ink = lit ? colour : "#6a6382";
+    const cx = size / 2;
+    const cy = size / 2;
+
+    // the plate everything is struck on, so all five read as one set
+    roundedPath(ctx, size, size, s(16));
+    ctx.save();
+    ctx.clip();
+    const [x0, y0, x1, y1] = keyVector(size, size);
+    const face = ctx.createLinearGradient(x0, y0, x1, y1);
+    face.addColorStop(0, shade(ink, lit ? 0.58 : 0.74));
+    face.addColorStop(1, "#07040e");
+    ctx.fillStyle = face;
+    ctx.fillRect(0, 0, size, size);
+    shaft(ctx, size, size, ink, lit ? 0.85 : 0.3);
+
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.lineWidth = s(2.4);
+    ctx.strokeStyle = rgba(ink, lit ? 0.95 : 0.5);
+    ctx.fillStyle = rgba(ink, lit ? 0.2 : 0.1);
+
+    switch (kind) {
+      case "title": {
+        /*
+         * A nameplate: a chamfered bar with the type on it abstracted to two
+         * rules. Chamfered rather than rounded because a title is *struck* — it
+         * is the one cosmetic that is a piece of metal with words on it.
+         */
+        const w = s(31);
+        const h = s(13);
+        const chamfer = s(6);
+        ctx.beginPath();
+        ctx.moveTo(cx - w + chamfer, cy - h);
+        ctx.lineTo(cx + w - chamfer, cy - h);
+        ctx.lineTo(cx + w, cy);
+        ctx.lineTo(cx + w - chamfer, cy + h);
+        ctx.lineTo(cx - w + chamfer, cy + h);
+        ctx.lineTo(cx - w, cy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.globalAlpha = 0.62;
+        ctx.lineWidth = s(2);
+        for (const [y, half] of [
+          [-s(4), s(17)],
+          [s(4), s(11)],
+        ] as const) {
+          ctx.beginPath();
+          ctx.moveTo(cx - half, cy + y);
+          ctx.lineTo(cx + half, cy + y);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case "frame": {
+        // the avatar ring in miniature: a band with the emblem struck into it
+        ctx.lineWidth = s(6);
+        ctx.beginPath();
+        ctx.arc(cx, cy, s(26), 0, Math.PI * 2);
+        ctx.stroke();
+        // the lit arc, 200°–340°, the same top-left the whole game is lit from
+        ctx.strokeStyle = rgba(ink, lit ? 1 : 0.6);
+        ctx.lineWidth = s(2.6);
+        ctx.beginPath();
+        ctx.arc(cx, cy, s(23.4), (200 * Math.PI) / 180, (340 * Math.PI) / 180);
+        ctx.stroke();
+        ctx.lineWidth = s(1.6);
+        ctx.fillStyle = rgba(ink, lit ? 0.22 : 0.1);
+        for (let i = 0; i < 4; i++) {
+          const angle = (i / 4) * Math.PI * 2 - Math.PI / 2;
+          drawEmblem(ctx, emblem, cx + Math.cos(angle) * s(26), cy + Math.sin(angle) * s(26), size / 1750);
+        }
+        break;
+      }
+      case "badge": {
+        // a pinned shield with the emblem on it
+        ctx.beginPath();
+        ctx.moveTo(cx - s(20), cy - s(24));
+        ctx.lineTo(cx + s(20), cy - s(24));
+        ctx.lineTo(cx + s(20), cy + s(4));
+        ctx.quadraticCurveTo(cx + s(18), cy + s(20), cx, cy + s(27));
+        ctx.quadraticCurveTo(cx - s(18), cy + s(20), cx - s(20), cy + s(4));
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.lineWidth = s(2);
+        drawEmblem(ctx, emblem, cx, cy - s(2), size / 620);
+        break;
+      }
+      case "cardBack": {
+        // the back of a card, portrait, with its own inner rule
+        const w = s(23);
+        const h = s(32);
+        roundedPath2(ctx, cx - w, cy - h, w * 2, h * 2, s(5));
+        ctx.fill();
+        ctx.stroke();
+        ctx.globalAlpha = 0.6;
+        ctx.lineWidth = s(1.4);
+        ctx.beginPath();
+        ctx.rect(cx - w + s(5), cy - h + s(5), (w - s(5)) * 2, (h - s(5)) * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = s(1.8);
+        drawEmblem(ctx, emblem, cx, cy, size / 700);
+        break;
+      }
+      case "emote": {
+        // a speech plate with a tail, and three beats in it
+        const w = s(27);
+        const h = s(19);
+        ctx.beginPath();
+        ctx.moveTo(cx - w + s(7), cy - h);
+        ctx.lineTo(cx + w - s(7), cy - h);
+        ctx.quadraticCurveTo(cx + w, cy - h, cx + w, cy - h + s(7));
+        ctx.lineTo(cx + w, cy + h - s(7));
+        ctx.quadraticCurveTo(cx + w, cy + h, cx + w - s(7), cy + h);
+        ctx.lineTo(cx - s(6), cy + h);
+        ctx.lineTo(cx - s(14), cy + h + s(9));
+        ctx.lineTo(cx - s(12), cy + h);
+        ctx.lineTo(cx - w + s(7), cy + h);
+        ctx.quadraticCurveTo(cx - w, cy + h, cx - w, cy + h - s(7));
+        ctx.lineTo(cx - w, cy - h + s(7));
+        ctx.quadraticCurveTo(cx - w, cy - h, cx - w + s(7), cy - h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = rgba(ink, lit ? 0.85 : 0.45);
+        for (const dx of [-s(11), 0, s(11)]) {
+          ctx.beginPath();
+          ctx.arc(cx + dx, cy - s(1), s(3), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      }
+    }
+
+    grain(ctx, size, size, 0.8);
+    bevel(ctx, size, size, s(16));
     ctx.restore();
     return canvas.toDataURL("image/png");
   });
@@ -995,7 +1203,7 @@ export function ladderPlate(width = 960, height = 320, accent = "#b56cff"): stri
 
     room(ctx, width, height, accent);
     grain(ctx, width, height, 0.7);
-    return canvas.toDataURL("image/png");
+    return encode(canvas, true);
   });
 }
 

@@ -99,6 +99,46 @@
   height: 100%;
 }
 
+/* ---- the borrowed wordmark ---------------------------------------------- */
+
+/**
+ * While the sting is carrying the brand, the header is not also wearing it.
+ *
+ * The lockup flies to the header rail and parks on top of the lobby's own
+ * wordmark, which is the right ending — but for the two thirds of a second
+ * before it gets there, the same word was drawn twice at two sizes in two
+ * places. See the note on `BRAND_HANDOVER` in `index.ts` for the measurements.
+ *
+ * Two rules and a reach outside this module's own markup, which is worth being
+ * explicit about. `.lobby-wordmark` belongs to the front-door screens; this
+ * changes none of their files and adds nothing to their stylesheet. It states a
+ * single condition — *while the cinematic is holding the brand* — and the
+ * attribute that switches it is removed on every exit the cinematic has,
+ * including the one where it fails to build.
+ *
+ * `.has-brand-wordmark` is in the selector so this outranks the rule that sets
+ * the opacity in the first place, rather than depending on which stylesheet Vite
+ * happened to emit second.
+ *
+ * Instant off, eased back on. Off is invisible because the reveal wipes a
+ * five-times-larger copy across the middle of the screen on the same frame; on
+ * is a 90ms crossfade between two bitmaps that are by then two pixels and no
+ * scale apart, which is the "no cut, nothing to cross-fade" the handover claims.
+ */
+html[data-intro-brand="flight"].has-brand-wordmark .lobby-wordmark {
+  opacity: 0;
+}
+
+html.has-brand-wordmark .lobby-wordmark {
+  transition: opacity 90ms linear;
+}
+
+/* The setting turns decorative motion off; it does not license a doubled logo,
+   so the swap still happens — it just happens without the crossfade. */
+:root[data-reduced-motion="true"] .lobby-wordmark {
+  transition: none;
+}
+
 /* ---- the skip affordance ------------------------------------------------ */
 
 /**

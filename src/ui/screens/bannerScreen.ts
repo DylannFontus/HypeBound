@@ -185,7 +185,7 @@ export function createBannerScreen(content: ContentIndex, callbacks: BannerCallb
     const ids = [...view.banner.featuredEpics, ...view.banner.spotlightedRares];
     const odds = publishedOdds(content);
     return `
-      <section class="mat-panel rw-panel-pad">
+      <section class="mat-panel rw-panel-pad rw-spot-panel">
         <div class="rw-section-head">
           <h3 class="rw-section-title t-heading">${icon("sparkle")}<span>Also spotlighted</span></h3>
           <span class="rw-note rw-quiet">Every one of these is in Drops and crafting too.</span>
@@ -430,6 +430,11 @@ export function createBannerScreen(content: ContentIndex, callbacks: BannerCallb
             value: view.state.sinceTarget,
             max: view.hardPity,
             label: "Pulls until the Encore guarantee",
+            /* Taller than the domain default. This rail is 1,100px wide on a
+               desktop and the two most emotionally loaded numbers in the economy
+               ride on it; at the shared 12px it read as a hairline drawn across
+               the furniture rather than as a channel with something in it. */
+            height: 15,
             ticks: [
               { at: 0.5, kind: "step", title: "Halfway" },
               { at: 1, kind: "promise", title: "Your Target Card is guaranteed here" },
@@ -441,30 +446,33 @@ export function createBannerScreen(content: ContentIndex, callbacks: BannerCallb
             }.
             ${view.toEpic <= view.epicWindow ? `An Epic or better within ${view.toEpic} more.` : ""}
           </p>
-          <div class="rw-seg mat-well" role="group" aria-label="Banner details">
-            ${PANELS.map(
-              (entry) =>
-                `<button type="button" class="banner-panel-toggle" data-panel="${entry.id}" aria-pressed="${panel === entry.id}">${entry.label}</button>`,
-            ).join("")}
+        </div>
+        <div class="rw-pull-side">
+          <div class="rw-pull-actions">
+            <button class="rw-pull1 mat-panel act banner-pull" data-count="1" ${view.live ? "" : "disabled"}>
+              ${icon("sparkle")}
+              <span>×1</span>
+              <span class="rw-pull-price">${view.freePull ? "free" : coinInline("clout", view.pullPrice)}</span>
+            </button>
+            <button class="rw-pull10 mat-hero act banner-pull" data-count="10" ${view.live ? "" : "disabled"}>
+              ${icon("merch-drop")}
+              <span>×10 Pull</span>
+              <span class="rw-pull-price">${coinInline("clout", view.tenPrice)}</span>
+            </button>
           </div>
+          ${
+            /*
+             * The card-back promise is a caption on the ×10, not a footnote on
+             * the rail. Spanning both columns it landed alone on the rail's
+             * bottom edge, forty pixels below the thing it was describing and
+             * eleven hundred pixels to the left of it, which reads as a stray
+             * line of small print rather than as a reason to press the button.
+             */
+            view.firstTenReward
+              ? `<p class="rw-note rw-quiet rw-pull-note">${icon("deck", { size: 14 })}<span>Your first ×10 also grants this banner's card back.</span></p>`
+              : ""
+          }
         </div>
-        <div class="rw-pull-actions">
-          <button class="rw-pull1 mat-panel act banner-pull" data-count="1" ${view.live ? "" : "disabled"}>
-            ${icon("sparkle")}
-            <span>×1</span>
-            <span class="rw-pull-price">${view.freePull ? "free" : coinInline("clout", view.pullPrice)}</span>
-          </button>
-          <button class="rw-pull10 mat-hero act banner-pull" data-count="10" ${view.live ? "" : "disabled"}>
-            ${icon("merch-drop")}
-            <span>×10 Pull</span>
-            <span class="rw-pull-price">${coinInline("clout", view.tenPrice)}</span>
-          </button>
-        </div>
-        ${
-          view.firstTenReward
-            ? `<p class="rw-note rw-quiet" style="grid-column:1/-1;margin:0">Your first ×10 also grants this banner's card back.</p>`
-            : ""
-        }
       </section>`;
   };
 
@@ -496,19 +504,40 @@ export function createBannerScreen(content: ContentIndex, callbacks: BannerCallb
             ? `<section class="mat-panel rw-panel-pad"><p class="rw-note">No banners are authored.</p></section>`
             : `
           ${
-            views.length > 1
-              ? `<nav class="rw-tabs banner-tabs" role="tablist">
-                   ${views
-                     .map(
-                       (entry) =>
-                         `<button class="rw-tab mat-panel act" role="tab" aria-selected="${view.banner.id === entry.banner.id}"
-                                  data-banner="${esc(entry.banner.id)}">
-                            ${esc(entry.banner.name)}${entry.live ? "" : ` <span class="rw-quiet">not running</span>`}
-                          </button>`,
-                     )
-                     .join("")}
-                 </nav>`
-              : `<div></div>`
+            /*
+             * The disclosure switcher rides with the banner tabs, not with the
+             * pull rail.
+             *
+             * It used to be the fourth row of the rail, which on a phone in
+             * landscape made that rail 162px of a 390px viewport — the hero it
+             * is pinned in front of was reduced to a seventy-pixel sliver, so
+             * the screen was almost entirely furniture. It is also, honestly, a
+             * view switcher rather than part of the purchase, and it belongs in
+             * the same row as the thing that switches banners.
+             */
+            `<div class="rw-banner-topbar">
+               ${
+                 views.length > 1
+                   ? `<nav class="rw-tabs banner-tabs" role="tablist">
+                        ${views
+                          .map(
+                            (entry) =>
+                              `<button class="rw-tab mat-panel act" role="tab" aria-selected="${view.banner.id === entry.banner.id}"
+                                       data-banner="${esc(entry.banner.id)}">
+                                 ${esc(entry.banner.name)}${entry.live ? "" : ` <span class="rw-quiet">not running</span>`}
+                               </button>`,
+                          )
+                          .join("")}
+                      </nav>`
+                   : `<div></div>`
+               }
+               <div class="rw-seg mat-well" role="group" aria-label="Banner details">
+                 ${PANELS.map(
+                   (entry) =>
+                     `<button type="button" class="banner-panel-toggle" data-panel="${entry.id}" aria-pressed="${panel === entry.id}">${entry.label}</button>`,
+                 ).join("")}
+               </div>
+             </div>`
           }
           <div class="rw-banner-scroll">
             ${heroSection(view)}

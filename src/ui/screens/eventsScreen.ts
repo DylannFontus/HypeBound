@@ -30,7 +30,7 @@ import { DEFERRED_EVENTS } from "../../game/events";
 import { buyEventItem, claimEventMission, eventViews, settleEvents } from "../../save/profile";
 import { audio } from "../../audio/audio";
 import {
-  banner,
+  artAttr,
   count,
   countUp,
   disposeBag,
@@ -110,18 +110,12 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
 
   function activeCard(view: EventView, now: number): string {
     const { event } = view;
-    const key = banner(event.accent, {
-      width: 1024,
-      height: 384,
-      seed: event.id,
-      emblem: event.emblem,
-      patternAlpha: 0.07,
-    });
+    const key = artAttr("key", [event.accent, 1024, 384, event.id, event.emblem, 0, 0.07]);
     const through = elapsed(view, now);
 
     return `
       <article class="event-card is-live" data-event="${esc(event.id)}" style="--event-accent:${esc(event.accent)}">
-        <div class="d-key event-key" style="--key-art:url('${key}');--key-aspect:3.5/1">
+        <div class="d-key event-key" ${key} style="--key-aspect:3.5/1">
           <div class="d-key-scrim"></div>
           <div class="d-key-caption">
             <span class="event-tag event-tag-live">${icon("live", 13)} Running now</span>
@@ -250,18 +244,12 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
   function railCard(view: EventView, now: number, kind: "upcoming" | "archive"): string {
     const { event } = view;
     const returns = view.returnsAt;
-    const key = banner(event.accent, {
-      width: 640,
-      height: 360,
-      seed: `${event.id}:${kind}`,
-      emblem: event.emblem,
-      patternAlpha: 0.05,
-    });
+    const key = artAttr("key", [event.accent, 640, 360, `${event.id}:${kind}`, event.emblem, 0, 0.05]);
     return `
       <article class="event-card is-${kind} d-enter" data-event="${esc(event.id)}" style="--event-accent:${esc(
         event.accent
       )}">
-        <div class="d-key event-key" style="--key-art:url('${key}');--key-aspect:16/9">
+        <div class="d-key event-key" ${key} style="--key-aspect:16/9">
           <div class="d-key-scrim"></div>
           ${currencyMark(view, 26)}
         </div>

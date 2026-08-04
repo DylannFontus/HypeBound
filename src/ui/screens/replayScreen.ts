@@ -32,12 +32,12 @@ import {
   esc,
   fadeOnScroll,
   icon,
-  ladderPlate,
+  artAttr,
   logStamp,
   modeName,
   quantify,
-  rankCrest,
-  RANK_PX,
+  paintArt,
+  rankMark,
   rovingList,
 } from "./data/kit";
 
@@ -160,11 +160,8 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
   if (virgin) {
     const stagePlate = root.querySelector("#replay-stage")!;
     stagePlate.innerHTML = `
-      <div class="d-key replay-virgin-key" style="--key-art:url('${ladderPlate(
-        1280,
-        420,
-        "#b56cff"
-      )}');--key-aspect:3/1" aria-hidden="true">
+      <div class="d-key replay-virgin-key" ${artAttr("ladder", [1280, 420, "#b56cff"])}
+           style="--key-aspect:3/1" aria-hidden="true">
         <div class="d-key-scrim"></div>
       </div>
       <div class="empty d-enter replay-virgin-text">
@@ -242,12 +239,10 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
      */
     stage.innerHTML = `
       <div class="replay-head">
-        <span class="d-rank replay-head-crest" style="--rank-size:56px;--rank-art:url('${rankCrest({
-          size: RANK_PX,
-          tier: entry.result === "win" ? 4 : entry.result === "draw" ? 2 : 1,
-          tiers: 5,
-          colour: accent,
-        })}')" aria-hidden="true"></span>
+        ${rankMark(
+          { tier: entry.result === "win" ? 4 : entry.result === "draw" ? 2 : 1, tiers: 5, colour: accent },
+          56
+        )}
         <div class="replay-head-text">
           <div class="t-label">${esc(modeName(entry.mode))} · ${esc(logStamp(entry.playedAt))}</div>
           <h2 class="title t-display">${esc(entry.deckName)}</h2>
@@ -323,6 +318,12 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
                <span class="replay-counter num" id="replay-counter"></span>
              </div>`
       }`;
+
+    // The detail pane is written straight into `stage` rather than through the
+    // screen's own render, so it never passes `enter()` — and `enter()` is where
+    // the deferred pictures are kicked off. Without this the result crest in the
+    // header would sit in its empty socket forever.
+    paintArt(stage);
 
     stage.querySelector("#replay-rematch")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");

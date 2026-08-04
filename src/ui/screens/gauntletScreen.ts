@@ -126,8 +126,24 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
     return tile;
   }
 
-  /** §8.1's two rarity rows, as published. */
+  /**
+   * §8.1's two rarity rows, as published.
+   *
+   * Wrapped in its own scroller, and that wrapper is load-bearing. `screens.css`
+   * gives both Gauntlet tables `display: block; overflow-x: auto` so a
+   * six-column table cannot force the page sideways at 844px — which works, and
+   * costs the table its own layout: a `display: block` table sizes to its
+   * content, so the odds table rendered 450px wide inside an 1,100px panel and
+   * left the right sixty per cent of the largest object on the screen holding
+   * nothing. §2 reads that as content that failed to load.
+   *
+   * Moving the overflow onto a wrapper gives both halves: the element that
+   * scrolls is a div, the table is a table again and fills its panel, and a
+   * `min-width` keeps the columns legible rather than letting six of them
+   * squeeze into a phone.
+   */
   const rarityTable = (): string => `
+    <div class="d-tablewrap">
     <table class="d-table patch-table gauntlet-rarity-table">
       <thead><tr><th>Pick</th>${RARITY_ORDER.map((r) => `<th>${esc(RARITY_LABEL[r]!)}</th>`).join("")}</tr></thead>
       <tbody>
@@ -140,7 +156,8 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
           ${RARITY_ORDER.map((r) => `<td class="patch-after">${percent(data.draft.rarity.standard[r])}</td>`).join("")}
         </tr>
       </tbody>
-    </table>`;
+    </table>
+    </div>`;
 
   /**
    * What the pool can actually deliver, for one leader or for all of them.
@@ -184,6 +201,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
 
   /** §8.3's table, with what Practice actually pays beside it. */
   const rewardTable = (): string => `
+    <div class="d-tablewrap">
     <table class="d-table patch-table gauntlet-reward-table">
       <thead>
         <tr>
@@ -210,6 +228,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
           .join("")}
       </tbody>
     </table>
+    </div>
     <p class="muted">
       The first figure in each column is what a <strong>Practice</strong> run pays; the second is §8.3's
       competitive row. Practice is ${percent(data.practice.scale)} of the table with packs excluded, which

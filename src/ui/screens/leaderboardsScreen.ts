@@ -35,7 +35,7 @@ import type { ContentIndex } from "../../engine/types";
 import type { Screen } from "../shell";
 import { getProfile } from "../../save/profile";
 import { audio } from "../../audio/audio";
-import { count, countUp, enter, icon, ladderPlate, meter, quantify, rankCrest, RANK_PX } from "./data/kit";
+import { artAttr, count, countUp, enter, icon, meter, quantify, rankMark } from "./data/kit";
 
 export interface LeaderboardsCallbacks {
   onBack: () => void;
@@ -80,17 +80,11 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
     </header>
 
     <main class="leaderboards-body data-body">
-      <section class="panel panel-chrome lb-standing" style="--lb-plate:url('${ladderPlate(1200, 400)}')">
-        <div class="lb-standing-art" aria-hidden="true"></div>
+      <section class="panel panel-chrome lb-standing">
+        <div class="lb-standing-art" aria-hidden="true" ${artAttr("ladder", [1200, 400, "#b56cff"])}></div>
         <div class="lb-standing-inner">
           <div class="lb-crest">
-            <span class="d-rank" style="--rank-size:132px;--rank-art:url('${rankCrest({
-              size: RANK_PX,
-              tier,
-              tiers: 20,
-            })}')">
-              ${placed ? `<span class="d-rank-value">${count(tier)}</span>` : ""}
-            </span>
+            ${rankMark({ tier, tiers: 20 }, 132, placed ? `<span class="d-rank-value">${count(tier)}</span>` : "")}
             <span class="t-label">${placed ? `Local tier ${count(tier)} of ${count(TIERS)}` : "Unplaced"}</span>
           </div>
 

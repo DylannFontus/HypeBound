@@ -859,8 +859,30 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
         const maxCopies =
           card.rarity === "legendary" ? content.balance.deck.maxCopiesLegendary : content.balance.deck.maxCopies;
         cell.root.classList.toggle("unowned", owned <= 0);
-        const text = owned > 0 ? `${owned}/${maxCopies}` : "Missing";
-        if (cell.count.textContent !== text) cell.count.textContent = text;
+        /**
+         * The badge only shouts when it has something to say.
+         *
+         * Every tile carrying `2/2` in the same grey pill is two hundred and
+         * forty-five identical marks, which is the wall-of-chips problem in
+         * miniature: the eye has to read all of them to find the one that
+         * differs. A complete set is the resting state and gets the quietest
+         * possible mark; a part-set is the thing you would act on and gets the
+         * gold; nothing owned gets the word. §6 — saturation is a resource, and
+         * it is spent on the tile that wants attention.
+         */
+        const atMax = owned >= maxCopies;
+        const text = owned > 0 ? (atMax ? `×${owned}` : `${owned}/${maxCopies}`) : "Missing";
+        if (cell.count.textContent !== text) {
+          cell.count.textContent = text;
+          cell.count.classList.toggle("is-max", atMax);
+          cell.count.classList.toggle("is-partial", owned > 0 && !atMax);
+          // the canvas is a bitmap, so the only place a screen reader can learn
+          // what the badge says is the tile's own name
+          cell.root.setAttribute(
+            "aria-label",
+            `${cellLabel(card)}. ${owned > 0 ? `${owned} of ${maxCopies} owned` : "not owned"}`
+          );
+        }
         badge(cell.fav, acct.favorites.includes(card.id), "star-filled", "Favourite");
         badge(cell.lock, acct.locked.includes(card.id), "lock", "Locked");
 

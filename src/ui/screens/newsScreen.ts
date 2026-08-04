@@ -18,7 +18,7 @@ import { DEFERRED_CATEGORIES, DATA_VERSION, newsCategories } from "../../game/ne
 import { getProfile, markAllNewsRead, markArticleRead, newsFeed, unreadNews, type NewsView } from "../../save/profile";
 import { audio } from "../../audio/audio";
 import {
-  banner,
+  artAttr,
   chip,
   cloutIcon,
   count,
@@ -122,13 +122,7 @@ export function createNewsScreen(
                   ${open ? 'aria-current="true"' : ""}>
             ${view.read ? "" : '<span class="sr-only">Unread</span>'}
             <span class="news-thumb" aria-hidden="true"
-                  style="--key-art:url('${banner(accent, {
-                    width: 160,
-                    height: 160,
-                    seed: article.def.id,
-                    emblem: "diamond",
-                    patternAlpha: 0.09,
-                  })}')"></span>
+                  ${artAttr("key", [accent, 160, 160, article.def.id, "diamond", 0, 0.09])}></span>
             <span class="d-row-body">
               <span class="news-row-head">
                 <span class="news-chip" style="--c:${esc(accent)}">${esc(category?.name ?? article.def.category)}</span>
@@ -155,13 +149,9 @@ export function createNewsScreen(
       const accent = accentFor(article.def.category);
       return `
         <article class="news-reading" style="--row-accent:${esc(accent)}">
-          <header class="news-hero d-key" style="--key-art:url('${banner(accent, {
-            width: 1024,
-            height: 340,
-            seed: `hero:${article.def.id}`,
-            emblem: "diamond",
-            patternAlpha: 0.06,
-          })}');--key-aspect:3.2/1">
+          <header class="news-hero d-key"
+                  ${artAttr("key", [accent, 1024, 340, `hero:${article.def.id}`, "diamond", 0, 0.06])}
+                  style="--key-aspect:3.2/1">
             <div class="d-key-scrim"></div>
             <div class="d-key-caption">
               <span class="t-label news-hero-eyebrow">

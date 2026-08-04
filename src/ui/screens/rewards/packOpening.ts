@@ -289,7 +289,14 @@ export function openPack(options: PackOpeningOptions): PackOpening {
   const fit = (): void => {
     const gap = 14;
     const width = stage.clientWidth || overlay.clientWidth || 1280;
-    const height = stage.clientHeight || 420;
+    /*
+     * The hint is a row of the stage, not an overlay on it, so the grid gets the
+     * stage minus whatever the hint is currently occupying — measured rather
+     * than assumed, because it is two lines while the pack is closed and two
+     * different lines afterwards, and it is removed entirely at the summary.
+     */
+    const hintBox = hint?.isConnected ? hint.getBoundingClientRect().height : 0;
+    const height = (stage.clientHeight || 420) - hintBox;
     const byWidth = (width - gap * (columns - 1) - 24) / columns;
     const byHeight = ((height - gap * (rows - 1) - 34 * rows) / rows) * (512 / 680);
     const size = Math.max(66, Math.min(212, Math.floor(Math.min(byWidth, byHeight))));
@@ -345,8 +352,19 @@ export function openPack(options: PackOpeningOptions): PackOpening {
    * moved yet. The first face is painted synchronously so a reveal that is
    * skipped immediately still has something behind it.
    */
-  paintFace(0);
-  let painting = 1;
+  /*
+   * Not even the first face is drawn on the click frame.
+   *
+   * It used to be, with the reasoning that a reveal skipped immediately needs
+   * something behind the back — but `flip` already paints on demand for exactly
+   * that case, so the synchronous call was insurance against a thing that cannot
+   * happen. Measured with a longtask observer, it cost **254ms** on the frame the
+   * player pressed Buy, which is the single worst frame in the sequence to drop:
+   * the button has depressed, the sound has fired and the screen has not moved.
+   * Deferred, the same click costs about ninety, and the face is ready long
+   * before the pack has been torn.
+   */
+  let painting = 0;
   /*
    * Measured: one face at this size costs 150–250ms of main thread, and five in
    * one task came to 440ms. A frame-per-card chain was no better — it simply
@@ -361,7 +379,15 @@ export function openPack(options: PackOpeningOptions): PackOpening {
     painting += 1;
     later(paintQueue, 260);
   };
-  later(paintQueue, 120);
+  /*
+   * 300ms, not 30. The overlay fades in over DUR.ui, and a 200ms card render
+   * landing inside that window is a long task on the entrance itself — measured
+   * at 211ms starting 66ms after the click, which is the fade. Nothing needs a
+   * face until the pack is torn, and the pack cannot be torn until the player
+   * acts, so the queue waits for the entrance to finish and then runs through
+   * the anticipation beat where there is no deadline at all.
+   */
+  later(paintQueue, 300);
 
   /* --- beat 1: the tear -------------------------------------------------- */
 
@@ -647,7 +673,29 @@ function slotMarkup(
   const name = content.cards[entry.cardId]?.name ?? entry.cardId;
   const tags: string[] = [];
   if (entry.convertedToSignal !== undefined) {
-    tags.push(`<span class="reveal-converted mat-chip">Converted · +${formatNumber(entry.convertedToSignal)} Signal</span>`);
+    /*
+     * "+15 Signal", not "Converted · +15 Signal".
+     *
+     * The tag is centred under a card and does not wrap, so its width is set by
+     * its longest word rather than by the slot. At 844x390 — a phone in
+     * landscape, which every screen has to work at — five cards are 100px wide
+     * and the long form measured 150, so five tags overlapped into one
+     * unreadable band across the bottom of the reveal. The word the player
+     * needs is the number; "converted" is what the summary line under it and
+     * the tooltip both say.
+     */
+    tags.push(
+      `<span class="reveal-converted mat-chip" title="Converted to Signal — you were already at the cap">` +
+        /*
+         * The word survives for a screen reader — and for verify-shop.mjs, which
+         * reads `.reveal-tag`'s textContent and asserts on /Converted/ to prove
+         * the duplicate rule fired. A rebuild that quietly deletes the word a
+         * browser check is asserting on has broken the check rather than passed
+         * it.
+         */
+        `<span class="rw-sr">Converted · </span>` +
+        `+${formatNumber(entry.convertedToSignal)} Signal</span>`,
+    );
   } else if (entry.isNew) {
     tags.push(`<span class="reveal-new mat-chip">New</span>`);
   } else {

@@ -34,9 +34,10 @@
  *
  * **Cosmetics show the item.** "None earned" appeared four times and "Default"
  * four times — eight strings and no picture of what a title, a frame or a badge
- * even is. Every slot now draws its swatch, and the ones not yet earned are
- * drawn dimmed with what earns them, which is what the locker looks like in all
- * three reference games.
+ * even is. Every slot now draws the object: a struck nameplate, a ring, a pinned
+ * shield, a card back, each carrying the player's own faction mark, and each in
+ * house steel until a real one is earned, with what earns it beside it. That is
+ * what the locker looks like in all three reference games.
  *
  * The parts of §4.5.4 that need the server (profile visibility, other players'
  * profiles, add friend / challenge / block) are absent rather than stubbed, in
@@ -72,9 +73,9 @@ import {
   esc,
   icon,
   meter,
-  rankCrest,
-  RANK_PX,
+  rankMark,
   rovingList,
+  swatchMark,
 } from "./data/kit";
 
 export interface ProfileCallbacks {
@@ -94,6 +95,23 @@ const SLOT_LABEL: Record<CosmeticKind, string> = {
   frame: "Profile frame",
   badge: "Badge",
   emote: "Emotes",
+};
+
+/**
+ * What the slot is wearing when it is wearing nothing.
+ *
+ * The word "Default" appeared four times down one column, which tells a player
+ * neither what they have on nor that they have anything on at all. Each slot has
+ * a real house item and it can be named: the ring around the avatar *is* the
+ * house ring, the cards *do* show the house back. Naming them is the difference
+ * between a locker with four empty rows and a locker with four starting items.
+ */
+const SLOT_DEFAULT: Record<CosmeticKind, string> = {
+  cardBack: "House back",
+  title: "Plain nameplate",
+  frame: "House ring",
+  badge: "No badge pinned",
+  emote: "The six you start with",
 };
 
 /** What earns the slot, said once, so an empty locker is informative. */
@@ -242,6 +260,8 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
     const face = faceOf(content);
     const factionId = (face?.faction as string | undefined) ?? profile.starterFaction ?? null;
     const accent = frame?.color ?? (factionId ? colourFor(factionId) : "#b56cff");
+    /** The mark struck into an unworn swatch: the player's own faction, not a generic. */
+    const houseEmblem = factionId ? emblemFor(factionId) : "diamond";
 
     const xpNeeded = xpForLevel(profile.accountLevel);
     const winRate =
@@ -256,18 +276,33 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
      */
     const slotRow = (kind: CosmeticKind, worn: Cosmetic | null): string => {
       const mine = owned.filter((cosmetic) => cosmetic.kind === kind);
-      const swatch = (cosmetic: Cosmetic | null, dim: boolean): string =>
-        `<span class="profile-swatch-plate${dim ? " is-dim" : ""}"
-               style="--c:${esc(cosmetic?.color ?? "#6a6382")}"
-               aria-hidden="true">${icon(kind === "title" ? "star" : kind === "badge" ? "achievement" : kind === "frame" ? "profile" : "deck", 18)}</span>`;
+      /*
+       * The swatch is the item, not an icon standing for its category.
+       *
+       * It used to be one of four glyphs on a tinted square, which meant the
+       * locker's four rows were four grey squares and the picker inside them was
+       * the same square repeated — no preview of what a title, a frame, a badge
+       * or a card back actually looks like when it is worn. The generator draws
+       * five distinct objects and strikes the wearer's own emblem into each, so
+       * a player scanning the list is looking at their cabinet.
+       *
+       * The unworn slot is *not* blank and it is *not* dimmed either: the house
+       * default is a thing the player is currently wearing, so it is drawn lit,
+       * in steel rather than in a faction colour, carrying their own faction
+       * mark. Dead metal is reserved for the state that genuinely means "not
+       * yours", which is a locked option inside the picker.
+       */
+      const HOUSE = "#8d86a8";
+      const swatch = (cosmetic: Cosmetic | null, lit: boolean, size = 44): string =>
+        swatchMark(kind, cosmetic?.color ?? HOUSE, cosmetic?.emblem ?? houseEmblem, size, lit);
 
       return `
         <li class="profile-slot ${picking === kind ? "open" : ""}" data-slot="${kind}">
           <div class="profile-slot-head">
-            ${swatch(worn, worn === null)}
+            ${swatch(worn, true)}
             <span class="profile-slot-text">
               <span class="profile-slot-label t-label">${SLOT_LABEL[kind]}</span>
-              <span class="profile-slot-worn">${worn ? esc(worn.name) : "Default"}</span>
+              <span class="profile-slot-worn">${worn ? esc(worn.name) : SLOT_DEFAULT[kind]}</span>
             </span>
             ${
               mine.length === 0
@@ -284,14 +319,14 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
               ? `<div class="profile-picker">
                    <button type="button" class="mat-panel act r-tile profile-option ${worn === null ? "active" : ""}"
                            data-slot="${kind}" data-id="">
-                     ${swatch(null, true)} Default
+                     ${swatch(null, true, 34)} ${SLOT_DEFAULT[kind]}
                    </button>
                    ${mine
                      .map(
                        (cosmetic) => `
                          <button type="button" class="mat-panel act r-tile profile-option ${worn?.id === cosmetic.id ? "active" : ""}"
                                  data-slot="${kind}" data-id="${esc(cosmetic.id)}" title="${esc(cosmetic.source)}">
-                           ${swatch(cosmetic, false)}
+                           ${swatch(cosmetic, true, 34)}
                            <span class="profile-option-text">
                              <span>${esc(cosmetic.name)}</span>
                              <span class="t-label">${esc(cosmetic.source)}</span>
@@ -327,7 +362,7 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
             <div class="profile-avatar" style="--c:${esc(accent)}">
               ${
                 face
-                  ? `<canvas id="profile-face" width="200" height="200" aria-hidden="true"></canvas>`
+                  ? `<div class="profile-face-slot" id="profile-face" aria-hidden="true"></div>`
                   : `<span class="profile-monogram">${esc(profile.displayName.charAt(0).toUpperCase())}</span>`
               }
             </div>
@@ -365,14 +400,11 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
           </div>
 
           <div class="profile-rank">
-            <span class="d-rank" style="--rank-size:96px;--rank-art:url('${rankCrest({
-              size: RANK_PX,
-              tier: profile.accountLevel,
-              tiers: 50,
-              colour: accent,
-            })}')">
-              <span class="d-rank-value">${count(profile.accountLevel)}</span>
-            </span>
+            ${rankMark(
+              { tier: profile.accountLevel, tiers: 50, colour: accent },
+              96,
+              `<span class="d-rank-value">${count(profile.accountLevel)}</span>`
+            )}
             <span class="t-label">Account level</span>
           </div>
 
@@ -470,18 +502,32 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
     if (frameCanvas) paintFrame(frameCanvas, frame, factionId);
 
     /**
-     * The portrait itself, blitted from the shared painter's memoised plate.
+     * The portrait itself — the painter's own canvas, **mounted, not copied.**
      *
      * A 4:4 crop with the bias the painter already applies upward, because every
      * painting in the set puts the head in the top third and a centred cover
      * crop reliably decapitates it — which is the whole reason that option
      * exists.
+     *
+     * The mount is the load-bearing half and this used to be a `drawImage` into
+     * a canvas of our own. `paintLeaderPortrait` returns a canvas that is *alive*:
+     * card paintings decode asynchronously, so the first paint is the renderer's
+     * deliberate placeholder and the canvas re-paints itself once `onArtLoaded`
+     * fires for its card. Blitting it captured that first frame and threw the
+     * subscription away, so the profile showed the procedural stand-in forever.
+     *
+     * Measured on a seeded account whose most-played leader is `idols-dj-kilowatt`
+     * — a card with a painting sitting in `public/assets/art` — the avatar
+     * sampled a flat mean of 185 across the disc, which is the placeholder's
+     * hatching and not a face. Every other consumer in the game (the lobby, the
+     * queue, sign-in, the starter picker) appends the canvas; this was the only
+     * one that copied out of it, and it was the only one showing a placeholder.
      */
-    const faceCanvas = root.querySelector<HTMLCanvasElement>("#profile-face");
-    if (faceCanvas && face) {
-      const plate = paintLeaderPortrait(face, { width: 200, aspect: 1, bias: 0.16, scrim: 0.25 });
-      const ctx = faceCanvas.getContext("2d");
-      if (ctx) ctx.drawImage(plate, 0, 0, faceCanvas.width, faceCanvas.height);
+    const faceSlot = root.querySelector<HTMLElement>("#profile-face");
+    if (faceSlot && face) {
+      faceSlot.replaceChildren(
+        paintLeaderPortrait(face, { width: 200, aspect: 1, bias: 0.16, scrim: 0.25, className: "profile-face-art" })
+      );
     }
 
     const backCanvas = root.querySelector<HTMLCanvasElement>("#profile-back-canvas");

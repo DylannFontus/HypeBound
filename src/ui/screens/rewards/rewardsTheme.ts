@@ -170,7 +170,10 @@ const CSS = `
   border-radius: var(--r-chip);
   pointer-events: none;
   color: var(--coin-ink, var(--accent-bright));
-  background: radial-gradient(circle at 34% 30%, rgb(255 255 255 / 0.5), rgb(from var(--coin-ink, #b56cff) r g b / 0.25) 52%, transparent 72%);
+  /* See the note on the transparent keyword under §5 — the far stop repeats the
+     relative colour at zero alpha rather than naming transparent, or the falloff
+     is a hard-edged disc instead of a glow. */
+  background: radial-gradient(circle at 34% 30%, rgb(255 255 255 / 0.5), rgb(from var(--coin-ink, #b56cff) r g b / 0.25) 52%, rgb(from var(--coin-ink, #b56cff) r g b / 0) 72%);
   filter: drop-shadow(0 0 12px rgb(from var(--coin-ink, #b56cff) r g b / 0.7));
 }
 
@@ -353,6 +356,45 @@ const CSS = `
 }
 
 /* =========================================================================
+   3b. The specular band's own edges
+   =========================================================================
+   A defect in foundation.css, mitigated here because that file belongs to
+   module A and this domain cannot ship around it.
+
+   Every raised material carries a specular crawl on its ::after: a box 40% of
+   the plate's width, full height, painted with a 315-degree ramp that runs
+   transparent to white to transparent *along the diagonal*. On a chip that is
+   invisible. On a large panel it is not, and the reason is geometry: a diagonal
+   ramp inside a tall narrow box reaches its transparent ends at the box's top
+   and bottom corners, so a horizontal cut through the middle leaves the band at
+   roughly half alpha where its own left and right edges are. The result is two
+   hard vertical seams down every big surface in the game.
+
+   Measured on the shop's hero: a 1,090px panel with a full-height edge at x=115
+   and another at x=557, present in every frame and moving with the crawl.
+   Photographed, it reads as a rendering error rather than as light.
+
+   The fix costs nothing and keeps the effect: mask the band along its own
+   horizontal axis so its edges are as soft as its ends. Scoped to this domain's
+   five bodies and its overlay; the same three lines belong on the material
+   itself, which is module A's call to make.
+
+   The same applies to a relative colour ramping into the transparent keyword —
+   see the note on .rw-burst. Both are the same underlying lesson: a gradient's
+   *end* has to be transparent everywhere the shape ends, not only where the
+   gradient's axis happens to run out. */
+
+.rw-shop-body .mat-panel::after,
+.rw-banner-body .mat-panel::after,
+.rw-pass-body .mat-panel::after,
+.rw-missions-body .mat-panel::after,
+.rw-ach-body .mat-panel::after,
+.rw-open .mat-panel::after {
+  mask-image: linear-gradient(90deg, transparent 0%, #000 26%, #000 74%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 26%, #000 74%, transparent 100%);
+}
+
+/* =========================================================================
    4. The reward tile
    =========================================================================
    One component for every reward in the domain — pass tiers, check-in steps,
@@ -429,11 +471,17 @@ const CSS = `
   filter: saturate(0.18) brightness(0.82);
 }
 
-.rw-tile[data-state="claimed"]::after {
+/* Both state seals hang off the *art*, not off the tile.
+   A bare tile — the Hype Wave's, which has no caption — is wider than the plate
+   inside it, so a seal anchored to the tile floated free in the corner of the
+   cell: photographed across a lane, it read as a row of nine padlocks lying on
+   the panel rather than as nine locked objects. The seal belongs to the thing it
+   qualifies. Locked and claimed are mutually exclusive, so they share a corner,
+   which also keeps them clear of the quantity chip at bottom-right. */
+.rw-tile[data-state="claimed"] .rw-tile-art::after {
   content: "";
   position: absolute;
-  inset: auto 50% -2px auto;
-  translate: 50% 0;
+  inset: -6px auto auto -6px;
   width: 18px;
   height: 18px;
   border-radius: var(--r-chip);
@@ -445,7 +493,7 @@ const CSS = `
   filter: grayscale(0.7) brightness(0.82);
 }
 
-.rw-tile[data-state="locked"] .rw-tile-art::after {
+.rw-tile[data-state="locked"] .rw-tile-art::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -461,11 +509,17 @@ const CSS = `
    it is exactly what §5 is written to catch. The word survives for a screen
    reader on .rw-sr; what the eye gets is a mark on the thing itself, which is
    what Hearthstone's gold padlock plate and Xbox's greyed badge both do. */
-.rw-tile[data-state="locked"]::after {
+.rw-tile[data-state="locked"] .rw-tile-art::after {
   content: "";
   position: absolute;
-  inset: auto 50% -2px auto;
-  translate: 50% 0;
+  /* Top-left, not bottom-centre.
+     A bare tile — the Hype Wave's, which has no caption under it — is nothing
+     but the art plate, so a mark centred on its bottom edge sat squarely across
+     the drawing it was qualifying: photographed at 134px, a locked Clout tier
+     read as a coin with a padlock stamped through the middle of it and a "75"
+     hanging off the same corner. The quantity chip already owns bottom-right, so
+     the seal takes the opposite corner, which is also the lit one. */
+  inset: -6px auto auto -6px;
   width: 18px;
   height: 18px;
   border-radius: var(--r-chip);
@@ -547,11 +601,17 @@ const CSS = `
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(78% 62% at 50% 46%, rgb(from var(--rw-accent, #b56cff) r g b / 0.18) 0%, transparent 64%),
+    radial-gradient(78% 62% at 50% 46%, rgb(from var(--rw-accent, #b56cff) r g b / 0.18) 0%, rgb(from var(--rw-accent, #b56cff) r g b / 0) 64%),
     radial-gradient(120% 100% at 50% 120%, rgb(255 95 162 / 0.1) 0%, transparent 60%),
-    rgb(3 1 8 / 0.955);
-  backdrop-filter: blur(16px) saturate(0.7);
-  -webkit-backdrop-filter: blur(16px) saturate(0.7);
+    rgb(3 1 8 / 0.972);
+  /* 26px and half the saturation, not 16 and 0.7. Measured against the shop:
+     at the old values the panel headings behind the pack were still legible
+     enough to be read, which puts the screen the player has left in competition
+     with the cards they just opened. §2 asks for separation carried by blur and
+     desaturation; the overlay plane is the one place it can be spent freely,
+     because there is nothing behind it anybody needs. */
+  backdrop-filter: blur(26px) saturate(0.42) brightness(0.72);
+  -webkit-backdrop-filter: blur(26px) saturate(0.42) brightness(0.72);
 }
 
 /* Light behind the stage that grows as the pull gets better. Driven from JS by
@@ -561,7 +621,7 @@ const CSS = `
   inset: 0;
   pointer-events: none;
   opacity: var(--rw-glow, 0);
-  background: radial-gradient(58% 46% at 50% 48%, rgb(from var(--rw-accent, #b56cff) r g b / 0.5) 0%, transparent 68%);
+  background: radial-gradient(58% 46% at 50% 48%, rgb(from var(--rw-accent, #b56cff) r g b / 0.5) 0%, rgb(from var(--rw-accent, #b56cff) r g b / 0) 68%);
   transition: opacity 620ms var(--ease-arrive);
   mix-blend-mode: screen;
 }
@@ -601,9 +661,16 @@ const CSS = `
 
 /* --- the stage ---------------------------------------------------------- */
 
+/* Two rows, and the hint is the second of them rather than a thing floating on
+   the first. Absolutely positioned at the stage's bottom edge it sat *inside*
+   the card grid's own box: on a ten-pull the second row's "Converted" captions
+   land at exactly that height, so the middle card's caption and the words
+   "Click a card, or wait" occupied the same pixels for the two seconds between
+   the fifth flip and the tenth. A row cannot overlap a row. */
 .rw-stage {
   position: relative;
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   place-items: center;
   min-height: 0;
   height: 100%;
@@ -721,7 +788,10 @@ const CSS = `
   border-radius: 22%;
   opacity: 0;
   pointer-events: none;
-  background: radial-gradient(closest-side, rgb(from var(--rar-key, #b56cff) r g b / 0.62) 0%, transparent 74%);
+  /* A relative colour never fades into the transparent keyword — see the note
+     below on .rw-burst. The legendary's aura was a hard-edged disc because of
+     it, which is the one glow in the domain that had to be a glow. */
+  background: radial-gradient(closest-side, rgb(from var(--rar-key, #b56cff) r g b / 0.62) 0%, rgb(from var(--rar-key, #b56cff) r g b / 0) 74%);
   transition: opacity 520ms var(--ease-arrive);
 }
 
@@ -734,7 +804,23 @@ const CSS = `
   50%      { opacity: 1; transform: scale(1.05); }
 }
 
-/* The burst, one shot, on the frame the face turns. */
+/* The burst, one shot, on the frame the face turns.
+ *
+ * ## Never fade a relative colour into the transparent keyword
+ *
+ * Every glow in this sheet starts from a relative colour — rgb(from var(...) r g
+ * b / a) — because the hue is a rarity or a faction and is only known at
+ * runtime. Ending that ramp on the transparent keyword does not give a falloff:
+ * transparent is transparent *black*, the ramp darkens on its way out, and where
+ * it lands the eye reads a hard edge rather than a glow. Measured on the banner
+ * hero, where a 46%-wide accent wash drew a visible vertical seam straight down
+ * the middle of the panel; the same mistake was in six places in this sheet,
+ * including the legendary aura and this burst, which are the two effects the
+ * whole domain exists to deliver.
+ *
+ * The fix is to repeat the same relative colour at zero alpha. Both stops are
+ * then the same hue, only the alpha moves, and the falloff is smooth.
+ */
 .rw-burst {
   position: absolute;
   inset: -30%;
@@ -743,7 +829,7 @@ const CSS = `
   border-radius: 50%;
   opacity: 0;
   background:
-    radial-gradient(closest-side, rgb(255 255 255 / 0.9) 0%, rgb(from var(--rar-key, #b56cff) r g b / 0.55) 34%, transparent 70%);
+    radial-gradient(closest-side, rgb(255 255 255 / 0.9) 0%, rgb(from var(--rar-key, #b56cff) r g b / 0.55) 34%, rgb(from var(--rar-key, #b56cff) r g b / 0) 70%);
   animation: rw-burst 640ms var(--ease-arrive) both;
 }
 
@@ -809,6 +895,7 @@ const CSS = `
   display: flex;
   gap: 5px;
   white-space: nowrap;
+  max-width: 100%;
   opacity: 0;
   transition: opacity var(--dur-ui) var(--ease-arrive) 220ms;
 }
@@ -822,6 +909,12 @@ const CSS = `
   letter-spacing: 0.07em;
   text-transform: uppercase;
   --r-self: var(--r-chip);
+  /* A tag can never be wider than the card it belongs to, whatever it says: two
+     of them side by side that each overhang their slot meet in the middle and
+     become one illegible band. Truncation is the failure mode we want. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .reveal-new      { color: #0a0614; --mat-fill: linear-gradient(var(--light-sweep), #8ef0b4 0%, #35c97e 100%); }
@@ -934,11 +1027,9 @@ const CSS = `
 }
 
 .rw-pack-hint {
-  position: absolute;
+  position: relative;
   z-index: 4;
-  bottom: 0;
-  left: 50%;
-  translate: -50% 0;
+  padding-top: 6px;
   display: grid;
   justify-items: center;
   gap: 4px;
@@ -1232,6 +1323,46 @@ const CSS = `
 
 .rw-banner-scroll > * + * { margin-top: var(--sp-4); }
 
+.rw-banner-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+/* Two columns, and the reason is a measurement rather than a preference.
+   Stacked, the scroller held 952px of content in 570px of box at the shipped
+   1600x900 — so the "also spotlighted" row was permanently sliced in half by
+   the pull rail's top edge, which reads as a broken layout rather than as an
+   invitation to scroll, and the hero's right-hand third was empty while it
+   happened. Side by side, the six spotlights are the thing that fills that
+   third: one grid, nothing clipped, and the hero grows into the height the
+   taller column sets rather than being capped by what has to fit under it. */
+@media (min-width: 1100px) {
+  .rw-banner-scroll {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr);
+    gap: var(--sp-4);
+    /* stretch, not start: the pull rail is pinned to the bottom of the body, so
+       anything the columns do not use is a band of empty page between the
+       content and the furniture. Letting the row take the height puts the space
+       inside the panels, where it reads as air around an object rather than as
+       a gap somebody forgot to fill. */
+    align-content: stretch;
+  }
+  .rw-banner-scroll > * + * { margin-top: 0; }
+  /* Everything that is not the hero or the spotlight column — the itemised
+     pull, the four disclosure panels — is prose, and prose spans. */
+  .rw-banner-scroll > * { grid-column: 1 / -1; }
+  .rw-banner-scroll > .rw-hero { grid-column: 1; grid-row: 1; }
+  .rw-banner-scroll > .rw-spot-panel { grid-column: 2; grid-row: 1; }
+  /* Three across, always. auto-fit would give four narrow tiles at 1600 and two
+     at 1280, so the same screen would have two different rhythms. */
+  .rw-spot-panel .rw-spotlight { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+  .rw-spot-panel { align-content: start; }
+}
+
 /* The hero. In every gacha in the genre the featured unit is more than half the
    screen; here it was card one of seven in an equal-weight flex row, so the
    screen had nothing to look at first. */
@@ -1252,7 +1383,7 @@ const CSS = `
   inset: -10%;
   pointer-events: none;
   background:
-    radial-gradient(46% 120% at 20% 46%, rgb(from var(--rw-accent, #b56cff) r g b / 0.34) 0%, transparent 66%),
+    radial-gradient(56% 120% at 22% 46%, rgb(from var(--rw-accent, #b56cff) r g b / 0.34) 0%, rgb(from var(--rw-accent, #b56cff) r g b / 0) 72%),
     radial-gradient(70% 90% at 92% 8%, rgb(255 95 162 / 0.14) 0%, transparent 60%);
   animation: rw-hero-drift 11s var(--ease-sweep, ease-in-out) infinite;
 }
@@ -1336,6 +1467,49 @@ const CSS = `
 .rw-wish[aria-pressed="true"] { color: var(--accent-gold); --rim-a: 0.14; }
 .rw-wish[aria-pressed="true"] > .hb-icon { color: var(--accent-gold); }
 
+/* In the side column the wishlist toggle is a mark struck onto the card's own
+   corner rather than a labelled button under it. Two lines of chrome per tile
+   across six tiles is 90px of column height spent on a control the player uses
+   once, and the height is the whole reason the column exists. The word survives
+   as the button's accessible name, and the state is carried by the star's shape
+   — filled against outline — so it is not signalled by colour alone. */
+.rw-spot-panel .banner-card { padding: var(--sp-2) var(--sp-2) 7px; gap: 6px; }
+.rw-spot-panel .banner-card figcaption { gap: 1px; }
+.rw-spot-panel .banner-card figcaption > strong {
+  font-size: var(--fs-xs);
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+}
+.rw-spot-panel .banner-card figcaption > .rw-note { font-size: 0.62rem; line-height: 1.2; }
+
+.rw-spot-panel .rw-wish {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  justify-content: center;
+  --r-self: var(--r-chip);
+  border-radius: var(--r-chip);
+}
+
+.rw-spot-panel .rw-wish > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rw-spot-panel .rw-wish > .hb-icon { width: 14px; height: 14px; }
+
 /* The pull rail. Pinned, because the pull buttons — the entire point of the
    screen — used to begin 124px below the fold at the shipped viewport. */
 .rw-pullrail {
@@ -1358,7 +1532,19 @@ const CSS = `
     0 -1px 0 rgb(255 255 255 / 0.06);
 }
 
+.rw-pull-side { display: grid; justify-items: end; gap: 7px; }
 .rw-pull-actions { display: flex; align-items: stretch; gap: var(--sp-3); }
+
+.rw-pull-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--fs-xs);
+  text-align: right;
+}
+
+.rw-pull-note > .hb-icon { flex: none; color: var(--accent-gold); }
 
 .rw-pull1 {
   min-height: 48px;
@@ -1398,6 +1584,12 @@ const CSS = `
   max-width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
+  /* The well's own fill is tuned to sit inside a panel; on the pull rail, which
+     is already a raised panel, it disappeared and the four labels read as loose
+     text floating on the furniture. A control the player is meant to press has
+     to look like a control at rest, not only when one of its segments is on. */
+  background-color: rgb(0 0 0 / 0.34);
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.6), inset 0 -1px 0 rgb(255 255 255 / 0.06);
 }
 
 .rw-seg > button {
@@ -1633,14 +1825,48 @@ const CSS = `
 
 .pass-node[data-milestone="1"] > .num { color: var(--accent-gold); }
 
+/* The tier being worked on. Ring, glow and a slow breathe — opacity on a
+   pseudo-element the compositor already owns, never a shadow transition, and
+   there is exactly one of these on the track so the cost is one layer. */
+.pass-row[data-next="1"] .pass-node {
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(196 148 255 / 0.98) 0%, rgb(104 48 184 / 0.98) 100%);
+  --rim-a: 0.36;
+  scale: 1.08;
+}
+
+.pass-row[data-next="1"] .pass-node > .num { color: #fff; }
+
+/* An outline rather than a pseudo-element, and this is not a stylistic
+   preference: .mat-chip's specular band *is* its ::after, so a ring drawn there
+   deletes the material's own highlight and inherits the band's width and
+   translate — photographed, it came out as a pale crescent hanging off the left
+   of the medallion. Outline follows border-radius in Chromium and is free. */
+.pass-row[data-next="1"] .pass-node {
+  outline: 2px solid rgb(217 165 255 / 0.72);
+  outline-offset: 4px;
+  box-shadow: 0 0 22px rgb(181 108 255 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.36);
+}
+
+/* The plates either side of it lift out of the uniform grey with it, so the
+   focal point is a tier rather than a bead on a wire. */
+.pass-row[data-next="1"] .pass-cell:not(.locked) {
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(74 50 128 / 0.95) 0%, rgb(28 16 56 / 0.96) 100%);
+  --rim-a: 0.18;
+}
+
 .pass-cell {
   position: relative;
   display: grid;
   gap: 5px;
   justify-items: center;
   justify-content: center;
-  align-items: start;
-  align-content: start;
+  align-items: center;
+  /* Centred, not pushed away from the rail. The lane is a fixed 9.2em because
+     the rail line is drawn at exactly 50% of the row; content pinned to the far
+     edge of it left forty pixels of bare plate against the medallions on both
+     sides, so twenty tiers across a viewport read as a row of mostly-empty
+     boxes. A centred object in a plate reads as a plate holding an object. */
+  align-content: center;
   width: 100%;
   padding: var(--sp-2) 6px;
   --r-self: var(--r-tile);
@@ -1649,8 +1875,6 @@ const CSS = `
   min-height: 0;
   overflow: hidden;
 }
-
-.pass-cell[data-lane="backstage"] { align-content: end; }
 
 .pass-cell.claimable {
   --mat-fill: linear-gradient(var(--light-sweep), rgb(120 74 196 / 0.9) 0%, rgb(56 26 100 / 0.95) 100%);
@@ -1693,7 +1917,7 @@ const CSS = `
    full size the second one's caption was clipped by the cell's own overflow. So
    a two-reward cell draws smaller: the constraint is the rail, and the rail is
    worth more than forty pixels of plate. */
-.pass-cell:not([data-rewards="1"]) .rw-tile-art { width: 1.85em; height: 1.85em; }
+.pass-cell:not([data-rewards="1"]) .rw-tile-art { width: 2.4em; height: 2.4em; }
 .pass-cell:not([data-rewards="1"]) .rw-tile { padding: 2px; }
 .pass-cell:not([data-rewards="1"]) .pass-reward {
   -webkit-line-clamp: 1;
@@ -1863,10 +2087,17 @@ const CSS = `
   list-style: none;
 }
 
+/* Flex column, not grid, and the reason is one line further down: the actions
+   row carries an auto top margin so it sits on the card's bottom edge whatever
+   is above it. In a grid with align-content: start that margin does nothing —
+   the rows pack at the top and the auto margin has no free space to eat — so a
+   two-objective weekly pushed its Reroll button forty pixels below the buttons
+   either side of it, in a row of cards the grid had already stretched to equal
+   height. In a flex column the same declaration works. */
 .mission {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--sp-2);
-  align-content: start;
   padding: var(--sp-4);
   --r-self: var(--r-tile);
   border-radius: var(--r-tile);
@@ -2027,7 +2258,16 @@ const CSS = `
 .ach-text { margin: 0; font-size: var(--fs-sm); line-height: 1.4; }
 .ach-progress { display: flex; justify-content: space-between; font-size: var(--fs-xs); }
 .ach-deferred { margin: 0; font-size: var(--fs-sm); color: var(--warning); }
-.ach-action { position: relative; display: grid; justify-items: end; gap: 5px; }
+/* The payout stacked over the state, centred against the row rather than pinned
+   to its top: reward, then whether you can have it, read top to bottom in one
+   column. */
+.ach-action {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 7px;
+}
 /* A locked row's action cell holds nothing but a screen-reader word, and an
    empty track still costs a gap. */
 .ach-action:empty, .ach-row:not(.unlocked):not(.claimed) .ach-action { gap: 0; }
@@ -2213,11 +2453,13 @@ const CSS = `
   border: 0;
   box-shadow: none;
   background: none;
-  /* The recon asked for 380–420px against a 150px original. The ceiling is the
-     hero panel's share of a scroller that also has to show the spotlight row
-     without the player scrolling for it, so this is 34vh — 306px at 900, 388px
-     at 1080 — rather than a flat 400 that would eat the fold on a laptop. */
-  width: clamp(200px, 34vh, 380px);
+  /* The recon asked for 380–420px against a 150px original. The ceiling used to
+     be the hero panel's share of a scroller that had to show the spotlight row
+     underneath it; now the spotlights are the column beside it, and the height
+     the hero may spend is whatever that column sets. 39vh is 351px at 900 and
+     444px at 1080, and the clamp's floor is what keeps a phone in landscape from
+     handing the card the whole viewport. */
+  width: clamp(200px, 43vh, 420px);
 }
 
 .rw-hero .banner-card-art { width: 100%; }
@@ -2274,6 +2516,18 @@ const CSS = `
 }
 
 @media (max-height: 460px) {
+  /* A phone in landscape has 390px of height and the banner was spending 194 of
+     it on furniture before the hero drew a pixel: header, a wrapped tab row, and
+     a pull rail carrying four stacked things. What survives is what the screen
+     is for — the meter, the price and the two buttons — and the sentence under
+     the bar goes, because the tabular "0 / 50" directly above it says the same
+     thing in three characters. */
+  .rw-banner-topbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  #banner-meter-label { display: none; }
+  .rw-pullrail { padding: 8px 12px; gap: var(--sp-3); }
+  .rw-pull-note { display: none; }
+  .rw-hero { padding: var(--sp-3); }
+  .rw-hero .banner-card { width: min(46vh, 156px); }
   .rw-open { grid-template-rows: auto 1fr auto; gap: 6px; padding: 8px 12px; }
   .rw-open-head .t-display { font-size: var(--fs-md); }
   .rw-pack { width: min(38vh, 150px); }

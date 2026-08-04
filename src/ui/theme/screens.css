@@ -5745,18 +5745,60 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     linear-gradient(0deg, rgb(5 2 12 / 0.24) 0%, transparent 20%);
 }
 
-/* Where the room's floor is. One fading line, the §7 primitive, doing the job a
-   whole perspective grid does on the queue: it tells the eye the lower third is
-   ground rather than the end of the picture. */
+/**
+ * Where the room's floor is — and it is below the writing now, not behind it.
+ *
+ * This line was at 74%. The disclosure bar runs to 78% of a 900px frame and to
+ * 81% of a 720px one, so the one mark on the screen whose whole job is to say
+ * "the lower band is ground" was drawn underneath a panel at every supported
+ * size. Moved to 84% it is in the open, and the plane below now belongs to it.
+ */
 .signin-vignette::after {
   content: "";
   position: absolute;
   left: 8%;
   right: 4%;
-  top: 74%;
+  top: 84%;
   height: 1px;
   background: linear-gradient(90deg, transparent, rgb(217 165 255 / 0.34) 26%, rgb(126 214 255 / 0.26) 68%, transparent);
   filter: blur(1px);
+}
+
+/**
+ * ...and the ground itself, receding, because a wash is not a floor.
+ *
+ * The bottom sixth of this screen measured **78% dark-and-flat** — not black,
+ * and that is the point: it is a smooth purple pool, which satisfies a mean and
+ * fails a standard deviation, and the eye reads it the same way the arithmetic
+ * does. Nothing down there has an edge, so there is nothing down there.
+ *
+ * The queue solves the identical problem with a repeating gradient laid flat by
+ * `rotateX`, and using the same construction here is the cheap half of §3a's
+ * "the space behind the UI is continuous": the room a player signs in to reach
+ * has the same floor as the room they wait in. Fainter than the queue's and
+ * shallower — this screen's subject is a form, not a figure standing on the
+ * ground — and masked to nothing at both ends so the plane has no edges.
+ *
+ * `perspective()` inside the transform rather than on the host, because the host
+ * is a full-screen layer and its vanishing point would then be the top of the
+ * viewport instead of the horizon this plane starts at.
+ */
+.signin-vignette::before {
+  content: "";
+  position: absolute;
+  left: -34%;
+  right: -34%;
+  top: 84%;
+  height: max(300px, 38vh);
+  pointer-events: none;
+  transform: perspective(400px) rotateX(74deg);
+  transform-origin: 50% 0%;
+  background:
+    repeating-linear-gradient(90deg, rgb(206 168 255 / 0.15) 0 1px, transparent 1px 60px),
+    repeating-linear-gradient(0deg, rgb(206 168 255 / 0.11) 0 1px, transparent 1px 60px),
+    linear-gradient(180deg, rgb(62 40 112 / 0.42) 0%, rgb(44 27 82 / 0.34) 56%, rgb(16 9 34 / 0.16) 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 64%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 64%, transparent 100%);
 }
 
 /**
@@ -5837,6 +5879,32 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 :root[data-reduced-motion="true"] .signin-note,
 :root[data-reduced-motion="true"] .queue-call,
 :root[data-reduced-motion="true"] .queue-note { animation: none; }
+
+/**
+ * The travelling highlight has two straight sides, and on a big quiet plate you
+ * can see both of them.
+ *
+ * Module A's specular band is a 40%-wide box that slides across a material, with
+ * its gradient running along the rig at 135°. That gradient is transparent at the
+ * *corners* of the box and opaque across its middle — which means the alpha
+ * along the band's own left and right edges is not zero. Measured on the queue's
+ * call board at 1600×900: a one-pixel step of 4.6 luma at x=1314, standing in a
+ * field whose natural slope is 0.15 per pixel, running most of the height of the
+ * plate. It is a vertical line drawn on a surface where the only straight lines
+ * are supposed to be the plate's own edges, and it is the tell §1 is about —
+ * light with a boundary is not light, it is a shape.
+ *
+ * Feathering the band's ends costs nothing: it is a mask on a layer that is
+ * already composited on its own, so this is the same paint with a soft edge. It
+ * is scoped to the two front-door rooms rather than written over module A's
+ * rule, because the band belongs to the foundation and the fix belongs there
+ * too — this is the measurement, applied where it was taken.
+ */
+.signin-screen :is(.mat-hero, .mat-panel, .mat-chip)::after,
+.queue-screen :is(.mat-hero, .mat-panel, .mat-chip)::after {
+  mask-image: linear-gradient(90deg, transparent 0%, #000 30%, #000 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 30%, #000 70%, transparent 100%);
+}
 
 /**
  * The bar, over a room somebody is standing in.
@@ -6897,11 +6965,41 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
      own weather. */
   background: linear-gradient(
     var(--light-sweep),
-    color-mix(in srgb, var(--accent-bright) 36%, transparent) 0%,
-    transparent 38%
+    transparent 6%,
+    color-mix(in srgb, var(--accent-bright) 58%, transparent) 30%,
+    transparent 62%
   );
-  mask-image: linear-gradient(180deg, transparent 0%, #000 24%, #000 80%, transparent 92%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 24%, #000 80%, transparent 92%);
+  /**
+   * Cut to the figure, not to her bounding box, and this is the last straight
+   * line on the screen.
+   *
+   * The painter feathers the plate on all four sides and cuts it to a
+   * superellipse, and then this layer — a lamp — was laid over the same box as a
+   * *rectangle*, masked only top and bottom. Its gradient is brightest in the
+   * top-left corner, so at the peak of the sweep the plinth's left and top edges
+   * appeared as two hard lines meeting at a corner: measured at 1600×900, an
+   * abrupt lift beginning at x=311, y=180 — exactly `.queue-plinth`'s own box —
+   * with the floor grid visibly changing value where it crossed. That is the
+   * "poster somebody left there" the file's own comment says it fixed, drawn a
+   * second time in light instead of in paint, and it was the brightest thing on
+   * the screen every four seconds.
+   *
+   * The same superellipse the sharp copy wears, so the rim can only land where
+   * there is a person. What survives is a diagonal band across her upper half —
+   * light on a shoulder and a jaw, which is where a lamp at 315° would actually
+   * catch her — and the band is moved off the 0% stop to pay for the corner the
+   * mask takes away.
+   *
+   * The radii are *inscribed*, and that is not a detail. An ellipse wider than
+   * its box is cut by the box, and a cut through a gradient at 55% alpha is the
+   * same hard line one rank quieter: the first attempt at this used `54% 66%`
+   * and moved the razor from the left edge of the plinth to its top edge, 15.3
+   * luma in one pixel at y=180. `48% 46% at 48% 46%` puts the ramp's far end
+   * exactly on the nearest two edges and past the other two, so the mask reaches
+   * zero before the element does on all four sides.
+   */
+  mask-image: radial-gradient(48% 46% at 48% 46%, #000 30%, rgb(0 0 0 / 0.55) 72%, transparent 100%);
+  -webkit-mask-image: radial-gradient(48% 46% at 48% 46%, #000 30%, rgb(0 0 0 / 0.55) 72%, transparent 100%);
   opacity: 0;
   animation: queue-lit var(--queue-period) var(--ease-in-out) infinite;
 }
@@ -7089,6 +7187,21 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 }
 
 :root[data-reduced-motion="true"] .queue-call-rail::after { animation: none; }
+
+/**
+ * ...and it stops when the socket does, for the reason the pip stops.
+ *
+ * A light running along the head of the board says "something is still looking".
+ * After `onClosed` nothing is: the beam on the floor already halts and the pip
+ * already goes red, and a marquee still chasing above a board that reads
+ * "Disconnected from the queue" is the one component on the screen contradicting
+ * the sentence printed under it. The lamps stay lit — the room does not go out —
+ * but nothing travels along them.
+ */
+.queue-world[data-state="stopped"] ~ .queue-body .queue-call-rail::after {
+  animation: none;
+  opacity: 0;
+}
 
 .queue-readout {
   display: flex;

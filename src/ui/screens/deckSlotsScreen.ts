@@ -39,9 +39,21 @@ export interface DeckSlotsCallbacks {
   onNew: () => void;
 }
 
-/** The cover banner's box. 3:2 rather than a card's 3:4 — it is a spine, not a card. */
-const COVER_W = 112;
-const COVER_H = 166;
+/**
+ * The cover art's raster size.
+ *
+ * It was a 112×166 portrait strip down the left of the tile, which is the right
+ * idea at a tenth of the scale it needed: with one deck saved, the screen was
+ * eleven grey sockets and one small picture, and squinting at it resolved into
+ * twelve equal rectangles. Hearthstone's deck manager is a shelf of *painted
+ * spines* and the paint is the whole reason the shelf reads. So the art is now
+ * the tile — full-bleed behind the text, cropped to the right so the face
+ * clears the copy — and the sockets recede because there is something in front
+ * of them to recede behind. Rastered once at this size and `object-fit: cover`
+ * from there, since the tile's own width moves with the grid.
+ */
+const COVER_W = 440;
+const COVER_H = 240;
 
 export function createDeckSlotsScreen(content: ContentIndex, callbacks: DeckSlotsCallbacks): Screen {
   installKitStyles();
@@ -160,12 +172,24 @@ export function createDeckSlotsScreen(content: ContentIndex, callbacks: DeckSlot
      * read, so the one thing a deck spine has to do — be recognisable at a
      * glance — is the one thing it could not. A portrait crop is the same pixels
      * with the unreadable 80% removed.
+     *
+     * The bias to the right of the frame — where the copy is not — is done by
+     * the stylesheet's `object-position` rather than here, because the tile is
+     * cropped twice: once into this fixed raster and once again into whatever
+     * width the rack has given it. Two shifts in the same direction compound and
+     * walk the character out of frame; one shift, applied at the end, does not.
      */
     const art = document.createElement("div");
     art.className = "deck-slot-cover";
-    if (cover) art.appendChild(portraitCanvas(cover, COVER_W, COVER_H));
-    art.insertAdjacentHTML("beforeend", `<span class="deck-slot-index num">Slot ${index + 1}</span>`);
+    if (cover) {
+      const canvas = portraitCanvas(cover, COVER_W, COVER_H, { focusY: 0.02, scrim: false });
+      // the raster size is fixed; the box is not, so CSS does the fitting
+      canvas.style.width = "";
+      canvas.style.height = "";
+      art.appendChild(canvas);
+    }
     card.appendChild(art);
+    card.insertAdjacentHTML("beforeend", `<span class="deck-slot-index num">Slot ${index + 1}</span>`);
 
     const meta = document.createElement("div");
     meta.className = "deck-slot-meta";

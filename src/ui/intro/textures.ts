@@ -958,12 +958,50 @@ export function cityTexture(spec: CitySpec): CityBand | null {
  * character, and there are no characters in this sequence — the moment a shape
  * in a title card starts to look like a specific person, the eye tries to read
  * a face and finds a smudge.
+ *
+ * ## What "a floor rather than a hole" turned out to cost
+ *
+ * The first version was heads and a 7.5% rim and nothing else, on the argument
+ * that a rim too faint to see as a highlight is still enough to stop the band
+ * reading as a hole cut in the picture. Measured, it was not. Sampling the
+ * settled title frame in eighteen horizontal bands put the bottom one at a mean
+ * luminance of **7.6/255 with a peak of 51** — against 108 across the wordmark
+ * and 90 across the wet street. That is not a dark foreground, it is the absence
+ * of one: a tenth of the composition doing no work at all, in the frame the
+ * whole sequence exists to arrive at.
+ *
+ * What fixed it is not more exposure on the silhouettes, which would only have
+ * made them grey. It is that **a crowd at night is lit by the phones in it**.
+ * Sixteen small screens held up over the heads put real highlights in the
+ * darkest plane — bright pixels, tiny area, so the band gains contrast without
+ * gaining value — and they are the one detail that makes a row of blurred domes
+ * read as an audience rather than as terrain. A handful of raised arms breaks
+ * the dome line for the same reason. Both are the *nightlife* premise the rest
+ * of the set is already about, and neither is a character: a phone at nine
+ * pixels through a four-pixel blur is a light, not a person.
  */
 export function crowdTexture(): THREE.Texture {
   const w = 1024;
   const h = 200;
   const ctx = canvas(w, h);
-  if (!ctx) return textureOf(null);
+  /**
+   * Two working layers, and the reason is a measurement.
+   *
+   * The silhouettes used to be drawn straight into the output with
+   * `ctx.filter = "blur(9px)"` standing, which means Chrome runs a separate
+   * Gaussian for every primitive: at a hundred and seventy-eight heads that is
+   * three hundred and fifty-six blurs, and the intro's build frame went from
+   * 347ms to 547ms when the rank counts went up. One blur of a finished layer is
+   * the same picture for a fiftieth of the work.
+   *
+   * It is also the *better* picture. Blurring each ellipse separately softens
+   * every shape against its own neighbours, so overlapping heads keep visible
+   * internal edges where a lens would have dissolved them into one mass. A lens
+   * defocuses the assembled image, and so does this.
+   */
+  const mass = canvas(w, h);
+  const lights = canvas(w, h);
+  if (!ctx || !mass || !lights) return textureOf(null);
 
   let state = 0x51ed;
   const rand = (): number => {
@@ -972,7 +1010,34 @@ export function crowdTexture(): THREE.Texture {
   };
 
   const supportsFilter = typeof ctx.filter === "string";
-  if (supportsFilter) ctx.filter = "blur(9px)";
+
+  /**
+   * Everything below is drawn squashed, because everything above it is stretched.
+   *
+   * `stage.ts` puts this texture on a quad `view.w * 1.15` wide and
+   * `view.h * 0.145` tall. At 16:9 that is 1840 × 130 screen pixels for a
+   * 1024 × 200 canvas — so a texel is **2.75 times wider than it is tall** by the
+   * time anybody looks at it. Authoring in texture space therefore draws a circle
+   * and displays an ellipse nearly three times as wide, and that single fact
+   * accounted for every complaint about the first two versions of this band: the
+   * heads read as rolling hills rather than people, the shoulders were four head-
+   * widths across, and the held phones — carefully drawn portrait, 8 × 14 — came
+   * out as *landscape* bars, which is a windowsill, not a phone.
+   *
+   * So the whole thing is drawn through one horizontal squash and authored in a
+   * space where a circle stays a circle on screen. `x` still spans the full band,
+   * because the virtual width is scaled to match. Nothing else in this function
+   * has to think about it again.
+   *
+   * The blur is applied to the finished layers in device pixels, so it stays
+   * isotropic in the canvas and comes out softer horizontally than vertically
+   * once stretched — which is what a wide-aperture lens does to a foreground
+   * anyway.
+   */
+  const SQUASH = 2.75;
+  const vw = w * SQUASH;
+  mass.setTransform(1 / SQUASH, 0, 0, 1, 0, 0);
+  lights.setTransform(1 / SQUASH, 0, 0, 1, 0, 0);
 
   /**
    * Three ranks at three sizes, back to front, and the near rank is nearly the
@@ -984,47 +1049,106 @@ export function crowdTexture(): THREE.Texture {
    * behind, a few very large near ones breaking the top line, and the ranks
    * overlapping enough that no single silhouette is separable. The randomness
    * that matters is in the size, not in the spacing.
+   *
+   * The counts went up with the squash and not because anybody wanted more
+   * people: heads that are no longer stretched sideways cover a third of the
+   * width they used to, so the same nine near-rank silhouettes left gaps you
+   * could see the floor through.
    */
-  ctx.fillStyle = "#000000";
+  mass.fillStyle = "#000000";
   const heads: Array<{ x: number; y: number; r: number; near: boolean }> = [];
+  /*
+   * The bases are where they are because only the top ~60% of this band is on
+   * screen. The quad is anchored to the bottom edge of the frame and hangs a
+   * little past it, so a rank sitting at 0.74 of the texture lands at screen
+   * y=876 out of 900 — its heads clipped, its shoulders gone, and the only thing
+   * left in the picture a flat black line. Everything is pulled up until the
+   * near rank's crowns break the silhouette at about y=846, which is where the
+   * edge of the mass wants to be against a wet street at y=630.
+   */
   const ranks = [
-    { count: 34, base: 0.5, size: 0.1, spread: 0.1 },
-    { count: 20, base: 0.62, size: 0.16, spread: 0.12 },
-    { count: 9, base: 0.78, size: 0.26, spread: 0.16 },
+    { count: 90, base: 0.44, size: 0.03, spread: 0.06 },
+    { count: 58, base: 0.53, size: 0.05, spread: 0.08 },
+    { count: 30, base: 0.63, size: 0.085, spread: 0.11 },
   ];
   for (const [rankIndex, rank] of ranks.entries()) {
     for (let i = 0; i < rank.count; i++) {
-      const cx = (i + rand() * 1.4 - 0.2) * (w / rank.count);
+      const cx = (i + rand() * 1.4 - 0.2) * (vw / rank.count);
       const r = h * rank.size * (0.7 + rand() * 0.7);
       const cy = h * (rank.base + (rand() - 0.5) * rank.spread);
       heads.push({ x: cx, y: cy, r, near: rankIndex === 2 });
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, r * 0.82, r, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(cx, cy + r * 1.9, r * 2.4, r * 1.8, 0, 0, Math.PI * 2);
-      ctx.fill();
+      mass.beginPath();
+      mass.ellipse(cx, cy, r * 0.82, r, 0, 0, Math.PI * 2);
+      mass.fill();
+      mass.beginPath();
+      mass.ellipse(cx, cy + r * 1.9, r * 1.35, r * 1.7, 0, 0, Math.PI * 2);
+      mass.fill();
     }
   }
-  ctx.fillRect(0, h * 0.8, w, h * 0.2);
+  mass.fillRect(0, h * 0.8, vw, h * 0.2);
+
+  /**
+   * Raised arms, cut from the same black as the heads.
+   *
+   * The top line of a crowd is the only part of it the eye reads, and a hundred
+   * and seventy ellipses give it a hundred and seventy domes — a very regular
+   * edge, which is the shape of a hedge rather than of people. An arm is a
+   * silhouette that goes *up*, and a handful of them is the difference between a
+   * mass and a mass that is doing something. Drawn from near-rank heads only, so
+   * they read as the front row.
+   */
+  const near = heads.filter((head) => head.near);
+  for (let i = 0; i < near.length; i += 4) {
+    const from = near[i];
+    if (!from) continue;
+    const lean = (rand() - 0.5) * 0.5;
+    const reach = from.r * (1.5 + rand() * 1.1);
+    const wrist = from.r * 0.2;
+    mass.beginPath();
+    mass.moveTo(from.x - from.r * 0.5, from.y);
+    mass.quadraticCurveTo(
+      from.x - from.r * 0.2 + lean * reach * 0.5,
+      from.y - reach * 0.6,
+      from.x + lean * reach - wrist,
+      from.y - reach
+    );
+    mass.lineTo(from.x + lean * reach + wrist, from.y - reach);
+    mass.quadraticCurveTo(
+      from.x + from.r * 0.5 + lean * reach * 0.5,
+      from.y - reach * 0.55,
+      from.x + from.r * 0.6,
+      from.y
+    );
+    mass.closePath();
+    mass.fill();
+  }
 
   /**
    * The rim, and why it is only on the near rank and only at the top-left.
    *
    * 315°, like everything else in this game: the rig is above and to the left,
    * so the light that gets past a person catches the same side of every skull in
-   * the room. It is on the near rank alone because a rim on all sixty-three
-   * heads is a row of glowing beads — the light has to fall off with distance or
-   * it is not light, it is an outline. At six percent it is not visible as a
-   * highlight at all; what it does is stop the band reading as a hole cut in the
-   * picture.
+   * the room. The near rank gets four times what the two behind it get, because
+   * the light has to fall off with distance or it is not light, it is an outline
+   * — and a rim at equal strength on all a hundred and seventy heads is a row of
+   * glowing beads.
+   *
+   * The near value was 7.5% and is now 22%, because 7.5% measured as nothing: the
+   * whole point of a rim is to separate a silhouette from what is behind it, and
+   * one that cannot be found by a pixel sampler is not doing that. 22% on a black
+   * shape over a dark room is still a long way from a highlight — the head stays
+   * a hole with an edge on it, which is what a person between you and a light
+   * looks like.
+   *
+   * The rims are gradients rather than blurred shapes, so they need no filter of
+   * their own — a radial ramp is already smooth. They go on the light layer with
+   * the phones and take that layer's short blur, which softens them a shade and
+   * costs nothing.
    */
-  if (supportsFilter) ctx.filter = "blur(6px)";
-  ctx.globalCompositeOperation = "lighter";
   const cool = CURRENT_PALETTE["tide"].key;
   for (const head of heads) {
-    if (!head.near) continue;
-    const rim = ctx.createRadialGradient(
+    const strength = head.near ? 0.22 : 0.055;
+    const rim = lights.createRadialGradient(
       head.x + LIGHT_RIG.screen.x * head.r * 0.7,
       head.y + LIGHT_RIG.screen.y * head.r * 0.7,
       head.r * 0.15,
@@ -1032,13 +1156,78 @@ export function crowdTexture(): THREE.Texture {
       head.y + LIGHT_RIG.screen.y * head.r * 0.7,
       head.r * 1.05
     );
-    rim.addColorStop(0, hexToRgba(cool, 0.075));
+    rim.addColorStop(0, hexToRgba(cool, strength));
     rim.addColorStop(1, hexToRgba(cool, 0));
-    ctx.fillStyle = rim;
-    ctx.beginPath();
-    ctx.ellipse(head.x, head.y, head.r * 1.05, head.r * 1.15, 0, 0, Math.PI * 2);
-    ctx.fill();
+    lights.fillStyle = rim;
+    lights.beginPath();
+    lights.ellipse(head.x, head.y, head.r * 1.05, head.r * 1.15, 0, 0, Math.PI * 2);
+    lights.fill();
   }
+
+  /**
+   * Twenty-two phones, held up.
+   *
+   * Each is two draws: a hard little rectangle for the screen and a wide, weak
+   * radial for the light it throws. The rectangle is what makes it a phone —
+   * through the blur it survives as a bright vertical chip, and a chip is
+   * unmistakably a held object where a soft dot is only a bokeh. The radial is
+   * what makes it a *light*, and it is deliberately three times the size of the
+   * screen and a tenth of its strength, because that is the ratio a small
+   * emitter has in fog.
+   *
+   * Placed above the head line rather than among it — an arm's length up, in the
+   * top third of the band — so they are read as belonging to the crowd without
+   * being read as faces in it. Mostly tide, some halo, the odd pulse: the game's
+   * own Currents, so even the furthest detail in the darkest plane is in the
+   * palette every card is drawn from.
+   */
+  const screens = [CURRENT_PALETTE["tide"].hi, CURRENT_PALETTE["halo"].key, CURRENT_PALETTE["pulse"].hi];
+  for (let i = 0; i < 22; i++) {
+    const roll = rand();
+    const tint = screens[roll > 0.86 ? 2 : roll > 0.68 ? 1 : 0]!;
+    /*
+     * A slot each, jittered by most of a slot. Twenty-two evenly spaced lights
+     * is a string of fairy lights; the jitter is what lets two of them end up
+     * next to each other and leave a gap somewhere else, which is what a crowd
+     * does. It cannot exceed a slot, or they cross and the density stops being
+     * even at the scale that matters.
+     */
+    const x = (i + 0.5 + (rand() - 0.5) * 1.7) * (vw / 22);
+    const y = h * (0.2 + rand() * 0.19);
+    const pw = 10 + rand() * 5;
+    const ph = pw * (1.6 + rand() * 0.4);
+    const bright = 0.5 + rand() * 0.45;
+
+    const bloom = lights.createRadialGradient(x, y, 0, x, y, ph * 3.4);
+    bloom.addColorStop(0, hexToRgba(tint, 0.1 * bright));
+    bloom.addColorStop(1, hexToRgba(tint, 0));
+    lights.fillStyle = bloom;
+    lights.beginPath();
+    lights.arc(x, y, ph * 3.4, 0, Math.PI * 2);
+    lights.fill();
+
+    lights.fillStyle = hexToRgba(tint, bright);
+    lights.fillRect(x - pw / 2, y - ph / 2, pw, ph);
+  }
+
+  /**
+   * Assemble: the mass defocused hard, the lights defocused a little, added.
+   *
+   * Two filter operations for the whole band. The lights go on with `lighter`
+   * because a phone screen and the halo around it are emitters — they add to
+   * whatever is behind them rather than replacing it, which is what keeps a rim
+   * reading as light *getting past* a head instead of as paint on one.
+   *
+   * The lights get a much shorter blur than the mass. They are nearer the lens
+   * than nothing — they are held by the people in the mass — but a light source
+   * survives defocus as a bright core with a soft skirt, and blurring it as hard
+   * as the silhouettes would flatten twenty-two phones into one grey wash.
+   */
+  if (supportsFilter) ctx.filter = "blur(9px)";
+  ctx.drawImage(mass.canvas, 0, 0);
+  if (supportsFilter) ctx.filter = "blur(2.5px)";
+  ctx.globalCompositeOperation = "lighter";
+  ctx.drawImage(lights.canvas, 0, 0);
   ctx.globalCompositeOperation = "source-over";
   ctx.filter = "none";
 

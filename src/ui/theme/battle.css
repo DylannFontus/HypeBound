@@ -273,7 +273,9 @@
   --r-self: var(--r-panel, var(--radius));
   cursor: pointer;
   transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast) var(--ease-out);
-  max-width: 340px;
+  /* 340px at the default size — see the rail width note above for why a cap on
+     something made of text is written in rem. */
+  max-width: min(21.25rem, 34vw);
 }
 /* A leftover from when both plates were centre-anchored: `translateX(-50%)` on
    hover threw the plate half its own width to the left. Neither is centred any
@@ -342,12 +344,23 @@
  * A shared width turns the stack into one column with a silhouette. Guarded to
  * viewports tall enough to stack, because the short layout lays the rival's rail
  * on its side and the plate has to be free to be as wide as its name there.
+ *
+ * ## Why it is a rem and not the 214px it was
+ *
+ * A column width in device pixels is only correct at one text size, and this one
+ * holds two things that are made of text. Measured at `--ui-scale: 1.4` with the
+ * rail pinned at 214px: "DJ Last Call" needed 125px inside a 118px box and lost
+ * its last glyph, and the leader ability's own description needed 417px inside
+ * the same 166px and printed "Deal 2 damage to a charact…" — a control whose
+ * entire job is to say what it does, saying a third of it. 13.375rem is the same
+ * 214px at the default size and grows with the type; the `vw` term is what stops
+ * a 1280-wide window handing a fifth of itself to the rail.
  */
 @media (min-height: 521px) {
   .hud-corner > .leader-plate,
   .hud-corner > .obsession-dial,
   .hud-corner > .ability-bar {
-    width: var(--rail-w, 214px);
+    width: var(--rail-w, min(13.375rem, 20vw));
     box-sizing: border-box;
   }
 }
@@ -792,13 +805,35 @@
   width: 26px; height: 26px;
   transform: rotate(-90deg);
   opacity: 0.9;
+  /* The same cut as the letters below. */
+  filter: drop-shadow(1px 1px 0 rgba(255, 255, 255, 0.34));
 }
 .end-turn-icon svg { width: 100%; height: 100%; display: block; }
+/*
+ * The label is CUT INTO the plate, not printed on it.
+ *
+ * At 3x the disc's whole tell was here: dark letterforms sitting perfectly flat
+ * on a lit surface, the one object on a screen where every other edge has a rim
+ * and a lip. Engraving costs one shadow and it is the shadow's *direction* that
+ * does the work — the key light is at 315°, so the wall of the groove that
+ * catches it is the far one, down and to the right of each stroke. Offsetting
+ * the highlight the other way (or straight down, which is the web default) puts
+ * a second sun on the most-looked-at control in the game.
+ *
+ * Suppressed under high contrast, where a light halo around dark text is a
+ * legibility cost rather than a material.
+ */
 .end-turn-btn .end-turn-text {
   /* `.t-label`'s tracking on a 132px disc needs the trailing space trimmed or
      the word sits visibly right of centre. */
   margin-right: -0.08em;
   font-size: var(--fs-sm);
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.38);
+}
+:root[data-contrast="high"] .end-turn-btn .end-turn-text,
+:root[data-contrast="high"] .end-turn-icon {
+  text-shadow: none;
+  filter: none;
 }
 
 /*
@@ -935,10 +970,23 @@
 
 /* ---- history panel ------------------------------------------------------ */
 
+/*
+ * The log hangs off the bottom of the control cluster, and says so.
+ *
+ * `.battle-controls` sits at `--sp-3` and its buttons carry the 44px touch
+ * floor, so the first pixel below it is a number this file can compute rather
+ * than one somebody has to remember. It used to be typed twice — 74px here and
+ * 52px in the short-viewport block — and the second one was wrong: measured at
+ * 844x390, the log's top edge crossed the emote/settings/concede row by 4px at
+ * every text size, which is two HUD panels sharing pixels, the exact failure the
+ * corner-pinned absolutes were rebuilt to stop.
+ */
+.battle-hud { --controls-bottom: calc(var(--sp-3) + 44px); }
+
 .history-panel {
   position: absolute;
   right: var(--sp-4);
-  top: 74px;
+  top: calc(var(--controls-bottom) + var(--sp-3));
   width: 250px;
   max-height: 210px;
   display: flex;
@@ -1504,7 +1552,9 @@
    * ring's top edge; the ring comes down to 84px, which still clears the 44px
    * touch target with room over. Nothing is layered on anything.
    */
-  .history-panel { top: 52px; max-height: 92px; width: 186px; }
+  /* 84px rather than 92px: the log now starts 8px lower, and the End Turn ring's
+     top edge at this height is the floor it has to stay off. */
+  .history-panel { top: calc(var(--controls-bottom) + 2px); max-height: 84px; width: 186px; }
   .obsession-dial { width: 152px; }
   .timer-ring { width: 84px; height: 84px; --ring-band: 5px; }
   /* The collar scales with the disc — at 13px around an 84px ring it would be a
@@ -1690,7 +1740,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
-  width: 230px;
+  width: min(14.375rem, 22vw);
 }
 
 /* `.mat-panel .act` in hud.ts: surface and six states from the foundation. */
@@ -1728,12 +1778,26 @@
 
 .ability-body { display: flex; flex-direction: column; min-width: 0; }
 .ability-name { font-size: var(--fs-sm); font-weight: 600; }
+/*
+ * Two lines, because one was never enough for a sentence.
+ *
+ * `white-space: nowrap` plus an ellipsis inside a 166px box printed "Deal 2
+ * damage to a charact…" for a 298px string at the default size and lost two
+ * thirds of it at `--ui-scale: 1.4`. The rail is the only place a leader's
+ * ability is written down during a match — the 3D medallion carries none of it —
+ * so the text is allowed the second line rather than the button being allowed to
+ * eat the sentence. Clamped rather than unbounded so a long ability can never
+ * push the rail into the hand.
+ */
 .ability-text {
   font-size: var(--fs-xs);
+  line-height: 1.3;
   color: var(--text-faint);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 /* hidden until the Obsession lesson introduces it */
@@ -1741,7 +1805,7 @@
 .tutorial-active.reveal-obsession .ability-bar { display: flex; }
 
 @media (max-height: 620px) {
-  .ability-bar { width: 190px; }
+  .ability-bar { width: min(11.875rem, 24vw); }
   .ability-text { display: none; }
 }
 

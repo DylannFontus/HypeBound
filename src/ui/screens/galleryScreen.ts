@@ -149,6 +149,7 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
     button.insertAdjacentHTML(
       "beforeend",
       `<span class="gallery-tile-crest">${icon(CURRENT_SIGIL[card.current], { size: 13 })}</span>` +
+        `<span class="gallery-tile-pending" aria-hidden="true">Art pending</span>` +
         (seen ? "" : `<span class="gallery-tile-locked">${icon("lock", { size: 12, label: "Not yet seen" })}</span>`) +
         `<span class="gallery-tile-body">` +
         `<span class="gallery-tile-name">${esc(card.name)}</span>` +
@@ -170,7 +171,22 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
        * face. A 3:4 box, because the tile is one.
        */
       if (portraitW === 0) portraitW = Math.max(64, Math.round(button.clientWidth) || TILE_W);
-      slot.replaceWith(portraitCanvas(card, portraitW, Math.round((portraitW * TILE_H) / TILE_W)));
+      slot.replaceWith(
+        portraitCanvas(card, portraitW, Math.round((portraitW * TILE_H) / TILE_W), {
+          /**
+           * A face nobody has painted yet says so, in the screen's own type.
+           *
+           * §10 is explicit that the art gap is a schedule and not a defect, and
+           * that the *worse* mistake is hiding it: a tile that quietly shows an
+           * abstract field reads as "this one is broken", while a tile that
+           * names the state reads as "this one is coming". The card renderer
+           * already stamps its own watermark above 300px of render width and a
+           * 168px gallery tile is well under it, so without this the gallery is
+           * the one place in the game where the state has no name.
+           */
+          onArt: (painted) => button.classList.toggle("no-art", !painted),
+        })
+      );
     });
 
     item.appendChild(button);

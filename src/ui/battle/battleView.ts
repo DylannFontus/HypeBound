@@ -26,7 +26,8 @@ import { totalAttack } from "../../engine/effects";
 import { createBattleScene, BOARD, type BattleSceneHandles, type QualityTier } from "./scene";
 import { resolveBoardImage } from "../art/boards";
 import { createBoard, type BoardHandles } from "./board";
-import { CardObject, getCardTexture, type CardFaceState } from "./cardMesh";
+import { CardObject, getCardTexture, invalidateCardTextures, type CardFaceState } from "./cardMesh";
+import { onArtLoaded } from "../art/artLoader";
 import { LeaderObject } from "./leaderMesh";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { createTargetingLayer, type TargetingLayer } from "./targeting";
@@ -131,7 +132,47 @@ export class BattleView {
     this.vfx = createVfx(this.scene);
 
     this.attachPointerHandlers();
+    this.unsubscribeArt = this.watchArt();
     this.loop();
+  }
+
+  private readonly unsubscribeArt: () => void;
+
+  /**
+   * ## The painted portrait that turned back into the art-pending plate
+   *
+   * Reported as intermittent and it is not: it is deterministic, and this file
+   * causes it. Warming is aggressive — every character in the hand gets two
+   * faces drawn the moment it is dealt, every token on the board gets two or
+   * three, and a batch's faces are drawn before its first beat — and all of that
+   * starts within a few hundred milliseconds of the match opening, which is
+   * *before* the card art has finished loading off disk. `getCardArt` returns
+   * null while a PNG is in flight, so those faces are drawn with the placeholder
+   * and cached under their own keys.
+   *
+   * `CardObject` already recovers from this for itself: it subscribes to
+   * `onArtLoaded`, drops the card's cached faces and rebuilds. But the guard only
+   * exists where a `CardObject` exists, and the faces that go stale are mostly
+   * for cards that have no token yet — a character sitting in the hand, or one
+   * still in the rival's deck. The art lands, nobody invalidates those entries,
+   * and the placeholder face is served from cache for the rest of the match: the
+   * card is played, its token appears wearing the art-pending plate, and the same
+   * card at the same stats in the collection is painted.
+   *
+   * Dropping the cached faces for **every** card whose art arrives, whether or
+   * not anything is currently showing it, closes the whole class. Un-warming this
+   * view's own keys with them is what lets the idle queue draw them again — with
+   * the painting this time — rather than believing the job is already done.
+   */
+  private watchArt(): () => void {
+    return onArtLoaded((cardId) => {
+      invalidateCardTextures(cardId);
+      const prefix = `${cardId}|`;
+      for (const key of [...this.faceWarmed]) {
+        if (key.startsWith(prefix)) this.faceWarmed.delete(key);
+      }
+      if (this.view) this.warmHandFaces(this.view);
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -748,9 +789,47 @@ export class BattleView {
    * Never waited on when a handoff is parked. That is the player's own play: the
    * released ghost is frozen at the drop point waiting for its token, on a 420ms
    * safety timeout, and the faces it needs were drawn during the drag anyway.
+   *
+   * ## And it waits for the board to actually be still first
+   *
+   * "A stall on a still board is not visible" is only true if the board is still,
+   * and the first version of this never checked. Measured on a handover: the
+   * block ran from t+952ms to t+1374ms while the turn sweep's motes were still
+   * crossing the mat and the mat's own tint was mid-transition, so a third of the
+   * wipe played as a frozen image and the worst rAF gap in the window was 432ms.
+   * The wait below is bounded — a card render has to happen and the batch is
+   * holding for it — but in practice it costs a frame or two and moves the whole
+   * block past the end of the previous beat's motion.
    */
-  facesSettled(capMs = 380): void {
+  async facesSettled(capMs = 380): Promise<void> {
     if (this.soonQueue.length === 0 || this.handoff) return;
+    /**
+     * Up to ~320ms of waiting for the previous beat's motion to finish, which is
+     * one full turn-sweep plus a frame. Longer than that and the handover starts
+     * costing the player real time for a smoothness they cannot see, so the block
+     * goes ahead regardless. Measured with the cap at 200ms: the block still
+     * clipped the last 45ms of the sweep.
+     */
+    const settleBy = performance.now() + 320;
+    while (performance.now() < settleBy && (this.flightsInAir > 0 || this.vfx.busy())) {
+      /**
+       * A frame **or** a timer, whichever comes first. `requestAnimationFrame`
+       * does not fire in a background tab, and a player who switches away during
+       * the rival's turn must not come back to a match that stopped animating
+       * because a promise here never resolved.
+       */
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const finish = (): void => {
+          if (done) return;
+          done = true;
+          resolve();
+        };
+        requestAnimationFrame(finish);
+        window.setTimeout(finish, 90);
+      });
+      if (this.disposed) return;
+    }
     /**
      * Drawn here and now, in one contiguous block, rather than one per frame.
      *
@@ -782,34 +861,55 @@ export class BattleView {
   /**
    * Is something on this board moving in a way a 150ms card render would ruin?
    *
-   * Three windows, and the third is the one that was missed. A batch is playing
-   * (`layoutLocked`); a token is in the air (`flightsInAir`); or a token landed
-   * less than a beat ago — the burst, the dust and the neighbours giving way run
-   * for ~280ms *after* the flight tween resolves, and a 99ms task measured at
-   * t+410ms on a play whose flight ended at t+350ms is a stall in the middle of
-   * the landing. `flightsInAir` alone reads zero for all of it.
+   * Four windows now, and the fourth is the one the handover kept losing frames
+   * to. A batch is playing (`layoutLocked`); a token is in the air
+   * (`flightsInAir`); a token landed less than a beat ago — the burst, the dust
+   * and the neighbours giving way run for ~280ms *after* the flight tween
+   * resolves, and a 99ms task measured at t+410ms on a play whose flight ended at
+   * t+350ms is a stall in the middle of the landing; **or the vfx layer still has
+   * particles alive**, which covers the impact spray, the defeat puff and the
+   * handover's mote sweep — none of which is a flight and all of which are
+   * movement a 200ms render turns into a still image.
    */
   private busyWithMotion(): boolean {
-    return this.layoutLocked || this.flightsInAir > 0 || performance.now() - this.lastFlightAt < 340;
+    return (
+      this.layoutLocked ||
+      this.flightsInAir > 0 ||
+      performance.now() - this.lastFlightAt < 340 ||
+      this.vfx.busy()
+    );
   }
 
   private readonly soonQueue: { key: string; card: CardDef; state: CardFaceState }[] = [];
   private soonFrame = 0;
+  /** When the soon drain last refused a frame, so it can never starve. */
+  private soonHeldSince = 0;
 
   /**
    * Drain one queued face per frame, and never on a frame that is carrying
    * something. `requestAnimationFrame` rather than `onMotionFrame` because this
    * has to keep running when the reduced-motion setting has stopped the shared
    * clock — the faces are still needed, they are just needed without a flight.
+   *
+   * `layoutLocked` is deliberately NOT part of the test: the soon queue is the
+   * batch's own faces and the batch is exactly what is waiting for them. What is
+   * part of it is whether anything is *visibly* moving — a flight, its landing,
+   * or live particles — because those are the frames a render would freeze.
+   * Measured before the particle test was added: 60ms and 150ms tasks at t+1634
+   * and t+1704 into a handover, landing on the rival's impact spray. The 600ms
+   * escape hatch exists because a Resonance keeps particles alive for a second
+   * and a half and the queue must not wait that long for work a beat is due.
    */
   private scheduleSoonWarm(): void {
     if (this.soonFrame || this.soonQueue.length === 0) return;
     this.soonFrame = requestAnimationFrame(() => {
       this.soonFrame = 0;
       if (this.disposed) return;
-      // `layoutLocked` is deliberately NOT part of this one: the soon queue is
-      // the batch's own faces and the batch is exactly what is waiting for them.
-      if (this.flightsInAir === 0 && performance.now() - this.lastFlightAt >= 340) {
+      const now = performance.now();
+      const moving = this.flightsInAir > 0 || now - this.lastFlightAt < 340 || this.vfx.busy();
+      if (!this.soonHeldSince) this.soonHeldSince = now;
+      if (!moving || now - this.soonHeldSince > 600) {
+        this.soonHeldSince = 0;
         const entry = this.soonQueue.shift();
         if (entry) getCardTexture(entry.card, entry.state);
       }
@@ -1944,6 +2044,7 @@ export class BattleView {
   dispose(): void {
     this.disposed = true;
     this.releaseHandoff();
+    this.unsubscribeArt();
     cancelAnimationFrame(this.raf);
     if (this.soonFrame) cancelAnimationFrame(this.soonFrame);
     const canvas = this.scene.renderer.domElement;

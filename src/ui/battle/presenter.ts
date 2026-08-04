@@ -114,7 +114,9 @@ export class BattlePresenter {
        * stands down while anything is in flight.
        */
       this.view.prewarmBatch(getView());
-      this.view.facesSettled();
+      // Awaited: it holds for up to ~200ms so the previous beat's motion is over
+      // before it blocks the main thread to draw a face. See `facesSettled`.
+      await this.view.facesSettled();
       this.view.setLayoutLocked(true);
       try {
         for (const event of events) {

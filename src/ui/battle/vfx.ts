@@ -52,6 +52,19 @@ export interface VfxLayer {
    * instead of trying to photograph the flash.
    */
   lastContactSpark: () => { position: THREE.Vector3; direction: THREE.Vector3 } | null;
+  /**
+   * Is anything in this layer still moving?
+   *
+   * Asked by `BattleView.facesSettled` before it blocks the main thread to draw
+   * a card face. A card render costs 150–250ms on this machine and the browser
+   * paints nothing for the whole of it, so the only question that matters is
+   * which frames it eats. A batch that begins while the handover's mote sweep is
+   * still crossing the mat freezes those motes in mid-air — measured, a 422ms
+   * long task starting 300ms before the sweep's last particle expired. Waiting
+   * for the layer to fall silent costs the same milliseconds and spends them on
+   * a board where nothing was going to move anyway.
+   */
+  busy: () => boolean;
   heal: (position: THREE.Vector3, amount: number) => void;
   statusPop: (position: THREE.Vector3, color: string) => void;
   confluence: (id: ConfluenceId, currents: [CurrentId, CurrentId]) => void;
@@ -251,6 +264,18 @@ export function createVfx(scene: BattleSceneHandles): VfxLayer {
    * toward whoever is now to act. It costs one spawn loop and it replaces the
    * biggest single lump of dead time on this screen — a 1.1-second full-board
    * DOM banner, three times a turn.
+   *
+   * ## Why it is over in a third of a second
+   *
+   * It used to live 0.42–0.62s, and it was the only thing on the board still
+   * moving when the rival's play arrived: measured on a screencast, the sweep's
+   * last mote expired at t≈1260ms after End Turn and the batch's card render
+   * blocked the main thread from t≈952ms to t≈1374ms, so the last third of the
+   * wipe was a still image of motes hanging over the mat. The wipe and the
+   * ribbon that rides with it are one event and they now finish together, inside
+   * §3's 200–320ms band for a UI transition — the motes travel the same distance,
+   * faster, and the board is genuinely at rest before the batch asks for
+   * anything.
    */
   function turnSweep(side: "player" | "enemy"): void {
     if (reduced()) return;
@@ -261,10 +286,10 @@ export function createVfx(scene: BattleSceneHandles): VfxLayer {
       const t = i / Math.max(1, count - 1);
       spawn({
         position: new THREE.Vector3(-9.4 + t * 18.8, 0.16, (Math.random() - 0.5) * 0.5),
-        velocity: new THREE.Vector3((Math.random() - 0.5) * 0.6, 0.5 + Math.random() * 0.5, toward * (2.6 + Math.random() * 1.4)),
+        velocity: new THREE.Vector3((Math.random() - 0.5) * 0.9, 0.7 + Math.random() * 0.7, toward * (4.4 + Math.random() * 2.2)),
         color: i % 4 === 0 ? "#ffffff" : colour,
-        life: 0.42 + Math.random() * 0.2,
-        startScale: 0.3,
+        life: 0.26 + Math.random() * 0.1,
+        startScale: 0.32,
         endScale: 0.04,
         texture: i % 3 === 0 ? "spark" : "soft",
       });
@@ -647,5 +672,7 @@ export function createVfx(scene: BattleSceneHandles): VfxLayer {
     group.removeFromParent();
   }
 
-  return { summonBurst, landing, turnSweep, dragPool, impact, contactSpark, lastContactSpark, heal, statusPop, confluence, resonance, defeat, screenFlash, update, dispose };
+  const busy = (): boolean => active.length > 0;
+
+  return { summonBurst, landing, turnSweep, dragPool, busy, impact, contactSpark, lastContactSpark, heal, statusPop, confluence, resonance, defeat, screenFlash, update, dispose };
 }

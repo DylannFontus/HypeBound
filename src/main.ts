@@ -170,6 +170,25 @@ function showFatalError(error: unknown): void {
  * inside the feature that is allowed to opt out. `finally` because a screen that
  * fails to mount still has to reveal the error it wants to show, and a plate
  * over a stack trace is worse than either alone.
+ *
+ * ## It is called at every exit from `boot()`, and it has to be
+ *
+ * "The one path that always runs" was `void shell.start().finally(...)`, and
+ * `boot()` has two `return`s above that line. Both were live:
+ *
+ * - A content-validation failure builds its report and returns. The plate then
+ *   covered the report, which is the precise outcome the paragraph above says
+ *   is worse than either alone.
+ * - **A brand-new account is sent to `#starter` and returns.** Filmed on a
+ *   genuine cold boot with storage cleared: at 6.4 seconds `#hb-boot-plate` was
+ *   still at `opacity: 1` over a mounted starter picker. That is the *first
+ *   launch* — the one the opening cinematic exists for. The title played, the
+ *   title ended, and what it handed over to was a dark field with a breathing
+ *   wordmark on it and no way out.
+ *
+ * Neither shows up in a harness, because every screenshot script in this repo
+ * either seeds an account or deep-links a route, and both of those take the
+ * third exit. It only appears if you clear storage and watch the thing boot.
  */
 function clearBootPlate(): void {
   document.documentElement.classList.remove("hb-boot");
@@ -228,6 +247,8 @@ function boot(): void {
   } catch (error) {
     console.error(error);
     showFatalError(error);
+    // The report is the only thing on screen now, so nothing is left to cover.
+    clearBootPlate();
     return;
   }
 
@@ -1382,6 +1403,15 @@ function boot(): void {
    */
   if (needsStarterChoice()) {
     shell.navigate("starter");
+    /**
+     * Immediately, and not after the mount, because there is nothing to wait
+     * for: `navigate` sets the hash and the hashchange handler builds the
+     * picker in the next task, while the plate takes 420ms to fade. That is the
+     * same trade `shell.start()` already makes on a bare URL — it navigates and
+     * resolves without awaiting a screen — so the two front doors come up the
+     * same way rather than one of them not coming up at all.
+     */
+    clearBootPlate();
     return;
   }
 

@@ -108,27 +108,6 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
         <div class="ach-row-body">
           <div class="ach-head">
             <strong class="ach-name">${esc(name)}</strong>
-            <div class="ach-rewards">
-              ${def.rewards
-                .map((reward) => {
-                  const visual = describeReward(reward, content);
-                  return rewardTileHtml(visual, {
-                    /*
-                     * 38, not 30. The quantity chip hangs off the plate's
-                     * bottom-right corner, and at 30px it covered most of the
-                     * icon underneath it — a Clout payout read as one muddy
-                     * red-purple smudge rather than as a coin with a number on
-                     * it. The chip is a fixed size, so the plate has to be big
-                     * enough to still be a plate beside it.
-                     */
-                    art: 38,
-                    bare: true,
-                    title: visual.qty !== undefined ? `${formatNumber(visual.qty)} ${visual.name}` : visual.name,
-                    className: "ach-reward",
-                  });
-                })
-                .join("")}
-            </div>
           </div>
           <p class="ach-text rw-note">${esc(text)}</p>
           ${
@@ -142,6 +121,40 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
           }
         </div>
         <div class="ach-action">
+          ${
+            /*
+             * The payout is a column of its own, not a chip inside the title
+             * row.
+             *
+             * It used to sit at the far end of a flex row with `align-items:
+             * baseline` beside the achievement's name — and a 38px plate has no
+             * text baseline, so the browser aligned its *bottom margin edge* to
+             * the name's baseline and hoisted the whole tile above the top of
+             * the row. Photographed across a three-column grid, every reward
+             * chip was floating clear of the card that owned it. It also put the
+             * one thing the player is deciding about — what this pays — as far
+             * as possible from the state that says whether they can have it.
+             */
+            def.rewards
+              .map((reward) => {
+                const visual = describeReward(reward, content);
+                return rewardTileHtml(visual, {
+                  /*
+                   * 38, not 30. The quantity chip hangs off the plate's
+                   * bottom-right corner, and at 30px it covered most of the
+                   * icon underneath it — a Clout payout read as one muddy
+                   * red-purple smudge rather than as a coin with a number on
+                   * it. The chip is a fixed size, so the plate has to be big
+                   * enough to still be a plate beside it.
+                   */
+                  art: 38,
+                  bare: true,
+                  title: visual.qty !== undefined ? `${formatNumber(visual.qty)} ${visual.name}` : visual.name,
+                  className: "ach-reward",
+                });
+              })
+              .join("")
+          }
           ${
             view.claimed
               ? tokenHtml("claimed")

@@ -428,9 +428,19 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
      */
     entry.stopDrag = draggable(cell, {
       ghost: () => (entry.canvas ? canvasGhost(entry.canvas, 132) : document.createElement("div")),
-      zones: () => (sidePanel && canAdd(card) ? [sidePanel] : []),
+      /**
+       * The panel is a target even when the answer is no.
+       *
+       * It used to be offered only when the card could actually go in, so
+       * dragging the thirty-first card of a thirty-card deck lit nothing, said
+       * nothing, and dropped the card back where it came from — which reads as
+       * a broken drag rather than a full deck. Now the zone is always there and
+       * `allowed` decides what colour it is.
+       */
+      zones: () => (sidePanel ? [sidePanel] : []),
+      allowed: () => canAdd(card),
       onDrop: (zone) => {
-        if (zone) addCard(card);
+        if (zone && canAdd(card)) addCard(card);
         else audio.play("sfx.ui.back");
       },
     });
@@ -805,10 +815,33 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       );
     };
 
-    const makeButton = (label: string, className: string, handler: () => void): HTMLButtonElement => {
+    /**
+     * A label and, optionally, a note that is allowed to go away.
+     *
+     * The five actions share one footer row on a 720px window, and
+     * "Compare — saved" wrapped to two lines inside its button there — which is
+     * the sort of thing that reads as unfinished long before anybody works out
+     * why. The state half of that label is secondary by construction (the deck
+     * counter and the validation line above it say the same thing), so it is
+     * marked as such and the stylesheet drops it when the row is tight, leaving
+     * a clean "Compare" rather than a wrapped one.
+     */
+    const makeButton = (
+      label: string,
+      className: string,
+      handler: () => void,
+      note?: string
+    ): HTMLButtonElement => {
       const button = document.createElement("button");
       button.className = `btn ${className}`;
-      button.textContent = label;
+      button.append(label);
+      if (note) {
+        const tail = document.createElement("span");
+        tail.className = "btn-note";
+        tail.textContent = ` ${note}`;
+        button.appendChild(tail);
+        button.title = `${label} ${note}`;
+      }
       button.addEventListener("click", handler);
       return button;
     };
@@ -870,18 +903,19 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
        * anything, which is the question the diff is usually opened to answer.
        */
       makeButton(
-        (() => {
-          const diff = diffDecks(content, savedDeck(), deck);
-          if (diff.unsaved) return "Compare";
-          if (diff.identical) return "Compare — saved";
-          if (diff.added === 0 && diff.removed === 0) return "Compare — unsaved";
-          return `Compare (+${diff.added} −${diff.removed})`;
-        })(),
+        "Compare",
         "btn-ghost",
         () => {
           comparing = !comparing;
           renderAssist();
-        }
+        },
+        (() => {
+          const diff = diffDecks(content, savedDeck(), deck);
+          if (diff.unsaved) return undefined;
+          if (diff.identical) return "— saved";
+          if (diff.added === 0 && diff.removed === 0) return "— unsaved";
+          return `(+${diff.added} −${diff.removed})`;
+        })()
       ),
       makeButton("Test vs AI", "btn-ghost", () => {
         const problems = validateDeck(content, deck);

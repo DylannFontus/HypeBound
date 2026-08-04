@@ -76,6 +76,19 @@
     0 6px 18px rgb(0 0 0 / 0.55);
 }
 
+/**
+ * The slot the live portrait canvas is mounted into.
+ *
+ * It has to fill the disc on its own, because the canvas inside it arrives from
+ * `paintLeaderPortrait` at whatever intrinsic size the painter chose and is
+ * replaced in place when the painting decodes. Sizing the *slot* rather than the
+ * canvas means the swap cannot change the layout on the frame the art lands.
+ */
+.profile-screen .profile-face-slot {
+  width: 100%;
+  height: 100%;
+}
+
 .profile-screen .profile-avatar canvas {
   width: 100%;
   height: 100%;
@@ -149,7 +162,7 @@
 
 .profile-screen .profile-links {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(200px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-2);
 }
 
@@ -223,30 +236,25 @@
 }
 
 /**
- * The swatch is the item, not a 12px colour square.
+ * The swatch is the item, drawn.
  *
- * A locker in any of the three reference games shows the locked object dimmed
- * with its unlock condition beside it. Four rows reading "None earned" showed
- * nothing at all, so the plate carries the slot's own icon and keeps its shape
- * when unearned: the state changes the light on the object, not the object.
+ * It used to be one of four icons on a tinted square, which is a *category*
+ * marker rather than a preview: four rows of grey square, and no answer to the
+ * question a locker exists to answer, which is what the thing looks like when
+ * you wear it. `cosmeticSwatch` in `art.ts` draws five different objects — a
+ * struck nameplate, a ring, a pinned shield, a card back, a speech plate — each
+ * carrying the wearer's own emblem, and `.d-swatch` in `data.css` mounts them.
+ *
+ * The row's own plate keeps a socket under the object so it reads as sitting in
+ * the locker rather than floating on the row.
  */
-.profile-screen .profile-swatch-plate {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
+.profile-screen .profile-slot-head > .d-swatch,
+.profile-screen .profile-option > .d-swatch {
   border-radius: var(--r-field);
-  color: var(--c);
-  background: linear-gradient(var(--light-sweep), color-mix(in srgb, var(--c) 30%, #150e26), #0a0616);
+  background-color: rgb(6 3 14 / 0.5);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.14),
-    inset 0 -1px 0 rgb(0 0 0 / 0.55),
-    0 2px 6px rgb(0 0 0 / 0.45);
-}
-
-.profile-screen .profile-swatch-plate.is-dim {
-  color: var(--text-faint);
-  filter: saturate(0.2);
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5);
 }
 
 .profile-screen .profile-slot-locked {
@@ -261,7 +269,7 @@
 
 .profile-screen .profile-picker {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(calc(220px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-2);
   padding-top: var(--sp-2);
 }
@@ -692,7 +700,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(260px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-3);
 }
 
@@ -977,7 +985,7 @@
 }
 
 .events-screen .event-missions {
-  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(290px * var(--ui-scale, 1)), 1fr));
 }
 
 .events-screen .event-mission {
@@ -1091,7 +1099,7 @@
 
 .events-screen .event-rails {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(360px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-4);
   align-items: start;
 }
@@ -1117,7 +1125,7 @@
  */
 .events-screen .event-rail-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(300px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-3);
 }
 
@@ -1340,7 +1348,7 @@
 
 .stats-screen .stats-columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(320px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-3);
   align-items: start;
 }
@@ -1358,21 +1366,61 @@
 }
 
 /**
- * The silhouette ladder, behind everything, at a third strength.
+ * The silhouette ladder, receding, on its own depth plane.
  *
  * Painted rather than tinted, because the point is that the frame is *composed*
  * — Hearthstone and Gwent both fill the lower third with world furniture so the
- * eye never reads the bottom of the screen as content that failed to load. It is
- * masked to fade out under the copy so nothing has to fight it for contrast.
+ * eye never reads the bottom of the screen as content that failed to load.
+ *
+ * **The first version was on the same plane as the copy and that is what made it
+ * read as a rendering fault rather than as a backdrop.** At `opacity: 0.72`
+ * behind a mask that only fell to 0.28 at the far edge, nine carved rungs ran
+ * horizontally straight through the headline, the paragraph and the placement
+ * meter at full sharpness — same focus, same contrast band, no separation of any
+ * kind. §2 is explicit that depth is carried by "blur, desaturation, scale and
+ * parallax, not by z-index alone", and a sharp thing behind a sharp thing is
+ * simply two sharp things.
+ *
+ * So it is pushed back the way a backdrop is pushed back: blurred, desaturated,
+ * darker overall, and scaled up a touch so the blur has no soft edge to give
+ * itself away at the panel's corners.
+ *
+ * **And it moved to the side of the panel that had nothing on it.** The crest
+ * column and the copy occupy the left two thirds; the right third was bare
+ * plate, which §2 reads as an unresolved composition. Masking the art *away*
+ * from the copy and *toward* the empty third solves both complaints with one
+ * gradient: the headline stands on clean ground and the frame is composed
+ * corner to corner, which is what the reference games do with world furniture.
  */
 .leaderboards-screen .lb-standing-art {
   position: absolute;
   inset: 0;
-  background-image: var(--lb-plate);
+  background-image: var(--key-art);
   background-size: cover;
   background-position: center;
-  opacity: 0.72;
-  mask-image: linear-gradient(90deg, #000 0%, rgb(0 0 0 / 0.5) 42%, rgb(0 0 0 / 0.28) 100%);
+  opacity: 0.62;
+  transform: scale(1.08);
+  transform-origin: 78% 50%;
+  filter: blur(3px) saturate(0.7);
+  mask-image: linear-gradient(90deg, rgb(0 0 0 / 0.22) 0%, rgb(0 0 0 / 0.4) 40%, #000 72%);
+}
+
+/**
+ * And the ground the copy stands on, which is the other half of the same fix.
+ *
+ * The mask alone leaves a soft shoulder where the ladder starts, and the longest
+ * line of body copy runs into it. §4: text over imagery always has a scrim. This
+ * is that scrim, 90° — square to the viewport, which the one-sun rule allows
+ * because a scrim carries no direction of light — running the *opposite* way to
+ * the mask, so the two together are a single wipe from clean plate under the
+ * type to lit furniture at the right-hand edge.
+ */
+.leaderboards-screen .lb-standing::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgb(6 3 14 / 0.66) 0%, rgb(6 3 14 / 0.58) 44%, rgb(6 3 14 / 0.06) 80%);
 }
 
 .leaderboards-screen .lb-standing-inner {
@@ -2120,7 +2168,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(300px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-2);
 }
 
@@ -2319,7 +2367,7 @@
 }
 
 .settings-screen .settings-data-stats {
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(140px * var(--ui-scale, 1)), 1fr));
 }
 
 /**
@@ -2352,7 +2400,7 @@
 
 .settings-screen .settings-links {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(220px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-2);
 }
 
@@ -2406,7 +2454,7 @@
 
 .custom-screen .custom-seats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(260px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-3);
 }
 
@@ -2445,7 +2493,7 @@
 
 .custom-screen .custom-knobs {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(180px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-3);
 }
 
@@ -2522,7 +2570,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(280px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-2);
 }
 
@@ -2855,7 +2903,7 @@
 
 .remix-screen .remix-rows {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(320px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-2);
 }
 
@@ -2952,6 +3000,34 @@
 }
 
 /**
+ * The scroller a wide table lives in, so the *table* can stay a table.
+ *
+ * `screens.css` puts `display: block; overflow-x: auto` on the two Gauntlet
+ * tables directly. The intent is right — six columns must not push the page
+ * sideways at 844px — and the mechanism costs the element its table layout: a
+ * `display: block` table is sized by its content, so the published odds rendered
+ * 450px wide inside an 1,100px panel with the right sixty per cent empty.
+ *
+ * The overflow belongs on a wrapper. `display: table` here is an override of
+ * that rule from another module's file, which is why the selectors name the
+ * screen; the `min-width` is what the scroll is *for*, and it is set to the
+ * point below which six columns stop being readable rather than to a round
+ * number.
+ */
+.screen .d-tablewrap {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.gauntlet-screen .d-tablewrap .gauntlet-rarity-table,
+.gauntlet-screen .d-tablewrap .gauntlet-reward-table {
+  display: table;
+  overflow: visible;
+  min-width: 480px;
+}
+
+/**
  * A prose table is not a numeric table.
  *
  * `.d-table` right-aligns everything but the first column, which is exactly
@@ -3028,7 +3104,7 @@
  */
 .cloud-save-screen .cloud-save-compare {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(320px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-3);
   align-items: stretch;
 }
@@ -3097,7 +3173,7 @@
 
 .support-screen .support-qa {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(340px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-3);
   align-items: start;
 }
@@ -3194,7 +3270,7 @@
 
 .doom-screen .doom-leader-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(calc(320px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-3);
 }
 
