@@ -107,6 +107,11 @@
     ],
     "attributions": [
       {
+        "package": "postprocessing",
+        "license": "Zlib",
+        "use": "merges the battle board’s bloom, tone mapping and grade into one fullscreen pass"
+      },
+      {
         "package": "three",
         "license": "MIT",
         "use": "the WebGL renderer behind the battle board"
