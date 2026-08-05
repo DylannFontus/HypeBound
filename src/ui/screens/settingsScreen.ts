@@ -21,7 +21,7 @@ import {
 } from "../../save/settings";
 import { audio } from "../../audio/audio";
 import { getProfile, profileStore } from "../../save/profile";
-import { count, enter, icon, quantify, segmented, toggleRow } from "./data/kit";
+import { count, enter, icon, quantify, room, segmented, toggleRow } from "./data/kit";
 
 export interface SettingsCallbacks {
   onBack: () => void;
@@ -35,17 +35,34 @@ export interface SettingsCallbacks {
 
 export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
   const root = document.createElement("div");
-  root.className = "screen settings-screen";
+  /**
+   * The rail here fixes a defect rather than decorating one.
+   *
+   * "Open accessibility settings" is a `.mat-hero` — the one hero action on the
+   * screen — and it lived in the second of five stacked sections, which put it
+   * **below the fold at 1600×900**: the tallest supported desktop viewport
+   * showed the Audio panel's six sliders and cut the hero in half. A hero action
+   * a player has to scroll to find is not a hero action, and no amount of
+   * material fixes a position.
+   *
+   * On the rail it is the first thing on the screen that is not the title, it
+   * never leaves, and the five Information links sit under it — so the whole of
+   * "where else can I go from Settings" is one column that does not move, and
+   * the main column is left holding only the things you actually adjust.
+   */
+  root.className = "screen settings-screen d-hall";
   root.innerHTML = `
-    <div class="ambient-bg"></div>
+    ${room({ lit: 0.5 })}
     <header class="sub-header">
       <button class="btn btn-ghost" id="set-back">${icon("arrow-left", 16)} Lobby</button>
       <h1 class="title">Settings</h1>
       <div></div>
     </header>
-    <div class="settings-body data-body data-doc" id="settings-body"></div>`;
+    <div class="settings-body data-body data-doc" id="settings-body"></div>
+    <section class="d-rail" aria-label="Accessibility and information"></section>`;
 
   const body = root.querySelector<HTMLElement>("#settings-body");
+  const rail = root.querySelector<HTMLElement>(".d-rail");
 
   /**
    * A section, with a drawn mark rather than a heading on its own.
@@ -54,7 +71,12 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
    * head of each is what makes it a settings *screen*. The icon is from the one
    * set at the one weight, which is the whole point of having a set.
    */
-  function section(title: string, iconId: Parameters<typeof icon>[0], description?: string): HTMLElement {
+  function section(
+    title: string,
+    iconId: Parameters<typeof icon>[0],
+    description?: string,
+    host: HTMLElement | null = body
+  ): HTMLElement {
     const node = document.createElement("section");
     node.className = "settings-section mat-panel d-enter";
     node.innerHTML = `
@@ -65,7 +87,7 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
           ${description ? `<p class="settings-desc t-body">${description}</p>` : ""}
         </div>
       </div>`;
-    body?.appendChild(node);
+    host?.appendChild(node);
     return node;
   }
 
@@ -190,7 +212,13 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
    * section buried between Audio and Graphics is neither. What stays here is
    * the signpost, which §4.6.1 asks for by name.
    */
-  const a11y = section("Accessibility", "eye", "Text size, motion, colour-blind modes, focus and captions.");
+  const a11y = section(
+    "Accessibility",
+    "eye",
+    "Text size, motion, colour-blind modes, focus and captions.",
+    rail
+  );
+  a11y.classList.add("settings-a11y-card");
   const a11yNote = document.createElement("p");
   a11yNote.className = "muted";
   a11yNote.textContent =
@@ -207,8 +235,21 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
   });
   a11y.appendChild(a11yButton);
 
+  /**
+   * The two shorter panels share a row rather than queueing behind Audio.
+   *
+   * Audio is six sliders and a toggle and is genuinely tall; Gameplay is five
+   * controls and Player Data is three figures and a button. Stacking all three
+   * full width made the screen 2,100px of scroll where 1,300 would do, and —
+   * more to the point — gave every panel the same rank. A tall panel over a pair
+   * of shorter ones is a *composition*; three of the same is a list.
+   */
+  const band = document.createElement("div");
+  band.className = "d-band settings-band";
+  body?.appendChild(band);
+
   // ---- gameplay ------------------------------------------------------------
-  const gameplay = section("Gameplay & Presentation", "settings");
+  const gameplay = section("Gameplay & Presentation", "settings", undefined, band);
   choice<AnimationSpeed>(gameplay, "Animation speed", "animationSpeed", [
     { value: "full", label: "Full" },
     { value: "fast", label: "Fast" },
@@ -228,7 +269,8 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
   const data = section(
     "Player Data",
     "deck",
-    "Everything is stored locally in this browser. Cloud saves arrive with the online build."
+    "Everything is stored locally in this browser. Cloud saves arrive with the online build.",
+    band
   );
   const profile = getProfile();
   const info = document.createElement("dl");
@@ -267,7 +309,7 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
    * places a rate must be readable, and the other one is a purchase button —
    * which is not somewhere a player goes to *check*.
    */
-  const links = section("Information", "info", "Everything the game is obliged to tell you, in one place.");
+  const links = section("Information", "info", "Everything the game is obliged to tell you, in one place.", rail);
   const linkRow = document.createElement("div");
   linkRow.className = "settings-links";
   for (const [id, label, handler, glyph] of [

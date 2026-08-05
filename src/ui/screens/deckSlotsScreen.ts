@@ -33,6 +33,16 @@ import { icon } from "../art/uiIcons";
 import { motionEnabled } from "../motion";
 import { decodeDeck } from "./deckBuilderScreen";
 import { esc, installKitStyles, portraitCanvas } from "./collectionKit";
+/**
+ * The rack keeps its own layout and takes only the room.
+ *
+ * Of the eleven screens this wave owns, this is the one that was already a place
+ * — a full-bleed rack with a hero slot, a grid and a footer rail, not a column
+ * of slabs. What it shared with the other ten was the plate: `.ambient-bg` at
+ * 0.8 opacity in front of `atmosphere.ts`, which is why it measured 0.124 on the
+ * idle probe against a lobby at 0.891. It gets `.d-room` and nothing else.
+ */
+import { room } from "./data/kit";
 
 export interface DeckSlotsCallbacks {
   onBack: () => void;
@@ -68,7 +78,7 @@ export function createDeckSlotsScreen(content: ContentIndex, callbacks: DeckSlot
     const decks = profile.decks.slice(0, slots);
 
     root.innerHTML = `
-      <div class="ambient-bg"></div>
+      ${room({ accent: "#6f7dff", lit: 0.8 })}
       <header class="screen-header">
         <button class="btn btn-ghost" id="slots-back">${icon("arrow-left")}<span>Lobby</span></button>
         <h1 class="title">Your Decks</h1>

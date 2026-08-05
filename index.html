@@ -67,6 +67,30 @@
       amplitude — one compositor-only `opacity`/`transform` animation on one
       element, which is affordable even while the module graph is being
       evaluated on the main thread.
+
+      ## And "very low amplitude" turned out to mean "none"
+
+      Filmed on a genuine cold boot and differenced at the reference's own 200ms
+      grid, this plate measured **0.00–0.23 mean delta from 486ms to 1433ms**
+      against a Hearthstone idle floor whose *minimum* is 0.50 and whose median
+      is 1.71. It was not still by a little. It was four to twenty times more
+      frozen than the reference game is at its quietest, for the first second and
+      a half a stranger ever sees, and the reason is geometry rather than intent:
+      the mark is about 4% of the frame and a 0.16 opacity swing over 1.8s moves
+      roughly 0.065 of mean delta. Everything in the note above was true and the
+      number it produced was zero.
+
+      What clears the floor is **area in motion**, so a raking light was added:
+      one soft band crossing the plate on a 5.2s traverse. A band 300px wide
+      travelling 80px per 200ms changes about a tenth of the frame each sample,
+      which is the order of magnitude the reference sits at — and it is the right
+      *thing* as well as the right size, because §3a says loading is part of the
+      world and no spinner. A light moving across a dark room reads as the room
+      being lit, not as a progress widget. The mark's own breath was doubled at
+      the same time and moved to a 3.0s period.
+
+      Everything here is still `transform` and `opacity` on four elements, which
+      is what makes it affordable on a thread that is busy parsing the game.
     -->
     <style>
       .hb-boot,
@@ -109,18 +133,57 @@
         background: url("./assets/brand/hb-wordmark.png") center / contain no-repeat;
         opacity: 0.34;
         will-change: opacity, transform;
-        animation: hb-boot-breathe 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        animation: hb-boot-breathe 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
       }
 
       @keyframes hb-boot-breathe {
         0%,
         100% {
-          opacity: 0.26;
-          transform: translate3d(-50%, -50%, 0) scale(0.988);
+          opacity: 0.2;
+          transform: translate3d(-50%, -50%, 0) scale(0.982);
         }
         50% {
-          opacity: 0.42;
-          transform: translate3d(-50%, -50%, 0) scale(1);
+          opacity: 0.56;
+          transform: translate3d(-50%, -50%, 0) scale(1.008);
+        }
+      }
+
+      /*
+        The raking light. It is wider than it looks — the visible band is the
+        middle third of a very soft ramp — and it travels the whole plate, so
+        every column of the frame is changing value at some point in the cycle.
+        That is what puts the measurement in the same order as the reference;
+        a small bright object breathing cannot, whatever its amplitude.
+      */
+      #hb-boot-rake {
+        position: absolute;
+        inset: -20% -55%;
+        background: linear-gradient(
+          78deg,
+          rgba(181, 108, 255, 0) 36%,
+          rgba(198, 168, 255, 0.14) 47%,
+          rgba(226, 205, 255, 0.2) 50%,
+          rgba(198, 168, 255, 0.14) 53%,
+          rgba(181, 108, 255, 0) 64%
+        );
+        will-change: transform;
+        /*
+          Linear, and it is the one place in the game where linear is right.
+          §3 reserves it for progress bars — and that is exactly what this is:
+          a light crossing a room at a constant rate while the game loads. An
+          eased traverse spends its first and last 20% barely moving, which
+          measured 0.14–0.52 in the first second, i.e. back under the floor
+          during the very window this exists to fill.
+        */
+        animation: hb-boot-rake 5.2s linear infinite;
+      }
+
+      @keyframes hb-boot-rake {
+        0% {
+          transform: translate3d(-42%, 0, 0);
+        }
+        100% {
+          transform: translate3d(42%, 0, 0);
         }
       }
 
@@ -159,11 +222,18 @@
 
       @media (prefers-reduced-motion: reduce) {
         #hb-boot-mark,
-        #hb-boot-seam {
+        #hb-boot-seam,
+        #hb-boot-rake {
           animation: none;
         }
         #hb-boot-mark {
           opacity: 0.34;
+        }
+        /* The rake stops travelling and parks where it lights the mark, so a
+           reduced-motion boot still gets a room with a light in it rather than
+           a flat field. The decorative layer dies; the composition does not. */
+        #hb-boot-rake {
+          transform: translate3d(0, 0, 0);
         }
       }
     </style>
@@ -174,6 +244,9 @@
       by z-index, and outside it, so the router cannot remove it by accident.
     -->
     <div id="hb-boot-plate" aria-hidden="true">
+      <!-- Behind the mark and the seam: it is the light in the room, and the
+           two things it lights are drawn after it. -->
+      <div id="hb-boot-rake"></div>
       <div id="hb-boot-mark"></div>
       <div id="hb-boot-seam"></div>
     </div>

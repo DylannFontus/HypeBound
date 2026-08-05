@@ -1308,44 +1308,50 @@
 .battle-hud { --controls-bottom: calc(var(--sp-3) + 44px); }
 
 /**
- * The log is a material, and it is the last thing on this HUD that was not.
+ * The log is a material, and it was the last surface in the game that was not.
  *
- * The leader plates, the Obsession dial, the ability rail and the Hype well all
- * take `.mat-panel` from `hud.ts`. The log took `.panel` — `base.css`'s glass:
- * one flat fill, one pale hairline on all four edges, one inset highlight and a
- * 20px radius. Ten pixels from a plate whose bottom edge terminates in shadow,
- * that reads as a second sun on the one screen a player spends a whole match
- * looking at.
+ * It took `.panel` — `base.css`'s glass: one flat fill, one pale hairline on all
+ * four edges, one inset highlight and a 20px radius no other object on this
+ * screen uses. Ten pixels from a leader plate whose bottom edge terminates in
+ * shadow, that reads as a second sun on the one screen a player spends a whole
+ * match looking at.
  *
- * ## Why the recipe is copied instead of composed
+ * ## What used to be here, and why it is gone
  *
- * `hud.ts` belongs to another owner this wave, so the class on the element
- * cannot change, and **there is no way to apply a material to a selector you do
- * not control** — `.mat-panel` is reachable only by writing the class into the
- * markup. `screens.css` §O already made exactly this trade for the fourteen
- * dialogue shapes, and this is the same move for the fifteenth surface. Every
- * value below is read from module A's own tokens — `--fill-panel`, `--amp-panel`,
- * `--rim-a`, `--lip-a`, `--tex-grain-mid`, `--cast-lift` — so the copy cannot
- * drift in *colour*; it can drift in *shape*, and the fix for that is one line
- * in `foundation.css` §3's selector list.
+ * When the rest of this HUD was migrated, `hud.ts` belonged to another owner, and
+ * **a material cannot be applied to a selector you do not control** —
+ * `.mat-panel` is reachable only by writing the class into the markup. So the
+ * whole of `foundation.css` §3's recipe was copied into this file and pinned to
+ * `.history-panel`: fill, grain, `background-origin`, the four-sided border, the
+ * five-layer cast, and a second copy of the specular band on `::after`. Ninety
+ * lines that could not drift in *colour*, because every value was read from
+ * module A's tokens, but could drift in *shape* the moment §3's recipe changed —
+ * and the note that shipped with it said the real fix was one line in `hud.ts`.
  *
- * Two departures from the plain panel rank, both because of where this sits:
+ * That line is now written: the element is `history-panel mat-panel`, and the
+ * copy has been deleted rather than left as a second opinion about what a panel
+ * is. The **census now reads zero plain panels across all forty-nine routes**,
+ * which is what this was the last one blocking.
  *
+ * ## What is left, and why each of the four survives
+ *
+ *  - **Position, size and the collapse transition.** Layout is never a material's.
  *  - **`--cast-lift: 1.6`.** The log floats over a live 3D board rather than
- *    lying on a screen, and the drop and the contact shadow are the only things
+ *    lying on a page, and the drop and the contact shadow are the only things
  *    that say which of the two is nearer. The dialogues use 2.1 for the same
  *    reason; a HUD widget is not as far off the page as a modal.
- *  - **`--r-self: var(--r-panel)`.** Measured off the live board rather than
- *    chosen: the leader plate, the Obsession dial and the Hype well all compute
- *    to 18px and only the ability tiles are 14px, so the HUD has exactly two
- *    radii and the log was a third at 20px. It is a container with a header and
- *    a scrolling list — structural furniture, not a tile — so it joins the
- *    majority. §7's first craft line is three radii on one screen.
+ *  - **`backdrop-filter: none`.** Turned off rather than inherited. The plate is
+ *    95% opaque and it sits over a WebGL canvas that redraws every frame, so
+ *    `blur(18px) saturate(1.3)` buys a picture nobody can see and costs a
+ *    viewport readback per frame of the one route whose frame budget is already
+ *    spoken for.
+ *  - **The band's phase.** See the note on `::after` below.
  *
- * `backdrop-filter` is turned off rather than inherited. The plate is 95% opaque
- * and it is over a WebGL canvas that redraws every frame, so `blur(18px)
- * saturate(1.3)` buys a picture nobody can see and costs a viewport readback per
- * frame of the one route with a frame budget already spoken for.
+ * `--r-self: var(--r-panel)` is *not* here any more, because it is now the
+ * default: `.mat-panel` sets exactly that. It was measured off the live board
+ * rather than chosen — the leader plate, the Obsession dial and the Hype well all
+ * compute to 18px and only the ability tiles are 14px, so the HUD has two radii
+ * and the log used to be a third at 20px.
  */
 .history-panel {
   position: absolute;
@@ -1358,104 +1364,40 @@
   padding: var(--sp-2) var(--sp-3);
   transition: max-height var(--dur-med) var(--ease-out);
 
-  --mat-amp: var(--amp-panel);
-  --mat-fill: var(--fill-panel);
-  --rim-a: 0.06;
-  --lip-a: 0.63;
-  --mat-grain: var(--tex-grain-mid, none);
-  --mat-grain-size: var(--tex-grain-mid-size, auto);
-  --sheen-alpha: 0.03;
-  --r-self: var(--r-panel);
   --cast-lift: 1.6;
-
-  /* Absolute already establishes a containing block for the band; the isolation
-     is what puts a `z-index: -1` child above the fill and below the entries. */
-  isolation: isolate;
-  border-radius: var(--r-self);
-  color: var(--text);
-
-  background-color: transparent;
-  background-image: var(--mat-grain), var(--mat-fill);
-  background-repeat: repeat, no-repeat;
-  background-size: var(--mat-grain-size), 100% 100%;
-  background-position: 0 0, 0 0;
-  /* `border-box`, or the fill stops inside the border and the rim composites
-     over the board behind the log rather than over the log's own surface —
-     which would make the bevel a function of whatever card is underneath it. */
-  background-origin: border-box;
 
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-
-  /* top, right, bottom, left. Lit on the two edges facing 315°, dark on the two
-     facing away — the outer pixel of the bevel, at full amplitude. */
-  border-style: solid;
-  border-width: 1px;
-  border-color:
-    rgb(255 255 255 / var(--rim-a))
-    rgb(0 0 0 / calc(var(--lip-a) * 0.55))
-    rgb(0 0 0 / var(--lip-a))
-    rgb(255 255 255 / calc(var(--rim-a) * 0.5));
-
-  --mat-cast:
-    inset 0 1px 0 rgb(255 255 255 / calc(var(--rim-a) * 0.55)),
-    inset 1px 0 0 rgb(255 255 255 / calc(var(--rim-a) * 0.28)),
-    inset 0 -1px 0 rgb(0 0 0 / calc(var(--lip-a) * 0.55)),
-    inset -1px 0 0 rgb(0 0 0 / calc(var(--lip-a) * 0.3)),
-    calc(6.2px * var(--mat-amp) * var(--cast-lift)) calc(10px * var(--mat-amp) * var(--cast-lift))
-      calc(26px * var(--mat-amp) * var(--cast-lift)) calc(-6px * var(--mat-amp))
-      rgb(0 0 0 / calc(0.55 * var(--mat-amp))),
-    calc(1.24px * var(--cast-lift)) calc(2px * var(--cast-lift)) calc(3px * var(--cast-lift)) -1px
-      rgb(0 0 0 / calc(0.3 + 0.3 * var(--mat-amp)));
-  box-shadow: var(--mat-cast);
 }
 
 /**
- * ...and it is alive between actions.
+ * ...and it is alive between actions, on module A's own band.
  *
- * §3a: "the screen is alive at rest", and a log with nothing new in it is at
- * rest for most of a turn. Module A's own band and module A's own keyframe —
- * 40% of the plate wide, travelling 150% of its own width so it can never
- * overhang a corner, on `translate` so the compositor owns it and the plate is
- * never repainted. The negative delay drops it into a cycle that is already
- * running, so the first frame of a match is mid-sweep rather than at the
- * keyframe, and -5100ms is deliberately not the -3400ms `screens.css` §O hands
- * the dialogues: the mulligan sheet and the log are on screen together at the
- * start of every match and two plates sweeping in step is one flash rather than
- * light crossing a room.
+ * §3a: "the screen is alive at rest", and a log with nothing new in it is at rest
+ * for most of a turn. Everything about the band — the 40% width, the 150% travel
+ * that keeps it from overhanging a corner, the opacity envelope, the `translate`
+ * that keeps it off the main thread — now comes from `.mat-panel::after` and is
+ * not restated here. One longhand is.
  *
- * The length-wise feather is the same repair §O documents. A 135° gradient's
- * iso-lines run at 45°, so the value along the band's own vertical edges is not
- * constant and the band can end on a hard step; the mask guarantees it ends in a
- * ramp. It carries no light of its own — 90° is the band's long axis, the only
- * angle a length-wise taper can have — so it is not a second sun.
+ * The delay is negative on purpose, and it is *this* number on purpose. A
+ * negative delay drops the band into a cycle that is already running, so the
+ * first frame of a match is mid-sweep rather than parked at the keyframe. -5100ms
+ * is deliberately not the -3400ms `screens.css` §O hands the dialogues: the
+ * mulligan sheet and the log are on screen together at the start of every match,
+ * and two plates sweeping in step is one flash rather than light crossing a room.
+ * The default it replaces is `--cascade-i`-derived, and `--cascade-i` is written
+ * by `shell.ts` onto a screen root's grandchildren — which this is not, so
+ * unstated it would be 0 and the two plates would sweep together.
  *
- * `::after` is free here: nothing else in this file claims `.history-panel`'s,
- * and `.history-head::after` and `.history-list` are different elements.
+ * Overriding the longhand rather than restating the shorthand is what makes this
+ * three words instead of a second copy: `.mat-panel::after` and this rule have
+ * the same specificity, `battle.css` is imported after `base.css`, so the later
+ * longhand replaces that one component of the earlier shorthand and leaves the
+ * duration, the curve and the iteration count where they were declared.
+ * Reduced motion is not restated for the same reason — foundation.css already
+ * turns every material's band off, and out-specifying that would be a bug.
  */
-.history-panel::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 40%;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0;
-  background: linear-gradient(
-    var(--light-sweep),
-    transparent 0%,
-    rgb(255 255 255 / var(--sheen-alpha)) 50%,
-    transparent 100%
-  );
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
-  animation: hb-sheen-pass var(--dur-sheen-panel) var(--ease-sweep) -5100ms infinite;
-}
-
-:root[data-reduced-motion="true"] .history-panel::after { animation: none; }
+.history-panel::after { animation-delay: -5100ms; }
 
 /* Collapsed, the log is a 40px header with the list clipped behind it. The band
    is clipped with it, which is correct — it is light on the plate, and the plate

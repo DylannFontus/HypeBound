@@ -49,7 +49,7 @@ import {
 import { TARGET_CURVE, curveBucket } from "../../engine/deck";
 import { aiCloutRemaining, getProfile } from "../../save/profile";
 import { aiDailyCap } from "../../game/economy/income";
-import { artAttr, count, countUp, enter, icon, quantify } from "./data/kit";
+import { artAttr, count, countUp, enter, icon, quantify, room } from "./data/kit";
 
 export interface GauntletCallbacks {
   onBack: () => void;
@@ -72,10 +72,10 @@ const percent = (value: number): string => `${Math.round(value * 1000) / 10}%`;
 export function createGauntletScreen(content: ContentIndex, callbacks: GauntletCallbacks): Screen {
   const data = gauntletData();
   const root = document.createElement("div");
-  root.className = "screen gauntlet-screen";
+  root.className = "screen gauntlet-screen d-hall d-hall-solo d-hall-read";
 
   root.innerHTML = `
-    <div class="ambient-bg"></div>
+    ${room({ accent: "#4fe3d0", lit: 0.85 })}
     <header class="screen-header">
       <button class="btn btn-ghost" id="gauntlet-back">${icon("arrow-left", 16)} Back</button>
       <h1 class="title">The Gauntlet</h1>

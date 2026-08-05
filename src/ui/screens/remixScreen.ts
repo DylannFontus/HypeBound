@@ -22,19 +22,38 @@ import {
 } from "../../game/remix";
 import { remixQuestView } from "../../save/profile";
 import { audio } from "../../audio/audio";
-import { artAttr, count, disposeBag, enter, icon, meter, quantify, rovingList, stamp, unspec } from "./data/kit";
+import {
+  artAttr,
+  count,
+  disposeBag,
+  enter,
+  esc,
+  icon,
+  meter,
+  quantify,
+  railCard,
+  room,
+  rovingList,
+  stamp,
+  unspec,
+} from "./data/kit";
 
 export interface RemixCallbacks {
   onBack: () => void;
   onPlay: (ruleId: string) => void;
 }
 
-const esc = (value: string): string =>
-  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-
 export function createRemixScreen(callbacks: RemixCallbacks): Screen {
   const root = document.createElement("div");
-  root.className = "screen remix-screen";
+  /**
+   * A hero, a rotation, and a wall for everything that is neither.
+   *
+   * The rule that is live this week is the whole point of the route, and it was
+   * the first of four identical full-width slabs — so the object with key art on
+   * it read as the same rank as a progress bar. It is the hero now; the rotation
+   * keeps the main column; and see the note by the rail for the other two.
+   */
+  root.className = "screen remix-screen d-hall";
   const bag = disposeBag();
 
   function render(): void {
@@ -55,7 +74,7 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
     const key = artAttr("key", ["#e46bd6", 1280, 194, current.id, "spiral", 0, 0.06]);
 
     root.innerHTML = `
-      <div class="ambient-bg"></div>
+      ${room({ accent: "#e46bd6", lit: 0.95 })}
       <header class="screen-header">
         <button class="btn btn-ghost" id="remix-back">${icon("arrow-left", 16)} Lobby</button>
         <h1 class="title">Remix Queue</h1>
@@ -63,7 +82,7 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
       </header>
 
       <div class="remix-body data-body">
-        <section class="mat-panel r-panel d-pad d-enter remix-current" id="remix-current">
+        <section class="mat-panel r-panel d-pad d-enter d-hero remix-current" id="remix-current">
           <div class="d-key remix-key" ${key} style="--key-aspect:6.6/1" aria-hidden="true">
             <div class="d-key-scrim"></div>
           </div>
@@ -82,22 +101,6 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
               16
             )} Play this week's Remix</button>
           </div>
-        </section>
-
-        <section class="mat-panel r-panel d-pad d-enter remix-quest" id="remix-quest">
-          <div class="t-label">Weekly Remix quest</div>
-          <p class="remix-quest-line">
-            Win ${quantify(quest.required, "Remix match", "Remix matches")} —
-            <strong class="num">${count(quest.wins)}</strong> / <span class="num">${count(quest.required)}</span>
-          </p>
-          ${meter({ value: quest.wins / quest.required, steps: quest.required, animate: true })}
-          <p class="muted">
-            ${
-              quest.claimed
-                ? `Paid this week: ${quest.clout} Clout.`
-                : `Pays ${quest.clout} Clout, automatically, the moment the third win lands.`
-            }
-          </p>
         </section>
 
         <section class="mat-panel r-panel d-pad d-enter remix-rotation">
@@ -153,19 +156,50 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
             .join("")}
           </div>
         </section>
+      </div>
 
-        <section class="mat-panel r-panel d-pad d-enter remix-locked">
-          <div class="t-label">Not in this build</div>
-          ${[...DEFERRED_REMIX.entries()]
+      ${
+        /*
+         * The quest and the "not in this build" note are reference, not reading.
+         *
+         * The screen's subject is the rule that is live and the rotation it comes
+         * from; a three-win progress bar and a list of things that do not exist
+         * yet were slabs two and four of a four-slab stack, which put the
+         * rotation — the only part a player scans — below the fold. On the wall
+         * the quest is a standing tally beside the rules it counts, which is
+         * where a progress meter belongs.
+         */ ""
+      }
+      <section class="d-rail" aria-label="This week's quest">
+        ${railCard({
+          label: "Weekly Remix quest",
+          className: "remix-quest",
+          body: `<p class="remix-quest-line">
+              Win ${quantify(quest.required, "Remix match", "Remix matches")} —
+              <strong class="num">${count(quest.wins)}</strong> / <span class="num">${count(quest.required)}</span>
+            </p>
+            ${meter({ value: quest.wins / quest.required, steps: quest.required, animate: true })}
+            <p class="muted">
+              ${
+                quest.claimed
+                  ? `Paid this week: ${quest.clout} Clout.`
+                  : `Pays ${quest.clout} Clout, automatically, the moment the third win lands.`
+              }
+            </p>`,
+        })}
+        ${railCard({
+          label: "Not in this build",
+          className: "remix-locked",
+          body: [...DEFERRED_REMIX.entries()]
             .map(
               ([name, reason]) =>
                 `<p class="remix-deferred">${icon("lock", 13)}<span><strong>${esc(name)}</strong> — ${esc(
                   unspec(reason)
                 )}</span></p>`
             )
-            .join("")}
-        </section>
-      </div>
+            .join(""),
+        })}
+      </section>
     `;
 
     /**

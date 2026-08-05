@@ -40,6 +40,12 @@ import {
   meter,
   modeAction,
   quantify,
+  /**
+   * `room` only. The kit also exports a `railCard`, and this screen has had a
+   * local function of that name — an event tile for the calendar — since long
+   * before the kit had one. Importing both would shadow the local one silently.
+   */
+  room,
   rovingList,
   stamp,
   tokenMark,
@@ -156,7 +162,17 @@ const EVENT_PLATE =
 
 export function createEventsScreen(callbacks: EventsCallbacks): Screen {
   const root = document.createElement("div");
-  root.className = "screen events-screen";
+  /**
+   * The Feed, laid out as a hall.
+   *
+   * The two calendar sections were already called rails and were already
+   * *shaped* like rails — a heading over a narrow grid of cards — and they were
+   * still stacked under the running event as two more full-width slabs, which is
+   * how a screen with a genuine hero and a genuine sidebar ends up reading as a
+   * report. Coming up and Archive move to the wall; the running event keeps the
+   * main column and is the only thing on the screen at hero rank.
+   */
+  root.className = "screen events-screen d-hall";
 
   /** which event's rules popup is open, if any */
   let rulesFor: string | null = null;
@@ -408,8 +424,19 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
     const archived = views.filter((view) => view.phase === "ended");
     const popup = rulesFor ? views.find((view) => view.event.id === rulesFor) : null;
 
+    /**
+     * The room takes the running event's own accent.
+     *
+     * §6 asks for one hero accent per screen and this is the screen where the
+     * answer changes by the week: HYPECON is teal, the next event is not. The
+     * alcove, the horizon line and the hero specular all read from
+     * `--hall-accent`, so the whole room re-lights itself around whatever is
+     * running without a second stylesheet knowing the event exists.
+     */
+    const roomAccent = live[0]?.event.accent ?? upcoming[0]?.event.accent;
+
     root.innerHTML = `
-      <div class="ambient-bg"></div>
+      ${room({ ...(roomAccent ? { accent: roomAccent } : {}), lit: 0.9 })}
       <header class="screen-header">
         <button class="btn btn-ghost" id="ev-back">${icon("arrow-left", 16)} Lobby</button>
         <h1 class="title">Event Hub</h1>
@@ -431,46 +458,46 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
                </div>`
         }
 
-        ${
-          /*
-           * The two rails sit beside each other, not under.
-           *
-           * Each was a full-width section holding an `auto-fill` grid, and with
-           * one event in each the card took the first 360px column and left
-           * 750px of empty panel to its right — twice, one below the other. §2
-           * reads that as content that failed to load, and it is a *layout*
-           * problem rather than a content one: the calendar simply does not have
-           * three upcoming events to fill a three-column band with. Two columns
-           * of one card each fills the frame with the same content.
-           */ ""
-        }
-        ${
-          upcoming.length > 0 || archived.length > 0
-            ? `<div class="event-rails">
-                 ${
-                   upcoming.length > 0
-                     ? `<section class="event-rail" id="ev-upcoming">
-                          <h2 class="t-heading event-rail-title">Coming up</h2>
-                          <div class="event-rail-grid">${upcoming
-                            .map((view) => railCard(view, now, "upcoming"))
-                            .join("")}</div>
-                        </section>`
-                     : ""
-                 }
-                 ${
-                   archived.length > 0
-                     ? `<section class="event-rail" id="ev-archive">
-                          <h2 class="t-heading event-rail-title">Archive</h2>
-                          <div class="event-rail-grid">${archived
-                            .map((view) => railCard(view, now, "archive"))
-                            .join("")}</div>
-                        </section>`
-                     : ""
-                 }
-               </div>`
-            : ""
-        }
       </div>
+
+      ${
+        /*
+         * The calendar goes on the wall.
+         *
+         * These two were already a `.event-rails` band of two columns, which was
+         * the right instinct and the wrong axis: they still sat *under* the
+         * running event, so the screen was hero-then-two-slabs and a player
+         * checking when something returns had to scroll away from the thing they
+         * were reading. Against the rail they are a standing calendar — always
+         * in view, never competing for the width the hero needs.
+         */ ""
+      }
+      ${
+        upcoming.length > 0 || archived.length > 0
+          ? `<section class="d-rail" aria-label="Event calendar">
+               ${
+                 upcoming.length > 0
+                   ? `<section class="event-rail d-enter" id="ev-upcoming">
+                        <h2 class="d-rail-label">Coming up</h2>
+                        <div class="event-rail-grid">${upcoming
+                          .map((view) => railCard(view, now, "upcoming"))
+                          .join("")}</div>
+                      </section>`
+                   : ""
+               }
+               ${
+                 archived.length > 0
+                   ? `<section class="event-rail d-enter" id="ev-archive">
+                        <h2 class="d-rail-label">Archive</h2>
+                        <div class="event-rail-grid">${archived
+                          .map((view) => railCard(view, now, "archive"))
+                          .join("")}</div>
+                      </section>`
+                   : ""
+               }
+             </section>`
+          : ""
+      }
 
       ${
         popup

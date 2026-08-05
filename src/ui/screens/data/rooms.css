@@ -37,26 +37,23 @@
 }
 
 /**
- * A wash of the player's own colour behind their own panel.
+ * The wash of the player's own colour is `.d-hero`'s now, and this is the note
+ * that says why the rule that used to be here is gone.
  *
- * Radial and centred on the top-left, which is where the key light is, so it
- * reads as the room lighting rather than as a second sun. It is the one place on
- * the screen where the identity colour is allowed to be ambient rather than an
- * accent, and it is what stops the hero panel being the same rectangle as the
- * three below it.
+ * It was a single radial at 24% of `--profile-accent`, and it was right — it is
+ * where `hall.css`'s alcove came from. Keeping both would have been worse than
+ * either: two rules declaring `background` on the same `::before`, one at
+ * (0,2,0) and one at (0,1,0), so the profile's hero would have been lit at 24%
+ * while the four other heroes in the domain were lit at 62%, from two
+ * implementations of the same idea that nobody would think to compare. The
+ * screen sets `--hall-accent` to the player's colour in `profileScreen.ts` and
+ * takes the shared light.
+ *
+ * `> *` stays: `.d-hero::before` sits at `z-index: -1` inside the panel's own
+ * isolation, which is enough for content that establishes no stacking of its
+ * own, and this panel's children include a canvas and an absolutely-positioned
+ * badge that do.
  */
-.profile-screen .profile-identity::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    62% 130% at 10% -12%,
-    color-mix(in srgb, var(--profile-accent, var(--accent)) 24%, transparent),
-    transparent 72%
-  );
-}
-
 .profile-screen .profile-identity > * {
   position: relative;
 }
@@ -160,10 +157,29 @@
   border-top: 1px solid rgb(255 255 255 / 0.06);
 }
 
-.profile-screen .profile-links {
+/**
+ * The five record links, now a column against the wall rather than a row across
+ * the page.
+ *
+ * They were a five-across grid of 200px tiles at the top of the scrolling stack
+ * — a navigation bar drawn as content, which is why the screen read as a
+ * document with a toolbar in the middle of it. On the rail they are what they
+ * always were: the way out of this screen, always in view.
+ *
+ * `auto-fit` still, because the same list becomes a horizontal snap strip below
+ * 1080px where the rail lies down (see `hall.css` §7) and a hard `1fr` would
+ * make five 300px tiles on a phone.
+ */
+.profile-screen .d-rail .profile-links {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(calc(200px * var(--ui-scale, 1)), 1fr));
+  grid-template-columns: 1fr;
   gap: var(--sp-2);
+}
+
+@media (max-width: 1080px), (max-height: 560px) {
+  .profile-screen .d-rail .profile-links {
+    grid-template-columns: repeat(auto-fit, minmax(calc(190px * var(--ui-scale, 1)), 1fr));
+  }
 }
 
 .profile-screen .profile-link {
@@ -361,6 +377,86 @@
   box-shadow:
     0 8px 22px rgb(0 0 0 / 0.6),
     0 2px 0 rgb(0 0 0 / 0.7);
+}
+
+/**
+ * The locker, cut into a cabinet and a card back standing beside it.
+ *
+ * The four slot rows stretched the full width of the panel and the card back
+ * preview sat *under* them, so at 1,150px the panel was four 1,100px rows with
+ * their contents pinned to the two ends and about 500px of nothing through the
+ * middle of each — recon defect 17 all over again, on a different screen, and
+ * arrived at the same way: a row that was the right shape at 900px and was never
+ * looked at once the container grew.
+ *
+ * The preview is the natural second column. It is the only *object* in the panel
+ * — everything else is a label and a swatch — so putting it beside the list
+ * gives the eye something to land on and takes 500px out of every row at the
+ * same time. Below 1,100px of panel it goes back under, because at that width
+ * the rows have no hole in them to fix.
+ */
+.profile-screen .profile-cosmetics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "head head"
+    "hint hint"
+    "list back";
+  align-items: start;
+  column-gap: var(--sp-5);
+}
+
+.profile-screen .profile-cosmetics > .profile-section-title {
+  grid-area: head;
+}
+
+.profile-screen .profile-cosmetics > .profile-hint {
+  grid-area: hint;
+}
+
+.profile-screen .profile-cosmetics > .profile-slots {
+  grid-area: list;
+}
+
+.profile-screen .profile-cosmetics > .profile-back-preview {
+  grid-area: back;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: calc(168px * var(--ui-scale, 1));
+  text-align: center;
+}
+
+.profile-screen .profile-cosmetics > .profile-back-preview p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+@container (max-width: 1100px) {
+  .profile-screen .profile-cosmetics {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "head"
+      "hint"
+      "list"
+      "back";
+  }
+}
+
+/**
+ * ...and the query above needs something to ask about.
+ *
+ * A media query would be wrong here: the panel's width is a function of the
+ * rail, the gutters and `--ui-scale` as well as the window, so "the window is
+ * under 1100px" and "this panel is under 1100px" are different questions and
+ * only the second one is the one being asked. `inline-size` rather than `size`,
+ * because the panel's height is content-driven and size containment would
+ * collapse it.
+ */
+.profile-screen .profile-cosmetics {
+  container-type: inline-size;
 }
 
 @media (max-width: 880px) {
@@ -1214,6 +1310,28 @@
   gap: var(--sp-3);
 }
 
+/**
+ * On the wall, the calendar is one card per row and nothing else changes.
+ *
+ * `auto-fit` at a 300px minimum would still resolve to one column inside a 300px
+ * rail, so this is technically redundant at 1600 and is not at 2560, where the
+ * rail reaches 392px and a second 300px track would appear and then immediately
+ * be too narrow for a date. Stating it removes the coincidence.
+ */
+.events-screen .d-rail .event-rail-grid {
+  grid-template-columns: 1fr;
+}
+
+.events-screen .d-rail .event-rail {
+  gap: var(--sp-2);
+}
+
+@media (max-width: 1080px), (max-height: 560px) {
+  .events-screen .d-rail .event-rail-grid {
+    grid-template-columns: repeat(auto-fit, minmax(calc(260px * var(--ui-scale, 1)), 1fr));
+  }
+}
+
 .events-screen .event-locked {
   opacity: 1;
   --mat-amp: 0.35;
@@ -1436,6 +1554,66 @@
   grid-template-columns: repeat(auto-fit, minmax(calc(320px * var(--ui-scale, 1)), 1fr));
   gap: var(--sp-3);
   align-items: start;
+}
+
+/**
+ * The three rate tables, on the wall.
+ *
+ * They were a three-across band at the bottom of the scroll, which meant a
+ * player comparing "by faction" against the curve had to hold one of them in
+ * their head while scrolling to the other. Against the rail they are beside the
+ * chart at all times, which is what a small-multiple is for.
+ *
+ * Each keeps `.stats-table`'s material and its head; only the bar column gives
+ * way, because a 300px row cannot hold a name, a 190px meter, a percentage and a
+ * record and the first thing to sacrifice is the one that is decorative when the
+ * number is right there.
+ */
+.stats-screen .d-rail > .stats-table {
+  padding: var(--sp-4);
+  gap: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+}
+
+.stats-screen .d-rail .stats-table-head {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stats-screen .d-rail .stats-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--sp-2);
+}
+
+.stats-screen .d-rail .stats-row-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.stats-screen .d-rail .stats-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.stats-screen .d-rail .stats-actions button {
+  justify-content: flex-start;
+}
+
+/**
+ * The curve panel is the hero, so it is allowed to be the tallest object here.
+ *
+ * `min-height` rather than a fixed height: the canvas inside is sized from its
+ * own box by `drawSized`, and pinning the panel would pin the chart. What this
+ * does is stop a two-match history from drawing a 170px chart in a 190px panel
+ * beside a 400px summary — a hero that is the same size as everything else is
+ * not a hero, and on a screen with no data yet that was exactly what happened.
+ */
+.stats-screen .stats-curve-panel {
+  min-height: clamp(300px, 42vh, 460px);
+  justify-content: center;
 }
 
 /* -------------------------------------------------------------------------
@@ -2571,6 +2749,68 @@
   flex-direction: column;
 }
 
+/**
+ * The rail's two panels are the same object as the main column's, one rank down.
+ *
+ * They keep the marked head, the material and the rhythm — walking from the
+ * Audio panel to the Accessibility card must not read as walking between two
+ * designs — and lose only the horizontal room they no longer have. The
+ * Information links stop being a five-across grid and become a list, because a
+ * 300px column divided five ways is five columns of nothing.
+ */
+.settings-screen .d-rail .settings-section {
+  padding: var(--sp-4);
+  gap: var(--sp-2);
+}
+
+.settings-screen .d-rail .settings-desc {
+  max-width: none;
+}
+
+.settings-screen .d-rail .settings-links {
+  grid-template-columns: 1fr;
+}
+
+.settings-screen .d-rail .settings-link {
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-sm);
+}
+
+/**
+ * The one hero action on the screen, given the whole width of its card.
+ *
+ * `align-self: flex-start` is right in a 980px column and wrong in a 300px one —
+ * it left a 260px button in a 300px card with 40px of nothing beside it, which
+ * reads as a mistake rather than as a choice. Centred and full width, it is the
+ * shape every reference game gives its primary call to action.
+ */
+.settings-screen .d-rail .settings-cta {
+  align-self: stretch;
+  justify-content: center;
+}
+
+/**
+ * Accessibility is the light mass on a screen that is otherwise deliberately
+ * unlit. `atmosphere.ts` gives Back Office an intensity of 0.42 because nobody
+ * reads a settings tree through a neon haze; this is the single place that
+ * ration is spent, so the eye lands on the way out of here rather than on the
+ * sixth volume slider.
+ */
+.settings-screen .d-rail .settings-a11y-card {
+  --mat-fill: linear-gradient(
+    var(--light-sweep),
+    color-mix(in srgb, var(--accent) 26%, rgb(30 22 52 / 0.95)) 0%,
+    rgb(22 15 42 / 0.96) 100%
+  );
+  --row-accent: var(--accent-bright);
+}
+
+@media (max-width: 1080px), (max-height: 560px) {
+  .settings-screen .d-rail .settings-links {
+    grid-template-columns: repeat(auto-fit, minmax(calc(180px * var(--ui-scale, 1)), 1fr));
+  }
+}
+
 .settings-screen .settings-section {
   padding: var(--sp-5);
   display: flex;
@@ -3034,6 +3274,150 @@
 .story-screen .story-empty {
   margin: var(--sp-6) auto;
   max-width: 520px;
+}
+
+/**
+ * Ten chapters as a wall of plates, not as a stack of ten identical bars.
+ *
+ * Recon defect 17 fixed the *hole inside* the row and left the row a row: ten
+ * full-width objects, one under another, differing only in the crest at the
+ * left. Squinted, that is ten stripes — the exact "row, row, row" rhythm this
+ * wave exists to break, and it survived the previous pass because every
+ * individual row had become good.
+ *
+ * Two columns of five reads as a chapter select. It also does what the room does
+ * for every other screen here: at 1600 the list now uses 1,450px of window
+ * instead of 1,120, and the pair of columns gives the eye a second axis to move
+ * along. The card's own five-track grid already folds correctly under 1000px —
+ * see the note below it — and each column is comfortably above that, so the
+ * plates keep their wide arrangement inside a narrower box.
+ *
+ * `auto-fit` rather than a literal `1fr 1fr`, so a 1280 viewport drops to one
+ * column rather than making two 560px cards that fold their own internals.
+ */
+/**
+ * Wrapping flex, **not** grid, and the reason is a Chrome intrinsic-sizing trap
+ * that cost an hour and is worth the paragraph.
+ *
+ * The obvious spelling of "two columns" is `grid-template-columns: repeat(auto-fit,
+ * minmax(600px, 1fr))`, and it renders these ten chapters as ten **32-pixel
+ * bars** — exactly the panel's own top and bottom padding, with every child
+ * clipped away. `.story-card` is a `<button>`, it is a grid container, and it
+ * carries `overflow: hidden` to clip the accent bar to the panel radius. A grid
+ * item whose overflow is not `visible` has an automatic minimum size of zero,
+ * and for a button in that state Chrome also reports a **max-content block
+ * contribution of zero** — so an `auto` row, which is `minmax(auto, max-content)`,
+ * resolves to nothing and the card is sized entirely by its padding. Measured:
+ * `grid-template-rows` came back `32px 32px 32px 32px 32px 548.469px`, where the
+ * only correct row was the one that happened to contain a plain `<div>` tall
+ * enough to stretch it. Setting `min-height: min-content` on the card fixes the
+ * *card* and not the *row*, so the cards then overlap each other.
+ *
+ * `data.css` §1 documents the flex half of this same rule — "a flex item whose
+ * own overflow is not visible has an automatic minimum size of zero" — and notes
+ * that grid children ignore `flex-shrink`. This is the other half of that note:
+ * grid children also ignore the fix.
+ *
+ * A wrapping flex row has none of it, because a flex item's height comes from
+ * laying the item out rather than from an intrinsic contribution, which is what
+ * this list did for its whole life before it had two columns. `flex-basis` at
+ * half the line does the column count and `flex-wrap` does the rest.
+ */
+.story-screen .story-list {
+  display: flex;
+  flex-flow: row wrap;
+  align-content: flex-start;
+  gap: var(--sp-3);
+}
+
+.story-screen .story-list > .story-card {
+  flex: 1 1 calc(50% - var(--sp-3));
+  min-width: min(calc(560px * var(--ui-scale, 1)), 100%);
+}
+
+/**
+ * The next chapter you can actually play is the one that gets the whole line.
+ *
+ * A chapter select whose every tile is the same size makes the player read all
+ * ten to find the one that is theirs. `.d-hero` is applied to it in
+ * `storyScreen.ts`; this is only the width, and it is a width rather than a
+ * scale so the plate stays on the same rhythm as the rest.
+ */
+.story-screen .story-list > .story-card.d-hero {
+  flex-basis: 100%;
+}
+
+/**
+ * The meter column gives way first when a card is half a line wide.
+ *
+ * 190px was the floor while a card had 1,120px to itself; at 690 it leaves the
+ * blurb about 160 and the chapter description wraps to eleven lines. A meter
+ * reads fine at 110 — it is a proportion, not a measurement — and the count
+ * under it is the precise version anyway.
+ */
+.story-screen .story-list > .story-card {
+  grid-template-columns: 4px auto minmax(0, 1fr) minmax(110px, 240px) auto;
+}
+
+/**
+ * Three lines of blurb on a half-width plate, and the whole thing on the hero.
+ *
+ * Unclamped, the ten chapter descriptions wrap to between six and eleven lines
+ * in a 189px column, so the plates came out 319, 338, 340 and 358 pixels tall —
+ * a "grid" whose tiles are all different heights is a stack that happens to have
+ * two columns, and the ragged right edge is more obviously accidental than the
+ * single column it replaced. Measured before the clamp; after it they are within
+ * a line of each other.
+ *
+ * Truncating is safe because it is not the only copy of the sentence: the
+ * chapter screen one click in prints `chapter.about` in full, at a reading
+ * measure, which is where a player who wants the flavour is going anyway. The
+ * lead plate is not clamped, because it has a whole line to itself and three
+ * lines in 1,100px would be a paragraph with a bite taken out of it.
+ */
+.story-screen .story-list > .story-card:not(.d-hero) .story-card-about {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+/**
+ * When the plates are two-up, they fold — and the question is asked of the list
+ * rather than of the window.
+ *
+ * The card's five-track arrangement wants about 900px. Half of a wide list is
+ * 690, which leaves the title column 180 and turns "The Server Is Closing" into
+ * three lines beside a meter with room to spare. `rooms.css` already had the
+ * folded arrangement for this card; it was behind `@media (max-width: 1000px)`,
+ * and a viewport query cannot see this, because at 1600px the window is wide and
+ * the card is narrow *because* the window is wide.
+ *
+ * So the container is the list and the threshold is the width at which it stops
+ * putting two cards on a line. Below it every card is full width and wants the
+ * five tracks back. The lead plate never folds — it always has the whole line.
+ */
+.story-screen .story-list {
+  container-type: inline-size;
+  container-name: storylist;
+}
+
+@container storylist (min-width: 1140px) {
+  .story-screen .story-list > .story-card:not(.d-hero) {
+    grid-template-columns: 4px auto minmax(0, 1fr);
+  }
+
+  .story-screen .story-list > .story-card:not(.d-hero) .story-card-track {
+    grid-column: 3 / -1;
+    margin-top: var(--sp-2);
+  }
+
+  .story-screen .story-list > .story-card:not(.d-hero) .story-card-meta {
+    grid-column: 3 / -1;
+    justify-self: start;
+    margin-top: var(--sp-2);
+  }
 }
 
 /**

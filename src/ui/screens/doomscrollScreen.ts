@@ -39,7 +39,7 @@ import {
 } from "../../game/doomscroll/run";
 import { activeRun, beginRun, doomscrollStore, finishRun, saveRun } from "../../save/doomscrollSave";
 import { completeDailyDoomscroll, getProfile, profileStore, todaysDoomscrollSeed } from "../../save/profile";
-import { count, countUp, enter, icon, quantify } from "./data/kit";
+import { count, countUp, enter, icon, quantify, room } from "./data/kit";
 import { paintLeaderPortrait } from "../art/leaderPortrait";
 
 export interface DoomscrollCallbacks {
@@ -97,9 +97,9 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
   const data = getRoguelikeData(content);
 
   const root = document.createElement("div");
-  root.className = "screen doom-screen";
+  root.className = "screen doom-screen d-hall d-hall-solo d-hall-read";
   root.innerHTML = `
-    <div class="ambient-bg"></div>
+    ${room({ accent: "#4fe3d0", lit: 0.8 })}
     <header class="sub-header">
       <button class="btn btn-ghost" id="doom-back">${icon("arrow-left", 16)} Lobby</button>
       <h1 class="title" id="doom-title">The Doomscroll</h1>

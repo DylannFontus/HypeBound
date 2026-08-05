@@ -74,7 +74,9 @@ import {
   esc,
   icon,
   meter,
+  railCard,
   rankMark,
+  room,
   rovingList,
   swatchMark,
 } from "./data/kit";
@@ -237,7 +239,17 @@ function paintBack(canvas: HTMLCanvasElement, back: Cosmetic | null, color: stri
 
 export function createProfileScreen(content: ContentIndex, callbacks: ProfileCallbacks): Screen {
   const root = document.createElement("div");
-  root.className = "screen profile-screen";
+  /**
+   * `d-hall` re-cuts this screen from a column into a room.
+   *
+   * See the long note at the top of `data/hall.css`. What changes here is only
+   * where things go: the five record links and the emote wheel move out of the
+   * scrolling stack and onto the right-hand wall, where they are a persistent
+   * navigation column rather than the third and fifth slabs of a document. The
+   * locker and the mastery tracks — the two things a player came here to *read* —
+   * keep the main column and finally have it to themselves.
+   */
+  root.className = "screen profile-screen d-hall";
 
   /** which slot's picker is open, or null */
   let picking: CosmeticKind | null = null;
@@ -356,14 +368,16 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
       </button>`;
 
     root.innerHTML = `
-      <div class="ambient-bg"></div>
+      ${room({ accent, lit: 0.85 })}
       <header class="screen-header">
         <button class="btn btn-ghost" id="profile-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Profile</h1>
       </header>
 
       <main class="profile-body data-body">
-        <section class="mat-panel profile-identity" style="--profile-accent:${esc(accent)}">
+        <section class="mat-panel d-hero profile-identity" style="--profile-accent:${esc(accent)};--hall-accent:${esc(
+          accent
+        )}">
           <div class="profile-avatar-wrap">
             <canvas class="profile-frame-canvas" id="profile-frame" width="240" height="240"></canvas>
             <div class="profile-avatar" style="--c:${esc(accent)}">
@@ -426,14 +440,6 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
           </dl>
         </section>
 
-        <nav class="profile-links" aria-label="Your records">
-          ${link("profile-achievements", "Achievements", "achievement", unclaimed)}
-          ${link("profile-history", "Match history", "mode-replays")}
-          ${link("profile-stats", "Statistics", "log")}
-          ${link("profile-gallery", "Characters", "collection")}
-          ${link("profile-leaderboards", "Leaderboards", "mode-ranked")}
-        </nav>
-
         <section class="mat-panel profile-cosmetics">
           <h3 class="t-heading profile-section-title">Cosmetics</h3>
           <p class="t-body profile-hint">
@@ -449,23 +455,6 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
             <canvas id="profile-back-canvas" width="132" height="184"></canvas>
             <p class="t-body">${back ? `Your cards show the ${esc(back.name)}.` : "Your cards show the house back."}</p>
           </div>
-        </section>
-
-        <section class="mat-panel profile-emotes">
-          <h3 class="t-heading profile-section-title">
-            Emote wheel <span class="num profile-count">${count(emotes.length)}</span>
-          </h3>
-          <p class="t-body profile-hint">
-            The six you start with are never taken away. Mastery adds to the wheel rather than replacing it.
-          </p>
-          <ul class="profile-emote-list">
-            ${emotes
-              .map(
-                (phrase) =>
-                  `<li class="profile-emote mat-chip d-enter">${icon("emote", 14)}<span>${esc(phrase)}</span></li>`
-              )
-              .join("")}
-          </ul>
         </section>
 
         <section class="mat-panel profile-mastery">
@@ -505,7 +494,36 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
                  </ul>`
           }
         </section>
-      </main>`;
+      </main>
+
+      <section class="d-rail" aria-label="Your records">
+        ${railCard({
+          label: "Your records",
+          className: "profile-rail-links",
+          body: `<nav class="profile-links" aria-label="Your records">
+              ${link("profile-achievements", "Achievements", "achievement", unclaimed)}
+              ${link("profile-history", "Match history", "mode-replays")}
+              ${link("profile-stats", "Statistics", "log")}
+              ${link("profile-gallery", "Characters", "collection")}
+              ${link("profile-leaderboards", "Leaderboards", "mode-ranked")}
+            </nav>`,
+        })}
+        ${railCard({
+          label: `Emote wheel · ${count(emotes.length)}`,
+          className: "profile-emotes",
+          body: `<p class="t-body profile-hint">
+              The six you start with are never taken away. Mastery adds to the wheel rather than replacing it.
+            </p>
+            <ul class="profile-emote-list">
+              ${emotes
+                .map(
+                  (phrase) =>
+                    `<li class="profile-emote mat-chip d-enter">${icon("emote", 14)}<span>${esc(phrase)}</span></li>`
+                )
+                .join("")}
+            </ul>`,
+        })}
+      </section>`;
 
     const frameCanvas = root.querySelector<HTMLCanvasElement>("#profile-frame");
     if (frameCanvas) paintFrame(frameCanvas, frame, factionId);

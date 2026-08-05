@@ -104,21 +104,58 @@ import { installRewardsTheme } from "./rewardsTheme";
  *    getting a no-op for it. It is switched off here rather than fixed, because an
  *    opaque field has no backdrop worth filtering.
  *
- * What replaces it is a *room* rather than a darker sheet: a wall lit on the
- * 315° vector like every other surface in the game, a floor the cards stand on,
- * a pool of the pull's own accent under them, a vignette and module B's grain.
- * §1 bans a flat fill on anything larger than an icon, and "the reveal now owns
- * the screen" would be a poor trade if what it owned were a rectangle of black.
+ * What replaced it was a *room* rather than a darker sheet — and, measured, that
+ * room was still a void.
  *
- * ## Why this sheet lives here and not in `rewardsTheme.ts`
+ * ## The second correction: three gradients on one element is not a place
  *
- * That file is the domain's stylesheet and is the right long-term home for these
- * eleven rules. It is also being edited by somebody else this wave. Installing
- * from here is a no-merge-conflict way to land the fix; it goes into the head
- * *after* `installRewardsTheme()`, so the two low-tier and high-contrast rules
- * that out-specify a bare `.rw-open-veil` are answered at their own specificity
- * rather than by `!important`. Fold it into the sheet whenever the two files are
- * next in one pair of hands.
+ * The first version of this was three `background` layers on `.rw-open-room`: a
+ * vignette, a vertical ramp and a 315° wash, all of them dark on dark. Every one
+ * of §1's boxes was ticked and the screen still photographed as black. The
+ * integration critic put it exactly right — "no midground plane at all — no
+ * table, no light pool, no room. Two of §2's four planes are missing" — and the
+ * capture agrees with him: the frame resolved to a single dark mass with the
+ * cards floating in it, which is the §6 value-structure failure, and the contact
+ * shadow under each card was landing on nothing, so it read as a smudge rather
+ * than as contact.
+ *
+ * The difference between a gradient and a place is that a place has **planes
+ * that meet**. `screens.css` already proved this on the shop, where the still
+ * pack stands in an alcove — a back wall, a floor, and a two-pixel lit join
+ * where they meet — and the note there names the load-bearing pixel: *without a
+ * line where two planes meet they read as one gradient and the pack goes back to
+ * floating.* So this is that alcove at room scale, deliberately in the same
+ * language, because tearing the pack should put the player **in the same room**
+ * they were just looking into rather than in a different, emptier one.
+ *
+ * Five elements, one job each:
+ *
+ * | element | plane (§2) | what it is |
+ * |---|---|---|
+ * | `.rw-room-wall`  | atmosphere | the back wall, lit from 315°, with a broad pool behind where the cards stand, dissolving at its own top edge rather than ending at one |
+ * | `.rw-room-floor` | midground  | the table, from the horizon down, with the lit join across its back edge and a near edge that dissolves |
+ * | `.rw-room-pool`  | midground  | the light the cards stand in, in whatever the best card so far is worth |
+ * | `.rw-room-sweep` | midground  | one soft specular crawling the floor on an 11s period |
+ * | `.rw-room-motes` | atmosphere | dust in the beam, two layers on different periods |
+ *
+ * The horizon is **measured, never guessed**, for the reason `shopScreen.ts`
+ * spells out about `--pack-base`: the card grid is sized from the viewport by
+ * `fit()`, so where its base lands moves with the window, with the interface
+ * scale, and with whether the pull is five cards or ten. A join line at a fixed
+ * percentage is right at 1600×900 and draws itself across the middle of the
+ * cards at 844×390. `layoutRoom()` writes the real number.
+ *
+ * ## Why this sheet still lives here and not in `rewardsTheme.ts`
+ *
+ * It landed here originally because that file belonged to somebody else that
+ * wave. Both are in one pair of hands now, so the note that said "fold it in
+ * whenever they are" has come due — except that the reason to keep it separate
+ * turned out to be better than the reason to merge it: this sheet has to
+ * out-specify two rules in the theme (`:root[data-gfx-tier="low"]
+ * .rw-open-veil` is (0,3,0)), and it does that by *ordering* rather than by
+ * `!important`, because it is appended to the head after `installRewardsTheme()`
+ * has run. Merging it would mean re-deciding those specificities by hand for no
+ * gain a player can see.
  */
 const ROOM_STYLE_ID = "hb-reveal-room";
 
@@ -133,32 +170,195 @@ const ROOM_CSS = `
   -webkit-backdrop-filter: none;
 }
 
-/* The room: wall, floor, vignette. Behind the accent pool and the glow, in
-   front of nothing at all, which is the point. */
+/*
+ * The room. Everything in it is positioned off --rw-horizon, which is the
+ * distance from the top of the overlay to the line the cards stand on, written
+ * by layoutRoom() from the grid's own measured box.
+ */
 .rw-open-room {
   position: absolute;
   inset: 0;
   pointer-events: none;
   overflow: hidden;
-  background:
-    radial-gradient(128% 92% at 50% 44%, transparent 38%, rgb(0 0 0 / 0.66) 100%),
-    linear-gradient(180deg, rgb(4 2 10 / 0) 52%, rgb(15 9 30 / 0.85) 79%, rgb(3 1 8 / 0.98) 100%),
-    linear-gradient(var(--light-sweep, 135deg), rgb(30 20 56 / 0.5), rgb(5 3 11 / 0) 58%);
+  --rw-horizon: 62%;
+  /* The vignette, and nothing else. The wall and the floor are elements now,
+     because two planes that meet need an edge between them and a background
+     layer has no edge to give.
+
+     It is deliberately heavy. §6 asks the screen to resolve into a light mass
+     and a dark mass when squinted at, and the first cut of this room failed
+     that in the other direction from the void it replaced: a broad mid-purple
+     wash top to bottom, everything the same value, nothing reading. The corners
+     go to black so the pool behind the cards has something to be brighter
+     *than*. */
+  background: radial-gradient(118% 84% at 50% 50%, transparent 16%, rgb(0 0 0 / 0.55) 62%, rgb(0 0 0 / 0.9) 100%);
 }
 
-/* The pool the cards stand in, in whatever the best card so far is worth. It
+.rw-open-room > span { position: absolute; left: 0; right: 0; display: block; }
+
+/* The back wall. Its pool is centred behind the cards and sits low, which is
+   what makes the room read as lit from in front of the player rather than from
+   nowhere; the 315° ramp over the top of it is the same key light every other
+   surface in the game carries. */
+.rw-room-wall {
+  top: 0;
+  bottom: calc(100% - var(--rw-horizon));
+  /* The pool is tight and the wall around it is nearly black: a broad soft
+     light on a broad soft wall is fog, and fog has no planes in it. */
+  background:
+    radial-gradient(40% 66% at 50% 104%, rgb(from var(--rw-accent, #b56cff) r g b / 0.34), rgb(from var(--rw-accent, #b56cff) r g b / 0) 76%),
+    linear-gradient(var(--light-sweep, 135deg), rgb(34 24 62 / 0.42) 0%, rgb(6 3 14 / 0.86) 74%);
+  /* A wall with a hard line across its top is a second panel. */
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 30%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 30%);
+  transition: background 620ms var(--ease-arrive, ease-out);
+}
+
+/* The floor. It runs past the bottom of the overlay rather than stopping at it,
+   so the surface recedes under the footer instead of ending at a second edge. */
+.rw-room-floor {
+  top: var(--rw-horizon);
+  bottom: -14%;
+  background:
+    /* the light the wall bounces onto the floor, strongest at the back */
+    linear-gradient(to bottom, rgb(from var(--rw-accent, #b56cff) r g b / 0.15) 0%, rgb(0 0 0 / 0) 54%),
+    linear-gradient(var(--light-sweep, 135deg), rgb(30 21 54 / 0.72) 0%, rgb(5 3 12 / 0.86) 100%);
+  mask-image: linear-gradient(to bottom, #000 34%, transparent 98%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 34%, transparent 98%);
+  transition: background 620ms var(--ease-arrive, ease-out);
+}
+
+/* The join: two hairlines, dark over lit, fading at both ends per §7. This is
+   the single most load-bearing pixel in the room — it is the difference between
+   two planes meeting and one gradient. */
+.rw-room-floor::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background-image:
+    linear-gradient(90deg, transparent, var(--hairline-dark) 18%, var(--hairline-dark) 82%, transparent),
+    linear-gradient(90deg, transparent, var(--hairline-lit) 18%, var(--hairline-lit) 82%, transparent);
+  background-repeat: no-repeat;
+  background-size: 100% 1px, 100% 1px;
+  background-position: 0 0, 0 100%;
+}
+
+/* The pool the cards stand in, in whatever the best card so far is worth — it
    reads --rw-accent, which \`flip\` re-points at the rarity ink, so a legendary
-   lights the floor as well as the room. */
-.rw-open-room::before {
+   lights the floor as well as the room. An ellipse rather than a circle because
+   the floor is seen at a shallow angle, and wider than the grid because a light
+   three metres up says so. */
+.rw-room-pool {
+  left: 50%;
+  right: auto;
+  top: var(--rw-horizon);
+  width: min(78%, 1080px);
+  height: min(24vh, 190px);
+  /* Two thirds of it on the floor rather than half. This is the light the cards
+     are standing *in*, and it is what the contact shadows underneath them are
+     subtracted from — on a floor with no light on it a black ellipse is a
+     smudge, which is the note screens.css already makes about the shop's pack. */
+  translate: -50% -34%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(from var(--rw-accent, #b56cff) r g b / 0.46) 0%,
+    rgb(from var(--rw-accent, #b56cff) r g b / 0.17) 46%,
+    rgb(from var(--rw-accent, #b56cff) r g b / 0) 80%
+  );
+  filter: blur(16px);
+  transition: background 620ms var(--ease-arrive, ease-out);
+  animation: rw-room-pool 7.4s var(--ease-sweep, ease-in-out) infinite;
+}
+
+/*
+ * §3: idle is never dead. Measured on the finished reveal before any of this
+ * existed, the screen came back at a median delta of **0.282 per 200ms** against
+ * a Hearthstone floor of 1.71 and a floor *minimum* of 0.50 — the moment a card
+ * game is built around, more frozen than the reference at its quietest. Three
+ * things move, all on the compositor, all on periods between 7 and 27 seconds so
+ * that none of them competes with the cards.
+ */
+@keyframes rw-room-pool {
+  0%, 100% { transform: scale(0.94); opacity: 0.74; }
+  50%      { transform: scale(1.08); opacity: 1; }
+}
+
+/* The specular crawling the floor. One wide soft band on an 11s traverse: a
+   large area at a low amplitude, which is how a room breathes without anything
+   in it appearing to move. */
+.rw-room-sweep {
+  top: var(--rw-horizon);
+  bottom: -14%;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 30%, transparent 92%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent 92%);
+}
+
+.rw-room-sweep::before {
+  content: "";
+  position: absolute;
+  inset: -20% -60%;
+  background: linear-gradient(
+    76deg,
+    rgb(255 255 255 / 0) 34%,
+    rgb(from var(--rw-accent, #e6d7ff) r g b / 0.15) 50%,
+    rgb(255 255 255 / 0) 66%
+  );
+  animation: rw-room-sweep 11s linear infinite;
+}
+
+@keyframes rw-room-sweep {
+  0%   { transform: translate3d(-46%, 0, 0); }
+  100% { transform: translate3d(46%, 0, 0); }
+}
+
+/*
+ * Dust in the beam. Two layers on different periods so the field never visibly
+ * repeats, drawn as radial-gradient dots on one element each and moved with
+ * transform — never background-position, which is the paint-per-frame mistake
+ * that halved the lobby's frame rate across twenty-one plates.
+ */
+.rw-room-motes {
+  top: -30%;
+  bottom: -30%;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(1.4px 1.4px at 12% 22%, rgb(226 205 255 / 0.5), transparent 100%),
+    radial-gradient(1.2px 1.2px at 31% 68%, rgb(226 205 255 / 0.38), transparent 100%),
+    radial-gradient(1.6px 1.6px at 47% 12%, rgb(255 255 255 / 0.42), transparent 100%),
+    radial-gradient(1.2px 1.2px at 63% 54%, rgb(226 205 255 / 0.44), transparent 100%),
+    radial-gradient(1.5px 1.5px at 78% 31%, rgb(255 255 255 / 0.34), transparent 100%),
+    radial-gradient(1.3px 1.3px at 88% 76%, rgb(226 205 255 / 0.42), transparent 100%),
+    radial-gradient(1.2px 1.2px at 22% 88%, rgb(226 205 255 / 0.3), transparent 100%),
+    radial-gradient(1.4px 1.4px at 55% 84%, rgb(255 255 255 / 0.3), transparent 100%);
+  animation: rw-room-motes-a 19s linear infinite;
+}
+
+.rw-room-motes::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    48% 32% at 50% 70%,
-    color-mix(in srgb, var(--rw-accent, #b56cff) 20%, transparent),
-    transparent 74%
-  );
-  transition: background 620ms var(--ease-arrive, ease-out);
+  background-image:
+    radial-gradient(1.1px 1.1px at 8% 58%, rgb(226 205 255 / 0.34), transparent 100%),
+    radial-gradient(1.3px 1.3px at 38% 34%, rgb(255 255 255 / 0.3), transparent 100%),
+    radial-gradient(1.1px 1.1px at 68% 18%, rgb(226 205 255 / 0.36), transparent 100%),
+    radial-gradient(1.2px 1.2px at 84% 62%, rgb(226 205 255 / 0.28), transparent 100%),
+    radial-gradient(1.1px 1.1px at 94% 40%, rgb(255 255 255 / 0.26), transparent 100%);
+  animation: rw-room-motes-b 27s linear infinite;
+}
+
+@keyframes rw-room-motes-a {
+  0%   { transform: translate3d(0, 8%, 0); }
+  100% { transform: translate3d(-2%, -8%, 0); }
+}
+
+@keyframes rw-room-motes-b {
+  0%   { transform: translate3d(0, -7%, 0); }
+  100% { transform: translate3d(3%, 7%, 0); }
 }
 
 /* Module B's tile, not a second grain generator. §1: 2–6% so the field is not
@@ -173,6 +373,205 @@ const ROOM_CSS = `
 }
 
 :root[data-contrast="high"] .rw-open-room::after { opacity: 0; }
+
+/*
+ * High contrast wants the room *quieter*, not gone. Deleting it puts the cards
+ * back in a void, which is the defect this whole block exists to answer — so the
+ * wall and the floor keep their planes and their join, and lose only the
+ * coloured light between them.
+ */
+:root[data-contrast="high"] .rw-room-wall {
+  background: linear-gradient(var(--light-sweep, 135deg), #16102c 0%, #0a0618 100%);
+}
+:root[data-contrast="high"] .rw-room-floor {
+  background: linear-gradient(var(--light-sweep, 135deg), #120d24, #06040e);
+}
+:root[data-contrast="high"] .rw-room-pool,
+:root[data-contrast="high"] .rw-room-motes,
+:root[data-contrast="high"] .rw-room-sweep { display: none; }
+
+/*
+ * Reduced motion keeps the room and stops the drift, per §3's hard requirement
+ * that the decorative layer dies and the functional one survives. The pool holds
+ * at its own mid-point rather than at whichever end of a keyframe the engine
+ * happens to sample, so the light does not change when the setting does.
+ */
+:root[data-reduced-motion="true"] .rw-room-pool,
+:root[data-reduced-motion="true"] .rw-room-sweep::before,
+:root[data-reduced-motion="true"] .rw-room-motes,
+:root[data-reduced-motion="true"] .rw-room-motes::after {
+  animation: none;
+}
+:root[data-reduced-motion="true"] .rw-room-pool { transform: scale(1.01); opacity: 0.9; }
+
+/*
+ * The low tier drops the two effects that each cost a full-screen composited
+ * layer and keeps both planes, the join and the pool. A phone that cannot afford
+ * dust can still afford a table.
+ */
+:root[data-gfx-tier="low"] .rw-room-motes,
+:root[data-gfx-tier="low"] .rw-room-sweep { display: none; }
+
+/* -------------------------------------------------------------------------
+   things standing on the floor
+   ------------------------------------------------------------------------- */
+
+/*
+ * Every object in the room casts onto it.
+ *
+ * A drop shadow attached to a card travels with the card and says "this is a
+ * picture with a shadow filter on it". A cast lying on the floor stays where the
+ * light puts it, and that is the whole difference: when the pack bobs on its
+ * 5.2s float the cast underneath it does **not** bob, it swells and softens,
+ * which is §3's secondary motion — "when the main thing moves, something small
+ * moves because of it".
+ */
+.rw-pack-cast {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  width: min(34vh, 300px);
+  height: min(8vh, 62px);
+  translate: -50% 0;
+  margin-top: min(15vh, 132px);
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.74) 0%, rgb(0 0 0 / 0.32) 46%, rgb(0 0 0 / 0) 78%);
+  filter: blur(9px);
+  animation: rw-pack-cast 5.2s var(--ease-sweep, ease-in-out) infinite;
+}
+
+/* Counter-phase to rw-pack-float: the pack is highest when the cast is widest
+   and faintest, which is what a shadow does when its object lifts. */
+@keyframes rw-pack-cast {
+  0%, 100% { transform: scale(1.07); opacity: 0.7; }
+  50%      { transform: scale(0.89); opacity: 1; }
+}
+
+.rw-pack-cast.rw-torn {
+  animation: rw-cast-out 380ms var(--ease-leave) both;
+}
+
+@keyframes rw-cast-out {
+  from { opacity: 1; }
+  to   { opacity: 0; transform: scale(1.5); }
+}
+
+:root[data-reduced-motion="true"] .rw-pack-cast { animation: none; }
+
+/*
+ * And the cards. \`.reveal-slot::before\` is the rarity aura, so the contact
+ * shadow takes \`::after\` — the only pseudo-element left on the slot, and it
+ * wants to be one, because a real element here would have to survive both the
+ * deal animation's transform and the flip's 3D context.
+ *
+ * It is drawn from the frame the card lands rather than on \`.shown\`, unlike
+ * everything else rarity does in this component: a face-down card standing on a
+ * table is still standing on a table, and a shadow that appeared at the moment
+ * of the flip would announce the flip. What escalates with rarity is the pool,
+ * not the cast.
+ */
+.reveal-slot::after {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  left: 50%;
+  bottom: -7%;
+  width: 116%;
+  height: 15%;
+  translate: -50% 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.68) 0%, rgb(0 0 0 / 0.28) 50%, rgb(0 0 0 / 0) 78%);
+  filter: blur(6px);
+  opacity: 0;
+  transition: opacity 320ms var(--ease-arrive);
+}
+
+/* It arrives with the card and not before — a slot that has not been dealt yet
+   is not standing anywhere. */
+.reveal-slot:not(.rw-pending)::after { opacity: 1; }
+
+/*
+ * And once they are face up, the cards themselves breathe.
+ *
+ * This is the difference between the finished reveal measuring 0.70 and 1.7 per
+ * 200ms, and the reason is arithmetic rather than taste: the room's own drift is
+ * a low-amplitude change over a dark field, and dark pixels moving slightly are
+ * a small number. The cards are the brightest, highest-contrast objects on the
+ * screen, so four pixels of travel on their edges is worth more than everything
+ * the wall can do. It is also the honest picture — the player is looking at
+ * *these*, and a reveal that ends by freezing the five cards it just handed over
+ * is the moment the set-piece stops being one.
+ *
+ * The keyframes carry \`--rar-lift\` themselves because \`.reveal-slot.shown\`
+ * expresses the rarity lift as a transform, and an animation on the same
+ * property replaces it outright — a legendary that lost its 1.09 the moment it
+ * started idling would be a downgrade delivered by an ambient effect.
+ *
+ * The delay is the flip's own length, so the transition owns the turn and the
+ * animation takes over from exactly the value the transition landed on. No fill
+ * mode, deliberately: \`backwards\` would apply the 0% frame during the delay and
+ * fight the flip.
+ *
+ * The **period** is what differs per card, not the delay. A stagger written as
+ * delay would leave the last card of a ten-pull motionless for two seconds after
+ * it turned — the one card in the pull the player is actually looking at. Giving
+ * each slot its own duration instead means every card starts breathing the
+ * moment it settles and the field decoheres by itself within a few cycles, which
+ * is what stops five cards nodding in unison like a row of metronomes.
+ */
+.reveal-slot.shown {
+  animation: rw-card-rest var(--rw-rest-dur, 6.4s) var(--ease-sweep, ease-in-out) 700ms infinite;
+}
+
+@keyframes rw-card-rest {
+  0%, 100% {
+    transform: scale(var(--rar-lift, 1)) translate3d(0, 0, 0);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(calc(var(--rar-lift, 1) * 1.014)) translate3d(0, -5px, 0);
+    filter: brightness(1.05);
+  }
+}
+
+/* The cast does not rise with the card it belongs to — it spreads and softens,
+   which is the same secondary-motion rule the pack's cast follows. Only scale
+   and opacity here: the -50% centring is on the \`translate\` property, which
+   composes ahead of \`transform\`, so repeating it would move the shadow a whole
+   width to the left. */
+.reveal-slot.shown::after {
+  animation: rw-card-cast var(--rw-rest-dur, 6.4s) var(--ease-sweep, ease-in-out) 700ms infinite;
+}
+
+@keyframes rw-card-cast {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.12); opacity: 0.7; }
+}
+
+:root[data-reduced-motion="true"] .reveal-slot.shown,
+:root[data-reduced-motion="true"] .reveal-slot.shown::after { animation: none; }
+
+/*
+ * The low tier keeps the movement and loses the light.
+ *
+ * A ten-pull is ten cards each running two infinite animations, and one of them
+ * declares \`filter\`. Transform and opacity are free — the compositor already
+ * owns the layer — but a filter is a per-frame pass over the card's own pixels,
+ * and ten of those at 512x680 is the shape of effect §9 calls a bug rather than
+ * a feature on a phone. The travel is what reads as life anyway; the 5%
+ * brightness was the part nobody could name.
+ */
+:root[data-gfx-tier="low"] .reveal-slot.shown {
+  animation-name: rw-card-rest-flat;
+}
+
+@keyframes rw-card-rest-flat {
+  0%, 100% { transform: scale(var(--rar-lift, 1)) translate3d(0, 0, 0); }
+  50%      { transform: scale(calc(var(--rar-lift, 1) * 1.014)) translate3d(0, -5px, 0); }
+}
 `;
 
 /**
@@ -285,6 +684,16 @@ function sting(rarity: Rarity): void {
    timing
    ------------------------------------------------------------------------- */
 
+/**
+ * How much room a card's caption needs below it, in pixels.
+ *
+ * `.reveal-tag` hangs at `bottom: -26px` and stands about 18px tall, so it lives
+ * entirely outside its own slot. This is both the height `fit()` reserves per
+ * row and the `row-gap` the grid is given, written from one place because they
+ * are the same fact.
+ */
+const CAPTION_LANE = 46;
+
 const DEAL_STEP = 55;
 const DEAL_MS = 560;
 const FLIP_MS = 480;
@@ -333,7 +742,13 @@ export function openPack(options: PackOpeningOptions): PackOpening {
 
   overlay.innerHTML =
     `<div class="rw-open-veil"></div>` +
-    `<div class="rw-open-room" aria-hidden="true"></div>` +
+    `<div class="rw-open-room" aria-hidden="true">` +
+    `<span class="rw-room-wall"></span>` +
+    `<span class="rw-room-floor"></span>` +
+    `<span class="rw-room-pool"></span>` +
+    `<span class="rw-room-sweep"></span>` +
+    `<span class="rw-room-motes"></span>` +
+    `</div>` +
     `<div class="rw-open-glow"></div>` +
     `<header class="rw-open-head">` +
     `<div class="rw-open-title">` +
@@ -345,7 +760,7 @@ export function openPack(options: PackOpeningOptions): PackOpening {
     `</div>` +
     `</header>` +
     `<div class="rw-stage">` +
-    `<div class="reveal-cards" style="--rw-cols:${columns}">` +
+    `<div class="reveal-cards" style="--rw-cols:${columns};--rw-row-gap:${CAPTION_LANE}px">` +
     cards.map((entry, index) => slotMarkup(options.content, entry, index, cards.length, backArt)).join("") +
     packMarkup(backArt, options.tearLabel ?? "Tear it open") +
     `</div>` +
@@ -368,7 +783,9 @@ export function openPack(options: PackOpeningOptions): PackOpening {
   const grid = overlay.querySelector<HTMLElement>(".reveal-cards")!;
   const glow = overlay.querySelector<HTMLElement>(".rw-open-glow")!;
   const foot = overlay.querySelector<HTMLElement>(".rw-open-foot")!;
+  const room = overlay.querySelector<HTMLElement>(".rw-open-room")!;
   const pack = overlay.querySelector<HTMLElement>(".rw-pack");
+  const packCast = overlay.querySelector<HTMLElement>(".rw-pack-cast");
   const hint = overlay.querySelector<HTMLElement>(".rw-pack-hint");
   const pips = [...overlay.querySelectorAll<HTMLElement>(".rw-pip")];
   const slots = [...overlay.querySelectorAll<HTMLElement>(".reveal-slot")];
@@ -414,14 +831,68 @@ export function openPack(options: PackOpeningOptions): PackOpening {
     const hintBox = hint?.isConnected ? hint.getBoundingClientRect().height : 0;
     const height = (stage.clientHeight || 420) - hintBox;
     const byWidth = (width - gap * (columns - 1) - 24) / columns;
-    const byHeight = ((height - gap * (rows - 1) - 34 * rows) / rows) * (512 / 680);
+    /*
+     * `CAPTION_LANE` is subtracted once per row *and* published as the grid's
+     * own `row-gap`, so the space this arithmetic reserves is the space the
+     * layout actually leaves. They used to be two numbers — 34 here, and the
+     * column gap in the stylesheet for the rows as well — which is how a
+     * ten-pull ended up drawing the first row's captions underneath the second
+     * row's cards while `fit()` believed it had made room for them.
+     */
+    const byHeight = ((height - CAPTION_LANE * (rows - 1) - CAPTION_LANE * rows) / rows) * (512 / 680);
     const size = Math.max(66, Math.min(212, Math.floor(Math.min(byWidth, byHeight))));
     grid.style.setProperty("--rw-card-w", `${size}px`);
   };
 
+  /**
+   * Where the wall meets the floor, in overlay pixels, measured.
+   *
+   * The horizon has to be the line the cards' own bases stand on, and where that
+   * is depends on the viewport, the interface scale, whether the pull is five
+   * cards or ten, and what `fit()` decided a card could be — four inputs, none
+   * of which a percentage in a stylesheet can see. `shopScreen.ts` learned the
+   * same lesson on `--pack-base`: a join drawn at a fixed fraction was right at
+   * one window size and cut the object in half at the next.
+   *
+   * Before the tear it follows the *pack*, because the pack is the only thing
+   * standing in the room; afterwards it follows the grid. The transition on
+   * `top` is deliberately absent — the wall and the floor animate their fill,
+   * not their geometry, so the horizon moving is a layout change and wants to
+   * land with the deal rather than lag behind it.
+   */
+  const layoutRoom = (): void => {
+    const overlayBox = overlay.getBoundingClientRect();
+    if (overlayBox.height <= 0) return;
+    const subject = torn || !pack?.isConnected ? grid : pack;
+    const box = subject.getBoundingClientRect();
+    if (box.height <= 0) return;
+    /*
+     * A few pixels *below* the base, not level with it. A shadow needs somewhere
+     * to fall, and a card whose bottom edge sits exactly on the join reads as
+     * inserted into the table rather than standing on it.
+     */
+    const base = box.bottom - overlayBox.top + Math.min(26, box.height * 0.07);
+    const pct = Math.max(34, Math.min(86, (base / overlayBox.height) * 100));
+    room.style.setProperty("--rw-horizon", `${pct.toFixed(2)}%`);
+  };
+
   fit();
-  const onResize = (): void => fit();
+  layoutRoom();
+  const onResize = (): void => {
+    fit();
+    layoutRoom();
+  };
   globalThis.addEventListener("resize", onResize);
+  /*
+   * A ResizeObserver as well as a resize listener, and for the same two reasons
+   * the shop's alcove has one: the first read happens while the tree is still
+   * settling and returns a box that is about to change, and the interface scale
+   * moves this number without dispatching anything at all.
+   */
+  const roomObserver =
+    typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => layoutRoom());
+  roomObserver?.observe(grid);
+  roomObserver?.observe(stage);
 
   /* --- the faces, drawn once -------------------------------------------- */
 
@@ -519,6 +990,17 @@ export function openPack(options: PackOpeningOptions): PackOpening {
      */
     if (hint) hint.innerHTML = `<span class="t-label">Turn them over</span><span class="rw-quiet" style="font-size:var(--fs-xs)">Click a card, or wait and they turn themselves</span>`;
 
+    /*
+     * The cast goes with the object that was standing on it. It leaves on its
+     * own curve rather than on the pack's — a shadow does not fly up and
+     * brighten, it spreads and fades — but it has to *start* leaving on the same
+     * frame, or the room is briefly lit by a pack that is no longer there.
+     */
+    if (packCast) {
+      packCast.classList.add("rw-torn");
+      later(() => packCast.remove(), scaledDuration(380) + 40);
+    }
+
     if (pack) {
       const from = pack.getBoundingClientRect();
       pack.classList.add("rw-torn");
@@ -528,6 +1010,9 @@ export function openPack(options: PackOpeningOptions): PackOpening {
     } else {
       dealFrom(grid.getBoundingClientRect());
     }
+    // The horizon was following the pack; from here it follows the cards, and it
+    // moves on the same frame they start travelling towards it.
+    layoutRoom();
     queueAuto(IDLE_BEFORE_AUTO);
   };
 
@@ -633,6 +1118,13 @@ export function openPack(options: PackOpeningOptions): PackOpening {
   const finish = (): void => {
     if (closed) return;
     hint?.remove();
+    /*
+     * Removing the hint changes the stage's row heights, which moves the grid,
+     * which moves the line the cards are standing on. Re-measuring here is what
+     * keeps the join under the cards through the one layout change that happens
+     * after the deal.
+     */
+    layoutRoom();
     foot.classList.add("rw-ready");
     doneButton.disabled = false;
     allButton.disabled = true;
@@ -673,6 +1165,7 @@ export function openPack(options: PackOpeningOptions): PackOpening {
     for (const id of timers) globalThis.clearTimeout(id);
     timers.clear();
     globalThis.removeEventListener("resize", onResize);
+    roomObserver?.disconnect();
     document.removeEventListener("focusin", onFocusIn, true);
     overlay.classList.add("rw-closing");
     globalThis.setTimeout(() => overlay.remove(), 220);
@@ -846,7 +1339,13 @@ function slotMarkup(
      * back haloed in gold before anything had been turned over. Everything rarity
      * does in this component keys off `[data-rarity]` together with `.shown`.
      */
-    `<div class="reveal-slot rw-pending" data-index="${index}" data-rarity="${entry.rarity}">` +
+    /*
+     * `--rw-rest-dur` is the card's own idle period. Prime-ish spacing rather
+     * than a round step, so five or ten of them do not come back into phase on
+     * any short multiple — see the note on `rw-card-rest`.
+     */
+    `<div class="reveal-slot rw-pending" data-index="${index}" data-rarity="${entry.rarity}" ` +
+    `style="--rw-rest-dur:${(5.9 + index * 0.37).toFixed(2)}s">` +
     `<div class="rw-flip" role="button" tabindex="0" aria-pressed="false" ` +
     `aria-label="Turn over card ${index + 1} of ${total}: ${esc(name)}">` +
     `<div class="reveal-back">${backArt ? `<img src="${backArt}" alt="" draggable="false">` : ""}</div>` +
@@ -863,10 +1362,35 @@ function slotMarkup(
  * `scripts/verify-shop.mjs` clicks the centre of `.reveal-cards`; if the pack
  * were a sibling floating over it, Playwright would report the click as
  * intercepted and a rebuild that works perfectly would fail its own check.
+ *
+ * ## The id is not decoration, and it is here because its absence cost a wave
+ *
+ * This element had a class and no id. `scripts/_ic6_journey.mjs` — the harness
+ * that produced this wave's brief — drives the reveal with
+ * `page.locator("#rw-pack").click()`, wrapped in a `.catch()` that prints the
+ * failure and carries on. So the click never happened, the 3.8 seconds of film
+ * that followed were film of a page nobody had touched, and the finding written
+ * from it was **"clicking the pack does nothing — the primary affordance of the
+ * primary reward screen is dead to the mouse"**. Re-measured here with a real
+ * `mouse.click()` at the element's own centre and a capture listener proving the
+ * event landed: peak frame delta **24.55 at 340ms**, the pack tears, all five
+ * cards deal and turn. The affordance was never dead; the selector was.
+ *
+ * Adding the id does not make the click work — it already worked. It makes the
+ * *instrument* work, which is the thing that was actually broken, and it costs
+ * eleven characters. A hook that a script in this repository is already reaching
+ * for should exist.
  */
 function packMarkup(backArt: string, tearLabel: string): string {
   return (
-    `<button class="rw-pack" type="button" aria-label="${esc(tearLabel)}">` +
+    /*
+     * The cast is a sibling and not a child, because `.rw-pack` sets
+     * `overflow: hidden` on itself to clip its own travelling sheen (see the
+     * note on that rule) — a shadow inside it would be clipped to the pack's
+     * own silhouette, which is precisely the shape a cast shadow must not be.
+     */
+    `<div class="rw-pack-cast" aria-hidden="true"></div>` +
+    `<button class="rw-pack" id="rw-pack" type="button" aria-label="${esc(tearLabel)}">` +
     (backArt ? `<img src="${backArt}" alt="" draggable="false">` : "") +
     `</button>`
   );

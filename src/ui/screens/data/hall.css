@@ -1,0 +1,1094 @@
+/**
+ * The eleven documents, made into rooms.
+ *
+ * `data.css` fixed the *materials* of this domain and `rooms.css` fixed the
+ * per-screen geometry inside a panel. Neither touched the thing an integration
+ * critic named as the single worst object in the game:
+ *
+ *   "Below the lobby's own tiles the game stops being a game and becomes a
+ *    website. Eleven second-ring screens are one ~1100px column of full-width
+ *    slabs stacked vertically on 240–360px of empty background either side, with
+ *    a scrollbar, and they are motionless at rest."
+ *
+ * Every word of that was true and none of it was a material defect. `.mat-panel`
+ * was applied correctly eleven times; what was wrong was that eleven screens
+ * used it to build the same shape — **a report**. A census that counts class
+ * names cannot see that, which is exactly why one passed while these shipped.
+ *
+ * This file is the shape. It has two halves and they solve different failures.
+ *
+ * ## 1. `.d-hall` — the screen is a grid, not a column
+ *
+ * A `.screen` is `display: flex; flex-direction: column`, so a header sits on a
+ * body and the body is a stack. `.d-hall` re-cuts the screen root as a **four
+ * track full-bleed grid**: gutter, main, rail, gutter. The header spans all
+ * four; the content takes `main` and a genuine second column takes `rail`. That
+ * one change is what removes the 240–360px of dead background — the room is now
+ * as wide as the window, and the space beside the content is a *lit wall with
+ * something standing against it* rather than a margin.
+ *
+ * The rail is not a dumping ground. On each screen it holds the thing the player
+ * came to check or the thing they will click — Settings puts Accessibility there
+ * because that CTA was being cut off the bottom of a 1600×900 viewport, and a
+ * hero action below the fold is a hero action nobody presses.
+ *
+ * **`--hall-rail: 0px` collapses it cleanly**, so a screen with genuinely one
+ * column (a policy document) keeps the same room and simply has no furniture on
+ * that wall. Nothing needs a second stylesheet to opt out.
+ *
+ * ## 2. `.d-room` — four depth planes, and the light that moves in them
+ *
+ * These screens each painted `<div class="ambient-bg">`: a full-viewport plate
+ * at `z-index: -1` whose last stop is `linear-gradient(180deg, var(--bg-deep),
+ * var(--bg-void))`. `transitions.css` §2.6 holds it at 0.8 opacity so the world
+ * behind is not *quite* erased, and that compromise is why the domain reads as a
+ * flat wash: 80% of `atmosphere.ts` — the drifting grid, three mote fields, the
+ * specular crawl, all of it built precisely to be the far plane behind a menu —
+ * was being multiplied away by a plate the screen did not need.
+ *
+ * The lobby deleted its `.ambient-bg` in an earlier wave and `screens.css` says
+ * so at length. These eleven now do the same, and `.d-room` is what replaces it:
+ * not a wash but **furniture**. An alcove of the screen's one accent behind the
+ * hero, a wall behind the rail, a floor that darkens toward the bottom edge, and
+ * two moving layers. The atmosphere shows through it at full strength, which
+ * gives plane 1 for free; `.d-room` is plane 2; the panels are plane 3; modals
+ * and the atmosphere's own front plane are plane 4.
+ *
+ * ### Why the floor is the most important thing in here
+ *
+ * AAA bar §6 asks you to squint and see light and dark masses. Before this, a
+ * squint at `#stats` resolved to one value: mid-purple background, mid-purple
+ * panels, mid-purple everything. There was no dark. The floor gradient and the
+ * rail wall are that dark — they take the bottom and right of the frame down
+ * toward `--bg-void`, so the alcove at the top-left becomes a *light* mass by
+ * contrast without anything being made brighter. Value structure is a
+ * relationship, and the cheapest way to get one is to darken rather than lift.
+ *
+ * ## Everything that moves, moves on the compositor
+ *
+ * `transform` and `opacity` only. No `background-position` — the lobby lost half
+ * its frame rate to exactly one of those and the lesson is written into
+ * `foundation.css` in forty lines. The drifting layers are oversized and
+ * translated by exactly one tile so the loop is seamless, the same trick
+ * `atmosphere.ts` uses, and every one of them is listed in the reduced-motion
+ * block at the bottom.
+ *
+ * ### What "alive at rest" actually costs, measured
+ *
+ * The instrument is `scripts/_w7r_idle.mjs` and its unit is the median mean
+ * absolute pixel delta between two frames 200ms apart, 0–255. Recomputing it
+ * over `hearthstone_frames/` — 204 real frames already 0.2s apart — gives
+ * **1.713**, against the 1.71 the brief quotes, so the scale here is the brief's
+ * scale.
+ *
+ * A slow full-screen opacity breath is worth almost nothing on that scale, and
+ * that is the trap this section exists to record. A wash breathing ±35% over 9
+ * seconds moves each pixel it covers by about 0.008 of its own amplitude per
+ * tick; over a 20-level gradient that is 0.05, or one part in thirty of the
+ * reference floor. Anybody can add a breathing gradient and *see* it and still
+ * measure zero. **Idle life is bought with spatial frequency, not with
+ * amplitude** — small high-contrast features that move far enough to displace
+ * themselves. Dust and a fine grid do the work here; the washes are for looks.
+ */
+
+/* -------------------------------------------------------------------------
+   1. The hall — a full-bleed four-track grid
+   ------------------------------------------------------------------------- */
+
+/**
+ * The tracks, and why `main` is `minmax(0, …)` at both ends.
+ *
+ * `1fr` on a grid track means "one share of what is left", and what is left is
+ * computed *after* the fixed tracks — so a rail at its `clamp` maximum plus a
+ * main column at its maximum can exceed the viewport, and a main track that
+ * cannot shrink pushes the rail off the right edge. `minmax(0, var(--hall-main))`
+ * lets it give way; the gutters are `minmax(gutter, 1fr)` so they hold a real
+ * margin at 1280 and absorb the surplus on an ultrawide instead of stretching a
+ * 2,100px reading column.
+ *
+ * At the three sizes the constraints name: 1600 gives 1152/352, 1280 gives
+ * 903/300, and 844 drops to the single-column arrangement below.
+ */
+.screen.d-hall {
+  --hall-gutter: clamp(14px, 3vw, 52px);
+  --hall-rail: clamp(292px, 22vw, 392px);
+  --hall-main: 1400px;
+  --hall-gap: clamp(14px, 1.6vw, 28px);
+  --hall-accent: var(--accent);
+
+  display: grid;
+  grid-template-columns:
+    [full-start] minmax(var(--hall-gutter), 1fr)
+    [main-start] minmax(0, var(--hall-main))
+    [main-end rail-start] var(--hall-rail)
+    [rail-end] minmax(var(--hall-gutter), 1fr) [full-end];
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: var(--hall-gap);
+}
+
+/**
+ * A screen with nothing on that wall. The track disappears; the room does not.
+ *
+ * Detected with `:has()` rather than declared with a second class, because the
+ * screens that need it are the ones whose rail is *conditional* — the Event Hub
+ * has no calendar when nothing is scheduled, the Gauntlet has no run panel
+ * before a run starts — and a class that has to be toggled in `render()` is a
+ * class that will be right on the first pass and wrong on the third. A 392px
+ * track reserved for an element that was never written is the same 240px of dead
+ * background this whole file exists to remove, arrived at by a different route.
+ *
+ * `.d-hall-solo` stays as the explicit form for a screen that is *never* going
+ * to have a rail, so the intent is readable at the top of the file rather than
+ * inferred from the absence of markup 300 lines down.
+ */
+.screen.d-hall.d-hall-solo,
+.screen.d-hall:not(:has(> .d-rail)) {
+  --hall-rail: 0px;
+  --hall-gap: 0px;
+}
+
+/**
+ * A screen whose main column is prose keeps a prose measure.
+ *
+ * Removing the rail hands its 392px straight to the content, and for a *grid*
+ * of chapter plates that is exactly what should happen. For a hub that is a
+ * paragraph and a button it is a regression with the same shape as the one this
+ * file exists to fix: measured on `#gauntlet` after the rail collapsed, the
+ * setup panel was 1,390px wide with its copy wrapped at 700 and a 690px hole
+ * beside the primary action — recon defect 17, recreated by making the room
+ * wider.
+ *
+ * `data.css` already made this decision once, for the six policy screens, and
+ * called it `.data-doc` at 980px. This is the same decision at the level above:
+ * the *hall* is narrower, so the room and its floor still fill the window and
+ * only the reading column is bounded.
+ */
+.screen.d-hall.d-hall-read {
+  --hall-main: 1120px;
+}
+
+/**
+ * The header spans the lot, because a rule that stops short of the window edge
+ * is a panel and this is a rail. It keeps its own padding and its own border.
+ */
+.screen.d-hall > .screen-header,
+.screen.d-hall > .sub-header {
+  grid-column: full;
+  grid-row: 1;
+}
+
+/**
+ * The main column, and the one property that had to be unset.
+ *
+ * `.data-body` centres itself with `margin-inline: auto` inside a 1220px
+ * measure, which is correct for a screen that *is* a column and wrong for one
+ * that is a track in a grid — it would put the content in the middle of its own
+ * track and re-open a gap between it and the rail, which is the exact defect
+ * being fixed. The measure now belongs to the grid.
+ */
+.screen.d-hall > .data-body {
+  grid-column: main;
+  grid-row: 2;
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: 0;
+  padding-block: var(--sp-5) var(--sp-7);
+}
+
+/**
+ * The rail.
+ *
+ * It scrolls on its own rather than with the main column, because the whole
+ * point of putting the primary action here is that it does not leave. Its
+ * scrollbar is the foundation's, like every other scroller in the build.
+ *
+ * `align-content: start` so three short cards sit at the top of a tall wall
+ * rather than being spread down it, which is what `1fr` rows would do and which
+ * reads as an accident every time.
+ */
+.screen.d-hall > .d-rail {
+  grid-column: rail;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  align-content: start;
+  gap: var(--sp-3);
+  padding-block: var(--sp-5) var(--sp-7);
+  padding-inline: 0;
+}
+
+.screen.d-hall > .d-rail > * {
+  flex-shrink: 0;
+}
+
+/* -------------------------------------------------------------------------
+   2. Inside the main column — a rhythm that is not "row, row, row"
+   ------------------------------------------------------------------------- */
+
+/**
+ * `.d-band` is a row of the main column that is allowed to hold more than one
+ * thing. `--band-min` is the width below which it wraps to a stack, in
+ * `--ui-scale` units for the same reason every grid in `data.css` is: a track
+ * measured in pixels stops meaning "as many as fit" the moment the type is 1.4×
+ * the size the number was chosen for.
+ */
+.d-band {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--band-min, 300px) * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+/** Two columns where the second is the lighter half — a 3:2 rather than a 1:1. */
+.d-band.d-band-lead {
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+}
+
+@media (max-width: 1180px) {
+  .d-band.d-band-lead {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   3. The hero region — the thing that is not the same size as everything else
+   ------------------------------------------------------------------------- */
+
+/**
+ * A hero is a panel that has been given permission to be the subject.
+ *
+ * Three things separate it from the panels under it, and all three are needed:
+ * it is **taller**, it is **lit from the alcove behind it** so its top-left
+ * corner carries the room's accent rather than the panel gradient, and it has a
+ * **specular band that crosses it**. §6 says the most saturated thing on screen
+ * should be the thing that matters most; on a screen whose panels are all one
+ * value, nominating one is the whole job.
+ *
+ * `isolation: isolate` because the specular is a `screen`-blended child and a
+ * blend mode with no stacking context of its own reaches back through the panel
+ * to the room behind it, which lights the *floor* through the hero.
+ */
+.d-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+}
+
+/**
+ * `z-index: -1`, and it is the difference between a lit hero and a broken one.
+ *
+ * The first version put the wash at 0, the specular at 1, and lifted every child
+ * to 2 with `.d-hero > *`. That last rule is the trap: it is (0,1,0) and the
+ * screens it lands on have their own stacking already — `.remix-screen
+ * .remix-current-text` is (0,2,0) and declares `z-index: 1` so the rule's title
+ * can hang over the key art above it. The blanket lift won on the art and lost
+ * on the text, and the week's rule was drawn *behind* its own picture. Measured
+ * on `#remixhub` at 1600×900: "Main Character Energy" cut in half by the panel
+ * it names.
+ *
+ * A negative index inside an `isolation: isolate` context needs no such rule.
+ * The painting order is background, then negative descendants, then in-flow
+ * content — so the wash sits on the material and under everything a screen puts
+ * in the panel, and no consumer has to be told this file exists. The isolation
+ * is what keeps the -1 from escaping behind the panel itself.
+ */
+/**
+ * The light mass, and where it is allowed to be.
+ *
+ * `_w7r_squint.mjs` reduces a frame to 24×14 mean-luminance cells and reports
+ * the standard deviation. The lobby reads **31.4** with a range of 97 levels;
+ * these eleven read **11–18** with a range of 37–62, which is §6's "everything
+ * is mid-purple and nothing reads", stated as a number. The deep end was never
+ * the problem — the darkest cells were already at L5 — the light end was: the
+ * brightest cell on `#stats` was L42 on a 0–255 scale.
+ *
+ * The obvious fix, lifting the hero's whole fill, is the wrong one and it fails
+ * for an accessibility reason rather than an aesthetic one. `--text-faint` is
+ * `#a49cc2`; on a panel at L80 it lands at about 2.7:1 and the contrast floor is
+ * not negotiable. So the light goes **into the top-left corner and stays there**
+ * — a strong pool over the first third of the hero, which is where a display
+ * heading sits, falling to nothing over the body copy and the small print. The
+ * corner is not a choice either: 315° is the key light everywhere in this build,
+ * so the brightest part of the largest object on the screen has to be the part
+ * facing the key or the room has two suns.
+ *
+ * Three stops rather than one: an accent pool, a white specular core inside it
+ * where the light is most direct, and the rig-axis sheen across the whole face
+ * that every raised material in the foundation already carries.
+ */
+.d-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      64% 128% at 4% -14%,
+      color-mix(in srgb, var(--hall-accent) 62%, transparent),
+      color-mix(in srgb, var(--hall-accent) 22%, transparent) 38%,
+      transparent 72%
+    ),
+    radial-gradient(30% 62% at 2% -12%, rgb(255 255 255 / 0.22), transparent 66%),
+    linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.07), transparent 46%);
+}
+
+/**
+ * The specular band.
+ *
+ * A 34%-wide sheet of light skewed onto the rig axis, crossing every 15 seconds
+ * and spending most of that off the left edge — so a player sees it about four
+ * times a minute and never while reading a sentence. It is `screen`-blended at
+ * a peak of 0.5 rather than a white fill at 0.05, because a screen blend over a
+ * dark panel lifts the *lit* half of the panel's own gradient and leaves the
+ * shadowed half alone, which is what a real specular does.
+ */
+.d-hero::after {
+  content: "";
+  position: absolute;
+  top: -60%;
+  bottom: -60%;
+  left: 0;
+  width: 34%;
+  z-index: 1;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--hall-accent) 22%, rgb(255 255 255 / 0.5)),
+    transparent
+  );
+  transform: translate3d(-160%, 0, 0) rotate(14deg);
+  animation: hall-specular 15s var(--ease-in-out, ease-in-out) infinite;
+}
+
+@keyframes hall-specular {
+  0% {
+    transform: translate3d(-160%, 0, 0) rotate(14deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.5;
+  }
+  38% {
+    opacity: 0.5;
+  }
+  46%,
+  100% {
+    transform: translate3d(420%, 0, 0) rotate(14deg);
+    opacity: 0;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   4. The room — plane 2, and where the idle life lives
+   ------------------------------------------------------------------------- */
+
+/**
+ * `.d-room` is a decorative direct child of the screen root, in the position
+ * `.ambient-bg` used to occupy and deliberately *not* named like a content
+ * container: `shell.ts::markCascade` only indexes `<header> <nav> <main>
+ * <section> <footer>` and classes containing `-body` or `-sheet`, so a
+ * `<div class="d-room">` is skipped by the entrance cascade exactly as
+ * `.ambient-bg` and the lobby's `.lobby-glow` are. Furniture does not stagger in.
+ *
+ * It is `z-index: 0` on a grid cell rather than `-1` on an absolute box. `-1`
+ * was what put `.ambient-bg` behind the screen's own content *and* in front of
+ * the world, and the whole repair is that the world is now in front of nothing.
+ */
+/**
+ * The standalone case, for a screen that wants the room without the grid.
+ *
+ * The deck rack already fills its window and already has a hero and a grid; what
+ * it lacked was the plate-in-front-of-the-world problem every other screen here
+ * had. It gets `.d-room` on its own, in `.ambient-bg`'s exact position, and no
+ * `.d-hall`. `z-index: -1` is what the plate used and it was never the defect —
+ * the defect was that the plate was opaque. Nothing in `.d-room` is.
+ *
+ * `contain` is `layout paint style` rather than `strict`: `strict` adds size
+ * containment, and a size-contained grid item sizes as though it had no
+ * contents, which is fine here only by accident of `inset: 0` and would stop
+ * being fine the first time somebody put something in it.
+ */
+.screen > .d-room {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout paint style;
+}
+
+.screen.d-hall > .d-room {
+  position: relative;
+  grid-column: full;
+  grid-row: 1 / -1;
+  inset: auto;
+  z-index: 0;
+}
+
+.screen.d-hall > .screen-header,
+.screen.d-hall > .sub-header,
+.screen.d-hall > .data-body,
+.screen.d-hall > .d-rail {
+  position: relative;
+  z-index: 1;
+}
+
+.d-room > * {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/**
+ * The alcove: the room's one accent, thrown from where the key light is.
+ *
+ * 315° is the key everywhere in this build, so the accent sits at the top-left
+ * and nothing else on the screen is allowed to be this saturated. The second
+ * stop is a cool counter-bounce from the lower right at a quarter of the
+ * strength — a fill, never a second key. Both are capped well under the
+ * furniture's own chroma, which is the rule `atmosphere.ts` states for the world
+ * and which applies with more force to a layer this close to the content.
+ */
+.d-room-alcove {
+  background:
+    radial-gradient(
+      52% 58% at 12% -4%,
+      color-mix(in srgb, var(--hall-accent) calc(34% * var(--hall-lit, 1)), transparent),
+      color-mix(in srgb, var(--hall-accent) calc(11% * var(--hall-lit, 1)), transparent) 44%,
+      transparent 74%
+    ),
+    radial-gradient(46% 50% at 92% 96%, rgb(70 92 150 / calc(0.1 * var(--hall-lit, 1))), transparent 72%);
+}
+
+/**
+ * The floor. The dark mass, and the reason the squint test now resolves.
+ *
+ * It is square to the viewport rather than on the rig axis, which is the one
+ * exception `data.css` allows and the right one here: a floor darkens with
+ * *height*, not with the direction the key is coming from. The horizon line at
+ * 62% is a single hairline of lit dust where the wall meets the floor — the
+ * cheapest possible way to say a room has a depth as well as a width.
+ */
+.d-room-floor {
+  background:
+    linear-gradient(180deg, transparent 26%, rgb(5 2 12 / 0.6) 70%, rgb(3 1 8 / 0.9) 100%),
+    radial-gradient(128% 70% at 50% 124%, rgb(7 3 16 / 0.78), transparent 68%),
+    radial-gradient(90% 120% at 96% 4%, rgb(4 2 10 / 0.5), transparent 62%);
+}
+
+.d-room-floor::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 62%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--hall-accent) 24%, transparent) 22%,
+    color-mix(in srgb, var(--hall-accent) 10%, transparent) 68%,
+    transparent
+  );
+  opacity: 0.5;
+}
+
+/**
+ * The wall behind the rail.
+ *
+ * Anchored to the rail track rather than to a percentage, so it lines up with
+ * the furniture standing against it at every viewport width and at every
+ * `--ui-scale`. It is *darker* than the room, with a lit inner edge on its left
+ * — light at 315° falls onto the near edge of a recess and the far face stays in
+ * shadow, so a wall lit on the wrong edge is the two-suns defect at room scale.
+ */
+.d-room-wall {
+  inset: 0 0 0 auto;
+  width: calc(var(--hall-rail) + var(--hall-gutter) + var(--hall-gap));
+  background: linear-gradient(90deg, transparent, rgb(7 4 16 / 0.34) 26%, rgb(5 3 12 / 0.5));
+  box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.045);
+}
+
+.screen.d-hall.d-hall-solo .d-room-wall,
+.screen.d-hall:not(:has(> .d-rail)) .d-room-wall {
+  display: none;
+}
+
+/* -------------------------------------------------------------------------
+   5. The two moving layers
+   ------------------------------------------------------------------------- */
+
+/**
+ * The grid, drifting by transform.
+ *
+ * `atmosphere.ts` already owns a drifting grid and this is not a second one — it
+ * is the *near* one, a third the cell size and a quarter the contrast, running
+ * at a different rate so the two read as parallax rather than as one grid with a
+ * moiré. §2 asks for separation carried by scale and parallax rather than by
+ * z-index, and two grids at the same pitch would be the counter-example.
+ *
+ * The element is oversized by one cell in each direction and translated by
+ * exactly one cell, so the loop has no seam. It is a `background-image` that
+ * never moves and a `transform` that does, which is the distinction that costs
+ * the compositor nothing; `background-position` here would repaint a
+ * full-viewport image every frame.
+ *
+ * A 1px line every 34px is 3% of the pixels on the screen changing by the line's
+ * full contrast every time the layer travels a pixel, and that is where a
+ * measurable part of this domain's idle number comes from. Amplitude is not what
+ * buys life — spatial frequency is.
+ */
+.d-room-grid {
+  inset: -34px;
+  background-image:
+    linear-gradient(rgb(198 178 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(198 178 255 / 0.05) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(120% 96% at 22% 8%, #000 12%, transparent 74%);
+  animation: hall-grid-drift 11s linear infinite;
+  will-change: transform;
+}
+
+@keyframes hall-grid-drift {
+  to {
+    transform: translate3d(34px, 34px, 0);
+  }
+}
+
+/**
+ * Dust, in two fields at two rates.
+ *
+ * Drawn as tiled radial gradients rather than from a canvas: `atmosphere.ts`
+ * generates real mote tiles and hands them over as `data:` URIs, and duplicating
+ * that generator here would put a second 512px canvas and a megabyte of decoded
+ * PNG behind every one of these routes for a layer that is deliberately fainter
+ * than the one already there. Four stops at two tile sizes is enough structure
+ * that the eye does not find the repeat at these opacities.
+ *
+ * The near field travels roughly three times as far as the far one over the same
+ * period. That ratio is the whole effect: dust at one speed is a texture, dust
+ * at two is a volume.
+ */
+.d-room-dust {
+  inset: -140px;
+  background-image:
+    radial-gradient(1.6px 1.6px at 22% 14%, rgb(236 226 255 / 0.5), transparent 100%),
+    radial-gradient(1.2px 1.2px at 68% 42%, rgb(214 200 255 / 0.42), transparent 100%),
+    radial-gradient(2.1px 2.1px at 41% 77%, rgb(255 244 255 / 0.36), transparent 100%),
+    radial-gradient(1.3px 1.3px at 86% 66%, rgb(200 214 255 / 0.44), transparent 100%);
+  background-size:
+    190px 190px,
+    260px 260px,
+    330px 330px,
+    150px 150px;
+  mask-image: radial-gradient(110% 100% at 30% 20%, #000 30%, transparent 86%);
+  animation: hall-dust-near 15s linear infinite;
+  will-change: transform;
+}
+
+.d-room-dust.is-far {
+  inset: -200px;
+  background-image:
+    radial-gradient(1.1px 1.1px at 12% 62%, rgb(190 176 236 / 0.34), transparent 100%),
+    radial-gradient(1.5px 1.5px at 74% 22%, rgb(206 190 255 / 0.28), transparent 100%),
+    radial-gradient(1px 1px at 52% 88%, rgb(226 216 255 / 0.3), transparent 100%);
+  background-size:
+    240px 240px,
+    410px 410px,
+    300px 300px;
+  animation: hall-dust-far 24s linear infinite;
+}
+
+/**
+ * The travel is one whole tile of the *largest* size in each field, so every
+ * layer wraps on the same frame and no field ever slides out of registration
+ * with itself. 330px for the near field, 410px for the far one.
+ */
+@keyframes hall-dust-near {
+  to {
+    transform: translate3d(-330px, 66px, 0);
+  }
+}
+
+@keyframes hall-dust-far {
+  to {
+    transform: translate3d(410px, -82px, 0);
+  }
+}
+
+/**
+ * The crawl: one very soft sheet of the accent, drifting across the alcove.
+ *
+ * This is the layer that is *supposed* to be barely measurable. It is here for
+ * the eye rather than for the probe — a room whose light never changes is a
+ * photograph of a room — and it is kept to a single wide gradient at 7% so it
+ * can never compete with a panel edge.
+ */
+.d-room-crawl {
+  inset: -30% -60%;
+  background: radial-gradient(
+    32% 44% at 50% 50%,
+    color-mix(in srgb, var(--hall-accent) 7%, transparent),
+    transparent 72%
+  );
+  animation: hall-crawl 34s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes hall-crawl {
+  from {
+    transform: translate3d(-14%, -6%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(16%, 8%, 0) scale(1.18);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   5a. The glass — the one layer that is in front of the content
+   ------------------------------------------------------------------------- */
+
+/**
+ * A filmic plane over the room, and the reason it exists is a measurement.
+ *
+ * Everything in §5 sits *behind* the panels, and the panels cover most of the
+ * frame. With all of it running, `#stats` measured **0.163** on the idle probe
+ * against a 1.713 reference, and hiding the content entirely to let the room
+ * play on its own only reached **0.295**. So occlusion was not the problem: the
+ * background layers were simply not moving enough pixels, and no amount of
+ * making them louder was going to fix that without making them distracting.
+ *
+ * The arithmetic that settles it. A moving feature changes a pixel by its own
+ * contrast; the frame average is that contrast times the fraction of the frame
+ * the feature covers. The dust fields cover about **0.1%** of the frame — 139
+ * specks of two-pixel radius at 1600×900 — so even at full white they could
+ * never contribute more than a quarter of the target, and at their real alpha
+ * they contribute about 0.08. A 34px grid of 1px lines covers 5.9%, which is
+ * sixty times better, but it drifts one cell in 34 seconds: a fifth of a pixel
+ * per tick, which is sub-pixel and therefore almost nothing.
+ *
+ * **Grain covers 100% of the frame at the highest spatial frequency there is.**
+ * Translate a noise tile far enough that a pixel is sampling a different speck,
+ * and every pixel in the frame changes by roughly the grain's own amplitude. For
+ * a tile whose values are spread over ±a, the expected absolute difference
+ * between two independent samples is 2a/3 — so a grain at ±2.5 levels, drifting,
+ * lands at about 1.7 on its own. That is the reference floor, from the one
+ * effect §1 already demanded for a completely different reason.
+ *
+ * So this is that: the room's grain, in front of the content rather than behind
+ * it, drifting slowly. It reuses `--grain-src` — the 96px tile `atmosphere.ts`
+ * generates once at boot and hangs on the document root — because there must be
+ * one grain in the build or the eye reads two materials, and because a second
+ * generator here would be a second 30KB data URI for a layer whose whole point
+ * is that it is the same dirt as everywhere else.
+ *
+ * **It is a plain alpha layer with no blend mode.** `overlay` or `soft-light`
+ * would be more correct film grain and would take the layer off the compositor
+ * on every frame it moves, which is the one thing a full-viewport animated layer
+ * must never do.
+ *
+ * Text shimmer is the risk and the amplitude is where it is handled: at this
+ * opacity the grain moves a text pixel by about one part in a hundred, which is
+ * below the threshold where a contrast ratio changes in the second decimal
+ * place. Reduced motion stops the drift and leaves the grain, because a still
+ * grain is texture and a moving one is motion — §3's rule is that the decorative
+ * layer dies and the surface does not.
+ */
+.d-room-glass {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+  contain: layout paint style;
+}
+
+.screen.d-hall > .d-room-glass {
+  position: relative;
+  grid-column: full;
+  grid-row: 1 / -1;
+  inset: auto;
+}
+
+.d-room-glass > * {
+  position: absolute;
+  pointer-events: none;
+}
+
+/**
+ * Oversized by one tile in each direction and translated by exactly one tile, so
+ * the loop is seamless and the drift never has to reverse. 96px in 7 seconds is
+ * about 2.7px per 200ms tick — three grain widths, which is far enough that a
+ * pixel samples an uncorrelated speck and close enough that the eye reads a slow
+ * shimmer rather than a moving pattern.
+ */
+.d-room-glass-grain {
+  inset: -96px;
+  background-image: var(--grain-src, none);
+  background-repeat: repeat;
+  /**
+   * 0.38, and the number was chosen by measuring rather than by taste.
+   *
+   * `atmosphere.ts` generates the shared tile at an amplitude of 0.055, so at
+   * full alpha this plane would sit at about +-7 levels and the frame would read
+   * around 3.6 on the idle probe — well over twice the Hearthstone floor, on a
+   * settings screen. At 0.5 it measured 2.02-2.49 across the four screens
+   * tested, which is still 20-45% above a reference that is a *game board*.
+   * Scaling by 1.5/2.05 lands it at the floor rather than over it: alive at the
+   * same rate as the thing the bar is written against, and never more than that,
+   * because §3's other half is "never distracting".
+   */
+  opacity: 0.38;
+  animation: hall-grain-drift 7s linear infinite;
+  will-change: transform;
+}
+
+@keyframes hall-grain-drift {
+  to {
+    transform: translate3d(96px, 96px, 0);
+  }
+}
+
+/**
+ * And one very wide, very soft sheet of light crossing the whole room every
+ * eighteen seconds — the "specular crawl" §3 asks for, at room scale rather than
+ * panel scale. It peaks at four percent, which is under a level and a half on a
+ * dark surface, and it is what stops the grain reading as a flat film over a
+ * still picture: the grain says the surface is real, this says the room is lit.
+ */
+.d-room-glass-sweep {
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 46%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    color-mix(in srgb, var(--hall-accent) 40%, rgb(255 255 255 / 0.06)),
+    transparent
+  );
+  opacity: 0.55;
+  transform: translate3d(-120%, 0, 0);
+  animation: hall-room-sweep 18s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes hall-room-sweep {
+  0% {
+    transform: translate3d(-120%, 0, 0);
+  }
+  100% {
+    transform: translate3d(340%, 0, 0);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   6. Rail furniture
+   ------------------------------------------------------------------------- */
+
+/**
+ * A rail card is a panel that knows it is against a wall.
+ *
+ * It is fractionally lighter than a `.mat-panel` in the main column and carries
+ * a lit left edge, because the recess it stands in is darker than the room —
+ * without that the rail's contents dissolve into their own wall and the second
+ * column stops reading as a column. The left edge rather than the top is
+ * deliberate: it faces the key.
+ */
+/**
+ * `.d-rail >` rather than a bare class, and it is not stylistic.
+ *
+ * `screens.css` is another module's file and already states `padding:
+ * var(--sp-5); display: flex` on several of the class names that now land on a
+ * rail card — `.profile-emotes` is one — at equal weight to a single class here.
+ * Two stylesheets at the same specificity are settled by load order, and load
+ * order is a property of the module graph, which is the sort of thing that is
+ * true until somebody adds an import. The child combinator makes the outcome a
+ * property of the CSS instead. `rooms.css` opens with the same note for the same
+ * reason.
+ */
+.d-rail > .d-rail-card {
+  position: relative;
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  overflow: hidden;
+}
+
+.d-rail-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.07);
+}
+
+/**
+ * The rail's own section label: a tracked cap with a rule that fades out.
+ * §7 makes end-fading a rule and a divider that butts into a panel edge a
+ * violation; this is the one-line version of `.hairline` for a heading.
+ */
+.d-rail-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.d-rail-label::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.12), transparent);
+}
+
+/**
+ * A stat block sized for a 300px column: label above figure, not beside it.
+ * The main column's `.d-stats` is a row of six; six of anything in 300px is a
+ * scroll bar, so the rail gets two.
+ */
+.d-rail-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(96px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-2) var(--sp-3);
+  margin: 0;
+}
+
+/* -------------------------------------------------------------------------
+   7. Small screens — 844×390 is the floor, and the failure is the height
+   ------------------------------------------------------------------------- */
+
+/**
+ * Phone landscape has width to spare and no height at all, so the rail stays a
+ * rail and only gets thinner.
+ *
+ * The first version of this section keyed the stacked arrangement off
+ * `(max-width: 1080px), (max-height: 560px)` and it was wrong in the second
+ * clause, which is the clause the 844x390 constraint actually exercises.
+ * Measured on `#profile` at 844x390: the rail became a horizontal strip in an
+ * `auto` grid row, the "Your records" card is a column of five links about 330px
+ * tall, and a 330px row in a 390px viewport left the identity panel — the
+ * subject of the screen — entirely below the fold. The strip was built for a
+ * *narrow* window and applied to a *short* one.
+ *
+ * 844 is 844 wide. A 240px rail and a 570px main column is a perfectly good
+ * two-column room; what does not fit is anything stacked. So a short viewport
+ * keeps the columns and pays for them out of the rail's width, and only a
+ * genuinely narrow window gets the strip.
+ */
+@media (max-height: 560px) and (min-width: 720px) {
+  .screen.d-hall {
+    --hall-rail: clamp(200px, 29vw, 280px);
+    --hall-gutter: clamp(10px, 1.6vw, 22px);
+    --hall-gap: clamp(10px, 1.2vw, 18px);
+  }
+
+  .screen.d-hall > .data-body,
+  .screen.d-hall > .d-rail {
+    padding-block: var(--sp-3) var(--sp-5);
+  }
+}
+
+/**
+ * Narrow: the rail stops being a column and becomes a strip **above** the
+ * content.
+ *
+ * Above, not below: the rail carries the primary action on four of these
+ * screens, and moving it under a scrolling document reproduces the exact defect
+ * this layout was built to fix — a `.mat-hero` the player never reaches. It
+ * scrolls sideways with snap points so all of it stays reachable, which is the
+ * arrangement the lobby's nav already uses, and it is capped at 40% of the
+ * viewport so a tall card can never take the screen the way it did at 844x390.
+ */
+@media (max-width: 1080px) and (min-height: 561px), (max-width: 719px) {
+  .screen.d-hall {
+    --hall-rail: 0px;
+    --hall-gap: 0px;
+    grid-template-columns:
+      [full-start] var(--hall-gutter)
+      [main-start rail-start] minmax(0, 1fr)
+      [main-end rail-end] var(--hall-gutter) [full-end];
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .screen.d-hall > .d-room,
+  .screen.d-hall > .d-room-glass {
+    grid-row: 1 / -1;
+  }
+
+  .screen.d-hall > .d-rail {
+    grid-row: 2;
+    flex-direction: row;
+    max-height: 40vh;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    padding-block: var(--sp-3) 0;
+    gap: var(--sp-2);
+  }
+
+  .screen.d-hall > .d-rail > * {
+    scroll-snap-align: start;
+    min-width: min(300px, 78vw);
+  }
+
+  .screen.d-hall > .data-body {
+    grid-row: 3;
+    padding-block: var(--sp-3) var(--sp-6);
+  }
+
+  .d-room-wall {
+    display: none;
+  }
+}
+
+/**
+ * The narrow rail at 1.4x and 1.6x type.
+ *
+ * `--ui-scale` multiplies every font size and leaves a px track alone, so a
+ * 292px rail holding 1.6x type is a column of two-word lines. The floor moves
+ * with the setting rather than the breakpoint moving, because the breakpoint is
+ * about the *window* and this is about the *type*. Capped at a third of the
+ * window, because 392 x 1.6 is 627px and a rail that takes half a 1280 viewport
+ * is not a rail.
+ */
+@media (min-width: 1081px) {
+  .screen.d-hall {
+    --hall-rail: clamp(
+      min(calc(292px * var(--ui-scale, 1)), 33vw),
+      22vw,
+      min(calc(392px * var(--ui-scale, 1)), 36vw)
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------
+   8. Reduced motion, and high contrast
+   ------------------------------------------------------------------------- */
+
+/**
+ * Everything in §5 and the hero specular is decorative and goes. The room, its
+ * planes and the whole layout stay: a player on reduced motion gets the same
+ * composition standing still, not a fallback screen.
+ */
+:root[data-reduced-motion="true"] .d-room-grid,
+:root[data-reduced-motion="true"] .d-room-dust,
+:root[data-reduced-motion="true"] .d-room-crawl,
+:root[data-reduced-motion="true"] .d-room-glass-grain,
+:root[data-reduced-motion="true"] .d-room-glass-sweep,
+:root[data-reduced-motion="true"] .d-hero::after {
+  animation: none !important;
+}
+
+/** The sweep is motion and goes; the grain is surface and stays, still. */
+:root[data-reduced-motion="true"] .d-room-glass-sweep {
+  opacity: 0;
+}
+
+:root[data-reduced-motion="true"] .d-hero::after {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .d-room-grid,
+  .d-room-dust,
+  .d-room-crawl,
+  .d-room-glass-grain,
+  .d-room-glass-sweep,
+  .d-hero::after {
+    animation: none;
+  }
+
+  .d-hero::after,
+  .d-room-glass-sweep {
+    opacity: 0;
+  }
+}
+
+/**
+ * High contrast wants the haze gone and the structure kept.
+ *
+ * The floor and the wall get *stronger*, because they are the value structure
+ * and that is the one thing this setting should never soften; the alcove, the
+ * crawl and the dust get switched off, because a tinted fog under a paragraph is
+ * exactly what the setting exists to remove.
+ */
+:root[data-contrast="high"] .d-room-alcove,
+:root[data-contrast="high"] .d-room-crawl,
+:root[data-contrast="high"] .d-room-dust,
+:root[data-contrast="high"] .d-room-grid,
+:root[data-contrast="high"] .d-room-glass {
+  display: none;
+}
+
+/**
+ * The hero keeps its rank and loses its tint.
+ *
+ * A 62% accent pool behind a heading is the right way to nominate the subject of
+ * a screen and the wrong thing to leave switched on for a player who has asked
+ * for high contrast: it is a coloured film over type, and it is carrying meaning
+ * — "this is the important panel" — in a channel that setting exists to remove.
+ * What replaces it is the same light with the colour taken out, so the hero is
+ * still the brightest object in the room and is still lit from 315°, and the
+ * foundation's own border does the rest of the work.
+ */
+:root[data-contrast="high"] .d-hero::before {
+  background:
+    radial-gradient(30% 62% at 2% -12%, rgb(255 255 255 / 0.14), transparent 66%),
+    linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.06), transparent 46%);
+}
+
+:root[data-contrast="high"] .d-hero::after {
+  display: none;
+}
+
+:root[data-contrast="high"] .d-room-floor {
+  background: linear-gradient(180deg, transparent 20%, rgb(3 2 8 / 0.72) 70%, rgb(2 1 6 / 0.92) 100%);
+}
+
+:root[data-contrast="high"] .d-room-wall {
+  background: linear-gradient(90deg, transparent, rgb(3 2 8 / 0.6) 24%, rgb(2 1 6 / 0.78));
+}
+
+/**
+ * The low tier drops the two full-viewport tiled layers and keeps the washes.
+ *
+ * `atmosphere.ts` writes `data-gfx-tier` onto the document root at boot for
+ * exactly this. A device that is choosing between this and the battle board
+ * spends its budget on the board; the room still has four planes without them,
+ * and the atmosphere's own front plane keeps one moving layer at every tier.
+ */
+:root[data-gfx-tier="low"] .d-room-dust,
+:root[data-gfx-tier="low"] .d-room-grid {
+  display: none;
+}
+
+/**
+ * The glass survives the low tier and the sweep does not.
+ *
+ * A repeating 96px tile translated on the compositor is one of the cheapest
+ * things a browser can be asked to do, and it is the only layer keeping an
+ * unmigrated route alive on a device that has switched everything else off — the
+ * same argument `atmosphere.ts` makes for keeping its front mote field at every
+ * tier. What low drops is the full-screen gradient, which is the expensive half.
+ */
+:root[data-gfx-tier="low"] .d-room-glass-sweep {
+  display: none;
+}

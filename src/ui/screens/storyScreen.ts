@@ -21,7 +21,7 @@ import {
 } from "../../game/story/archive";
 import { chapterProgress, resetChapter, storyStore } from "../../save/storySave";
 import { audio } from "../../audio/audio";
-import { count, crestMark, enter, icon, meter, quantify } from "./data/kit";
+import { count, crestMark, enter, icon, meter, quantify, room } from "./data/kit";
 
 export interface StoryCallbacks {
   onBack: () => void;
@@ -43,7 +43,16 @@ export function createStoryScreen(
   const chapter = chapterId ? story.chapters.find((entry) => entry.id === chapterId) : null;
 
   const root = document.createElement("div");
-  root.className = "screen story-screen";
+  /**
+   * `d-hall-solo`: the Stage has no wall furniture and does not pretend to.
+   *
+   * A chapter select is one object repeated — there is no second kind of thing
+   * to stand against the right-hand wall, and inventing one (a "progress"
+   * card restating what ten meters already say) would be the sort of filler that
+   * makes a two-column layout worse than a one-column one. What it takes from
+   * the hall is the room and the full width; the rail track collapses to zero.
+   */
+  root.className = "screen story-screen d-hall d-hall-solo";
 
   if (chapter) renderChapter(root, content, chapter, callbacks);
   else renderList(root, content, story, cleared, callbacks);
@@ -63,7 +72,7 @@ function renderList(
   callbacks: StoryCallbacks
 ): void {
   root.innerHTML = `
-    <div class="ambient-bg"></div>
+    ${room({ accent: "#ffb347", lit: 0.9 })}
     <header class="sub-header">
       <button class="btn btn-ghost" id="story-back">${icon("arrow-left", 16)} Modes</button>
       <h1 class="title">Story Chapters</h1>
@@ -74,6 +83,7 @@ function renderList(
   const list = root.querySelector("#story-list");
   root.querySelector("#story-back")?.addEventListener("click", () => callbacks.onBack());
 
+  let heroTaken = false;
   for (const chapter of story.chapters) {
     const progress = chapterProgress(chapter.id);
     const unlocked = chapterUnlocked(chapter, cleared);
@@ -81,8 +91,24 @@ function renderList(
     const colour = chapter.faction ? `var(--faction-${chapter.faction})` : "var(--accent)";
     const lockedBy = story.chapters.find((entry) => entry.id === chapter.lockedUntil)?.title ?? chapter.lockedUntil;
 
+    /**
+     * The first chapter that is open and unfinished is the hero.
+     *
+     * It spans both columns, is lit from the room's alcove and carries the
+     * specular — see `hall.css` §3. Exactly one card can be it: the earliest
+     * unlocked chapter with episodes left, which is the one a returning player
+     * came here to continue. When every chapter is cleared nothing takes the
+     * rank, because at that point the screen is an archive and promoting an old
+     * chapter over the others would be an arbitrary choice dressed as a
+     * recommendation.
+     */
+    const isNextUp = unlocked && !done && !heroTaken;
+    if (isNextUp) heroTaken = true;
+
     const card = document.createElement("button");
-    card.className = `story-card mat-panel act d-enter${unlocked ? "" : " story-locked"}`;
+    card.className = `story-card mat-panel act d-enter${unlocked ? "" : " story-locked"}${
+      isNextUp ? " d-hero" : ""
+    }`;
     card.type = "button";
     card.disabled = !unlocked;
     card.style.setProperty("--chapter-colour", colour);
@@ -239,7 +265,7 @@ function renderChapter(
     const colour = chapter.faction ? `var(--faction-${chapter.faction})` : "var(--accent)";
 
     root.innerHTML = `
-      <div class="ambient-bg"></div>
+      ${room({ accent: "#ffb347", lit: 0.9 })}
       <header class="sub-header">
         <button class="btn btn-ghost" id="story-back">${icon("arrow-left", 16)} Chapters</button>
         <h1 class="title">${escape(chapter.title)}</h1>

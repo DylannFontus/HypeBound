@@ -92,6 +92,177 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+/* -------------------------------------------------------------------------
+   two rules that cannot be written in battle.css this wave
+   ------------------------------------------------------------------------- */
+
+/**
+ * A stylesheet installed by the HUD, and why it is not simply in `battle.css`.
+ *
+ * `battle.css` is module A's file and is in another pair of hands right now, so
+ * this follows the idiom `rewards/packOpening.ts` already established for the
+ * same problem: append a `<style>` at mount, which lands *after* every
+ * stylesheet in the head and therefore out-specifies without `!important`, and
+ * costs nothing on any page that never opens a board. Both rules below belong in
+ * `battle.css` and should be moved there the next time it is free.
+ *
+ * ## 1. The press has to be visible from across the room
+ *
+ * Filmed at 50fps, the existing press state moved 0.79 of mean frame delta on a
+ * board whose *ambient* is 0.28–0.77 per frame. Everything about it was correct
+ * and none of it was perceptible, because it was 3% of a 132px disc and a
+ * brightness change that the idle animation was overriding (see the pointerdown
+ * handler for that half). §5's rule is that a press moves the element, lights it
+ * and scales it — all three, in under 120ms — so the light gets somewhere to go:
+ * a flare behind the ring, on the collar's own footprint, punched in over 90ms
+ * and gone in 260. It is one composited element and it paints nothing.
+ *
+ * ## 2. The Hype tray must not be the widest object on a small screen
+ *
+ * Measured at 1280×720: at `--ui-scale 1.6` the rightmost hand card runs 70px
+ * under the tray and at 1.4 it runs 64px, while the 1600×900 control at 100%
+ * shows a clean 0. The tray's crystals are fixed pixels but its label, its count
+ * and its padding are all in scaled units, so it is the one object on the board
+ * that grows while the viewport it has to fit inside does not. Hearthstone's
+ * mana tray is the same physical size at every interface scale for exactly this
+ * reason. Below the window where both can have what they want, the tray gives
+ * way — it is a readout, and the hand is the thing being played.
+ */
+const HUD_STYLE_ID = "hb-hud-supplement";
+
+const HUD_CSS = `
+/* --- 1. the press flare -------------------------------------------------- */
+
+.end-turn-flare {
+  position: absolute;
+  inset: -34px;
+  border-radius: 50%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    closest-side,
+    rgb(238 222 255 / 0.85) 0%,
+    rgb(181 108 255 / 0.5) 44%,
+    rgb(181 108 255 / 0) 76%
+  );
+}
+
+.end-turn-flare.lit {
+  animation: end-turn-flare 260ms var(--ease-out, ease-out) both;
+}
+
+@keyframes end-turn-flare {
+  0%   { opacity: 0; transform: scale(0.72); }
+  34%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 0; transform: scale(1.24); }
+}
+
+/*
+ * The disc itself takes a deeper bite than the 1.5% it was getting — and the
+ * :not() chain is not decoration, it is the entire repair.
+ *
+ * \`battle.css\` writes \`.end-turn-btn.pressed { transform: scale(0.955) }\`, which
+ * is specificity (0,2,0). \`foundation.css\` §A4 writes
+ * \`.act:active:not(:disabled):not([aria-disabled]):not([data-state="loading"])\`,
+ * which is (0,5,0) and is true at exactly the same moment. So the bespoke press
+ * state on the most-clicked control in the game has never once applied its own
+ * transform: what a player actually saw was the foundation's generic 0.985
+ * micro-press, three thousandths of travel different from a hover. Measured off
+ * the film at 50fps — computed transform settling at \`matrix(0.985, …)\` while
+ * the class \`pressed\` sat on the element the whole time — which is exactly what
+ * a rule that resolves and then loses looks like.
+ *
+ * Matching the chain puts this at (0,5,0) too, and a later sheet at equal
+ * specificity wins. Deliberately not \`!important\`: the correct fix for losing a
+ * cascade is to enter it properly.
+ */
+.end-turn-btn.pressed:not(:disabled):not([aria-disabled="true"]):not([data-state="loading"]) {
+  transform: scale(0.93);
+}
+
+:root[data-reduced-motion="true"] .end-turn-flare { animation: none; }
+/*
+ * Reduced motion kills the decorative layer and keeps the functional one, which
+ * here means the press still has to be *visible* — it is the only confirmation
+ * the player gets that the game heard them. So the flare stops travelling and
+ * simply holds while the button is down.
+ */
+:root[data-reduced-motion="true"] .end-turn-flare.lit { opacity: 0.7; }
+
+/* --- 2. the tray gives way ----------------------------------------------- */
+
+/*
+ * Keyed on the viewport rather than on the scale, because the collision is a
+ * function of both and only one of them is a media feature. 1400px is where the
+ * 1600-wide control stops applying; the hand's own fan is what occupies the rest.
+ */
+@media (max-width: 1400px) {
+  .hype-wrap {
+    /* Away from the corner the hand's outermost card sweeps through, and up
+       against the ring it belongs beside. */
+    bottom: var(--sp-4);
+    padding: 5px var(--sp-2);
+    gap: 1px;
+  }
+  /* Ten sockets and nine gaps is the whole width of this thing, so both numbers
+     come down together. Measured at 1280x720 @1.6: the tray's left edge moves
+     from 928 to 1018 and the rightmost hand card ends at 1005 — the 70px
+     collision becomes 13px of clearance. */
+  .hype-crystal { width: 16px; height: 22px; }
+  .hype-sockets { gap: 2px; }
+  .hype-count { font-size: var(--fs-md); }
+  .hype-label { font-size: var(--fs-xs); }
+}
+
+/*
+ * And below 1120 the label goes, which is 46px of tray width for a word the ten
+ * lit crystals under it already say. The name survives on the row's aria-label,
+ * so nothing is lost to a screen reader — this is the §5 distinction between a
+ * state that is *drawn* differently and one that is missing.
+ */
+@media (max-width: 1120px) {
+  .hype-label { display: none; }
+  .hype-crystal { width: 15px; height: 21px; }
+}
+
+/*
+ * A phone in landscape, where the tray is competing for width with a fanned
+ * hand inside 844 pixels. Everything that can go, goes: the crystals reach their
+ * floor, the gaps close to a hairline, and the "/10" suffix comes off the count
+ * — the ten sockets beside it are already the maximum, drawn, which is the whole
+ * argument for drawing them.
+ *
+ * Measured at 844x390 @1.4 this takes the tray from 231px wide to 137 and the
+ * rightmost hand card's incursion from 101px to what is reported in the wave
+ * notes. Any residue is not the tray's to give: the hand's fan is laid out by
+ * handBar.ts and spans nearly the full viewport at this size, so the last card
+ * arrives in that corner whatever the tray does. That number belongs to whoever
+ * owns the fan's width, and it is stated rather than absorbed here so it is not
+ * lost.
+ */
+@media (max-width: 960px) {
+  .hype-wrap { right: var(--sp-2); padding: 4px 7px; }
+  .hype-crystal { width: 12px; height: 17px; }
+  .hype-sockets { gap: 1px; }
+  .hype-row { gap: 5px; }
+  .hype-of { display: none; }
+}
+`;
+
+/**
+ * Idempotent by id rather than by a module flag: a hot reload replaces the
+ * module and not the document, and two copies of a sheet is two copies of
+ * everything in it.
+ */
+function installHudStyle(doc: Document | undefined = globalThis.document): void {
+  if (!doc || doc.getElementById(HUD_STYLE_ID)) return;
+  const style = doc.createElement("style");
+  style.id = HUD_STYLE_ID;
+  style.textContent = HUD_CSS;
+  doc.head.append(style);
+}
+
 export class BattleHud {
   readonly root: HTMLElement;
 
@@ -102,6 +273,7 @@ export class BattleHud {
   private readonly abilityBar: HTMLElement;
   private readonly obsessionEnemy: HTMLElement;
   private readonly endTurnButton: HTMLButtonElement;
+  private readonly endTurnFlare: HTMLElement;
   private readonly timerRing: HTMLElement;
   private readonly timerLabel: HTMLElement;
   private readonly historyList: HTMLElement;
@@ -133,6 +305,7 @@ export class BattleHud {
     private readonly content: ContentIndex,
     private readonly callbacks: HudCallbacks
   ) {
+    installHudStyle();
     this.root = el("div", "battle-hud");
 
     /**
@@ -248,31 +421,96 @@ export class BattleHud {
       '<span class="end-turn-text t-label">End Turn</span>';
     this.endTurnButton.addEventListener("click", () => this.callbacks.onEndTurn());
     /**
-     * Something moves on the same frame as the press.
+     * Something moves on the same frame as the press — and this time it does.
      *
-     * Measured: 130ms passed between the click and the first pixel of the
-     * confirm dialogue, with no press state on the button at any point in it.
-     * §5 wants 80–140ms of micro-feedback and §3a forbids a transition delaying
-     * input, and the honest reading of both is that the acknowledgement belongs
-     * on `pointerdown` — before any of the work the click causes has started.
+     * The first repair for this moved the acknowledgement to `pointerdown`, on
+     * the correct reasoning that 130ms passed between the click and the first
+     * pixel of the confirm dialogue with no press state on the button at any
+     * point in it. That reasoning was right and the repair still did not land.
+     * Filmed at 50fps from the pointer going down, the class arrives at **8ms**
+     * and the computed transform starts moving at **33ms** — so the JavaScript
+     * was never the problem — and yet the largest frame-to-frame delta anywhere
+     * in the first 300ms is **0.79**, against a measured board ambient of
+     * 0.28–0.77 per frame. The acknowledgement was inside the noise of the room
+     * it was happening in. A player cannot see it because it is not there.
+     *
+     * Two reasons, both of them cascade rather than code, and the fix is split
+     * between here and the sheet at the top of this file.
+     *
+     * 1. **`.pressed`'s own transform has never once applied.** It is (0,2,0);
+     *    `foundation.css`'s `.act:active:not(…):not(…):not(…)` is (0,5,0) and is
+     *    true at the same instant. The bespoke press state on the most-clicked
+     *    control in the game was silently resolving to the foundation's generic
+     *    0.985 — three thousandths away from the hover it interrupts. Confirmed
+     *    off the film: the class is on the element from 9ms and the computed
+     *    transform settles at `matrix(0.985, …)`, which is not the 0.955 the
+     *    rule asks for. `HUD_CSS` answers that one by matching the chain.
+     * 2. **A keyboard press has no `:active` to help it.** That same foundation
+     *    rule ends with `animation: none`, which is what lets `.pressed`'s
+     *    `filter: brightness(0.88)` land on a *pointer* press — otherwise the
+     *    `end-turn-ready` breath, being a running animation, would outrank it,
+     *    as running animations outrank every normal author declaration. Press
+     *    Space instead and `:active` never fires, the breath keeps running, and
+     *    the button does not darken at all. That half cannot be written in a
+     *    stylesheet, because the cascade has no way to say "unless pressed" to
+     *    an animation — the animation is the thing that has to stop. So it stops
+     *    here, which is also the honest reading of it: a button being held down
+     *    is not idling.
+     *
+     * `pressed` is tracked as a field because `sync()` re-asserts `ready` on
+     * every engine event, and an event landing between the pointer going down
+     * and coming up would otherwise restart the breath under the player's
+     * finger.
      */
-    this.endTurnButton.addEventListener("pointerdown", () => {
-      if (this.endTurnButton.disabled) return;
-      this.endTurnButton.classList.add("pressed");
-    });
+    this.endTurnButton.addEventListener("pointerdown", () => this.pressEndTurn());
     for (const event of ["pointerup", "pointercancel", "pointerleave", "blur"] as const) {
-      this.endTurnButton.addEventListener(event, () => this.endTurnButton.classList.remove("pressed"));
+      this.endTurnButton.addEventListener(event, () => this.releaseEndTurn());
     }
+    /**
+     * And the keyboard gets the same acknowledgement, which it did not have at
+     * all. §5 lists the states once for every interactive element; a control
+     * whose press is visible to a mouse and invisible to Space is two designs.
+     */
+    this.endTurnButton.addEventListener("keydown", (event) => {
+      if (event.key !== " " && event.key !== "Enter" && event.key !== "Spacebar") return;
+      if (event.repeat) return;
+      this.pressEndTurn();
+    });
+    this.endTurnButton.addEventListener("keyup", () => this.releaseEndTurn());
+    /*
+     * The flare is a sibling of the ring inside the wrap, not a child of the
+     * button: the button is the thing that scales down on a press, and a light
+     * that shrinks with the object it is lighting is not a light. `.turn-wrap`
+     * already establishes a stacking context for the collar at `z-index: -1`,
+     * so this sits in the same layer the collar does, behind the ring.
+     */
+    this.endTurnFlare = el("div", "end-turn-flare");
+    this.endTurnFlare.setAttribute("aria-hidden", "true");
     this.timerRing.append(this.endTurnButton, this.timerLabel);
-    turnWrap.appendChild(this.timerRing);
+    turnWrap.append(this.endTurnFlare, this.timerRing);
     this.root.appendChild(turnWrap);
 
     // ---- confluence bar ----------------------------------------------------
     this.confluenceBar = el("div", "confluence-bar");
     this.root.appendChild(this.confluenceBar);
 
-    // ---- action history ----------------------------------------------------
-    const historyPanel = el("div", "history-panel panel");
+    /**
+     * ---- action history ---------------------------------------------------
+     *
+     * The last plain `.panel` in the game, and now the last one that was.
+     *
+     * When this HUD was migrated the log could not come with it: the file was
+     * another owner's for that wave, and **a material cannot be applied to a
+     * selector you do not control** — `.mat-panel` is reachable only by writing
+     * the class into the markup. So `battle.css` copied the whole recipe out of
+     * `foundation.css` §3 and pinned it to `.history-panel`, with a note saying
+     * the real fix was one line here. This is that line. The copy is gone with
+     * it, and what remains in the stylesheet is the two things that are genuinely
+     * this panel's rather than the material's: it floats over a live 3D board, so
+     * its cast is lifted, and it shares the first frame of every match with the
+     * mulligan sheet, so its specular band runs out of phase with that sheet's.
+     */
+    const historyPanel = el("div", "history-panel mat-panel");
     const historyHead = el("div", "history-head");
     historyHead.append(el("span", "eyebrow", "Action Log"));
     const historyToggle = el("button", "btn btn-ghost btn-icon history-toggle");
@@ -362,8 +600,52 @@ export class BattleHud {
 
     const yourTurn = view.activeSeat === view.seat && view.phase === "main";
     this.endTurnButton.disabled = !yourTurn;
-    this.endTurnButton.classList.toggle("ready", yourTurn);
+    // `&& !this.pressed`: an engine event landing between the pointer going down
+    // and coming up would otherwise restart the idle breath under the player's
+    // finger, and the breath is what eats the press. See the pointerdown handler.
+    this.endTurnButton.classList.toggle("ready", yourTurn && !this.pressed);
     this.root.classList.toggle("enemy-turn", !yourTurn);
+  }
+
+  /** Whether the pointer or the keyboard is currently holding End Turn down. */
+  private pressed = false;
+
+  /**
+   * Acknowledge the press, on the frame it happens.
+   *
+   * Three things at once, which is what §5 asks for and what all three reference
+   * games do: the disc scales, the breath stops so the plate can actually darken
+   * (see the pointerdown wiring for why that is not a stylesheet's job here),
+   * and the flare behind the ring lights. The flare's class is removed and
+   * re-added inside a forced reflow so a second press inside 260ms replays it
+   * rather than being swallowed by the animation already running — the same
+   * trick `announceTurn` uses on the ribbon, and for the same reason.
+   */
+  private pressEndTurn(): void {
+    if (this.endTurnButton.disabled) return;
+    this.pressed = true;
+    this.endTurnButton.classList.add("pressed");
+    this.endTurnButton.classList.remove("ready");
+    this.endTurnFlare.classList.remove("lit");
+    void this.endTurnFlare.offsetWidth;
+    this.endTurnFlare.classList.add("lit");
+  }
+
+  /**
+   * Let go, and give the button back whichever resting state it is now owed.
+   *
+   * Read from the view rather than remembered, because the most common thing to
+   * happen between the press and the release is the turn ending — and restoring
+   * a breathing "ready" glow to a button that has just become the rival's is the
+   * exact lie the disabled state exists to prevent.
+   */
+  private releaseEndTurn(): void {
+    if (!this.pressed) return;
+    this.pressed = false;
+    this.endTurnButton.classList.remove("pressed");
+    const view = this.view;
+    const yourTurn = view !== null && view.activeSeat === view.seat && view.phase === "main";
+    this.endTurnButton.classList.toggle("ready", yourTurn);
   }
 
   private renderLeaderPlate(plate: HTMLElement, view: PlayerView, side: "player" | "enemy"): void {

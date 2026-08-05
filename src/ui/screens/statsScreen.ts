@@ -57,6 +57,7 @@ import {
   meter,
   modeName,
   quantify,
+  room,
   rovingList,
 } from "./data/kit";
 
@@ -84,7 +85,22 @@ const round1 = (value: number): string =>
 
 export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbacks): Screen {
   const root = document.createElement("div");
-  root.className = "screen stats-screen";
+  /**
+   * The Archive, laid out as one.
+   *
+   * This screen was the integration critic's named example: a summary slab, a
+   * chart slab, a filter row, a deck slab and three rate slabs, every one of
+   * them the full 1,120px, on 240px of empty background either side. The content
+   * was never a single column — a headline block, a time series and three
+   * small-multiple rate tables is a *dashboard*, and a dashboard laid out as a
+   * report is the specific failure §2 and §6 are both describing.
+   *
+   * What moves: the headline figures and the three rate tables go to the rail,
+   * where they are the reference you glance at while reading the chart. The
+   * chart becomes the hero — the tallest thing on the screen, lit from the
+   * alcove, and the only saturated object on it.
+   */
+  root.className = "screen stats-screen d-hall";
 
   let mode = "all";
   const bag = disposeBag();
@@ -205,7 +221,7 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
           : "—";
 
     root.innerHTML = `
-      <div class="ambient-bg"></div>
+      ${room({ accent: "#7fa6e8", lit: 0.8 })}
       <header class="screen-header">
         <button class="btn btn-ghost" id="stats-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Statistics</h1>
@@ -258,7 +274,7 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
           </p>
         </section>
 
-        <section class="mat-panel stats-curve-panel">
+        <section class="mat-panel d-hero stats-curve-panel">
           <div class="stats-table-head">
             <h3 class="t-heading">Win rate over time</h3>
             <span class="t-body">Cumulative wins ${esc(
@@ -305,24 +321,54 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
         </nav>
 
         ${deckTable(board.byDeck, board.sample.detailed)}
-        <div class="stats-columns">
-          ${rateTable("By faction", "The faction you played", board.byFaction)}
-          ${rateTable("By Current", "Your leader's primary Current", board.byCurrent)}
-          ${rateTable("Against", "The faction you played into", board.byOpponentFaction)}
-        </div>
+      </main>
 
-        <div class="stats-actions">
-          <button type="button" class="mat-panel act r-chip" id="stats-history">
-            ${icon("mode-replays", 16)} Match history
-          </button>
-          <button type="button" class="mat-panel act r-chip" id="stats-decks">
-            ${icon("deck-builder", 16)} Deck builder
-          </button>
-          <button type="button" class="mat-panel act r-chip" id="stats-export">
-            ${icon("arrow-down", 16)} Export CSV
-          </button>
-        </div>
-      </main>`;
+      <section class="d-rail" aria-label="Breakdowns">
+        ${
+          /*
+           * One empty state for three empty tables, not three of the same one.
+           *
+           * Before the first match all three rate tables are empty, and each
+           * drew its own icon, its own "No sample yet" and its own "One match is
+           * enough to put the first row here." — the identical 150px block,
+           * stacked three times down a 350px column. §5 says an empty state is
+           * designed too, and three copies of a designed thing is not three
+           * designs, it is a loop that nobody looked at. The moment there is a
+           * single row anywhere the three tables come back, because from then on
+           * they are three different answers.
+           */
+          board.byFaction.length + board.byCurrent.length + board.byOpponentFaction.length === 0
+            ? `<section class="mat-panel d-rail-card d-enter stats-rail-empty">
+                 <h2 class="d-rail-label">Breakdowns</h2>
+                 <div class="empty">
+                   ${icon("mode-ranked", 34)}
+                   <h3 class="t-heading">Three cuts of one match</h3>
+                   <p class="t-body">
+                     By faction, by your leader's Current, and by what you played into. All three
+                     start filling from your first match and none of them leaves this device.
+                   </p>
+                 </div>
+               </section>`
+            : `${rateTable("By faction", "The faction you played", board.byFaction)}
+               ${rateTable("By Current", "Your leader's primary Current", board.byCurrent)}
+               ${rateTable("Against", "The faction you played into", board.byOpponentFaction)}`
+        }
+
+        <section class="d-rail-card mat-panel d-enter stats-actions-card">
+          <h2 class="d-rail-label">Elsewhere</h2>
+          <div class="stats-actions">
+            <button type="button" class="mat-panel act r-chip" id="stats-history">
+              ${icon("mode-replays", 16)} Match history
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="stats-decks">
+              ${icon("deck-builder", 16)} Deck builder
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="stats-export">
+              ${icon("arrow-down", 16)} Export CSV
+            </button>
+          </div>
+        </section>
+      </section>`;
 
     /**
      * Both charts are sized from the box they are actually in — which is not the

@@ -881,6 +881,22 @@ const CSS = `
   display: grid;
   grid-template-columns: repeat(var(--rw-cols, 5), auto);
   gap: clamp(6px, 1.1vw, 18px);
+  /*
+   * Rows are further apart than columns, because a row has a caption hanging
+   * below it and a column does not.
+   *
+   * .reveal-tag sits at bottom: -26px and is about 18px tall, so a card's
+   * caption occupies 44px *outside* its own slot. At a ten-pull — two rows of
+   * five, which is the banner's headline interaction — a 17px gap put every
+   * caption in the first row underneath the cards in the second: photographed
+   * at 1600x900, "+38 SIGNAL" was sliced in half by the card below it, on the
+   * one line of text that says what the player actually got.
+   *
+   * The number is not a new guess. packOpening.ts::fit has always subtracted a
+   * caption lane per row when it decides how big a card can be, and it writes
+   * that same constant here as --rw-row-gap so the two cannot drift apart.
+   */
+  row-gap: var(--rw-row-gap, 46px);
   justify-content: center;
   align-content: center;
   /* Centred in the stage, not merely centred *within itself*. fit() sizes the

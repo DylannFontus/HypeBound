@@ -39,6 +39,7 @@ import {
   quantify,
   paintArt,
   rankMark,
+  room,
   rovingList,
 } from "./data/kit";
 
@@ -146,7 +147,21 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
   const virgin = history.length === 0;
 
   root.innerHTML = `
-    <div class="ambient-bg"></div>
+    ${
+      /*
+       * The room, and deliberately **not** `.d-hall`.
+       *
+       * Of the eleven screens this wave owns, this is the one whose composition
+       * was already right: `.replay-body` is a list pane beside a stage, which is
+       * the two-column arrangement `.d-hall` exists to impose, arrived at
+       * independently and tuned to a workbench rather than to a rail. Wrapping it
+       * in the hall grid would put a second axis inside a layout that already has
+       * one and win nothing. What it shares with the other ten is the plate — an
+       * `.ambient-bg` in front of `atmosphere.ts` — and that is all that changes
+       * here.
+       */ ""
+    }
+    ${room({ accent: "#7fa6e8", lit: 0.7 })}
     <header class="sub-header">
       <button class="btn btn-ghost" id="replay-back">${icon("arrow-left", 16)} Lobby</button>
       <h1 class="title">Match History</h1>

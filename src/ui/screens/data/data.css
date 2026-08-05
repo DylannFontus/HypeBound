@@ -973,20 +973,51 @@ th.num {
   border-bottom-color: rgb(255 255 255 / 0.1);
 }
 
-.d-table tbody tr:nth-child(even) {
-  background: rgb(255 255 255 / 0.015);
+/**
+ * The zebra and the hover, as lit surfaces rather than as two flat fills.
+ *
+ * These were `background: rgb(255 255 255 / 0.015)` and `rgb(255 255 255 /
+ * 0.05)` — the two solid fills a review found still standing on `#privacy`, and
+ * §1 bans a solid `background:` on any surface larger than an icon without
+ * qualification. On a table the ban is not pedantry: a striped row with no light
+ * source is the single most spreadsheet-like object a game can put on screen,
+ * and the policy screens are exactly where a player is most likely to notice
+ * they have left the game.
+ *
+ * Both are now two-stop gradients on the **rig axis**, so a row is lit from the
+ * top-left like every other raised thing in the build, and the hover adds the
+ * lit rim and the unlit lip that §1 asks for by name. The declarations sit on
+ * the cells rather than the row: with `border-collapse: separate` a `tr`
+ * background is painted, but it is painted *behind* the cells' own backgrounds
+ * and cannot carry an inset shadow that lines up with a cell boundary, so a rim
+ * on the row would have been drawn under the first and last cell and nowhere
+ * else.
+ *
+ * The transition stays on `background` deliberately and is the one paint-property
+ * transition in this file. It is 110ms on a row-sized box under a pointer that
+ * has already stopped moving; the rule that matters — never animate a paint
+ * property on a *large* surface — is about the full-screen washes above.
+ */
+.d-table tbody tr:nth-child(even) > td {
+  background-image: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.032), rgb(255 255 255 / 0.008));
 }
 
-.d-table tbody tr {
-  transition: background var(--dur-micro) var(--ease-arrive);
+.d-table tbody tr > td {
+  transition: background-image var(--dur-micro) var(--ease-arrive);
 }
 
-.d-table tbody tr:hover {
-  background: rgb(255 255 255 / 0.05);
+.d-table tbody tr:hover > td {
+  background-image: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.085), rgb(255 255 255 / 0.025));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(0 0 0 / 0.34);
 }
 
-.d-table tbody tr:hover td:first-child {
-  box-shadow: inset 2px 0 0 var(--accent);
+.d-table tbody tr:hover > td:first-child {
+  box-shadow:
+    inset 2px 0 0 var(--accent),
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(0 0 0 / 0.34);
 }
 
 /** A before → after diff, which is what a patch table is. */

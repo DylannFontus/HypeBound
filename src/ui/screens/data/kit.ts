@@ -58,6 +58,7 @@ import {
 import type { EmblemShape } from "../../cosmetics/emblem";
 import "./data.css";
 import "./rooms.css";
+import "./hall.css";
 
 export {
   crest,
@@ -917,6 +918,67 @@ export function deferPaint<T extends HTMLElement>(
     cancelAnimationFrame(frame);
     observer?.disconnect();
   };
+}
+
+// ---------------------------------------------------------------------------
+// The room
+// ---------------------------------------------------------------------------
+
+/**
+ * The six layers of `hall.css`'s plane 2, as one string.
+ *
+ * Eleven screens each wrote `<div class="ambient-bg"></div>` and got the same
+ * flat plate; they now each write `room({ accent })` and get the same *room*.
+ * Keeping it a function rather than a snippet to copy is the difference between
+ * one composition and eleven that drift — the alcove's position is the key light
+ * and the key light is the single most load-bearing constant in this build, so it
+ * is not something a twelfth screen should be able to decide for itself.
+ *
+ * The layer order is back to front and it matters: alcove (the accent), crawl
+ * (the accent moving), the far dust, the grid, the near dust, the wall, then the
+ * floor over everything so the bottom of the frame darkens the dust too. A floor
+ * under the dust would leave specks glowing in the dark mass, which is the one
+ * arrangement that reads as a bug rather than as air.
+ *
+ * `lit` scales the alcove alone. The Archive and Back Office rooms are quiet by
+ * design — `atmosphere.ts` gives them 0.6 and 0.42 intensity for the same reason
+ * — and a screen you *read* wants its accent under, not over, the text.
+ */
+export function room(options: { accent?: string; lit?: number } = {}): string {
+  const accent = options.accent ? `--hall-accent:${esc(options.accent)};` : "";
+  const lit = options.lit !== undefined ? `--hall-lit:${options.lit};` : "";
+  const style = accent || lit ? ` style="${accent}${lit}"` : "";
+  return `<div class="d-room" aria-hidden="true"${style}>
+      <div class="d-room-alcove"></div>
+      <div class="d-room-crawl"></div>
+      <div class="d-room-dust is-far"></div>
+      <div class="d-room-grid"></div>
+      <div class="d-room-dust"></div>
+      <div class="d-room-wall"></div>
+      <div class="d-room-floor"></div>
+    </div>
+    <div class="d-room-glass" aria-hidden="true"${style}>
+      <div class="d-room-glass-sweep"></div>
+      <div class="d-room-glass-grain"></div>
+    </div>`;
+}
+
+/**
+ * A card standing against the rail's wall.
+ *
+ * `<section>` rather than `<div>`, and that is not pedantry about landmarks: the
+ * rail itself is a `<section>` so `markCascade` indexes it as a body container
+ * and staggers what is in it, and a rail of `<div>`s would still stagger but a
+ * rail of sections reads correctly to a screen reader that is listing regions.
+ * The label is optional because two of the eleven rails hold a single hero
+ * action and a heading over one button is furniture nobody asked for.
+ */
+export function railCard(options: { label?: string; body: string; className?: string; tone?: "hero" | "panel" }): string {
+  const material = options.tone === "hero" ? "mat-hero" : "mat-panel";
+  return `<section class="d-rail-card ${material} d-enter ${options.className ?? ""}">
+      ${options.label ? `<h2 class="d-rail-label">${esc(options.label)}</h2>` : ""}
+      ${options.body}
+    </section>`;
 }
 
 // ---------------------------------------------------------------------------

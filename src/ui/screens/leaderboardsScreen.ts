@@ -36,7 +36,7 @@ import type { Screen } from "../shell";
 import { getProfile } from "../../save/profile";
 import { WIN_RATE_QUALIFIER, winRate } from "../../game/stats/dashboard";
 import { audio } from "../../audio/audio";
-import { artAttr, count, countUp, enter, icon, meter, quantify, rankMark } from "./data/kit";
+import { artAttr, count, countUp, enter, icon, meter, quantify, rankMark, room } from "./data/kit";
 
 export interface LeaderboardsCallbacks {
   onBack: () => void;
@@ -101,7 +101,15 @@ const CREST_MOUNT_STYLE =
 
 export function createLeaderboardsScreen(_content: ContentIndex, callbacks: LeaderboardsCallbacks): Screen {
   const root = document.createElement("div");
-  root.className = "screen leaderboards-screen";
+  /**
+   * One standing, and two panels of prose about a server that does not exist.
+   *
+   * The two explanatory panels are genuinely secondary — they say what is not
+   * here and why — and as full-width slabs under the standing they were the two
+   * largest objects on the route. On the wall they are a footnote you can read
+   * without scrolling past your own rank to reach it.
+   */
+  root.className = "screen leaderboards-screen d-hall";
 
   const profile = getProfile();
   const played = profile.stats.matchesPlayed;
@@ -129,14 +137,14 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
   const topTier = tier >= TIERS;
 
   root.innerHTML = `
-    <div class="ambient-bg"></div>
+    ${room({ accent: "#7fa6e8", lit: 0.75 })}
     <header class="screen-header">
       <button class="btn btn-ghost" id="leaderboards-back">${icon("arrow-left", 16)} Back</button>
       <h1 class="title">Leaderboards</h1>
     </header>
 
     <main class="leaderboards-body data-body">
-      <section class="mat-panel lb-standing">
+      <section class="mat-panel d-hero lb-standing">
         <div class="lb-standing-art" aria-hidden="true" ${artAttr("ladder", [1200, 400, "#b56cff"])}></div>
         <div class="lb-standing-inner">
           <div class="lb-crest">
@@ -201,7 +209,10 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
         </div>
       </section>
 
-      <section class="mat-panel leaderboards-explainer d-enter">
+    </main>
+
+    <section class="d-rail" aria-label="About the ladder">
+      <section class="mat-panel d-rail-card leaderboards-explainer d-enter">
         <h2 class="t-heading">Not yet — and not faked either</h2>
         <p class="t-body">
           Leaderboards need the server, and this build does not have one. Rather than show
@@ -219,7 +230,7 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
         </p>
       </section>
 
-      <section class="mat-panel leaderboards-note d-enter">
+      <section class="mat-panel d-rail-card leaderboards-note d-enter">
         <h3 class="t-heading">What does work offline</h3>
         <ul class="lb-works">
           ${[
@@ -240,7 +251,7 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
           why it shipped first.
         </p>
       </section>
-    </main>`;
+    </section>`;
 
   root.querySelector("#leaderboards-back")?.addEventListener("click", () => {
     audio.play("sfx.ui.click");
