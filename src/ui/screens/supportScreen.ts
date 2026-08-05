@@ -18,7 +18,7 @@ import type { Screen } from "../shell";
 import { buildDiagnostics, policiesData } from "../../game/policies";
 import { getProfile } from "../../save/profile";
 import { audio } from "../../audio/audio";
-import { enter, icon } from "./data/kit";
+import { count, enter, icon } from "./data/kit";
 
 export interface SupportCallbacks {
   onBack: () => void;
@@ -71,8 +71,9 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
       </header>
 
       <main class="policy-body data-body data-doc">
-        <section class="panel panel-chrome support-faq">
+        <section class="mat-panel support-faq d-enter">
           <div class="support-faq-head">
+            <span class="settings-mark" aria-hidden="true">${icon("help", 20)}</span>
             <h2 class="t-heading">Frequently asked</h2>
             <label class="support-search field-group">
               <span class="sr-only">Search the questions</span>
@@ -80,7 +81,7 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
                      placeholder="save, odds, bug, multiplayer" />
             </label>
             <span class="t-label support-faq-count" id="support-count">
-              <span class="num">${shown.length}</span> of <span class="num">${faq.length}</span>
+              <span class="num">${count(shown.length)}</span> of <span class="num">${count(faq.length)}</span>
             </span>
           </div>
           ${
@@ -116,9 +117,12 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
           }
         </section>
 
-        <section class="panel panel-chrome support-report">
-          <h2 class="t-heading">Report a bug</h2>
-          <p class="muted">
+        <section class="mat-panel support-report d-enter">
+          <div class="settings-head">
+            <span class="settings-mark" aria-hidden="true">${icon("warning", 20)}</span>
+            <h2 class="t-heading">Report a bug</h2>
+          </div>
+          <p class="t-body">
             There is no ticket queue offline, so this exports a file you can attach wherever you are
             reporting. It is shown in full below first — there is nothing in it that identifies you,
             and no part of your save.
@@ -136,21 +140,38 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
             </tbody>
           </table>
           <div class="mail-actions">
-            <button class="btn btn-primary" id="support-export">Export the diagnostic</button>
-            <button class="btn btn-ghost" id="support-privacy">What is stored about me ${icon("arrow-right", 15)}</button>
-            <button class="btn btn-ghost" id="support-fairness">Probability disclosures ${icon("arrow-right", 15)}</button>
-            <button class="btn btn-ghost" id="support-cards">Card and rules reference ${icon("arrow-right", 15)}</button>
+            <!--
+              One hero, because exactly one of the four is the thing this panel
+              is for; the other three are signposts. base.css's .btn-primary and
+              .btn-ghost are the pre-foundation pills — a flat fill and a 1px
+              outline, with an opacity-only disabled state A4 rules out twice.
+            -->
+            <button type="button" class="mat-hero act r-chip" id="support-export">
+              ${icon("arrow-down", 15)} Export the diagnostic
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="support-privacy">
+              ${icon("lock", 15)} What is stored about me ${icon("chevron-right", 14)}
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="support-fairness">
+              ${icon("diamond", 15)} Probability disclosures ${icon("chevron-right", 14)}
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="support-cards">
+              ${icon("collection", 15)} Card and rules reference ${icon("chevron-right", 14)}
+            </button>
           </div>
         </section>
 
-        <section class="panel panel-chrome policy-note">
-          <h2 class="t-heading">Safety, and spending</h2>
-          <p class="muted">
+        <section class="mat-panel policy-note d-enter">
+          <div class="settings-head">
+            <span class="settings-mark" aria-hidden="true">${icon("kw-parasocial", 20)}</span>
+            <h2 class="t-heading">Safety, and spending</h2>
+          </div>
+          <p class="t-body">
             There is no chat, no friends list and no player-to-player messaging in this build, so
             there is nobody to report and nothing to block. Those tools arrive with the server, along
             with the appeal route for anything a moderator does.
           </p>
-          <p class="muted">
+          <p class="t-body">
             There is also nothing to spend money on: this build takes no payments at all, which makes
             spending controls a feature with nothing to control. Session reminders and caps arrive with
             the online build.
@@ -166,7 +187,7 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
      * is the opposite of §3a's "filtering re-flows with a transition rather than
      * a jump". The answers are what changed, so the answers are what moves.
      */
-    enter(root, mounted ? ".support-qa-item" : ".panel, .support-qa-item", 34);
+    enter(root, mounted ? ".support-qa-item" : ".d-enter", 34);
     mounted = true;
 
     root.querySelector("#support-back")?.addEventListener("click", () => {

@@ -8004,3 +8004,617 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 .queue-offer-btn:active {
   text-shadow: 0 -1px 0 rgb(255 255 255 / 0.22), 0 1px 0 rgb(0 0 0 / 0.3);
 }
+
+/* =========================================================================
+   OVERLAYS â€” one stock, cut once
+   =========================================================================
+
+   Why this section exists, and why it is one block rather than fourteen.
+
+   A DOM census across twenty-five routes found `.mat-panel` on the lobby, the
+   play screen, the pass screen, missions, achievements and the banner â€” and on
+   **not one modal anywhere in the game**. Every dialogue, prompt and confirm
+   was still `base.css`'s `.panel`: one flat fill, one 1px border the same
+   colour on all four sides, a drop shadow with no answering highlight, and no
+   grain. Â§1 of the bar bans each of those three by name. The effect is that
+   HYPEBOUND changes visual language at the four moments that matter most â€”
+   match start, the opening hand, every turn end, and settings â€” because those
+   four moments are all modals and modals were the one surface nobody owned.
+
+   ## Why this is a selector list and not fourteen `class="mat-panel"` edits
+
+   The honest fix is two words in a `className` string per dialogue, in the
+   eight `.ts` files that build them. Those files belong to other builders in
+   this wave, and the whole reason a third of the game was never wired to the
+   foundation is that a builder who owned one file could not edit another's â€”
+   so adding a fifteenth uncoordinated edit to prove that point would be funny
+   rather than useful.
+
+   So the material is handed to the legacy selectors instead, which is a move
+   this codebase has already made deliberately: `foundation.css` Â§6 does exactly
+   this for `.btn` and `.panel`, under the heading "compatibility for the two
+   shapes in `base.css` that predate the materials". This is the same trick, one
+   layer out, for the fourteen shapes that predate the migration. It has one
+   genuine advantage over the class edit â€” a dialogue added next month is
+   lacquered without anyone remembering â€” and one genuine cost, which is that
+   the recipe below is a **second copy** of `foundation.css` Â§3's.
+
+   That copy is the missing primitive, stated plainly: **there is no way to
+   apply a material to a selector you do not control.** `.mat-panel` is reachable
+   only by writing the class into the markup. Every value below is read from
+   module A's own tokens â€” `--fill-panel`, `--amp-panel`, `--tex-grain-mid`,
+   `--cast-lift` â€” so the two copies cannot drift in *colour*; they can drift in
+   *shape*, and the fix for that is one line in module A's Â§3 selector list.
+
+   ## What the modal rank changes about the recipe
+
+   Exactly one number. `--cast-lift: 2.1` â€” an overlay is depth plane 4 (Â§2)
+   floating over a whole screen, not a tile lying on one, and the drop and the
+   contact shadow are the only things that say so. That knob is module A's own,
+   registered for this purpose, so a modal is the same substance at the same
+   rank, further off the page.
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   O1. The plate
+   -------------------------------------------------------------------------
+   Deliberately not in the list: `.overlay-panel`, `.damage-preview`, `.toast`,
+   `.coach-panel` and `.emote-menu`, which already carry a material class in
+   their own markup, and `.end-panel`, which is a title card rather than a plate
+   â€” VICTORY at 7rem does not want a rectangle behind it. */
+
+.mulligan-panel,
+.confirm-panel,
+.chooser-panel,
+.settings-quick,
+.handoff-panel,
+.detail-info,
+.difficulty-panel,
+.doom-prompt-panel,
+.scene-brief,
+.scene-log,
+.error-panel,
+.cd-panel,
+.rotate-overlay-inner,
+.battle-overlay .btn-primary,
+.difficulty-backdrop .btn-primary,
+.doom-prompt-backdrop .btn-primary,
+.scene-overlay .btn-primary,
+.card-detail-overlay .btn-primary,
+.overlay .btn-primary {
+  --mat-amp: var(--amp-panel);
+  --mat-fill: var(--fill-panel);
+  --rim-a: 0.06;
+  --lip-a: 0.63;
+  --mat-grain: var(--tex-grain-mid, none);
+  --mat-grain-size: var(--tex-grain-mid-size, auto);
+  --sheen-alpha: 0.03;
+  --r-self: var(--r-panel);
+  --cast-lift: 2.1;
+
+  position: relative;
+  /* The band below is `z-index: -1`, so the plate has to own a stacking
+     context or the light would paint over the type instead of under it. Same
+     reasoning, and the same fix, as module A's Â§3. */
+  isolation: isolate;
+  border-radius: var(--r-self);
+  color: var(--text);
+
+  background-color: transparent;
+  background-image: var(--mat-grain), var(--mat-fill);
+  background-repeat: repeat, no-repeat;
+  background-size: var(--mat-grain-size), 100% 100%;
+  background-position: 0 0, 0 0;
+  /* `border-box`, or the fill stops at the inside of the border and the rim
+     composites over whatever is behind the modal rather than over its own
+     surface â€” which would make the bevel a function of the backdrop. */
+  background-origin: border-box;
+
+  /**
+   * The blur belongs to the scrim, not to the plate.
+   *
+   * `.panel` asks for `blur(18px) saturate(1.3)` and every modal in the game
+   * inherited it. Over a scrim that is already blurring, on a plate that is 95%
+   * opaque, it buys five per cent of a picture nobody can see and costs a
+   * viewport-sized backdrop readback per frame â€” on the battle routes, per
+   * frame of a WebGL board that is redrawing anyway. Off.
+   */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+
+  /* top, right, bottom, left. Lit on the two edges facing 315Â°, dark on the two
+     facing away. A pale outline the whole way round is a panel lit from four
+     directions at once, which is the loudest "this is a CSS box" tell there is. */
+  border-style: solid;
+  border-width: 1px;
+  border-color:
+    rgb(255 255 255 / var(--rim-a))
+    rgb(0 0 0 / calc(var(--lip-a) * 0.55))
+    rgb(0 0 0 / var(--lip-a))
+    rgb(255 255 255 / calc(var(--rim-a) * 0.5));
+
+  --mat-cast:
+    inset 0 1px 0 rgb(255 255 255 / calc(var(--rim-a) * 0.55)),
+    inset 1px 0 0 rgb(255 255 255 / calc(var(--rim-a) * 0.28)),
+    inset 0 -1px 0 rgb(0 0 0 / calc(var(--lip-a) * 0.55)),
+    inset -1px 0 0 rgb(0 0 0 / calc(var(--lip-a) * 0.3)),
+    calc(6.2px * var(--mat-amp) * var(--cast-lift)) calc(10px * var(--mat-amp) * var(--cast-lift))
+      calc(26px * var(--mat-amp) * var(--cast-lift)) calc(-6px * var(--mat-amp))
+      rgb(0 0 0 / calc(0.55 * var(--mat-amp))),
+    calc(1.24px * var(--cast-lift)) calc(2px * var(--cast-lift)) calc(3px * var(--cast-lift)) -1px
+      rgb(0 0 0 / calc(0.3 + 0.3 * var(--mat-amp)));
+  box-shadow: var(--mat-cast);
+}
+
+/**
+ * The primary action inside a modal is a hero, not a panel.
+ *
+ * The critic's exhibit was "the only pure-white button in the game, sitting on
+ * top of the best-looking screen in the game" — and the arithmetic is worse
+ * than the sentence. `.btn-primary` is `#fff` over
+ * `linear-gradient(135deg, var(--accent), var(--accent-hot))`; module A measured
+ * that exact pairing at **2.71:1**, and under `data-contrast="high"` — the
+ * setting that exists to help — it fell to **1.88:1**, because that setting
+ * correctly lightens the accent for the dark ink every `.mat-hero` in the game
+ * already wears. So the loudest control in every dialogue was the least legible
+ * thing in it, and turning on the accessibility switch made it worse.
+ *
+ * Nothing here is new. It is the same recipe above at the hero's rank — module
+ * A's own knobs, module A's own `--ink-hero`, which measures 10.3:1 / 6.3:1 /
+ * 7.1:1 against the three stops of the plate and *rises* under high contrast.
+ * `--cast-lift` goes back to 1 because a button is lying on the modal, not
+ * floating over the screen; the modal already did that floating for it.
+ */
+.battle-overlay .btn-primary,
+.difficulty-backdrop .btn-primary,
+.doom-prompt-backdrop .btn-primary,
+.scene-overlay .btn-primary,
+.card-detail-overlay .btn-primary,
+.overlay .btn-primary {
+  --mat-amp: var(--amp-hero);
+  --mat-fill: var(--fill-hero);
+  --rim-a: 0.24;
+  --lip-a: 0.22;
+  /* The chip tile, not the hero's, for the same reason the front door's two
+     heroes take it (see the note above `.signin-submit`): module B tunes the
+     hero grain for a 500px plate, and at 0.199 on a 120px confirm button it
+     reads as speckle rather than as material. A dialogue's primary action is
+     always a small object. */
+  --mat-grain: var(--tex-grain-chip, none);
+  --mat-grain-size: var(--tex-grain-chip-size, auto);
+  --sheen-alpha: 0.14;
+  --r-self: var(--radius-pill);
+  --cast-lift: 1;
+  color: var(--ink-hero);
+  /* Dark ink on a bright plate wants the light *above* it: one pixel of white
+     at 22% is a letterpress crown, which adds contrast rather than admitting
+     there is not enough. It replaces `.btn-primary`'s blurred drop shadow,
+     which is the one remedy §4 lists that WCAG does not count. */
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.22);
+}
+
+/**
+ * ...and the hover keeps the bevel it just earned.
+ *
+ * `.btn:hover:not(:disabled)` is three classes and would otherwise put
+ * `border-color: var(--accent-bright)` on all four edges — the four-sided pale
+ * outline, back again, on exactly the frame the player is looking at the
+ * button. Four classes here so the directional edge survives the hover, with
+ * the glow moved into the cast where it belongs.
+ */
+.battle-overlay .btn-primary:hover:not(:disabled),
+.difficulty-backdrop .btn-primary:hover:not(:disabled),
+.doom-prompt-backdrop .btn-primary:hover:not(:disabled),
+.scene-overlay .btn-primary:hover:not(:disabled),
+.card-detail-overlay .btn-primary:hover:not(:disabled),
+.overlay .btn-primary:hover:not(:disabled) {
+  --rim-boost: 1.6;
+  --cast-lift: 1.35;
+  --sheen-alpha: var(--sheen-hover, 0.28);
+  transform: translateY(-2px) scale(1.015);
+  box-shadow: var(--mat-cast), var(--glow-hot);
+  border-color:
+    rgb(255 255 255 / calc(var(--rim-a) * var(--rim-boost)))
+    rgb(0 0 0 / calc(var(--lip-a) * 0.55))
+    rgb(0 0 0 / var(--lip-a))
+    rgb(255 255 255 / calc(var(--rim-a) * 0.5 * var(--rim-boost)));
+}
+
+.battle-overlay .btn-primary:active:not(:disabled),
+.difficulty-backdrop .btn-primary:active:not(:disabled),
+.doom-prompt-backdrop .btn-primary:active:not(:disabled),
+.scene-overlay .btn-primary:active:not(:disabled),
+.card-detail-overlay .btn-primary:active:not(:disabled),
+.overlay .btn-primary:active:not(:disabled) {
+  --cast-lift: 0;
+  transform: translateY(0) scale(0.985);
+  box-shadow: var(--mat-cast), inset 0 2px 6px rgb(0 0 0 / 0.34);
+  text-shadow: 0 -1px 0 rgb(255 255 255 / 0.22), 0 1px 0 rgb(0 0 0 / 0.3);
+}
+
+/**
+ * ...and it is alive while it waits.
+ *
+ * The mulligan sits on screen until the player decides; a settings sheet sits
+ * there until they close it. Â§3a: "the screen is alive at rest". This is module
+ * A's own band and module A's own keyframe â€” 40% of the plate wide, travelling
+ * 150% of its own width so it can never overhang a corner, on `translate` so it
+ * composites rather than repainting the plate every frame. The negative delay
+ * drops the band into a cycle that is already running, so the first frame a
+ * modal is on screen for is mid-sweep rather than at the keyframe.
+ *
+ * `::after` on a raised material is module A's by convention; none of the
+ * fourteen shapes above uses one, and `.panel-chrome::before` â€” which nine of
+ * them carry â€” is untouched.
+ */
+.mulligan-panel::after,
+.confirm-panel::after,
+.chooser-panel::after,
+.settings-quick::after,
+.handoff-panel::after,
+.detail-info::after,
+.difficulty-panel::after,
+.doom-prompt-panel::after,
+.scene-brief::after,
+.scene-log::after,
+.error-panel::after,
+.cd-panel::after,
+.rotate-overlay-inner::after,
+.battle-overlay .btn-primary::after,
+.difficulty-backdrop .btn-primary::after,
+.doom-prompt-backdrop .btn-primary::after,
+.scene-overlay .btn-primary::after,
+.card-detail-overlay .btn-primary::after,
+.overlay .btn-primary::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    var(--light-sweep),
+    transparent 0%,
+    rgb(255 255 255 / var(--sheen-alpha)) 50%,
+    transparent 100%
+  );
+  /**
+   * ...and the band's own left and right edges are feathered, which module A's
+   * copy does not do and, on a plate this size, should.
+   *
+   * A `linear-gradient(135deg, transparent, white, transparent)` runs its stops
+   * along the 135° axis, so its iso-lines are at 45° — which means the value
+   * along the band's *vertical* box edge is not constant and is nowhere near
+   * transparent at two of the four corners. On a 40×56 chip nobody will ever
+   * see that. On a 618×290 dialogue it is a straight vertical step across the
+   * plate: measured on the difficulty sheet with the animation pinned at two
+   * offsets, the left third of the panel read 58.4 at one phase and 48.4 at the
+   * other while the right third went the other way, and the boundary between
+   * them was a hard line.
+   *
+   * The mask costs nothing at runtime — it is baked into the layer's raster and
+   * only the transform changes — and it guarantees the band can only ever end in
+   * a ramp. Worth lifting into module A's §3; noted rather than done, because
+   * that file is not this builder's.
+   *
+   * **The mask runs at 90 degrees and that is not a second sun.** It carries no
+   * light of its own: the light is the 135° gradient above, unchanged, and this
+   * only decides where along the band's own length that light is allowed to
+   * exist. 90° is the band's long axis, which is the only angle a length-wise
+   * taper can have — the same reasoning `.hairline` and the turn banner's mask
+   * are written under. `tests/one-sun.test.ts` withdraws the axis-aligned
+   * allowance here because `/rim/` matches the word "primary" in the selector
+   * list, so the figure is named rather than registered.
+   */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
+  animation: hb-sheen-pass var(--dur-sheen-panel) var(--ease-sweep) -3400ms infinite;
+}
+
+/* The hero's own period, so a primary action and the plate it stands on never
+   sweep together: 6.2s against 8.6s share no short multiple, which is module
+   A's argument for the two numbers and it holds here for the same reason. */
+.battle-overlay .btn-primary::after,
+.difficulty-backdrop .btn-primary::after,
+.doom-prompt-backdrop .btn-primary::after,
+.scene-overlay .btn-primary::after,
+.card-detail-overlay .btn-primary::after,
+.overlay .btn-primary::after {
+  animation-duration: var(--dur-sheen-hero);
+  animation-delay: -1900ms;
+}
+
+:root[data-reduced-motion="true"] .battle-overlay .btn-primary::after,
+:root[data-reduced-motion="true"] .difficulty-backdrop .btn-primary::after,
+:root[data-reduced-motion="true"] .doom-prompt-backdrop .btn-primary::after,
+:root[data-reduced-motion="true"] .scene-overlay .btn-primary::after,
+:root[data-reduced-motion="true"] .card-detail-overlay .btn-primary::after,
+:root[data-reduced-motion="true"] .overlay .btn-primary::after {
+  animation: none;
+}
+
+:root[data-reduced-motion="true"] .mulligan-panel::after,
+:root[data-reduced-motion="true"] .confirm-panel::after,
+:root[data-reduced-motion="true"] .chooser-panel::after,
+:root[data-reduced-motion="true"] .settings-quick::after,
+:root[data-reduced-motion="true"] .handoff-panel::after,
+:root[data-reduced-motion="true"] .detail-info::after,
+:root[data-reduced-motion="true"] .difficulty-panel::after,
+:root[data-reduced-motion="true"] .doom-prompt-panel::after,
+:root[data-reduced-motion="true"] .scene-brief::after,
+:root[data-reduced-motion="true"] .scene-log::after,
+:root[data-reduced-motion="true"] .error-panel::after,
+:root[data-reduced-motion="true"] .cd-panel::after,
+:root[data-reduced-motion="true"] .rotate-overlay-inner::after {
+  animation: none;
+}
+
+/* The one place the directional border is deliberately flattened, mirroring
+   module A Â§10: somebody who has turned this on needs a findable boundary on
+   all four sides, and "the bottom edge is in shadow" is a depth cue rather than
+   an edge. The fills and the grain are already handled at `:root`. */
+:root[data-contrast="high"] .mulligan-panel,
+:root[data-contrast="high"] .confirm-panel,
+:root[data-contrast="high"] .chooser-panel,
+:root[data-contrast="high"] .settings-quick,
+:root[data-contrast="high"] .handoff-panel,
+:root[data-contrast="high"] .detail-info,
+:root[data-contrast="high"] .difficulty-panel,
+:root[data-contrast="high"] .doom-prompt-panel,
+:root[data-contrast="high"] .scene-brief,
+:root[data-contrast="high"] .scene-log,
+:root[data-contrast="high"] .error-panel,
+:root[data-contrast="high"] .cd-panel,
+:root[data-contrast="high"] .rotate-overlay-inner,
+:root[data-contrast="high"] .battle-overlay .btn-primary,
+:root[data-contrast="high"] .difficulty-backdrop .btn-primary,
+:root[data-contrast="high"] .doom-prompt-backdrop .btn-primary,
+:root[data-contrast="high"] .scene-overlay .btn-primary,
+:root[data-contrast="high"] .card-detail-overlay .btn-primary,
+:root[data-contrast="high"] .overlay .btn-primary {
+  border-color: var(--glass-border-bright);
+}
+
+/* -------------------------------------------------------------------------
+   O2. The scrim
+   -------------------------------------------------------------------------
+   Four scrims, four recipes, was the other half of the census: 0.72 black here,
+   0.78 there, 0.9 somewhere else, one with a blur and one without. Â§2 asks for
+   separation carried by blur, desaturation and value â€” not by a heavier black â€”
+   and Â§1 bans a flat fill on anything larger than an icon, which a
+   full-viewport rectangle certainly is.
+
+   So: one recipe. The room desaturates and falls away, a soft pool of the
+   room's own light gathers where the plate is about to stand so that the plate
+   is lit *by* something, and module B's finest grain runs over the whole thing
+   so the scrim is not mathematically smooth either.
+
+   `--ov-scrim` is the one knob a caller turns. The hotseat handoff needs total
+   occlusion and takes it to 1; the End Turn confirm needs almost none. */
+
+.difficulty-backdrop,
+.doom-prompt-backdrop,
+.scene-overlay,
+.card-detail-overlay,
+.overlay {
+  --ov-scrim: 0.74;
+  background-color: transparent;
+  background-image:
+    var(--tex-grain-well, none),
+    radial-gradient(
+      92% 78% at 50% 46%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 12%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(
+      var(--light-sweep),
+      rgb(9 5 20 / var(--ov-scrim)),
+      rgb(3 2 8 / var(--ov-scrim))
+    );
+  background-size: var(--tex-grain-well-size, auto), auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat;
+  /* Desaturation is what actually separates the planes; the darkening only
+     supports it. A saturated backdrop behind a saturated panel is stacking,
+     not depth. */
+  backdrop-filter: blur(11px) saturate(0.55) brightness(0.72);
+  -webkit-backdrop-filter: blur(11px) saturate(0.55) brightness(0.72);
+}
+
+/* The events rules pop-up had **no rule at all** â€” `.overlay` was never
+   written, so a dialogue the markup declares `role="dialog"` rendered inline in
+   the page flow with no scrim, no centring and no z-index. Writing it is
+   finishing a sentence somebody left hanging, in the same spirit as module A's
+   `.input`. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-5);
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+/* ...and neither was the panel inside it. The markup already composes
+   `.mat-panel`, so it had a material and no *layout*: no padding, no column, no
+   gap, so the heading, the rules list and the Close button stacked on top of one
+   another against the plate's left edge with the button overlapping the last
+   bullet. Photographed before this rule existed. */
+.overlay-panel {
+  width: min(620px, 100%);
+  max-height: min(86vh, 720px);
+  overflow-y: auto;
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-4);
+}
+
+.overlay-panel > .title {
+  margin: 0;
+}
+
+.overlay-panel ul {
+  margin: 0;
+  padding-left: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  line-height: 1.5;
+}
+
+/* -------------------------------------------------------------------------
+   O3. Arrivals and departures
+   -------------------------------------------------------------------------
+   Â§3a: everything that appears has an entrance, and a cross-fade is what you
+   use when you have nothing to say about the relationship between two things. A
+   modal's relationship to the screen under it is that it came *forward*, so the
+   scrim resolves while the plate rises through a small scale â€” two curves
+   rather than one, overlapping, which is what stops the pair reading as a
+   slideshow.
+
+   `opacity` and `transform` only. The scrim's blur is declared, never animated:
+   a `backdrop-filter` keyframe re-reads the whole viewport every frame, and on
+   a battle route that viewport is a live WebGL surface. */
+
+@keyframes hb-ov-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes hb-ov-plate-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.972);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.difficulty-backdrop,
+.doom-prompt-backdrop,
+.scene-overlay,
+.overlay {
+  animation: hb-ov-scrim-in var(--dur-ui) var(--ease-arrive) both;
+}
+
+.difficulty-panel,
+.doom-prompt-panel,
+.scene-brief,
+.scene-log,
+.overlay-panel {
+  animation: hb-ov-plate-in 300ms var(--ease-arrive) 40ms both;
+}
+
+:root[data-reduced-motion="true"] .difficulty-backdrop,
+:root[data-reduced-motion="true"] .doom-prompt-backdrop,
+:root[data-reduced-motion="true"] .scene-overlay,
+:root[data-reduced-motion="true"] .overlay,
+:root[data-reduced-motion="true"] .difficulty-panel,
+:root[data-reduced-motion="true"] .doom-prompt-panel,
+:root[data-reduced-motion="true"] .scene-brief,
+:root[data-reduced-motion="true"] .scene-log,
+:root[data-reduced-motion="true"] .overlay-panel {
+  animation-duration: 90ms;
+  animation-name: hb-ov-scrim-in;
+}
+
+/* -------------------------------------------------------------------------
+   O4. The recess inside a modal
+   -------------------------------------------------------------------------
+   A block of preformatted error text is a hole in a plate, and `.mat-well` is
+   the foundation's word for a hole: inner shadow at the top-left where the lip
+   blocks the light, a faint rim at the bottom-right where the floor of the
+   recess catches it, and it casts nothing. This was `rgba(0,0,0,0.4)` â€” a flat
+   fill, Â§1's first ban, on the one surface a player only ever sees when
+   something has already gone wrong. */
+
+.error-detail {
+  --mat-amp: var(--amp-well);
+  background-color: transparent;
+  background-image: var(--tex-grain-well, none), var(--fill-well);
+  background-size: var(--tex-grain-well-size, auto), 100% 100%;
+  background-repeat: repeat, no-repeat;
+  background-origin: border-box;
+  border-style: solid;
+  border-width: 1px;
+  border-color:
+    rgb(0 0 0 / 0.75)
+    rgb(255 255 255 / 0.042)
+    rgb(255 255 255 / 0.085)
+    rgb(0 0 0 / 0.41);
+  border-radius: var(--r-field);
+  --r-self: var(--r-field);
+  box-shadow:
+    inset 0 2px 5px -1px rgb(0 0 0 / 0.43),
+    inset 2px 0 5px -3px rgb(0 0 0 / 0.32);
+}
+
+/* -------------------------------------------------------------------------
+   O5. The rotate gate
+   -------------------------------------------------------------------------
+   The first thing a phone player is ever shown, and it was `background:
+   var(--bg-void)` â€” a solid fill across the whole device â€” with the message set
+   raw on it and the icon floating with nothing underneath it.
+
+   It is an `#id` in `base.css`, which this file cannot out-specify with a
+   class; an equal-specificity `#rotate-overlay` here wins on source order
+   instead, because `main.ts` imports `base.css` first and this file second.
+   That is the whole of the trick, and it is the only reason this rule is
+   written as an id. */
+
+#rotate-overlay {
+  background-color: transparent;
+  background-image:
+    var(--tex-grain-well, none),
+    radial-gradient(
+      120% 80% at 50% 106%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 22%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      110% 120% at 12% -20%,
+      color-mix(in srgb, var(--room-rim, #52c8ff) 12%, transparent),
+      transparent 66%
+    ),
+    linear-gradient(var(--light-sweep), #16102a 0%, #0b0817 56%, #06040e 100%);
+  background-size: var(--tex-grain-well-size, auto), auto, auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+}
+
+.rotate-overlay-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-7);
+  max-width: 30rem;
+  text-align: center;
+}
+
+.rotate-overlay-inner p {
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+/* The icon sits on the plate rather than in mid-air. `margin-bottom` comes off
+   with it: the flex `gap` above owns the rhythm now, and two spacing systems on
+   one stack is how a 16px gap becomes a 40px one on a device nobody tested. */
+.rotate-icon {
+  display: block;
+  margin-bottom: 0;
+  color: var(--accent-bright);
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.7));
+}

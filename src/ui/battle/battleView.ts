@@ -1329,6 +1329,7 @@ export class BattleView {
     this.targeting.hide();
     this.targeting.hidePreview();
     this.board.setDropTarget("player", null, 0);
+    this.board.setReceiving(null);
 
     if (!drag || !view) return;
     this.drag = null;
@@ -1426,6 +1427,7 @@ export class BattleView {
     this.targeting.hide();
     this.targeting.hidePreview();
     this.board.setDropTarget("player", null, 0);
+    this.board.setReceiving(null);
     this.scene.renderer.domElement.style.cursor = "default";
     this.syncBoard();
     this.layout();
@@ -1547,6 +1549,16 @@ export class BattleView {
       hoverSlot: null,
       needsSlot: playable.needsSlot,
     };
+    /**
+     * Open the row on the frame the card leaves the hand, not on the frame the
+     * pointer reaches the mat.
+     *
+     * Only for a card that actually occupies a slot: a spell answers with its
+     * legal targets and an equipment with the character it goes on, and cutting
+     * a trough along the row for either of those would be the board offering a
+     * place that is not where the card is going.
+     */
+    this.board.setReceiving(playable.needsSlot ? "player" : null);
     this.syncBoard();
   }
 
@@ -1568,6 +1580,19 @@ export class BattleView {
     const overBoard = point !== null && this.isPlayZone(point);
     /** Over the arena at all, including the rival's half and the cancel strip. */
     const overArena = point !== null && Math.abs(point.x) < BOARD.width / 2 + 1 && point.z > -BOARD.depth / 2;
+    /**
+     * The near strip the hand lies over, which is where every drag begins.
+     *
+     * It is *not* a refusal and it was being drawn as one. `pointerdown` on a
+     * hand card starts the drag with the pointer still inside this band, so the
+     * very first thing the board did on picking a card up was draw a red
+     * struck-through socket — photographed on the frame after pickup, the only
+     * change anywhere on a twenty-unit mat was the game saying no to a gesture
+     * the player had only just started. Releasing here puts the card back, which
+     * is what the strip means; the row's own trough stays open behind it, so the
+     * board is still saying where the card wants to go.
+     */
+    const overCancelStrip = point !== null && point.z >= BOARD.cancelZ;
 
     if (overBoard && drag.needsSlot) {
       // Work out which gap the pointer is nearest by comparing against the
@@ -1587,11 +1612,11 @@ export class BattleView {
       }
       drag.hoverSlot = index;
       this.board.setDropTarget("player", index, virtualCount, "valid");
-    } else if (drag.needsSlot && overArena) {
+    } else if (drag.needsSlot && overArena && !overCancelStrip) {
       /**
-       * Over the arena but somewhere this card cannot go — the rival's row, the
-       * far apron, the cancel strip under your own hand. A struck-through socket
-       * is drawn at the nearest thing to a landing place so the refusal has a
+       * Over the arena but somewhere this card cannot go — the rival's far
+       * apron, the ground outside the play zone. A struck-through socket is
+       * drawn at the nearest thing to a landing place so the refusal has a
        * position, because "nothing happens" and "that is not allowed" looked
        * identical before this and only one of them is true.
        */
@@ -1664,6 +1689,7 @@ export class BattleView {
     this.makeRoomIndex = null;
     this.targeting.hide();
     this.board.setDropTarget("player", null, 0);
+    this.board.setReceiving(null);
     this.vfx.dragPool(null, "valid");
     this.callbacks.onDropFeedback?.("neutral");
     if (!drag || !view) {
@@ -1950,6 +1976,35 @@ export class BattleView {
     return null;
   }
 
+  /**
+   * The viewport box a ground-plane rectangle projects to.
+   *
+   * Four corners rather than a centre and a radius, because the camera is a
+   * perspective one tilted 15° off vertical: a square on the mat projects to a
+   * trapezium, and its near edge is measurably wider than its far one. Taking
+   * the extent of all four corners is the only version of "where is it on
+   * screen" that a collision test can trust.
+   */
+  private screenBoxOf(centre: THREE.Vector3, width: number, depth: number): { x: number; y: number; w: number; h: number } {
+    const rect = this.scene.renderer.domElement.getBoundingClientRect();
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const sx of [-1, 1] as const) {
+      for (const sz of [-1, 1] as const) {
+        const point = this.scene.project(
+          new THREE.Vector3(centre.x + (width / 2) * sx, 0, centre.z + (depth / 2) * sz)
+        );
+        minX = Math.min(minX, point.x + rect.left);
+        maxX = Math.max(maxX, point.x + rect.left);
+        minY = Math.min(minY, point.y + rect.top);
+        maxY = Math.max(maxY, point.y + rect.top);
+      }
+    }
+    return { x: Math.round(minX), y: Math.round(minY), w: Math.round(maxX - minX), h: Math.round(maxY - minY) };
+  }
+
   /** Diagnostic snapshot of interaction state — used by scripts/debug-drag.mjs. */
   debugState(): Record<string, unknown> {
     const view = this.view;
@@ -2000,6 +2055,28 @@ export class BattleView {
           return { cardId: character.cardId, instanceId: character.instanceId, ...screen };
         }),
       enemyLeaderScreen: this.anchorForTarget({ kind: "leader", seat: view.opponent.seat }),
+      /**
+       * The two medallions and the mat, as screen boxes.
+       *
+       * §9 makes 844×390 landscape a hard constraint and it is the one viewport
+       * nobody photographs, so the collisions there — the player's medallion
+       * under their own hand, the rival's under its nameplate, the mat's rim off
+       * the top of the frame — were reported from eyeballed screenshots and
+       * argued about. These are the same `project()` the DOM anchors use, so a
+       * script can measure the overlap in pixels rather than describe it.
+       */
+      medallions: Object.fromEntries(
+        (["player", "enemy"] as const).map((side) => [
+          side,
+          // The portrait plane, not the tray it sits in: the tray is a dish that
+          // fades to nothing at its rim, and holding a soft shadow clear of the
+          // hand would cost every viewport four per cent of board scale for a
+          // thing nobody reads. What must never be covered is the face and the
+          // number on it.
+          this.screenBoxOf(this.board.leaderPosition(side), BOARD.leaderHeight * (460 / 340), BOARD.leaderHeight),
+        ])
+      ),
+      matBox: this.screenBoxOf(new THREE.Vector3(0, 0, 0), BOARD.width, BOARD.depth),
       /** where the last attack's contact flash was struck, and along what vector */
       lastContactSpark: (() => {
         const spark = this.vfx.lastContactSpark();

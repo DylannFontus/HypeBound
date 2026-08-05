@@ -18,7 +18,7 @@ import type { OddsTable } from "../../game/fairness";
 import { bannerTable, conversionTable, dropTable, rateHistory, workedExamples } from "../../game/fairness";
 import { DATA_VERSION, latestRelease } from "../../game/news";
 import { audio } from "../../audio/audio";
-import { icon, longDate } from "./data/kit";
+import { count, enter, icon, longDate, quantify } from "./data/kit";
 
 export interface FairnessCallbacks {
   onBack: () => void;
@@ -64,12 +64,17 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
   const table = (odds: OddsTable, note: string): string => {
     const featured = odds.rows.some((row) => (row.featuredRate ?? 0) > 0);
     return `
-      <section class="panel panel-chrome fairness-table" data-table="${esc(odds.id)}">
-        <div class="stats-table-head">
-          <h2 class="profile-section-title">${esc(odds.name)}</h2>
-          <span class="muted">${odds.price.toLocaleString()} Clout · ${odds.cards} card${odds.cards === 1 ? "" : "s"}</span>
+      <section class="mat-panel fairness-table d-enter" data-table="${esc(odds.id)}">
+        <div class="settings-head">
+          <span class="settings-mark" aria-hidden="true">${icon("merch-drop", 20)}</span>
+          <div class="policy-doc-head">
+            <h2 class="t-heading">${esc(odds.name)}</h2>
+            <span class="t-label">
+              <span class="num">${count(odds.price)}</span> Clout · ${quantify(odds.cards, "card")}
+            </span>
+          </div>
         </div>
-        <p class="muted">${esc(note)}</p>
+        <p class="t-body">${esc(note)}</p>
         <table class="d-table patch-table fairness-odds">
           <thead>
             <tr><th>Rarity</th><th>Per card</th>${featured ? "<th>Of which featured</th>" : ""}</tr>
@@ -80,15 +85,15 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
                 (row) => `
                   <tr data-rarity="${esc(row.rarity)}">
                     <td>${esc(RARITY_LABEL[row.rarity] ?? row.rarity)}</td>
-                    <td class="patch-after">${esc(row.percent)}</td>
-                    ${featured ? `<td class="patch-after">${esc(row.featuredPercent ?? "—")}</td>` : ""}
+                    <td class="patch-after num">${esc(row.percent)}</td>
+                    ${featured ? `<td class="patch-after num">${esc(row.featuredPercent ?? "—")}</td>` : ""}
                   </tr>`
               )
               .join("")}
           </tbody>
         </table>
-        <h3 class="profile-section-title">Guarantees</h3>
-        <ul class="patch-list">${odds.guarantees.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>
+        <h3 class="t-label fairness-guarantee-head">Guarantees</h3>
+        <ul class="patch-list">${odds.guarantees.map((line) => `<li class="t-body">${esc(line)}</li>`).join("")}</ul>
       </section>`;
   };
 
@@ -105,13 +110,13 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
     </header>
 
     <main class="fairness-body data-body data-doc">
-      <section class="panel panel-chrome fairness-intro">
-        <p class="mastery-rule">
+      <section class="mat-panel fairness-intro d-enter">
+        <p class="t-body mastery-rule">
           <strong>These are the numbers the game rolls with.</strong> This page and the roller read
           the same data; they are not two copies that could disagree. A test asserts the tables here
           are identical to the ones printed beside the Merch Drop and banner buttons.
         </p>
-        <p class="muted">
+        <p class="t-body">
           Rates for version <strong id="fairness-release">${esc(release.version)}</strong>, effective
           ${DATE.format(new Date(release.releasedAt))}. They are fixed for the lifetime of the product
           they belong to: there is no per-player tuning and no engagement-reactive luck, and the only
@@ -128,12 +133,15 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
         "Every pull is rolled against this table. The featured column is the share of that rarity which is one of the banner's featured cards — it is a slice of the same rate, never an addition to it."
       )}
 
-      <section class="panel panel-chrome fairness-conversion">
-        <div class="stats-table-head">
-          <h2 class="profile-section-title">What a card is worth</h2>
-          <span class="muted">Signal, and Backstage Tokens</span>
+      <section class="mat-panel fairness-conversion d-enter">
+        <div class="settings-head">
+          <span class="settings-mark" aria-hidden="true">${icon("shards", 20)}</span>
+          <div class="policy-doc-head">
+            <h2 class="t-heading">What a card is worth</h2>
+            <span class="t-label">Signal, and Backstage Tokens</span>
+          </div>
         </div>
-        <p class="muted">
+        <p class="t-body">
           A duplicate you cannot keep is converted at a better rate than dismantling one yourself,
           because you did not choose to receive it.
         </p>
@@ -147,10 +155,10 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
                 (row) => `
                   <tr>
                     <td>${esc(RARITY_LABEL[row.rarity] ?? row.rarity)}</td>
-                    <td>${row.dismantle.toLocaleString()}</td>
-                    <td class="patch-after">${row.converted.toLocaleString()}</td>
-                    <td>${row.craft.toLocaleString()}</td>
-                    <td>${row.tokens.toLocaleString()}</td>
+                    <td class="num">${count(row.dismantle)}</td>
+                    <td class="patch-after num">${count(row.converted)}</td>
+                    <td class="num">${count(row.craft)}</td>
+                    <td class="num">${count(row.tokens)}</td>
                   </tr>`
               )
               .join("")}
@@ -158,8 +166,11 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
         </table>
       </section>
 
-      <section class="panel panel-chrome fairness-faq">
-        <h2 class="profile-section-title">In plain language</h2>
+      <section class="mat-panel fairness-faq d-enter">
+        <div class="settings-head">
+          <span class="settings-mark" aria-hidden="true">${icon("help", 20)}</span>
+          <h2 class="t-heading">In plain language</h2>
+        </div>
         <dl class="fairness-questions">
           ${workedExamples(content)
             .map((example) => `<dt>${esc(example.question)}</dt><dd>${esc(example.answer)}</dd>`)
@@ -167,14 +178,17 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
         </dl>
       </section>
 
-      <section class="panel panel-chrome fairness-history">
-        <div class="stats-table-head">
-          <h2 class="profile-section-title">Rates last changed</h2>
-          <span class="muted" id="fairness-changes">${history.length} change${history.length === 1 ? "" : "s"}</span>
+      <section class="mat-panel fairness-history d-enter">
+        <div class="settings-head">
+          <span class="settings-mark" aria-hidden="true">${icon("log", 20)}</span>
+          <div class="policy-doc-head">
+            <h2 class="t-heading">Rates last changed</h2>
+            <span class="t-label" id="fairness-changes">${quantify(history.length, "change")}</span>
+          </div>
         </div>
         ${
           history.length === 0
-            ? `<p class="muted">
+            ? `<p class="t-body">
                  <strong>Never.</strong> Every release carries a snapshot of the economy it shipped with,
                  and the newest snapshot has to equal the numbers this build actually runs on or the tests
                  fail — so this is a claim the build can support rather than one it merely makes.
@@ -197,12 +211,28 @@ export function createFairnessScreen(content: ContentIndex, callbacks: FairnessC
                </table>`
         }
         <div class="mail-actions">
-          <button class="btn btn-ghost" id="fairness-patch">Patch notes ${icon("arrow-right", 15)}</button>
-          <button class="btn btn-ghost" id="fairness-shop">Merch Drops ${icon("arrow-right", 15)}</button>
-          <button class="btn btn-ghost" id="fairness-banner">The banner ${icon("arrow-right", 15)}</button>
+          <button type="button" class="mat-panel act r-chip" id="fairness-patch">
+            ${icon("log", 15)} Patch notes ${icon("chevron-right", 14)}
+          </button>
+          <button type="button" class="mat-panel act r-chip" id="fairness-shop">
+            ${icon("merch-drop", 15)} Merch Drops ${icon("chevron-right", 14)}
+          </button>
+          <button type="button" class="mat-panel act r-chip" id="fairness-banner">
+            ${icon("star", 15)} The banner ${icon("chevron-right", 14)}
+          </button>
         </div>
       </section>
     </main>`;
+
+  /*
+   * The cascade this screen never had.
+   *
+   * Six panels — the intro, two odds tables, the conversion table, the worked
+   * examples and the change log — arrived on one frame, which §3a names as the
+   * single biggest perceived-quality gap between a hobby menu and a shipped one.
+   * `stagger` is a no-op under reduced motion.
+   */
+  enter(root, ".d-enter", 40);
 
   const bind = (id: string, handler: () => void): void => {
     root.querySelector(`#${id}`)?.addEventListener("click", () => {

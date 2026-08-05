@@ -1195,6 +1195,180 @@ th.num {
 }
 
 /* -------------------------------------------------------------------------
+   7b. The settings row — one shape for Settings and Accessibility
+   -------------------------------------------------------------------------
+   Two screens, one click apart, each with its own switch, its own segmented
+   picker and its own label-and-hint stack. `screens.css`'s `.setting-*` set is
+   the older of the two and it predates every primitive in this project: a
+   `<button role="switch">` filled with the flat accent, a `.setting-choices`
+   track that is `rgba(0,0,0,0.35)` with no light source at all, and a
+   `transition: all` on the segment. Module A already ships both controls, lit,
+   with all six states; the geometry is the only part that was ever local.
+
+   `.d-set-row` is the geometry: label and hint on the left, control on the
+   right, a hairline between rows rather than a hard `border-top`. The 190px
+   fixed label column `screens.css` uses is deliberately not repeated — at
+   `--ui-scale: 1.4` a fixed column in `px` is the thing that pushes a switch off
+   the panel. */
+
+.screen .d-set-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) 0;
+  min-height: 44px;
+  margin: 0;
+}
+
+/* The divider between rows fades at both ends, like every other rule in the
+   game — §7 of the bar makes that a rule and a hard `border-top` breaks it. */
+.screen .d-set-row + .d-set-row {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.07) 12%,
+    rgb(255 255 255 / 0.07) 88%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+  background-position: 0 0;
+}
+
+.screen .d-set-toggle {
+  cursor: pointer;
+}
+
+/* Label, rail, read-out. The rail takes whatever is left, which is why the
+   read-out is a fixed slot and the label a `max-content` one that stops
+   growing. */
+.screen .d-set-slider {
+  grid-template-columns: minmax(120px, 0.28fr) minmax(0, 1fr) auto;
+  gap: var(--sp-4);
+}
+
+.screen .d-set-slider > .slider {
+  width: 100%;
+  min-width: 0;
+}
+
+.screen .d-set-slider > .setting-output {
+  --num-align: right;
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.screen .d-set-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.screen .d-set-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.screen .d-set-hint {
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-faint);
+  max-width: 68ch;
+}
+
+/* A dead control beside live-looking text signals by the control alone. */
+.screen .d-set-row.is-off .d-set-label,
+.screen .d-set-row:has(:disabled) .d-set-label {
+  color: var(--text-faint);
+}
+
+/**
+ * The segmented track, and why the chips sit *in* it rather than on it.
+ *
+ * `.mat-well` is the one material that inverts the rig — dark rim at the
+ * top-left, lit hairline at the bottom-right — so a row of raised chips inside
+ * one reads as keys in a channel. Two pixels of padding is the whole recess; any
+ * more and the chips stop touching their own track.
+ */
+.screen .d-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+}
+
+.screen .d-seg-opt {
+  padding: 6px var(--sp-4);
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  white-space: nowrap;
+  /* A chip at rest inside a well is nearly flush with it: the recess is the
+     object, the unselected key is only a hint of one. The selected key below
+     is where the amplitude goes. */
+  --mat-amp: 0.16;
+  --rim-a: 0.03;
+  --lip-a: 0.18;
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.05) 0%, rgb(255 255 255 / 0.008) 100%);
+}
+
+.screen .d-seg-opt.is-on {
+  color: var(--ink-hero);
+  --mat-amp: var(--amp-hero);
+  --mat-fill: var(--fill-hero);
+  --rim-a: 0.24;
+  --lip-a: 0.22;
+  --rim-boost: 1.4;
+  --sheen-alpha: 0.1;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.22);
+}
+
+/* The lit key keeps its ink in high contrast, where the plate goes lighter. */
+:root[data-contrast="high"] .screen .d-seg-opt.is-on {
+  color: var(--ink-hero);
+}
+
+/**
+ * Narrow, and at 1.4× interface scale, the control drops below its label.
+ *
+ * Seven interface-size steps in one row is 470px at 1.0 and 660px at 1.4; beside
+ * a label that also wants room, that is what pushes the last step off the panel.
+ * A single-column row is the honest answer and it is the same answer the mastery
+ * ladder gives at the same breakpoint.
+ */
+@media (max-width: 720px) {
+  .screen .d-set-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-2);
+  }
+
+  .screen .d-set-row > .switch,
+  .screen .d-set-row > .d-seg {
+    justify-self: start;
+  }
+
+  /* The slider keeps its read-out beside the rail — a percentage on its own
+     line is a percentage of nothing. */
+  .screen .d-set-slider {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .screen .d-set-slider > .setting-label {
+    grid-column: 1 / -1;
+  }
+}
+
+/* -------------------------------------------------------------------------
    8. Entrances, and idle
    ------------------------------------------------------------------------- */
 

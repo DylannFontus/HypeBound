@@ -32,7 +32,7 @@ import { defaultPalettePressure } from "../../game/a11y";
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { collectibleCards } from "../../engine/content";
 import { audio } from "../../audio/audio";
-import { icon } from "./data/kit";
+import { count, enter, icon, quantify, segmented, toggleRow } from "./data/kit";
 import { DEFERRED_CUES, cueData } from "../../audio/cues";
 
 export interface A11yCallbacks {
@@ -95,6 +95,9 @@ export function createA11yScreen(content: ContentIndex, callbacks: A11yCallbacks
     collectibleCards(content).find((card) => card.type === "character" && card.keywords.length > 0) ??
     collectibleCards(content)[0]!;
 
+  /** The entrance plays on arrival, not on every one of the live-preview re-renders. */
+  let mounted = false;
+
   const set = (patch: Partial<Settings>): void => {
     updateSettings(patch);
     audio.play("sfx.ui.toggle");
@@ -105,41 +108,59 @@ export function createA11yScreen(content: ContentIndex, callbacks: A11yCallbacks
     const s = getSettings();
     const pressure = defaultPalettePressure();
 
-    const toggleRow = (label: string, key: keyof Settings, hint: string): string => `
-      <div class="setting-row setting-toggle-row">
-        <div class="setting-label-group">
-          <span class="setting-label">${esc(label)}</span>
-          <div class="setting-hint faint">${esc(hint)}</div>
-        </div>
-        <button class="setting-toggle ${s[key] ? "on" : ""}" data-toggle="${esc(String(key))}"
-                role="switch" aria-checked="${Boolean(s[key])}" aria-label="${esc(label)}">
-          <span class="setting-knob"></span>
-        </button>
-      </div>`;
+    /**
+     * The riser class, and why it is a variable rather than a literal.
+     *
+     * `.d-enter` carries the `d-rise` keyframe itself — `stagger()` only writes
+     * the *delay* it consumes. This screen is live-preview: every switch and
+     * every segment re-runs `render()` and rebuilds the whole tree, so hanging
+     * `.d-enter` on the panels unconditionally would replay a 260ms rise on all
+     * seven of them each time somebody dragged the interface size through its
+     * seven steps. Gating the class rather than only the `enter()` call is what
+     * actually stops it: the entrance belongs to arriving at the screen, not to
+     * using it.
+     */
+    const rise = mounted ? "" : "d-enter";
+
+    /*
+     * Both controls come from the kit now, which means both come from module A.
+     *
+     * This file used to carry a `<button role="switch">` with a `.setting-knob`
+     * span in it and a `.setting-choices` track filled with `rgba(0,0,0,0.35)` —
+     * a second switch and a third selection treatment, on the one screen whose
+     * entire subject is that controls should be legible. `foundation.css` ships
+     * both, lit from 315° with all six of A4's states; see `toggleRow` and
+     * `segmented` in `data/kit.ts` for the measurement.
+     */
+    const toggle = (label: string, key: keyof Settings, hint: string): string =>
+      toggleRow({ label, hint, key: String(key), on: Boolean(s[key]) });
 
     const choiceRow = <T extends string>(
       label: string,
       key: keyof Settings,
       options: { value: T; label: string; hint?: string }[],
       hint: string
-    ): string => `
-      <div class="setting-row setting-choice-row">
-        <div class="setting-label-group">
-          <span class="setting-label">${esc(label)}</span>
-          <div class="setting-hint faint">${esc(hint)}</div>
+    ): string =>
+      segmented<T>({ label, hint, key: String(key), value: s[key] as T, options });
+
+    /**
+     * A section, marked, so six identical plates in a column become six rooms.
+     *
+     * This is the Settings screen's own `settings-head` shape, restated here on
+     * purpose: the two screens are one click apart in the same tree and were
+     * built with different heads — a marked one there, a bare `<h2>` here — so
+     * walking between them read as walking between two applications. The mark is
+     * from `uiIcons.ts`, at one weight and one optical size, which is the whole
+     * argument for having a set.
+     */
+    const section = (title: string, mark: Parameters<typeof icon>[0], rows: string[], extra = ""): string => `
+      <section class="mat-panel policy-controls ${rise} ${extra}">
+        <div class="settings-head">
+          <span class="settings-mark" aria-hidden="true">${icon(mark, 20)}</span>
+          <h2 class="t-heading">${esc(title)}</h2>
         </div>
-        <div class="setting-choices" role="radiogroup" aria-label="${esc(label)}">
-          ${options
-            .map(
-              (option) => `
-                <button class="setting-choice ${s[key] === option.value ? "active" : ""}"
-                        role="radio" aria-checked="${s[key] === option.value}"
-                        data-key="${esc(String(key))}" data-value="${esc(option.value)}"
-                        ${option.hint ? `title="${esc(option.hint)}"` : ""}>${esc(option.label)}</button>`
-            )
-            .join("")}
-        </div>
-      </div>`;
+        ${rows.join("")}
+      </section>`;
 
     root.innerHTML = `
       <div class="ambient-bg"></div>
@@ -149,8 +170,8 @@ export function createA11yScreen(content: ContentIndex, callbacks: A11yCallbacks
       </header>
 
       <main class="policy-body a11y-body data-body data-doc">
-        <section class="panel panel-chrome policy-summary">
-          <p class="mastery-rule">
+        <section class="mat-panel policy-summary ${rise}">
+          <p class="t-body mastery-rule">
             <strong>Everything here applies as you touch it.</strong> There is no confirm step and
             nothing to save. No option is behind an account level, a purchase or a mode, and the
             ones that are simply good design — damage previews, written labels, turn cues — are on
@@ -158,118 +179,152 @@ export function createA11yScreen(content: ContentIndex, callbacks: A11yCallbacks
           </p>
         </section>
 
-        <section class="panel panel-chrome policy-controls">
-          <h2 class="profile-section-title">Text</h2>
-          <div class="setting-row setting-choice-row">
-            <div class="setting-label-group">
-              <span class="setting-label">Interface size</span>
-              <div class="setting-hint faint">Seven steps from 80% to 160%. The preview below is at the size you pick.</div>
-            </div>
-            <div class="setting-choices" role="radiogroup" aria-label="Interface size">
-              ${UI_SCALES.map(
-                (scale) => `
-                  <button class="setting-choice ${s.uiScale === scale ? "active" : ""}"
-                          role="radio" aria-checked="${s.uiScale === scale}"
-                          data-key="uiScale" data-number="${scale}">${Math.round(scale * 100)}%</button>`
-              ).join("")}
-            </div>
-          </div>
-          <p class="a11y-preview-text" id="a11y-preview-text">
-            <strong>Preview.</strong> Deal 3 damage to a character. If it survives, draw a card.
-          </p>
-          ${toggleRow("Written labels everywhere", "verboseLabels", "Prints the name beside every icon — hand, deck, discard, statuses and Currents.")}
-          ${toggleRow("Card reminder text", "rulesLens", "Prints every keyword's reminder on the card face itself, at every rarity.")}
-          ${toggleRow("Dyslexia-friendly text", "dyslexiaFont", "A wider-spaced stack already on your device; nothing is downloaded.")}
-        </section>
+        ${section("Text", "edit", [
+          segmented<string>({
+            label: "Interface size",
+            hint: "Seven steps from 80% to 160%. The preview below is at the size you pick.",
+            key: "uiScale",
+            numeric: true,
+            value: String(s.uiScale),
+            options: UI_SCALES.map((scale) => ({
+              value: String(scale),
+              label: `${Math.round(scale * 100)}%`,
+            })),
+          }),
+          /*
+           * The preview sits in a recess rather than inside a dashed rectangle.
+           *
+           * A 1px dashed border is the browser's own idiom for "drop target",
+           * and this is a specimen: `.mat-well` is what the foundation ships for
+           * a thing set into a surface, and it puts the sample text on a
+           * different plane from the controls above it without a dotted line.
+           */
+          `<p class="a11y-preview-text mat-well t-body" id="a11y-preview-text">
+             <strong>Preview.</strong> Deal 3 damage to a character. If it survives, draw a card.
+           </p>`,
+          toggle("Written labels everywhere", "verboseLabels", "Prints the name beside every icon — hand, deck, discard, statuses and Currents."),
+          toggle("Card reminder text", "rulesLens", "Prints every keyword's reminder on the card face itself, at every rarity."),
+          toggle("Dyslexia-friendly text", "dyslexiaFont", "A wider-spaced stack already on your device; nothing is downloaded."),
+        ])}
 
-        <section class="panel panel-chrome policy-controls">
-          <h2 class="profile-section-title">Colour</h2>
-          <div class="a11y-colour">
-            <div class="a11y-colour-controls">
-              ${choiceRow<ColorblindMode>(
-                "Colour-blind mode",
-                "colorblindMode",
-                COLORBLIND_MODES.map((mode) => ({ value: mode, label: MODE_LABEL[mode] })),
-                "Changes eight hues and nothing else — never a layout, an icon or a label."
-              )}
-              <ul class="a11y-pressure">
-                ${pressure
-                  .map(
-                    (entry) => `
-                      <li>
-                        <strong>${esc(MODE_LABEL[entry.mode])}</strong> —
-                        the default palette has <strong>${entry.confusableByDefault}</strong>
-                        pair${entry.confusableByDefault === 1 ? "" : "s"} of Currents you could not tell apart;
-                        this mode leaves <strong>${entry.confusableInMode}</strong>.
-                      </li>`
-                  )
-                  .join("")}
-              </ul>
-              ${toggleRow("Pattern fills on Currents", "currentPatterns", "A hatch on every Current badge — a fourth signal after shape, glyph and label. Always on in a colour-blind mode.")}
-              ${toggleRow("High contrast", "highContrast", "Stronger borders and flattened glass panels.")}
-            </div>
-            <div class="a11y-swatches" id="a11y-swatches"></div>
-          </div>
-          <div class="a11y-card-preview" id="a11y-card"></div>
-        </section>
+        ${section("Colour", "kw-refract", [
+          `<div class="a11y-colour">
+             <div class="a11y-colour-controls">
+               ${choiceRow<ColorblindMode>(
+                 "Colour-blind mode",
+                 "colorblindMode",
+                 COLORBLIND_MODES.map((mode) => ({ value: mode, label: MODE_LABEL[mode] })),
+                 "Changes eight hues and nothing else — never a layout, an icon or a label."
+               )}
+               <ul class="a11y-pressure">
+                 ${pressure
+                   .map(
+                     (entry) => `
+                       <li class="t-body">
+                         <strong>${esc(MODE_LABEL[entry.mode])}</strong> —
+                         the default palette has
+                         <strong class="num">${count(entry.confusableByDefault)}</strong>
+                         ${entry.confusableByDefault === 1 ? "pair" : "pairs"} of Currents you could not tell apart;
+                         this mode leaves <strong class="num">${count(entry.confusableInMode)}</strong>.
+                       </li>`
+                   )
+                   .join("")}
+               </ul>
+               ${toggle("Pattern fills on Currents", "currentPatterns", "A hatch on every Current badge — a fourth signal after shape, glyph and label. Always on in a colour-blind mode.")}
+               ${toggle("High contrast", "highContrast", "Stronger borders and flattened glass panels.")}
+             </div>
+             <div class="a11y-swatches" id="a11y-swatches"></div>
+           </div>`,
+          /*
+           * The specimen, captioned, beside its caption rather than centred.
+           *
+           * A 260px card floating in the middle of an 870px panel leaves 300px
+           * of nothing either side of it, and nothing on the page says what it
+           * is for — so a player reading down the Colour section meets a card
+           * with no explanation of why it is there. It is a *live specimen*: it
+           * is redrawn by the real renderer every time one of these controls
+           * moves, which is the strongest claim this screen makes and was going
+           * unsaid.
+           */
+          `<div class="a11y-card-preview">
+             <div class="a11y-card-slot" id="a11y-card"></div>
+             <div class="a11y-card-note">
+               <h3 class="t-label">Live specimen</h3>
+               <p class="t-body">
+                 A real card, drawn by the game's own renderer with the settings above applied. Every
+                 control on this panel redraws it, so what you are looking at is what a match will
+                 look like — not an approximation of it.
+               </p>
+             </div>
+           </div>`,
+        ])}
 
-        <section class="panel panel-chrome policy-controls">
-          <h2 class="profile-section-title">Motion</h2>
-          ${toggleRow("Reduced motion", "reducedMotion", "Replaces movement with quick fades and disables particles.")}
-          ${toggleRow("Screen shake", "screenShake", "Camera kick on heavy hits.")}
-          ${choiceRow("Animation speed", "animationSpeed", [
+        ${section("Motion", "refresh", [
+          toggle("Reduced motion", "reducedMotion", "Replaces movement with quick fades and disables particles."),
+          toggle("Screen shake", "screenShake", "Camera kick on heavy hits."),
+          choiceRow("Animation speed", "animationSpeed", [
             { value: "full", label: "Full" },
             { value: "fast", label: "Fast" },
             { value: "instant", label: "Instant" },
-          ], "Applies to every animation in a match, including the ones you have not seen before.")}
-        </section>
+          ], "Applies to every animation in a match, including the ones you have not seen before."),
+        ])}
 
-        <section class="panel panel-chrome policy-controls">
-          <h2 class="profile-section-title">Input</h2>
-          ${toggleRow("Keyboard navigation", "keyboardNav", "Tab moves through every control on every menu screen, and the focused one is outlined.")}
-          ${choiceRow<FocusRing>("Focus outline", "focusRing", [
+        ${section("Input", "crosshair", [
+          toggle("Keyboard navigation", "keyboardNav", "Tab moves through every control on every menu screen, and the focused one is outlined."),
+          choiceRow<FocusRing>("Focus outline", "focusRing", [
             { value: "thin", label: "Thin" },
             { value: "medium", label: "Medium" },
             { value: "thick", label: "Thick" },
-          ], "How heavy the outline around the focused control is.")}
-          <p class="faint">
-            Tab through this screen to see it. The battle board is still pointer-only — see below.
-          </p>
-        </section>
+          ], "How heavy the outline around the focused control is."),
+          `<p class="t-body">Tab through this screen to see it. The battle board is still pointer-only — see below.</p>`,
+        ])}
 
-        <section class="panel panel-chrome policy-controls">
-          <h2 class="profile-section-title">Sound</h2>
-          ${toggleRow("Accessibility audio cues", "audioCues", `Distinct sounds for ${cueData().length} events — your turn starting, lethal becoming available, a Confluence, Burnout, a card burning. They are synthesised rather than played from files, so they work in a build with no audio assets at all.`)}
-          ${toggleRow("Sound captions", "soundCaptions", "The captioned cues as text on screen, for when sound is not an option.")}
-          ${toggleRow("Duck music under cues", "duckUnderCues", "Music and ambience drop 6 dB while a cue plays, so it does not have to compete.")}
-          ${toggleRow("Subtitles", "subtitles", "Captions for leader voice lines and story dialogue.")}
-          <div class="a11y-cue-list" id="a11y-cues"></div>
-        </section>
+        ${section("Sound", "volume", [
+          toggle("Accessibility audio cues", "audioCues", `Distinct sounds for ${quantify(cueData().length, "event")} — your turn starting, lethal becoming available, a Confluence, Burnout, a card burning. They are synthesised rather than played from files, so they work in a build with no audio assets at all.`),
+          toggle("Sound captions", "soundCaptions", "The captioned cues as text on screen, for when sound is not an option."),
+          toggle("Duck music under cues", "duckUnderCues", "Music and ambience drop 6 dB while a cue plays, so it does not have to compete."),
+          toggle("Subtitles", "subtitles", "Captions for leader voice lines and story dialogue."),
+          `<div class="a11y-cue-list" id="a11y-cues"></div>`,
+        ])}
 
-        <section class="panel panel-chrome policy-note">
-          <h2 class="profile-section-title">What is not here yet</h2>
-          <p class="muted">
-            The specification asks for more than this build can honour. Every missing control is
-            listed with the reason, because on this screen of all screens, a gap you cannot see is
-            a gap you keep looking for.
-          </p>
-          <ul class="mail-deferred-list">
-            ${[...DEFERRED_A11Y]
-              .map(([name, reason]) => `<li><strong>${esc(name)}</strong><span class="muted"> — ${esc(reason)}.</span></li>`)
-              .join("")}
-          </ul>
-        </section>
+        ${section(
+          "What is not here yet",
+          "lock",
+          [
+            `<p class="t-body">
+               The specification asks for more than this build can honour. Every missing control is
+               listed with the reason, because on this screen of all screens, a gap you cannot see is
+               a gap you keep looking for.
+             </p>`,
+            `<ul class="mail-deferred-list">
+               ${[...DEFERRED_A11Y]
+                 .map(
+                   ([name, reason]) =>
+                     `<li><strong>${esc(name)}</strong><span class="muted"> — ${esc(reason)}.</span></li>`
+                 )
+                 .join("")}
+             </ul>`,
+          ],
+          "policy-note"
+        )}
       </main>`;
 
     // --- live preview ------------------------------------------------------
     const swatches = root.querySelector("#a11y-swatches");
     if (swatches) {
       for (const [id, entry] of Object.entries(CURRENT_PALETTE) as [CurrentId, (typeof CURRENT_PALETTE)[CurrentId]][]) {
+        /*
+         * `mat-chip chip-static`, because eight of these stand in one column.
+         * The material is the same one every other small inline object in the
+         * game wears; `chip-static` is module A's own opt-out from the idle
+         * sheen, which it documents as existing precisely for "a row of eight
+         * badges on one screen".
+         */
         const chip = document.createElement("div");
-        chip.className = "a11y-swatch";
+        chip.className = "a11y-swatch mat-chip chip-static";
         chip.dataset["current"] = id;
         chip.style.setProperty("--c", entry.key);
-        chip.innerHTML = `<span class="a11y-swatch-dot"></span><span>${esc(entry.label)}</span>`;
+        chip.innerHTML = `<span class="a11y-swatch-dot"></span><span class="t-label">${esc(entry.label)}</span>`;
         swatches.appendChild(chip);
       }
     }
@@ -285,18 +340,36 @@ export function createA11yScreen(content: ContentIndex, callbacks: A11yCallbacks
       audio.play("sfx.ui.click");
       callbacks.onBack();
     });
-    for (const button of root.querySelectorAll<HTMLElement>("[data-toggle]")) {
-      button.addEventListener("click", () => {
-        const key = button.dataset["toggle"] as keyof Settings;
-        set({ [key]: !getSettings()[key] } as unknown as Partial<Settings>);
+    /*
+     * `change`, not `click` — the switch is a real checkbox now, so the space
+     * bar and a click both arrive here and neither needs a keydown handler.
+     */
+    for (const box of root.querySelectorAll<HTMLInputElement>("input.switch[data-toggle]")) {
+      box.addEventListener("change", () => {
+        const key = box.dataset["toggle"] as keyof Settings;
+        set({ [key]: box.checked } as unknown as Partial<Settings>);
       });
     }
-    for (const button of root.querySelectorAll<HTMLElement>("[data-key]")) {
+    for (const button of root.querySelectorAll<HTMLElement>(".d-seg-opt[data-key]")) {
       button.addEventListener("click", () => {
         const key = button.dataset["key"] as keyof Settings;
         const number = button.dataset["number"];
         set({ [key]: number !== undefined ? Number(number) : button.dataset["value"] } as unknown as Partial<Settings>);
       });
+    }
+
+    /*
+     * The cascade, which this screen never had — once, on arrival.
+     *
+     * Six panels landing on one frame is §3a's loudest tell and every other
+     * screen in the domain already answers it with `enter()`. It is gated on
+     * first mount because this screen re-renders on *every* control change, and
+     * replaying a 240ms six-panel entrance each time somebody drags the
+     * interface size through seven steps is the opposite of what §3a asks for.
+     */
+    if (!mounted) {
+      mounted = true;
+      enter(root, ".d-enter", 40);
     }
   };
 
@@ -312,13 +385,21 @@ export function createA11yScreen(content: ContentIndex, callbacks: A11yCallbacks
     if (!host) return;
     host.replaceChildren();
     for (const cue of cueData()) {
+      /*
+       * `.btn.btn-ghost` was a pill with a transparent fill and a 1px border,
+       * repeated thirty-four times down a panel — thirty-four outlined lozenges
+       * where the reference games would show a list. `mat-chip act` is the same
+       * rank of object as every other small inline control in the domain and it
+       * brings the six states with it, including a press the old one had not.
+       */
       const row = document.createElement("button");
-      row.className = "btn btn-ghost a11y-cue";
+      row.className = "mat-chip act r-tile a11y-cue";
       row.type = "button";
       row.dataset["cue"] = cue.id;
       row.innerHTML = `
+        ${icon("volume", 14)}
         <span class="a11y-cue-event">${esc(cue.event)}</span>
-        <span class="muted a11y-cue-character">${esc(cue.character)}${cue.caption ? " · captioned" : ""}</span>`;
+        <span class="a11y-cue-character t-label">${esc(cue.character)}${cue.caption ? " · captioned" : ""}</span>`;
       row.addEventListener("click", () => {
         audio.unlock();
         audio.cue(cue.id);

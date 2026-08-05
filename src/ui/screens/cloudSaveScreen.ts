@@ -27,8 +27,7 @@
 
 import type { Screen } from "../shell";
 import { audio } from "../../audio/audio";
-import { LOCALE } from "../format";
-import { count, enter, icon } from "./data/kit";
+import { ago as relativeTime, count, enter, icon } from "./data/kit";
 import { adopt, type Adoption } from "../../save/cloudSaves";
 import { SaveClient } from "../../net/saveClient";
 import { profileStore } from "../../save/profile";
@@ -73,28 +72,19 @@ function summarise(profile: unknown, updated: string): Summary {
 }
 
 /**
- * en-GB, not the browser.
+ * "3 hours ago", from an ISO string — `format.ts`'s, not a second copy.
  *
- * `undefined` here printed "il y a 3 heures" inside an English sentence on any
- * machine not set to English. The game has no i18n layer, so the locale is a
- * constant like every other date in the build — `format.ts` owns the value.
+ * This file used to build its own `Intl.RelativeTimeFormat` and walk its own
+ * three-rung unit ladder. It was already pinned to `LOCALE`, so the locale bug
+ * was fixed; what remained was a *duplicate formatter*, and it was a shorter one
+ * — day, hour, minute and nothing above — so a save last touched a fortnight ago
+ * read "14 days ago" here and "2 weeks ago" everywhere else in the game. Module
+ * D owns this. The kit re-exports it as `ago` and the only thing left local is
+ * turning an unparseable string into "unknown" rather than an em-dash, because
+ * on this screen the word has to be readable inside a sentence.
  */
-const RELATIVE = new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto" });
-
-/** "3 hours ago", from an ISO string. */
 function ago(iso: string, nowMs = Date.now()): string {
-  const then = Date.parse(iso);
-  if (!Number.isFinite(then)) return "unknown";
-  const seconds = Math.round((then - nowMs) / 1000);
-  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["day", 86400],
-    ["hour", 3600],
-    ["minute", 60],
-  ];
-  for (const [unit, size] of units) {
-    if (Math.abs(seconds) >= size) return RELATIVE.format(Math.round(seconds / size), unit);
-  }
-  return "just now";
+  return Number.isFinite(Date.parse(iso)) ? relativeTime(Date.parse(iso), nowMs) : "unknown";
 }
 
 /**
@@ -111,9 +101,9 @@ function ago(iso: string, nowMs = Date.now()): string {
 function card(title: string, note: string, summary: Summary | null): string {
   if (!summary) {
     return `
-      <section class="panel panel-chrome cloud-save-card">
+      <section class="mat-panel cloud-save-card d-enter">
         <h2 class="t-heading">${esc(title)}</h2>
-        <p class="muted">${esc(note)}</p>
+        <p class="t-body">${esc(note)}</p>
         <div class="empty cloud-save-none">
           ${icon("info", 34)}
           <h3 class="t-heading">Nothing on this side</h3>
@@ -122,9 +112,9 @@ function card(title: string, note: string, summary: Summary | null): string {
       </section>`;
   }
   return `
-    <section class="panel panel-chrome cloud-save-card">
+    <section class="mat-panel cloud-save-card d-enter">
       <h2 class="t-heading">${esc(title)}</h2>
-      <p class="muted">${esc(note)}</p>
+      <p class="t-body">${esc(note)}</p>
       <table class="d-table patch-table cloud-save-table">
         <tbody>
           <tr><td>Level</td><td class="patch-after num">${count(summary.level)}</td></tr>
@@ -154,12 +144,16 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
       </header>
 
       <main class="cloud-save-body data-body data-doc">
-        <section class="panel panel-chrome cloud-save-lead">
-          <p>
+        <section class="mat-panel cloud-save-lead d-enter">
+          <div class="settings-head">
+            <span class="settings-mark" aria-hidden="true">${icon("profile", 20)}</span>
+            <h2 class="t-heading">Pick the one you meant to keep</h2>
+          </div>
+          <p class="t-body">
             This device has a save, and so does your account. They are not the same, and
             nothing here can safely guess which one you meant to keep — so pick one.
           </p>
-          <p class="muted">
+          <p class="t-body">
             Whichever you choose becomes the save on every device you sign in on. This is
             asked once.
           </p>
@@ -177,9 +171,9 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
                  * of the table that is about to arrive, so the plate does not
                  * change size when the fetch lands.
                  */
-                `<section class="panel panel-chrome cloud-save-card">
+                `<section class="mat-panel cloud-save-card d-enter">
                    <h2 class="t-heading">In your account</h2>
-                   <p class="muted">Reading what the server is holding.</p>
+                   <p class="t-body">Reading what the server is holding.</p>
                    <div class="cloud-save-skeleton" aria-hidden="true">
                      ${'<span class="skeleton"></span>'.repeat(6)}
                    </div>
@@ -188,7 +182,7 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
           }
         </div>
 
-        <section class="panel panel-chrome cloud-save-actions">
+        <section class="mat-panel cloud-save-actions d-enter">
           <!--
             Both of these can be disabled, so both of them are on the
             foundation's material rather than on .btn.
@@ -218,12 +212,12 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
               Keep this device's save
             </button>
           </div>
-          <p class="muted">
+          <p class="t-body">
             <strong>Keeping this device's save</strong> replaces the copy in your account.
             There is no archive on the server, so that copy is gone — which is why this one
             asks twice.
           </p>
-          <p class="muted">
+          <p class="t-body">
             <strong>Using the account's save</strong> replaces what is in this browser. The
             copy being replaced is kept here first and is included in the export on the
             privacy page, so it is recoverable.
@@ -232,7 +226,17 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
         </section>
       </main>`;
 
-    enter(root, ".panel", 40);
+    /*
+     * `.d-enter`, not `.mat-panel`.
+     *
+     * `enter()` writes `--enter-delay` onto whatever it is handed, and `d-rise`
+     * — the keyframe that consumes it — is attached to `.d-enter` and nothing
+     * else. Staggering the materials therefore wrote four delays onto four
+     * elements with no animation on them, so this route had no entrance at all
+     * while looking, in the source, exactly like the ten that do. Measured with
+     * `--enter-delay` read back off the DOM: 0 risers on arrival.
+     */
+    enter(root, ".d-enter", 40);
 
     root.querySelector("#cloud-back")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");

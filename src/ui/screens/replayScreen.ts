@@ -26,6 +26,7 @@ import {
   chip,
   colourFor,
   count,
+  countUp,
   crestMark,
   disposeBag,
   enter,
@@ -154,7 +155,7 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
     ${virgin ? "" : '<div class="replay-filters d-chips" id="replay-filters"></div>'}
     <div class="replay-body ${virgin ? "is-virgin" : ""}">
       ${virgin ? "" : '<aside class="replay-list" id="replay-list"></aside>'}
-      <section class="replay-stage panel ${virgin ? "is-virgin" : ""}" id="replay-stage"></section>
+      <section class="replay-stage mat-panel ${virgin ? "is-virgin" : ""}" id="replay-stage"></section>
     </div>`;
 
   if (virgin) {
@@ -288,10 +289,66 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
          * says which part is missing and why.
          */
         frames.length === 0
-          ? `<div class="empty d-enter replay-noreplay">
-               ${icon("mode-replays", 40)}
-               <h3 class="t-heading">The board is not kept for this one</h3>
-               <p class="t-body">Only the ${REPLAYABLE_HISTORY} most recent matches keep the full turn-by-turn record. The result above is the whole of what this match left behind.</p>
+          ? /*
+             * What is left of a match whose intents have been dropped.
+             *
+             * The old answer was one 460px plate floating in the middle of a
+             * 1030×740 stage, captioned "the result above is the whole of what
+             * this match left behind" — and that sentence was **not true**. A
+             * `MatchSummary` survives the record: cards played, characters
+             * defeated, damage to the enemy leader, Confluences, perfect
+             * Resonances and the Obsession peak. Six real numbers about the
+             * match, discarded, while the screen said there was nothing left and
+             * left two-thirds of its largest object empty. §2 reads an
+             * unresolved lower half as content that failed to load; here it was
+             * content that had loaded and was not being drawn.
+             *
+             * Only the entries with no summary at all — the oldest, from before
+             * the deriver existed — reach the bare empty state now.
+             */
+            `${
+              entry.summary
+                ? `<div class="replay-recap d-enter">
+                     <h3 class="t-label">What this match left behind</h3>
+                     <dl class="d-stats replay-recap-stats">
+                       <div class="d-stat"><dt>Cards played</dt><dd class="num" data-count="${
+                         entry.summary.cardsPlayed
+                       }" data-digits="3">0</dd></div>
+                       <div class="d-stat"><dt>Characters defeated</dt><dd class="num" data-count="${
+                         entry.summary.charactersDefeated
+                       }" data-digits="3">0</dd></div>
+                       <div class="d-stat"><dt>Damage to their leader</dt><dd class="num" data-count="${
+                         entry.summary.damageToEnemyLeader
+                       }" data-digits="3">0</dd></div>
+                       <div class="d-stat"><dt>Peak Obsession</dt><dd class="num" data-count="${
+                         entry.summary.peakObsession
+                       }" data-digits="2">0</dd></div>
+                       <div class="d-stat"><dt>Confluences</dt><dd class="num" data-count="${
+                         entry.summary.confluencesActivated
+                       }" data-digits="2">0</dd></div>
+                       <div class="d-stat"><dt>Perfect Resonances</dt><dd class="num" data-count="${
+                         entry.summary.perfectResonances
+                       }" data-digits="2">0</dd></div>
+                     </dl>
+                   </div>`
+                : ""
+            }
+            <div class="replay-noboard">
+               <div class="d-key replay-noboard-key" ${artAttr("ladder", [1100, 340, accent])}
+                    style="--key-aspect:3.4/1" aria-hidden="true">
+                 <div class="d-key-scrim"></div>
+               </div>
+               <div class="empty d-enter replay-noreplay">
+                 ${icon("mode-replays", 40)}
+                 <h3 class="t-heading">The board is not kept for this one</h3>
+                 <p class="t-body">Only the ${quantify(
+                   REPLAYABLE_HISTORY,
+                   "most recent match",
+                   "most recent matches"
+                 )} keep the full turn-by-turn record${
+                   entry.summary ? ", so there is no board to scrub — the figures above are what survives" : ""
+                 }.</p>
+               </div>
              </div>`
           : `<div class="replay-board" id="replay-board"></div>
              <div class="replay-caption" id="replay-caption"></div>
@@ -322,8 +379,11 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
     // The detail pane is written straight into `stage` rather than through the
     // screen's own render, so it never passes `enter()` — and `enter()` is where
     // the deferred pictures are kicked off. Without this the result crest in the
-    // header would sit in its empty socket forever.
+    // header would sit in its empty socket forever. `countUp` for the same
+    // reason: the recap's six figures would print as a row of zeroes.
     paintArt(stage);
+    enter(stage, ".d-enter", 34);
+    countUp(stage);
 
     stage.querySelector("#replay-rematch")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");
@@ -346,7 +406,7 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
           const palette = CURRENT_PALETTE[c!.current];
           return `<span class="replay-unit" style="--c:${palette.key}">
             ${content.cards[c!.cardId]?.name ?? c!.cardId}
-            <b>${c!.attack}/${c!.health}</b>
+            <b class="num">${count(c!.attack)}/${count(c!.health)}</b>
           </span>`;
         })
         .join("");
@@ -354,8 +414,12 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
         <div class="replay-side">
           <div class="replay-side-head">
             <span class="replay-leader">${leader?.name ?? "—"}</span>
-            <span class="replay-hp">${player.leaderHealth} HP</span>
-            <span class="muted">${player.hype}/${player.hypeMax} Hype · ${player.obsession} Obs · ${player.hand.length} in hand</span>
+            <span class="replay-hp"><span class="num">${count(player.leaderHealth)}</span> HP</span>
+            <span class="muted"><span class="num">${count(player.hype)}</span>/<span class="num">${count(
+              player.hypeMax
+            )}</span> Hype · <span class="num">${count(player.obsession)}</span> Obs · <span class="num">${count(
+              player.hand.length
+            )}</span> in hand</span>
           </div>
           <div class="replay-units">${units || '<span class="muted">empty board</span>'}</div>
         </div>`;
@@ -365,7 +429,7 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
       const frame = frames[index]!;
       board.innerHTML = side(frame.state, 1) + '<div class="replay-divider"></div>' + side(frame.state, 0);
       caption.textContent = frame.label;
-      counter.textContent = `${index} / ${frames.length - 1}`;
+      counter.textContent = `${count(index)} / ${count(frames.length - 1)}`;
       scrub.value = String(index);
       /*
        * `shell.ts` syncs `--slider-fill` on `input`, which covers a drag and
@@ -505,13 +569,24 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
       const faction = content.leaders[entry.leaderCardId]?.faction ?? "neutral";
       button.style.setProperty("--row-accent", colourFor(faction));
       // the Obsession peak §4.5.5 asks for, on the matches that recorded it
-      const obsession = entry.summary ? ` · Obs ${count(entry.summary.peakObsession)}` : "";
+      const obsession = entry.summary ? ` · Obs <span class="num">${count(entry.summary.peakObsession)}</span>` : "";
+      /*
+       * The Obsession peak moves to the *third* line, not the second.
+       *
+       * Both meta lines are `text-overflow: ellipsis` on one line. Line two is
+       * the longest thing on the row — "vs Prioress Juniper Vale · 12 turns" is
+       * already 35 characters — so appending "· Obs 5" to it ellipsised the
+       * *opponent's name*, which is the one thing on the row a player is
+       * scanning for. Line three is a mode and a short date and has room.
+       */
       button.innerHTML = `
         ${crestMark(faction, 34)}
         <span class="replay-entry-body">
           <span class="replay-entry-deck">${esc(entry.deckName)}</span>
-          <span class="replay-entry-meta">vs ${esc(opponent)} · ${quantify(entry.turns, "turn")}${obsession}</span>
-          <span class="replay-entry-meta">${esc(modeName(entry.mode))} · ${esc(logStamp(entry.playedAt))}</span>
+          <span class="replay-entry-meta">vs ${esc(opponent)} · ${quantify(entry.turns, "turn")}</span>
+          <span class="replay-entry-meta">${esc(modeName(entry.mode))} · ${esc(
+            logStamp(entry.playedAt)
+          )}${obsession}</span>
         </span>
         ${
           /*

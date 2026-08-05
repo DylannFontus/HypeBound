@@ -21,7 +21,7 @@ import {
 } from "../../save/settings";
 import { audio } from "../../audio/audio";
 import { getProfile, profileStore } from "../../save/profile";
-import { count, enter, icon, quantify } from "./data/kit";
+import { count, enter, icon, quantify, segmented, toggleRow } from "./data/kit";
 
 export interface SettingsCallbacks {
   onBack: () => void;
@@ -56,7 +56,7 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
    */
   function section(title: string, iconId: Parameters<typeof icon>[0], description?: string): HTMLElement {
     const node = document.createElement("section");
-    node.className = "settings-section panel d-enter";
+    node.className = "settings-section mat-panel d-enter";
     node.innerHTML = `
       <div class="settings-head">
         <span class="settings-mark" aria-hidden="true">${icon(iconId, 20)}</span>
@@ -71,7 +71,9 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
 
   function slider(host: HTMLElement, label: string, key: keyof Settings, onChange?: () => void): void {
     const row = document.createElement("div");
-    row.className = "setting-row";
+    // `d-set-row` so the six audio rails share the rhythm and the fading divider
+    // with the toggles under them; `d-set-slider` re-cuts it into three columns.
+    row.className = "d-set-row d-set-slider";
     const value = getSettings()[key] as number;
     /*
      * `.slider` is module A's control and `shell.ts` keeps `--slider-fill` in
@@ -81,10 +83,10 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
      * `appearance: none` ignores entirely.
      */
     row.innerHTML = `
-      <label class="setting-label" for="s-${key}">${label}</label>
+      <label class="setting-label d-set-label" for="s-${key}">${label}</label>
       <input class="slider setting-slider" id="s-${key}" type="range" min="0" max="100"
-             value="${Math.round(value * 100)}" />
-      <output class="setting-output num" id="o-${key}">${Math.round(value * 100)}%</output>`;
+             value="${Math.round(value * 100)}" style="--slider-fill:${Math.round(value * 100)}%" />
+      <output class="setting-output num" id="o-${key}" style="--digits:4">${Math.round(value * 100)}%</output>`;
     host.appendChild(row);
 
     const input = row.querySelector<HTMLInputElement>(`#s-${key}`);
@@ -97,26 +99,30 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
     });
   }
 
+  /**
+   * Both of these are the kit's now, which means both are module A's.
+   *
+   * What was here was a `<button role="switch">` wrapping a `.setting-knob`
+   * span, and a `.setting-choices` track filled with `rgba(0,0,0,0.35)` whose
+   * selected segment was a flat `background: var(--accent)`. Neither had a light
+   * source, a press state or a disabled skin; both were duplicated verbatim on
+   * the Accessibility screen one click away. `foundation.css` §8 ships a switch
+   * that is a lit object in a recess, and `data/kit.ts` supplies the row around
+   * it — see the notes on `toggleRow` and `segmented`.
+   */
   function toggle(host: HTMLElement, label: string, key: keyof Settings, description?: string): void {
-    const row = document.createElement("div");
-    row.className = "setting-row setting-toggle-row";
-    const checked = Boolean(getSettings()[key]);
-    row.innerHTML = `
-      <div class="setting-label-group">
-        <label class="setting-label" for="s-${key}">${label}</label>
-        ${description ? `<div class="setting-hint faint">${description}</div>` : ""}
-      </div>
-      <button class="setting-toggle ${checked ? "on" : ""}" id="s-${key}" role="switch" aria-checked="${checked}">
-        <span class="setting-knob"></span>
-      </button>`;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = toggleRow({
+      label,
+      hint: description,
+      key: String(key),
+      on: Boolean(getSettings()[key]),
+    });
+    const row = wrap.firstElementChild as HTMLElement;
     host.appendChild(row);
 
-    const button = row.querySelector<HTMLButtonElement>(`#s-${key}`);
-    button?.addEventListener("click", () => {
-      const next = !Boolean(getSettings()[key]);
-      updateSettings({ [key]: next } as unknown as Partial<Settings>);
-      button.classList.toggle("on", next);
-      button.setAttribute("aria-checked", String(next));
+    row.querySelector<HTMLInputElement>("input.switch")?.addEventListener("change", (event) => {
+      updateSettings({ [key]: (event.target as HTMLInputElement).checked } as unknown as Partial<Settings>);
       audio.play("sfx.ui.toggle");
     });
   }
@@ -128,41 +134,29 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
     options: { value: T; label: string }[],
     description?: string
   ): void {
-    const row = document.createElement("div");
-    row.className = "setting-row setting-choice-row";
-    row.innerHTML = `
-      <div class="setting-label-group">
-        <span class="setting-label">${label}</span>
-        ${description ? `<div class="setting-hint faint">${description}</div>` : ""}
-      </div>`;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = segmented<T>({
+      label,
+      hint: description,
+      key: String(key),
+      value: getSettings()[key] as T,
+      options,
+    });
+    const row = wrap.firstElementChild as HTMLElement;
+    host.appendChild(row);
 
-    const group = document.createElement("div");
-    group.className = "setting-choices";
-    group.setAttribute("role", "radiogroup");
-    group.setAttribute("aria-label", label);
-
-    for (const option of options) {
-      const button = document.createElement("button");
-      const selected = getSettings()[key] === option.value;
-      button.className = `setting-choice ${selected ? "active" : ""}`;
-      button.textContent = option.label;
-      button.setAttribute("role", "radio");
-      button.setAttribute("aria-checked", String(selected));
+    for (const button of row.querySelectorAll<HTMLButtonElement>(".d-seg-opt")) {
       button.addEventListener("click", () => {
-        updateSettings({ [key]: option.value } as unknown as Partial<Settings>);
-        group.querySelectorAll(".setting-choice").forEach((node) => {
-          node.classList.remove("active");
+        updateSettings({ [key]: button.dataset["value"] } as unknown as Partial<Settings>);
+        for (const node of row.querySelectorAll(".d-seg-opt")) {
+          node.classList.remove("is-on");
           node.setAttribute("aria-checked", "false");
-        });
-        button.classList.add("active");
+        }
+        button.classList.add("is-on");
         button.setAttribute("aria-checked", "true");
         audio.play("sfx.ui.click");
       });
-      group.appendChild(button);
     }
-
-    row.appendChild(group);
-    host.appendChild(row);
   }
 
   // ---- audio ---------------------------------------------------------------

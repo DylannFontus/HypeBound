@@ -468,6 +468,7 @@ export class HandBar {
 
     const available = this.root.clientWidth || window.innerWidth;
     const cardWidth = this.entries[0]?.element.offsetWidth || 210;
+    const cardHeight = this.entries[0]?.element.offsetHeight || 280;
 
     /**
      * The reference's hand spacing follows roughly `pitch = K / n`: a few cards
@@ -506,8 +507,17 @@ export class HandBar {
      * rises above the baseline and the ends sit on it, which is the same arc a
      * hand of cards held in one hand actually makes, and nothing crosses the
      * bottom edge at any count or any viewport.
+     *
+     * It is a fraction of the card rather than a fixed 22px, and that is a
+     * phone fix rather than a taste one. Twenty-two pixels was tuned against a
+     * 900px-tall window where the card is 157px tall, so the arc was 14% of it;
+     * carried unchanged to 844×390 the same 22px is 22% of a 101px card, and
+     * every pixel of the fan's rise is a pixel `scene.ts` has to reserve away
+     * from the board — which at that size is the difference between a 47px card
+     * token and a legible one. `FAN_ARC` there is the same 0.14 and the two must
+     * move together.
      */
-    const arc = fanned ? 22 : 0;
+    const arc = fanned ? cardHeight * 0.14 : 0;
 
     /**
      * And the corner the rotation throws below the baseline.

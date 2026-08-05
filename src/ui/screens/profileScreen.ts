@@ -363,7 +363,7 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
       </header>
 
       <main class="profile-body data-body">
-        <section class="panel panel-chrome profile-identity" style="--profile-accent:${esc(accent)}">
+        <section class="mat-panel profile-identity" style="--profile-accent:${esc(accent)}">
           <div class="profile-avatar-wrap">
             <canvas class="profile-frame-canvas" id="profile-frame" width="240" height="240"></canvas>
             <div class="profile-avatar" style="--c:${esc(accent)}">
@@ -434,7 +434,7 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
           ${link("profile-leaderboards", "Leaderboards", "mode-ranked")}
         </nav>
 
-        <section class="panel panel-chrome profile-cosmetics">
+        <section class="mat-panel profile-cosmetics">
           <h3 class="t-heading profile-section-title">Cosmetics</h3>
           <p class="t-body profile-hint">
             Earned by playing — Faction and Leader Mastery, and the Bias Board. Nothing here can be bought.
@@ -451,7 +451,7 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
           </div>
         </section>
 
-        <section class="panel panel-chrome profile-emotes">
+        <section class="mat-panel profile-emotes">
           <h3 class="t-heading profile-section-title">
             Emote wheel <span class="num profile-count">${count(emotes.length)}</span>
           </h3>
@@ -468,7 +468,7 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
           </ul>
         </section>
 
-        <section class="panel panel-chrome profile-mastery">
+        <section class="mat-panel profile-mastery">
           <div class="profile-mastery-head">
             <h3 class="t-heading profile-section-title">Faction Mastery</h3>
             <button type="button" class="mat-chip act r-chip" id="profile-mastery">

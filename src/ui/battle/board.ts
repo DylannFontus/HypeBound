@@ -144,6 +144,24 @@ export interface BoardHandles {
     count: number,
     state?: DropState
   ) => void;
+  /**
+   * The board's answer to "a card has been picked up", before the pointer has
+   * gone anywhere near a slot.
+   *
+   * `setDropTarget` says *where this will land*, and it can only say it once the
+   * pointer is already over the ground. Between lifting a card out of the hand
+   * and arriving at the row — which is most of the gesture, and all of it for a
+   * player who does not yet know the rules — the arena said nothing at all.
+   * Photographed on the frame after pickup, the only thing that had changed on a
+   * twenty-unit mat was a struck-through refusal drawn under the hand, because
+   * the pointer had not left the cancel strip yet. The first feedback a new
+   * player got for picking up a card was the board telling them no.
+   *
+   * So the row itself opens: a trough is cut along its whole length, lit from
+   * 315° like every other recess in this game, with an accent pool lying in it.
+   * It is the invitation; the socket is the aim. Null closes it.
+   */
+  setReceiving: (side: "player" | "enemy" | null) => void;
   /** Deck and discard heights and counts, so the stacks are the readout. */
   setResources: (side: "player" | "enemy", deck: number, discard: number) => void;
   /** Top of a seat's deck pile — the place its played cards fly out of. */
@@ -2810,6 +2828,40 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
   dropSocket.visible = false;
   group.add(dropSocket);
 
+  /**
+   * The row, cut open along its whole length.
+   *
+   * This is the receiving state and it is a *recess*, not a glow, for the same
+   * reason the socket is: light added to a surface says "something is shining
+   * here", and what the board has to say is "there is a place here, and it is
+   * empty". A trough with a shaded near lip and a lit far chamfer says that
+   * without a word and without an outline, and because it spans the row it is
+   * still visible either side of the card the player is holding — which the
+   * socket, drawn directly under the carried card, never is.
+   *
+   * Normal blending and a renderOrder below the socket, so a socket lit inside
+   * the trough reads as a deeper cut in an already-open row rather than as two
+   * unrelated marks.
+   */
+  const rowWell = new THREE.Mesh(
+    // Deep enough to hold the socket (`cardHeight * 1.2`) and no deeper: at
+    // `+1.9` the channel's far lip crossed the centre seam, so the row the
+    // player was being offered visibly reached into the rival's half.
+    new THREE.PlaneGeometry(BOARD.slotSpan + BOARD.cardWidth * 1.5, BOARD.cardHeight + 1.5),
+    new THREE.MeshBasicMaterial({
+      map: makeRowWellTexture(),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      fog: false,
+    })
+  );
+  rowWell.rotation.x = -Math.PI / 2;
+  rowWell.position.set(0, 0.016, BOARD.playerRowZ);
+  rowWell.renderOrder = 3;
+  rowWell.visible = false;
+  group.add(rowWell);
+
   /** The row inlay, lit along its whole length while a card is in the air. */
   const dropBand = new THREE.Mesh(
     new THREE.PlaneGeometry(BOARD.slotSpan + BOARD.cardWidth, BOARD.cardHeight + 1.3),
@@ -2857,6 +2909,23 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
 
   let dropTarget: { side: "player" | "enemy"; index: number; count: number; state: DropState } | null = null;
   let dropStateShown: DropState | null = null;
+  let receiving: "player" | "enemy" | null = null;
+
+  /**
+   * Open a row, or close it.
+   *
+   * The trough moves to whichever row is being offered rather than there being
+   * one per side: only one of them can be receiving at a time, and a second
+   * quad idling at zero opacity is the exact defect the twelve slot rings were
+   * deleted for.
+   */
+  function setReceiving(side: "player" | "enemy" | null): void {
+    if (side === receiving) return;
+    receiving = side;
+    if (!side) return;
+    rowWell.position.setZ(side === "player" ? BOARD.playerRowZ : BOARD.enemyRowZ);
+    rowWell.visible = true;
+  }
 
   function setDropTarget(
     side: "player" | "enemy",
@@ -2931,6 +3000,21 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
       mesh.scale.set(1, reach, 1);
     }
 
+    /**
+     * The row opening, on its own clock.
+     *
+     * Slower and shallower than the socket's — 2.1 rad/s against 4.4, at a
+     * third of the amplitude — because the two are saying different things and
+     * two marks pulsing in step read as one flashing object. The trough is a
+     * standing invitation for the whole gesture; the socket is an answer to
+     * where the pointer is this instant, and it should be the busier of them.
+     */
+    const wellMaterial = rowWell.material as THREE.MeshBasicMaterial;
+    const wellBreath = still ? 0 : Math.sin(elapsed * 2.1);
+    const wellTarget = receiving ? 0.95 + wellBreath * 0.05 : 0;
+    wellMaterial.opacity += (wellTarget - wellMaterial.opacity) * 0.2;
+    if (wellMaterial.opacity < 0.004 && !receiving) rowWell.visible = false;
+
     const socketMaterial = dropSocket.material as THREE.MeshBasicMaterial;
     const bandMaterial = dropBand.material as THREE.MeshBasicMaterial;
     const poolMaterial = dropPool.material as THREE.MeshBasicMaterial;
@@ -2960,6 +3044,7 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
     leaderPosition,
     locationPosition,
     setDropTarget,
+    setReceiving,
     setResources,
     deckPosition,
     setActiveSide,
@@ -3006,17 +3091,28 @@ function makeDropSocketTexture(blocked: boolean): THREE.CanvasTexture {
   const image = ctx.createImageData(w, h);
   const pixels = image.data;
   /** Where the cut wall stands, as a fraction of the half-extent. */
-  const WALL = 0.8;
+  const WALL = 0.78;
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const ux = (x + 0.5 - w / 2) / (w / 2);
       const uy = (y + 0.5 - h / 2) / (h / 2);
-      const r = Math.pow(Math.pow(Math.abs(ux), 5.2) + Math.pow(Math.abs(uy), 5.2), 1 / 5.2);
+      /**
+       * A squircle, not a rectangle with rounded corners.
+       *
+       * This shipped at 5.2, which is a superellipse only in the sense that a
+       * rectangle is: at that exponent the sides run dead straight for most of
+       * their length and the corners turn in about eight per cent of the span.
+       * Photographed over a lit mat it read as exactly what §1 bans — a rounded
+       * rectangle outlined in one colour — no matter how the shading inside it
+       * was built. 3.4 is the exponent at which the shape has no straight run
+       * anywhere and still holds a card's proportions.
+       */
+      const r = Math.pow(Math.pow(Math.abs(ux), 3.4) + Math.pow(Math.abs(uy), 3.4), 1 / 3.4);
       /**
        * How far toward the light this pixel sits: +1 at the top-left of the
-       * socket, -1 at the bottom-right. Every one of the four terms below keys
-       * off it, and every one of them uses the *opposite* sign to the one an
+       * socket, -1 at the bottom-right. Every one of the terms below keys off
+       * it, and every one of them uses the *opposite* sign to the one an
        * embossed button would — which is the entire difference between a hole
        * and a knob, and the reason this is spelled out rather than inlined.
        */
@@ -3025,28 +3121,39 @@ function makeDropSocketTexture(blocked: boolean): THREE.CanvasTexture {
       const farWall = Math.max(0, -toLight); // bottom-right: the wall it lands on
 
       // Inside the cut: a dark floor, deepest where the near lip shades it.
-      const inside = Math.max(0, Math.min(1, (WALL - r) / 0.16));
-      const wellAlpha = inside * (blocked ? 0.5 : 0.6) * (0.5 + 0.5 * nearLip);
+      const inside = Math.max(0, Math.min(1, (WALL - r) / 0.18));
+      const wellAlpha = inside * (blocked ? 0.58 : 0.72) * (0.42 + 0.58 * nearLip);
 
       // The wall itself, lit only where the key can actually reach it.
-      const wall = Math.exp(-Math.pow((r - WALL) / 0.06, 2));
-      const rimAlpha = wall * farWall * (blocked ? 0.5 : 0.85);
-      const lipShadow = wall * nearLip * 0.9;
+      const wall = Math.exp(-Math.pow((r - WALL) / 0.07, 2));
+      const rimAlpha = wall * farWall * (blocked ? 0.55 : 0.95);
+      const lipShadow = wall * nearLip * 1.05;
 
-      // Displaced ground just outside the cut, catching the key on its top-left.
-      const berm = Math.exp(-Math.pow((r - (WALL + 0.13)) / 0.09, 2)) * nearLip * 0.34;
+      /**
+       * Outside the cut is a **shadow**, and it used to be a highlight.
+       *
+       * There was a `berm` here — displaced ground catching the key on its
+       * top-left — and it is the reason two rounds of review called this a
+       * wireframe. A lit band outside the top-left plus a lit chamfer inside
+       * the bottom-right is a *complete bright ring*, which is the one thing a
+       * hole in a floor never has. What actually surrounds a cut is the
+       * occlusion of it: a soft darkening all the way round, heaviest where the
+       * lip leans over the light. Asymmetric brightness is what makes a shape
+       * read as depth, and this is the term that was cancelling it out.
+       */
+      const occlusion = Math.exp(-Math.pow((r - (WALL + 0.16)) / 0.14, 2)) * (0.1 + 0.16 * farWall);
 
-      const dark = Math.min(1, wellAlpha + lipShadow);
-      const light = Math.min(1, rimAlpha + berm);
+      const dark = Math.min(1, wellAlpha + lipShadow + occlusion);
+      const light = Math.min(1, rimAlpha);
       const alpha = Math.min(1, dark + light);
       if (alpha <= 0.002) continue;
       // One texel cannot be both black and white, so the two are mixed by which
       // one dominates — which is what a photograph of an edge looks like anyway.
       const mix = light / Math.max(1e-4, dark + light);
       const p = (y * w + x) * 4;
-      pixels[p] = Math.round((blocked ? 40 : 16) + mix * (blocked ? 215 : 231));
-      pixels[p + 1] = Math.round(8 + mix * (blocked ? 218 : 238));
-      pixels[p + 2] = Math.round((blocked ? 20 : 34) + mix * (blocked ? 214 : 221));
+      pixels[p] = Math.round((blocked ? 40 : 12) + mix * (blocked ? 215 : 235));
+      pixels[p + 1] = Math.round(6 + mix * (blocked ? 218 : 240));
+      pixels[p + 2] = Math.round((blocked ? 20 : 28) + mix * (blocked ? 214 : 227));
       pixels[p + 3] = Math.round(alpha * 255);
     }
   }
@@ -3070,6 +3177,154 @@ function makeDropSocketTexture(blocked: boolean): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(ctx.canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   dropSocketTextures.set(blocked, texture);
+  return texture;
+}
+
+/**
+ * The trough the row becomes while a card is being carried.
+ *
+ * Same four terms as the socket and in the same order, because a recess is a
+ * recess at any size and two different ideas of one on the same mat is exactly
+ * the "two visual languages" failure this wave exists to close: a floor that is
+ * darker inside, a near lip at the top-left that shades it, a far chamfer at the
+ * bottom-right that catches the key, and an occlusion outside. What differs is
+ * the silhouette — a long shallow channel rather than a card-shaped socket — and
+ * one addition: a violet wash lying in the bottom of it, because an empty cut is
+ * information and a *lit* empty cut is an invitation.
+ *
+ * The ends taper to nothing over the outer sixth. §7 makes end-fading a rule,
+ * and a trough that stops dead is a nineteen-unit line drawn across the arena,
+ * which is the shape this whole board spent a round deleting.
+ */
+let rowWellTexture: THREE.CanvasTexture | null = null;
+function makeRowWellTexture(): THREE.CanvasTexture {
+  if (rowWellTexture) return rowWellTexture;
+  /**
+   * 512×128, not 1024×256, and the reason is where the cost lands.
+   *
+   * This is a per-pixel loop that runs inside `createBoard`, which runs inside
+   * the mulligan-to-board curtain — the one transition already carrying a 459ms
+   * main-thread block. Quadrupling the texel count to sharpen a shape whose
+   * softest feature is a nine-texel gaussian buys nothing the eye can find and
+   * costs three quarters of a megapixel on the worst possible frame.
+   */
+  const w = 512;
+  const h = 128;
+  const ctx = canvas2d(w, h);
+  if (!ctx) return new THREE.CanvasTexture(document.createElement("canvas"));
+  ctx.clearRect(0, 0, w, h);
+
+  const lx = LIGHT_RIG.screen.x;
+  const ly = LIGHT_RIG.screen.y;
+  const image = ctx.createImageData(w, h);
+  const pixels = image.data;
+
+  /** The channel, in texture pixels: half-extents and the corner radius. */
+  const halfW = w / 2 - 13;
+  const halfH = h / 2 - 10;
+  const radius = 26;
+  /** How wide the cut wall reads, in pixels. */
+  const WALL = 6.5;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const px = x + 0.5 - w / 2;
+      const py = y + 0.5 - h / 2;
+      /**
+       * Signed distance to a rounded box: negative inside, positive outside, in
+       * pixels either way. A superellipse would not do here — the channel is
+       * four times longer than it is deep, and any exponent that keeps the ends
+       * round flattens the long sides into a straight line that then has to be
+       * tapered twice.
+       */
+      const qx = Math.abs(px) - (halfW - radius);
+      const qy = Math.abs(py) - (halfH - radius);
+      const d =
+        Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - radius;
+
+      /**
+       * Which way the wall faces here — the outward normal of that distance
+       * field. Inside the straight run it is whichever axis is closer to the
+       * edge; around a corner it is the diagonal. Without it the long sides
+       * would take their shading from the pixel's angle about the centre, which
+       * on a shape this elongated is almost horizontal everywhere and would
+       * light both long edges identically.
+       */
+      let nx = qx > 0 ? Math.sign(px) * qx : 0;
+      let ny = qy > 0 ? Math.sign(py) * qy : 0;
+      if (nx === 0 && ny === 0) {
+        if (qx > qy) nx = Math.sign(px);
+        else ny = Math.sign(py);
+      }
+      /**
+       * The wall's facing against the key, with **no** extra negation.
+       *
+       * The socket computes this from the pixel's own direction out of the
+       * centre, which for a shape that is roughly as wide as it is tall is the
+       * same vector as the outward normal. Writing it as a normal here and then
+       * flipping the sign out of caution put the lit chamfer on the *near* lip
+       * and the shadow on the far one, and the trough photographed as a
+       * nineteen-unit white line lying on the mat with a dark band under it —
+       * an embossed rail, which is precisely the object a recess is not.
+       */
+      const nLen = Math.hypot(nx, ny) || 1;
+      const toLight = (nx / nLen) * lx + (ny / nLen) * ly;
+      const nearLip = Math.max(0, toLight);
+      const farWall = Math.max(0, -toLight);
+
+      const inside = Math.max(0, Math.min(1, -d / WALL));
+      /**
+       * Two thirds opaque in the middle of the cut, which sounds heavy and is
+       * not: the play surface underneath sits at L*≈80 after the value fix, so
+       * a floor drawn at 0.46 arrived within a stop of the mat and the trough
+       * photographed as a smudge. A hole is a hole because no light reaches the
+       * bottom of it — the same sentence the location sockets are painted from.
+       */
+      const floor = inside * 0.66 * (0.45 + 0.55 * nearLip);
+      const wall = Math.exp(-Math.pow(d / 4.5, 2));
+      /**
+       * A third of the socket's chamfer, and it has to be.
+       *
+       * The socket is a card-sized mark and this is nineteen world units long,
+       * so the same alpha is not the same amount of light: at 0.62 against a
+       * near-white this cleared the composer's 0.62 bloom threshold along its
+       * whole length and the row came back as a laser. The eye reads a chamfer
+       * by its position relative to the shadow opposite it, not by how bright
+       * it is.
+       */
+      const rim = wall * farWall * 0.5;
+      const lip = wall * nearLip * 1;
+      const occlusion = Math.exp(-Math.pow((d - 8) / 9, 2)) * 0.18;
+
+      const dark = Math.min(1, floor + lip + occlusion);
+      const light = Math.min(1, rim);
+      let alpha = Math.min(1, dark + light);
+      if (alpha <= 0.003) continue;
+
+      // The taper: alpha ramps to nothing across the outer sixth at each end.
+      const along = Math.abs(px) / halfW;
+      alpha *= Math.max(0, Math.min(1, (1 - along) / 0.17));
+      if (alpha <= 0.003) continue;
+
+      /**
+       * The wash in the bottom of the cut. It rides on the `inside` term rather
+       * than on the whole shape, so it cannot leak past the lip and become a
+       * glow lying on the floor beside the channel.
+       */
+      const wash = inside * 0.8;
+      const mix = light / Math.max(1e-4, dark + light);
+      const p = (y * w + x) * 4;
+      pixels[p] = Math.round(10 + wash * 52 + mix * 172);
+      pixels[p + 1] = Math.round(5 + wash * 24 + mix * 168);
+      pixels[p + 2] = Math.round(26 + wash * 110 + mix * 202);
+      pixels[p + 3] = Math.round(alpha * 255);
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+
+  const texture = new THREE.CanvasTexture(ctx.canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  rowWellTexture = texture;
   return texture;
 }
 

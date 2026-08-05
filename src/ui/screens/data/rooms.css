@@ -1655,6 +1655,34 @@
 }
 
 /**
+ * Three filter groups on a 390px-tall phone are three rows of chips.
+ *
+ * Measured at 844×390: RESULT, MODE and FACTION wrapped to 139px, which is
+ * **36% of the viewport height** spent on controls, leaving 145px for the list
+ * and the board together. The groups are all worth keeping — §4.5.5 asks for
+ * exactly these three — so what gives is the chip, not the set: smaller type,
+ * tighter padding, less gap. It lands in two rows at 844 and one at 1280, and
+ * the 44px touch floor is not in play because these are secondary filters rather
+ * than the primary action. Keyed on viewport *height*, because that is the axis
+ * the cost is measured on.
+ */
+@media (max-height: 520px) {
+  .replay-screen .replay-filters {
+    gap: var(--sp-2);
+    padding-bottom: var(--sp-2);
+  }
+
+  .replay-screen .replay-filter-group {
+    gap: 4px;
+  }
+
+  .replay-screen .replay-filters .d-chip {
+    padding: 4px var(--sp-3);
+    font-size: var(--fs-xs);
+  }
+}
+
+/**
  * The workbench gets the wide measure, not the whole window.
  *
  * `screens.css` gives `.replay-body` a grid and a gutter and no `max-width`, so
@@ -1663,12 +1691,28 @@
  * two-pane shape — sat inside 1440. That is the measure jumping between siblings
  * that §8 of the recon is about. Same number, same gutter, same rhythm.
  */
+/**
+ * ...and the list column is wide enough to hold a deck name.
+ *
+ * `screens.css` caps it at `minmax(220px, 300px)`. Measured at 1600×900 against
+ * a 34-match history: **every one of the nine visible rows truncated its title**
+ * — "Neon Idol…", "Ratio Ma…", "Kilowatt …" — and the mode-and-date line under
+ * it truncated as well, so nine rows differed only in a coloured crest and a
+ * single-letter result pip. The row is a grid of `crest | text | tag | pip`, and
+ * on a 300px track the text column resolves to about 96px.
+ *
+ * 300→400 is the smallest number at which a full deck name and "Practice · 5 Aug,
+ * 09:20" both fit, and the stage keeps 1,000px at 1440 — which is more than it
+ * can currently fill anyway. The floor rises with it, because 220px was never
+ * enough for anything.
+ */
 .replay-screen .replay-body {
   padding-inline: clamp(16px, 3.4vw, 48px);
   gap: var(--sp-3);
   width: 100%;
   max-width: 1440px;
   margin-inline: auto;
+  grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
 }
 
 .replay-screen .replay-filters {
@@ -1913,6 +1957,87 @@
 .replay-screen .replay-empty {
   margin: auto;
   max-width: 460px;
+}
+
+/**
+ * What a match left behind when its intents did not.
+ *
+ * Only the newest eight entries keep a replay, so on any history worth the name
+ * *most* rows land here — and what landed was one 460px plate in the middle of a
+ * 1030×740 stage saying "the result above is the whole of what this match left
+ * behind", which was not true: the `MatchSummary` survives the record and holds
+ * six real figures. They are drawn now, above the note, and the note no longer
+ * claims there is nothing.
+ */
+.replay-screen .replay-recap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/**
+ * Three across, twice, rather than `auto-fit`.
+ *
+ * Six figures under `auto-fit` resolved to five columns at 1600 and left
+ * "Perfect Resonances" alone on a second row — a widow, which reads as a layout
+ * that ran out rather than one that was chosen. Two even rows of three is the
+ * only tidy division of six that also survives 844×390.
+ */
+.replay-screen .replay-recap-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .replay-screen .replay-recap-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/**
+ * The lower half of the stage, closed with the same plate the empty route uses.
+ *
+ * Most rows in a real history have no replay — only the newest eight keep one —
+ * so this is the state the detail pane is in most of the time, and it was six
+ * figures at the top of a 740px panel with 400px of nothing under them. §2 reads
+ * an unresolved lower half as content that failed to load. The ladder
+ * silhouette is the same generator the Leaderboards standing and the
+ * no-matches-yet route already use: it composes the frame and it claims nothing,
+ * because there is no name and no number anywhere on it.
+ */
+.replay-screen .replay-noboard {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 0;
+  border-radius: var(--r-panel);
+  overflow: hidden;
+}
+
+.replay-screen .replay-noboard-key {
+  border-radius: 0;
+  opacity: 0.75;
+  mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / 0.55) 26%, #000 62%, #000 100%);
+}
+
+/* With figures above it and a plate under it the note is a caption, not the
+   whole state — so it stops trying to fill the stage on its own. */
+.replay-screen .replay-noboard .replay-noreplay {
+  position: relative;
+  z-index: 1;
+  margin: -110px 0 0;
+  max-width: none;
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  background: none;
+  box-shadow: none;
+  border: none;
+}
+
+@media (max-height: 620px) {
+  .replay-screen .replay-noboard .replay-noreplay {
+    margin-top: -60px;
+  }
 }
 
 /**
@@ -2453,14 +2578,28 @@
   gap: var(--sp-3);
 }
 
-.settings-screen .settings-head {
+/**
+ * The marked section head, and why it is not scoped to one screen.
+ *
+ * Settings and Accessibility are one click apart in the same tree and were
+ * built with two different heads: a 40px lit plate with an icon in it here, a
+ * bare `<h2>` there. Walking between them read as walking between two
+ * applications, which is the whole complaint this wave exists to answer. The
+ * selector is `.screen` rather than `.settings-screen` so the second consumer
+ * did not have to copy thirty lines to get the first one's head.
+ */
+.screen .settings-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: var(--sp-3);
 }
 
-.settings-screen .settings-mark {
+.screen .settings-head > h2 {
+  margin: 0;
+}
+
+.screen .settings-mark {
   width: 40px;
   height: 40px;
   display: grid;
@@ -3127,7 +3266,8 @@
  */
 .cloud-save-screen .cloud-save-btn,
 .tour-screen .tour-claim,
-.gauntlet-screen .gauntlet-redraft {
+.gauntlet-screen .gauntlet-redraft,
+.gauntlet-screen .gauntlet-retire {
   min-height: 44px;
   padding: 0 var(--sp-5);
   font-family: var(--font-display);
@@ -3135,6 +3275,92 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   justify-content: center;
+}
+
+/**
+ * The one hero action a Gauntlet phase has, at the size a hero action is.
+ *
+ * Every phase's primary was `.btn.btn-primary` — a 34px flat pill — so "Start a
+ * run" on a screen with nothing else on it was the same weight as a signpost
+ * link. On the material it is the same object as PLAY on the lobby, which is the
+ * comparison a player actually makes: the two are one click apart.
+ */
+.gauntlet-screen .gauntlet-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 52px;
+  padding: 0 var(--sp-7);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/** The hub's record, as a stat block rather than a middle-dot run-on. */
+.gauntlet-screen .gauntlet-record-stats {
+  grid-template-columns: repeat(auto-fit, minmax(calc(160px * var(--ui-scale, 1)), 1fr));
+}
+
+/**
+ * The plate that closes the hub's right third.
+ *
+ * Absolutely positioned rather than a grid column, because the panel's children
+ * are a stack of prose and the only thing that has to change is what is *behind*
+ * the empty part of it. It is masked to nothing on the left so it never runs
+ * under the text, and it goes away below 1000px where the measure already fills
+ * the panel and there is no empty third to close.
+ */
+.gauntlet-screen .gauntlet-intro {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.gauntlet-screen .gauntlet-intro-key {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 0 auto;
+  width: 42%;
+  height: 100%;
+  border-radius: 0;
+  opacity: 0.55;
+  mask-image: linear-gradient(90deg, transparent 0%, rgb(0 0 0 / 0.4) 34%, #000 100%);
+}
+
+@media (max-width: 1000px) {
+  .gauntlet-screen .gauntlet-intro-key {
+    display: none;
+  }
+}
+
+.gauntlet-screen .gauntlet-summary-grid .t-label {
+  display: block;
+  margin-top: 2px;
+}
+
+/**
+ * The offered cards, now that the tile is a material.
+ *
+ * `screens.css` still supplies the flex column and the caption; what it also
+ * supplied was `background: var(--glass)` and a `border: 1px solid`, which the
+ * material replaces — and its `transform: translateY(-4px)` hover, which `.act`
+ * replaces with a move, a scale, a rim boost and a specular wipe in 120ms. These
+ * three lines cancel the parts of the old rule the material has to own.
+ */
+.gauntlet-screen .gauntlet-card-tile {
+  border: 1px solid;
+  background: none;
+  padding: var(--sp-2);
+}
+
+@media (hover: hover) {
+  .gauntlet-screen button.gauntlet-card-tile:hover {
+    border-color: rgb(255 255 255 / calc(var(--rim-a) * var(--rim-boost)))
+      rgb(0 0 0 / calc(var(--lip-a) * 0.55)) rgb(0 0 0 / var(--lip-a))
+      rgb(255 255 255 / calc(var(--rim-a) * 0.5 * var(--rim-boost)));
+  }
 }
 
 .tour-screen .tour-claim {
@@ -3334,6 +3560,307 @@
 
 .privacy-screen .policy-table td {
   max-width: none;
+}
+
+/**
+ * A section head that carries a version, a date or a count beside the title.
+ *
+ * `.stats-table-head` was doing this on four screens with a `<span class="muted">`
+ * and no marked plate, so a panel on Fairness and a panel on Statistics — two
+ * clicks apart, both a table under a heading — did not look related. This is the
+ * second cell of `.settings-head`, stacked, so the same head serves both cases.
+ */
+.screen .policy-doc-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.screen .policy-doc-head > h2 {
+  margin: 0;
+  flex: 0 1 auto;
+}
+
+.screen .policy-doc-head > .t-label {
+  margin-left: auto;
+  text-align: right;
+}
+
+/**
+ * The two destructive controls on the privacy page, cased as destructive.
+ *
+ * Same treatment as `.settings-danger` above and for the same reason: "Delete
+ * everything on this device" was visually identical to "Show it here" beside it,
+ * which is §6's "the most saturated thing on screen should be the thing that
+ * matters most" turned upside down. It keeps the warning glyph so the state
+ * survives greyscale, and it is a *panel* rather than a hero — a red hero next
+ * to the export's magenta one would be two heroes.
+ */
+.policy-screen .policy-danger {
+  color: #ffd7de;
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(122 30 50 / 0.92) 0%, rgb(58 12 26 / 0.95) 100%);
+  --row-accent: var(--danger);
+}
+
+@media (hover: hover) {
+  .policy-screen .policy-danger:hover {
+    color: #fff;
+    box-shadow: var(--mat-cast), 0 0 18px rgb(255 77 106 / 0.4);
+  }
+}
+
+/** The export dump is a recess with code in it, not a bordered box. */
+.policy-screen .policy-dump {
+  margin: 0;
+  padding: var(--sp-3);
+  max-height: 320px;
+  overflow: auto;
+  border-radius: var(--r-field);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/**
+ * Every action row in the hub, one shape.
+ *
+ * `.mail-actions` is shared with the inbox and is a plain wrap; what the policy
+ * screens need on top is that the chips align to the start and sit clear of the
+ * paragraph above them, so a row of four signposts reads as a row rather than as
+ * a run-on of the prose.
+ */
+.policy-screen .mail-actions,
+.fairness-screen .mail-actions,
+.support-screen .mail-actions,
+.cloud-save-screen .mail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/**
+ * `:not([hidden])`, and it is not defensive tidiness.
+ *
+ * `[hidden]` is a *user-agent* rule — `display: none` at origin zero — so any
+ * author rule that names `display` at all out-specifies it. Adding
+ * `display: inline-flex` here made the privacy page's "Delete my account"
+ * button, which is `hidden` until there is an account to delete, appear for
+ * every signed-out player: an offer to erase something that does not exist, on
+ * the screen whose whole subject is saying exactly what is held. Caught in the
+ * capture. Any rule in this file that sets `display` on something a screen
+ * toggles with `hidden` needs the same guard.
+ */
+.policy-screen .mail-actions > button:not([hidden]),
+.fairness-screen .mail-actions > button:not([hidden]),
+.support-screen .mail-actions > button:not([hidden]),
+.cloud-save-screen .mail-actions > button:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 9px var(--sp-4);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------
+   Accessibility
+   -------------------------------------------------------------------------
+   The one screen where every control on it is also an argument about controls.
+   Everything interactive here is now module A's — `.switch`, `.d-seg`, `.field`
+   — so what is left is the specimen furniture: the live text sample, the eight
+   Current swatches and the cue list. */
+
+.a11y-screen .policy-controls {
+  gap: var(--sp-2);
+}
+
+/** The section head sits above the rows, not in the rhythm of them. */
+.a11y-screen .policy-controls > .settings-head {
+  margin-bottom: var(--sp-2);
+}
+
+/**
+ * The live sample, in a recess.
+ *
+ * It was a 1px dashed rectangle, which is the browser's own idiom for a drop
+ * target and reads as unfinished. It is also the one element on the page whose
+ * `font-size` is written from script, so it has to be a plate that can grow to
+ * 1.6rem without the panel around it moving — hence the min-height rather than a
+ * fixed one.
+ */
+.a11y-screen .a11y-preview-text {
+  margin: var(--sp-1) 0 var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  line-height: 1.5;
+  color: var(--text);
+  border-radius: var(--r-field);
+}
+
+/**
+ * The legend column takes what it needs, not a fixed 260px.
+ *
+ * `screens.css` sizes it `minmax(180px, 260px)`, and eight chips whose longest
+ * label is "CINDER" want about 120. The 140px it was over-claiming came out of
+ * the controls beside it, where "Colour-blind mode" and its hint were wrapping
+ * to three lines against a segmented picker. `auto` on a column of
+ * content-width chips is the whole fix.
+ */
+.a11y-screen .a11y-colour {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-5);
+}
+
+/* Stretched, the chips became eight 260px bars with a gem at one end; each one
+   is an object the size of its own label. */
+.a11y-screen .a11y-swatches {
+  align-items: flex-start;
+}
+
+.a11y-screen .a11y-pressure {
+  margin: var(--sp-1) 0 var(--sp-2);
+}
+
+.a11y-screen .a11y-pressure li {
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.a11y-screen .a11y-pressure strong {
+  color: var(--text);
+}
+
+/**
+ * The eight Currents, as struck chips.
+ *
+ * They were a 1px outline round a 14px square of flat colour — the one place in
+ * the game where a hue is genuinely the subject, rendered with no light on it at
+ * all. The dot is a lit gem now and the label wears `.t-label`, so the column
+ * reads as a legend rather than as a list of `<div>`s.
+ */
+.a11y-screen .a11y-swatches {
+  gap: var(--sp-1);
+}
+
+.a11y-screen .a11y-swatch {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 5px var(--sp-3);
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+}
+
+.a11y-screen .a11y-swatch .t-label {
+  color: var(--text-dim);
+}
+
+.a11y-screen .a11y-swatch-dot {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border-radius: 5px;
+  background: linear-gradient(
+    var(--light-sweep),
+    color-mix(in srgb, var(--c) 76%, #fff) 0%,
+    var(--c) 52%,
+    color-mix(in srgb, var(--c) 66%, #000) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45),
+    0 1px 2px rgb(0 0 0 / 0.5);
+}
+
+.a11y-screen .a11y-card-preview {
+  margin-top: var(--sp-3);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  gap: var(--sp-5);
+}
+
+.a11y-screen .a11y-card-note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: 46ch;
+}
+
+.a11y-screen .a11y-card-note h3 {
+  margin: 0;
+}
+
+.a11y-screen .a11y-card-note p {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 760px) {
+  .a11y-screen .a11y-card-preview {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+  }
+}
+
+/**
+ * Thirty-four cues, as a grid of real objects.
+ *
+ * They were `.btn.btn-ghost` — a transparent pill with a 1px border — thirty-four
+ * times down one panel, which at a squint is a page of outlines. On the chip
+ * material each one is a plate with the six states, and the icon says at a
+ * glance that the row makes a sound.
+ */
+.a11y-screen .a11y-cue-list {
+  margin-top: var(--sp-2);
+}
+
+.a11y-screen .a11y-cue {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+  color: var(--text);
+}
+
+.a11y-screen .a11y-cue > .hb-icon {
+  grid-row: 1 / 3;
+  color: var(--accent-bright);
+}
+
+.a11y-screen .a11y-cue-event {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.a11y-screen .a11y-cue-character {
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+}
+
+/**
+ * The one place a `--ui-scale` of 1.6 genuinely breaks the two-column colour
+ * block, because the sample card beside it is a fixed 260px canvas.
+ */
+@media (max-width: 900px) {
+  .a11y-screen .a11y-colour {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .a11y-screen .a11y-swatches {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
 }
 
 /**

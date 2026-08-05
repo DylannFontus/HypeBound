@@ -118,31 +118,57 @@ function billingFor(routeId: string, params: URLSearchParams): MatchBilling | nu
   }
 }
 
+/**
+ * One fighter: a framed portrait with its name plate bolted to the bottom of it.
+ *
+ * ## What this looked like before, and why a critic called it the worst surface
+ * in the game
+ *
+ * "Two unframed portrait cut-outs on a flat purple radial gradient, with the
+ * deck subtitle printed raw over hair." Every clause is a section of the bar.
+ * The portraits were feathered to nothing on all four edges and cut to an oval,
+ * which meant there was no object anywhere on the card — §1 wants an edge
+ * treatment and there were no edges. The name plates were absolutely positioned
+ * over the art with a text-shadow doing the whole job, and on the home side the
+ * plate sat over the *top* of the portrait, which is where the head is: filmed
+ * at 1600×900, "DJ Kilowatt" was set across bright orange hair and could not be
+ * read. §4 says text over imagery gets a scrim, a shadow or a plate, and a
+ * shadow that only works when the pixel behind it happens to be dark is not one
+ * of the three.
+ *
+ * ## What it is now
+ *
+ * The two things Hearthstone's own versus screen is made of. Each leader is a
+ * **framed medallion** — a lacquered bezel with the 315° key on it, the art
+ * recessed inside it behind a lip, and a real cast underneath — with a **name
+ * plate** directly below, same width, its own material, carrying the role, the
+ * name and the deck line on a surface rather than on a face. Frame and plate are
+ * one flex column pinned to the seam, so the name can never land on a hairline
+ * again: it is not over the art at all.
+ *
+ * The paint options change with the frame. The four edge feathers and the oval
+ * are gone, because a frame is the edge treatment and feathering the art inside
+ * one produces a soft blob floating in a hard bezel; what is left is the crop
+ * bias that keeps heads in shot and a deeper floor scrim, which now serves the
+ * frame's inner shadow rather than a name plate that is no longer standing on
+ * the art.
+ */
 function sideElement(side: MatchSide, role: "away" | "home"): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = `match-side is-${role}`;
 
-  /**
-   * The art bleeds off three edges and stands on the seam.
-   *
-   * `fadeBottom` on the away side and `fadeTop` on the home side, so neither
-   * figure ends at a straight line where the light is — the razor edge across a
-   * portrait is the defect `leaderPortrait.ts` was written to delete, and it is
-   * at its most obvious when the cut lands next to the brightest thing on
-   * screen. `oval` takes the remaining two corners off.
-   */
-  const plate = paintLeaderPortrait(side.card, {
+  const portrait = paintLeaderPortrait(side.card, {
     width: PLATE_W,
-    aspect: 1.02,
+    aspect: 1.14,
     bias: role === "away" ? 0.2 : 0.16,
-    scrim: role === "away" ? 0.1 : 0.22,
-    fadeLeft: 0.16,
-    fadeRight: 0.16,
-    ...(role === "away" ? { fadeBottom: 0.14, fadeTop: 0.26 } : { fadeTop: 0.14, fadeBottom: 0.26 }),
-    oval: 3,
+    /* Deeper than the old 0.1/0.22 because the floor of the frame is now a
+       recess with a lip falling across it, and art that stays bright right down
+       to the bezel is art sitting on top of the frame rather than inside it. */
+    scrim: 0.32,
     resolution: 1,
     className: "match-portrait",
   });
+
   /**
    * The breathe lives on a wrapper, and the extra element is load-bearing.
    *
@@ -154,13 +180,22 @@ function sideElement(side: MatchSide, role: "away" | "home"): HTMLElement {
    * at their first keyframe and then crept, reaching about 40% by t=1.8s and
    * full strength only when the build let go.
    *
-   * One animation each, on two elements, and both are composited: the figure
-   * arrives while the thread is gone, and goes on breathing after it.
+   * One animation each, on three elements now — figure breathes, frame arrives,
+   * plate arrives — and every one of them is composited.
    */
   const figure = document.createElement("div");
   figure.className = `match-figure is-${role}`;
-  figure.appendChild(plate);
-  wrap.appendChild(figure);
+
+  const billing = document.createElement("div");
+  billing.className = "match-billing";
+
+  const frame = document.createElement("div");
+  frame.className = "match-frame";
+  const art = document.createElement("div");
+  art.className = "match-frame-art";
+  art.appendChild(portrait);
+  frame.appendChild(art);
+  billing.appendChild(frame);
 
   const plateBox = document.createElement("div");
   plateBox.className = "match-plate";
@@ -177,7 +212,10 @@ function sideElement(side: MatchSide, role: "away" | "home"): HTMLElement {
     detail.textContent = side.detail;
     plateBox.appendChild(detail);
   }
-  wrap.appendChild(plateBox);
+  billing.appendChild(plateBox);
+
+  figure.appendChild(billing);
+  wrap.appendChild(figure);
   return wrap;
 }
 
@@ -216,19 +254,34 @@ export function dressMatchCurtain(curtain: HTMLElement, routeId: string, params:
   if (!drew) return false;
 
   /**
-   * The mode plate rides the seam.
+   * The mark on the seam, and it is a medallion now rather than a caption.
    *
    * On the curtain rather than inside either panel, because the panels travel
    * in opposite directions and a label that splits in half is not a label. It
    * gets its own exit in `matchCurtain.css`, tied to `[data-phase="open"]`, so
    * it lifts away as the light does.
+   *
+   * What changed is what it *says*. A 5×14 pill reading "CASUAL MATCH" is a
+   * status line; the thing between two fighters on a versus card is the word
+   * that makes it a versus card. So the middle of the seam is a struck disc with
+   * VS on it, lit from 315° like every other object in the game, with a ring
+   * turning slowly round it while the match loads — and the mode goes into a
+   * chip underneath, where a caption belongs. Hearthstone puts a coin here for
+   * exactly the same reason: the wait needs a subject.
    */
   const vs = document.createElement("div");
   vs.className = "match-vs";
   vs.innerHTML =
     `<span class="match-vs-rule" aria-hidden="true"></span>` +
-    `<span class="match-vs-mark">${icon("mode-casual", { size: 16, class: "match-vs-icon" })}` +
+    `<span class="match-vs-mark">` +
+    `<span class="match-vs-medal" aria-hidden="true">` +
+    `<span class="match-vs-ring"></span>` +
+    `<span class="match-vs-orbit"></span>` +
+    `<span class="match-vs-glyph">VS</span>` +
+    `</span>` +
+    `<span class="match-vs-mode">${icon("mode-casual", { size: 14, class: "match-vs-icon" })}` +
     `<span class="t-label match-vs-text"></span></span>` +
+    `</span>` +
     `<span class="match-vs-rule" aria-hidden="true"></span>`;
   const text = vs.querySelector<HTMLElement>(".match-vs-text");
   if (text) text.textContent = billing.mode;

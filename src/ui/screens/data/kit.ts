@@ -35,7 +35,13 @@
  */
 
 import { icon as drawIcon, type IconId } from "../../art/uiIcons";
-import { count as fmtCount, date as fmtDate, dateTime as fmtDateTime, num as fmtNum } from "../../format";
+import {
+  count as fmtCount,
+  date as fmtDate,
+  dateTime as fmtDateTime,
+  num as fmtNum,
+  relative as fmtRelative,
+} from "../../format";
 import { DUR, motionEnabled, stagger, tickerTo } from "../../motion";
 import {
   banner,
@@ -228,13 +234,35 @@ export const stamp = (at: number | Date): string =>
     minute: "2-digit",
   });
 
-/** "30 Jul, 21:58" — a match record. */
+/**
+ * "30 Jul, 21:58" — a match record.
+ *
+ * `year: undefined` is doing real work and is not a redundant key. `dateTime`
+ * merges over a base that includes `year: "numeric"`, and passing a component as
+ * `undefined` is how `Intl` is told to drop it — so without this line the helper
+ * documented as "30 Jul, 21:58" actually rendered **"30 Jul 2026, 21:58"**.
+ * Five characters, on the most cramped row in the domain: the Match History
+ * list, where that line shares a 400px track with the deck name and ellipsised
+ * because of them.
+ */
 export const logStamp = (at: number | Date): string =>
-  fmtDateTime(at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  fmtDateTime(at, { day: "numeric", month: "short", year: undefined, hour: "2-digit", minute: "2-digit" });
 
 /** "1 turn" / "2 turns". The domain shipped "1 turns" in two places. */
 export const quantify = (value: number, one: string, many = `${one}s`): string =>
   `${fmtCount(value)} ${value === 1 ? one : many}`;
+
+/**
+ * "3 hours ago", "yesterday", "just now" — `format.ts`'s, not a second one.
+ *
+ * The cloud-save screen kept a private `new Intl.RelativeTimeFormat(LOCALE, …)`
+ * with its own three-rung unit ladder, which is `format.ts::relative` written
+ * again with fewer rungs: anything older than a day came out as "14 days ago"
+ * rather than "2 weeks ago", and anything older than a year the same way. A
+ * second implementation of a formatter is exactly the drift this module exists
+ * to stop, and re-exporting it is the whole fix.
+ */
+export const ago = fmtRelative;
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -396,6 +424,96 @@ export function emptyState(options: EmptyOptions): string {
             )}</button>`
           : ""
       }
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// The form kit — module A's controls, in the shapes this domain asks for
+// ---------------------------------------------------------------------------
+
+export interface ToggleRowOptions {
+  label: string;
+  /** One line under the label saying what it does. Optional but nearly always wanted. */
+  hint?: string;
+  on: boolean;
+  /** Read back off `dataset.toggle` in the caller's `change` handler. */
+  key: string;
+  disabled?: boolean;
+}
+
+/**
+ * A labelled switch, from module A's `.switch` rather than from a fourth copy.
+ *
+ * Settings and Accessibility each carried their own `<button role="switch">`
+ * with a `<span class="setting-knob">` inside it and a `.setting-toggle.on`
+ * rule in `screens.css` — a hand-rolled 48×26 pill that fills with the flat
+ * accent and translates a white circle 24px. `foundation.css` §8 ships a switch
+ * that is a *lit object*: a recessed track on the well fill, a knob with its own
+ * radial highlight, the hero gradient when it is on, an overshoot on the travel
+ * and all six of A4's states including a disabled skin that changes the fill and
+ * the border rather than the opacity. Two screens were opting out of all of it.
+ *
+ * It is a real `<input type="checkbox">` now, wrapped in its own `<label>`, so
+ * the whole row is a hit target and the label is the accessible name without an
+ * `aria-label` restating it. Space toggles it because it is a checkbox; the old
+ * one needed a keydown handler nobody had written.
+ */
+export function toggleRow(options: ToggleRowOptions): string {
+  return `
+    <label class="d-set-row d-set-toggle${options.disabled ? " is-off" : ""}">
+      <span class="d-set-text">
+        <span class="d-set-label">${esc(options.label)}</span>
+        ${options.hint ? `<span class="d-set-hint">${esc(options.hint)}</span>` : ""}
+      </span>
+      <input type="checkbox" class="switch" data-toggle="${esc(options.key)}"
+             ${options.on ? "checked" : ""} ${options.disabled ? "disabled" : ""} />
+    </label>`;
+}
+
+export interface SegmentOptions<T extends string> {
+  label: string;
+  hint?: string;
+  /** Read back off `dataset.key`; the chosen option lands in `dataset.value`. */
+  key: string;
+  value: T;
+  options: readonly { value: T; label: string; hint?: string }[];
+  /** Set when the values are numbers, so the caller can `Number()` them safely. */
+  numeric?: boolean;
+}
+
+/**
+ * A segmented picker: one recessed track, N raised chips, one lit.
+ *
+ * `screens.css`'s `.setting-choices` was `background: rgba(0,0,0,0.35)` with
+ * `.setting-choice.active { background: var(--accent); color: #fff }` — a flat
+ * fill on a flat fill, no light source, no rim, no press, and a `transition:
+ * all` that includes the properties §3a bans. It is also the third selection
+ * treatment in the domain, after `.d-chip` and the row's lit left edge.
+ *
+ * This is `.mat-well` for the track and `.mat-chip act` for the segments, which
+ * is the same pair the meter uses and the same interaction mixin every other
+ * clickable object in the game wears. The selected one takes the hero fill, so
+ * "on" is the brightest mass in the row rather than a different flat purple.
+ */
+export function segmented<T extends string>(options: SegmentOptions<T>): string {
+  return `
+    <div class="d-set-row d-set-choice">
+      <span class="d-set-text">
+        <span class="d-set-label">${esc(options.label)}</span>
+        ${options.hint ? `<span class="d-set-hint">${esc(options.hint)}</span>` : ""}
+      </span>
+      <div class="d-seg mat-well" role="radiogroup" aria-label="${esc(options.label)}">
+        ${options.options
+          .map(
+            (option) => `
+              <button type="button" class="d-seg-opt mat-chip act${option.value === options.value ? " is-on" : ""}"
+                      role="radio" aria-checked="${option.value === options.value}"
+                      data-key="${esc(options.key)}"
+                      data-${options.numeric ? "number" : "value"}="${esc(option.value)}"
+                      ${option.hint ? `title="${esc(option.hint)}"` : ""}>${esc(option.label)}</button>`
+          )
+          .join("")}
+      </div>
     </div>`;
 }
 
@@ -911,6 +1029,66 @@ export function rovingList(container: HTMLElement | null, selector = ".d-row, .d
 
   container.addEventListener("keydown", onKey);
   return () => container.removeEventListener("keydown", onKey);
+}
+
+/**
+ * Draw a canvas at the width of the box it is going into — which is not the
+ * width it had when the markup was written.
+ *
+ * `shell.ts` builds a screen on a **detached** tree, so `host.clientWidth` at
+ * render time is `0` and every caller's `|| 760` fallback wins. Measured on
+ * `#stats` with a 34-match history:
+ *
+ *     viewport      host    drawn   short by
+ *     1600×900      1064      760        304
+ *     1280×720      1073      760        313
+ *     844×390        736      760        -24  (scaled down, i.e. blurred)
+ *
+ * The win-rate curve is the centrepiece of the Statistics screen and it was
+ * drawn to a constant on every desktop, leaving 300px of empty panel to its
+ * right, and *upscaled* on a phone so its labels softened. A canvas laid out by
+ * CSS and drawn at a guessed width is the classic way to ship a blurry chart,
+ * and this domain was shipping it twice on one screen.
+ *
+ * So the draw waits for a width. `ResizeObserver` fires once as soon as the host
+ * is connected and laid out, and again whenever the box changes — which also
+ * makes both charts respond to the window, to `--ui-scale`, and to the panel
+ * growing when a filter chip wraps. The redraw is gated on a *changed* integer
+ * width so a scroll-driven sub-pixel report cannot start a redraw loop.
+ *
+ * Returns a teardown; these screens re-render on every click.
+ */
+export function drawSized(
+  host: HTMLElement | null,
+  make: (width: number) => HTMLCanvasElement | null
+): () => void {
+  if (!host) return () => {};
+
+  let last = -1;
+  const paint = (): void => {
+    const width = Math.round(host.clientWidth);
+    if (width < 1 || width === last) return;
+    last = width;
+    let canvas: HTMLCanvasElement | null = null;
+    try {
+      canvas = make(width);
+    } catch {
+      // A chart is decoration for a screen that also prints every figure as
+      // text. A generator that throws leaves the socket empty rather than
+      // taking the panel down.
+      return;
+    }
+    if (canvas) host.replaceChildren(canvas);
+  };
+
+  if (typeof ResizeObserver !== "function") {
+    // No observer: draw on the next frame, by which time the tree is attached.
+    const frame = requestAnimationFrame(paint);
+    return () => cancelAnimationFrame(frame);
+  }
+  const observer = new ResizeObserver(paint);
+  observer.observe(host);
+  return () => observer.disconnect();
 }
 
 /**

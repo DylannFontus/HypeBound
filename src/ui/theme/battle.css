@@ -70,8 +70,13 @@
   /* `--spread-x/y` is the shove a neighbour takes when the card next to it is
      read. It is applied before the fan rotation so it travels in screen space:
      the card beside the read goes sideways, not sideways-along-its-own-tilt. */
+  /* `--ready` is the fan's answer to "can I play this", and it is a POSITION
+     rather than a colour. The green rim below says the same thing in hue, and
+     hue on its own is banned as a signal; a card that can be played standing
+     seven pixels proud of one that cannot is readable in greyscale, at 844px
+     wide, and by somebody who cannot tell the rim from the frame. */
   transform: translate(var(--spread-x, 0px), var(--spread-y, 0px)) rotate(var(--tilt, 0deg))
-    translateY(var(--lift, 0px));
+    translateY(calc(var(--lift, 0px) + var(--ready, 0px)));
   transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast) var(--ease-out);
   filter: drop-shadow(4.4px 7.1px 18px rgba(0, 0, 0, 0.65));
   /**
@@ -192,22 +197,72 @@
   --spread-y: 0px;
 }
 
-.hand-card.playable canvas {
-  outline: 2px solid rgba(125, 255, 176, 0.85);
-  outline-offset: -2px;
-  box-shadow: 0 0 20px rgba(125, 255, 176, 0.45);
+/**
+ * ## Light the ones you can play; do not put the others out
+ *
+ * This pair used to be the wrong way round, and it made the hand the darkest
+ * object on the screen for the whole opening of every match. An unaffordable
+ * card wore `grayscale(0.55) brightness(0.55)`, and on turn one that is six of
+ * seven cards: the play surface behind them measures L*≈80 and the row of cards
+ * lying over it came back at roughly a third of that, so the single thing the
+ * player is supposed to be reading was a strip of near-black under a lit board.
+ * The reference does not do this. Frames 60 and 150 of `hearthstone_frames/`
+ * both show a hand at 0/6 mana — nothing playable at all — and every card in it
+ * is at full brightness and full saturation. What changes there is that the
+ * affordable ones gain a glow, not that the rest lose their light.
+ *
+ * So: the playable card is the lit one. It carries the rim, an outward bloom and
+ * `--ready`, which stands it proud of the fan. The unaffordable one keeps its
+ * artwork, keeps its text legible, and simply has none of that — the difference
+ * between a card and the same card wearing three extra things, which is a much
+ * larger read than it sounds and costs no contrast at all.
+ */
+.hand-card.playable {
+  --ready: -7px;
+  filter: drop-shadow(4.4px 7.1px 18px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 10px rgba(125, 255, 176, 0.3));
 }
 
+.hand-card.playable canvas {
+  outline: 2px solid rgba(150, 255, 190, 0.92);
+  outline-offset: -2px;
+  box-shadow:
+    0 0 0 1px rgba(8, 40, 24, 0.55),
+    0 0 26px rgba(125, 255, 176, 0.5);
+}
+
+/**
+ * The unaffordable card is *recessive*, and there is deliberately no
+ * `brightness()` in it at all.
+ *
+ * Any multiplier under 1 costs contrast, and it costs it on exactly the text a
+ * player squints at: the ratio between light rules text and its dark plate goes
+ * as `(kL₁+0.05)/(kL₂+0.05)`, so a card whose text renders at a lawful 4.5:1
+ * lands at 4.36:1 under `brightness(0.9)` and at **3.63:1** under the 0.55 this
+ * replaces. §9 does not have a clause for "only on the cards you cannot afford".
+ * Saturation is the one knob that recedes a card without moving its luminance —
+ * the frame and the art desaturate, the near-neutral type does not — and the
+ * rest of the signal is carried by what the card is *missing*: no rim, no bloom,
+ * and no `--ready`, so it sits at the fan's own baseline seven pixels below the
+ * ones you can play. That half survives greyscale, which is the point.
+ */
 .hand-card.unplayable {
   cursor: default;
-  filter: grayscale(0.55) brightness(0.55) drop-shadow(3.5px 5.7px 14px rgba(0, 0, 0, 0.6));
+  filter: saturate(0.82) drop-shadow(3.5px 5.7px 14px rgba(0, 0, 0, 0.62));
 }
 
 /* An unaffordable card still enlarges on hover — you need to read the cards you
-   cannot pay for yet. It stays desaturated and refuses to drag instead. */
+   cannot pay for yet. It comes fully back to colour while it is being read, and
+   refuses to drag instead. */
 .hand-card.unplayable:hover {
   transform: rotate(0deg) translateY(calc(var(--hand-card-height) * -0.06)) scale(var(--hand-hover-scale));
-  filter: grayscale(0.45) brightness(0.78) drop-shadow(8.8px 14.1px 34px rgba(0, 0, 0, 0.8));
+  filter: saturate(1) drop-shadow(8.8px 14.1px 34px rgba(0, 0, 0, 0.8));
+}
+
+/* `.hand-card.playable` and `.hand-card:hover` have identical specificity and
+   the playable rule is written later, so without this the lit card would keep
+   its resting shadow while every other card in the fan grew one. */
+.hand-card.playable:hover {
+  filter: drop-shadow(9.6px 15.6px 38px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 14px rgba(125, 255, 176, 0.34));
 }
 
 .hand-card.dragging {
@@ -1617,15 +1672,47 @@
 
 /* ---- overlays ----------------------------------------------------------- */
 
+/**
+ * The board's own scrim, cut from the stock in `screens.css` §O2.
+ *
+ * It was `rgba(3, 2, 8, 0.78)` and a plain 12px blur: a flat fill across the
+ * whole viewport, which is §1's first ban at the largest size the game has, and
+ * separation carried by *value alone*, which §2 says is stacking rather than
+ * depth. What replaces it is the same three-layer recipe every other scrim in
+ * the game now uses — the room's own light pooling where the plate will stand,
+ * module B's finest grain so the cover is not mathematically smooth, and the
+ * separation carried by desaturation with the darkening only supporting it.
+ *
+ * `--ov-scrim` is the knob. The hotseat cover takes it to opaque; the End Turn
+ * confirm takes it almost to nothing; everything else sits here.
+ */
 .battle-overlay {
   position: absolute;
   inset: 0;
   z-index: 70;
   display: grid;
   place-items: center;
-  background: rgba(3, 2, 8, 0.78);
-  backdrop-filter: blur(12px);
-  animation: screen-in var(--dur-fast) var(--ease-out) both;
+  --ov-scrim: 0.76;
+  background-color: transparent;
+  background-image:
+    var(--tex-grain-well, none),
+    radial-gradient(
+      92% 78% at 50% 46%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 12%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(
+      var(--light-sweep),
+      rgb(9 5 20 / var(--ov-scrim)),
+      rgb(3 2 8 / var(--ov-scrim))
+    );
+  background-size: var(--tex-grain-well-size, auto), auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat;
+  backdrop-filter: blur(12px) saturate(0.55) brightness(0.72);
+  -webkit-backdrop-filter: blur(12px) saturate(0.55) brightness(0.72);
+  /* A full-viewport cover does not rise; `screen-in`'s 10px lift on a fixed
+     rectangle is a shift nobody asked for. It resolves in place. */
+  animation: hb-ov-scrim-in var(--dur-fast) var(--ease-arrive) both;
 }
 
 /*
@@ -1645,9 +1732,19 @@
   animation: battle-panel-out 200ms var(--ease-leave) forwards;
 }
 
+/*
+ * Opacity alone, and dropping the `backdrop-filter` half of this was a repair.
+ *
+ * An element's own `opacity` already fades the result of its backdrop-filter —
+ * the filter is applied inside the element's group and the group is what the
+ * opacity multiplies — so the second property was buying nothing and costing a
+ * viewport-sized backdrop readback on every frame of the exit, over a WebGL
+ * board that is redrawing anyway. `opacity` composites; `backdrop-filter` does
+ * not, and §3a's "only transform, opacity and filter" is about exactly this.
+ */
 @keyframes battle-overlay-out {
-  from { opacity: 1; backdrop-filter: blur(12px); }
-  to   { opacity: 0; backdrop-filter: blur(0px); }
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 @keyframes battle-panel-out {
@@ -1661,7 +1758,77 @@
   opacity: 0;
 }
 
-.mulligan-panel { padding: var(--sp-5); max-width: min(1180px, 94vw); display: flex; flex-direction: column; gap: var(--sp-4); align-items: center; }
+/* ---- the opening hand --------------------------------------------------- */
+
+/**
+ * The first thing a player sees in every match, and it was the flattest object
+ * in the game.
+ *
+ * The critic's words: "a solid dark rounded rectangle with no gradient, texture,
+ * rim or contact shadow, which is exactly what section 1 bans, and it is the
+ * first thing you see in every match." All four of those come from the stock in
+ * `screens.css` §O1 now — the plate is a material like every other surface in
+ * the game, lit from 315° with the rest of it.
+ *
+ * What is left for this file is the *furniture*, and the furniture is where
+ * Hearthstone actually wins this screen. It does not deal a mulligan onto a
+ * panel; it deals it onto a **lit table**, and the cards sit in the table with
+ * the table's own shadow falling across their tops. Ours floated six card
+ * canvases in the middle of a rectangle with nothing under them, so the only
+ * thing saying "these are objects you can pick up" was the art on their faces.
+ *
+ * So the row becomes a recess (`.mulligan-cards` below), the cards get a
+ * contact shadow so they are lying *in* it, and the head gets a divider that
+ * fades at both ends rather than a gap.
+ */
+.mulligan-panel {
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  max-width: min(1180px, 94vw);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  align-items: center;
+  /* One rank prouder than the other dialogues. This one is a set-piece the
+     curtain opens onto rather than a question asked over a screen, and it is
+     the only modal in the game with no competition for the eye. */
+  --cast-lift: 2.7;
+}
+
+/**
+ * The head, and the rule under it.
+ *
+ * §7 asks for dividers that fade at the ends rather than butting hard into a
+ * panel edge, and the head previously ended in whitespace, so the eyebrow, the
+ * question and the row of cards were three unrelated blocks stacked at equal
+ * spacing with nothing saying which was the subject. A tapered hairline the
+ * width of the head — not the width of the panel — makes the head a caption for
+ * the table underneath it.
+ *
+ * `::after` on the head is free: `.mulligan-panel::after` is the material's
+ * specular band and `.panel-chrome::before` is the edge, and neither of them is
+ * this element.
+ */
+.mulligan-head {
+  position: relative;
+  padding-bottom: var(--sp-3);
+}
+
+.mulligan-head::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--hairline-lit) 22%,
+    var(--hairline-lit) 78%,
+    transparent
+  );
+  pointer-events: none;
+}
 
 /*
  * Confirm answers the pointer going down, 229ms before it used to answer at all.
@@ -1688,6 +1855,23 @@
  * size. The compression comes from the cards giving up width together rather
  * than from one of them falling off the end.
  */
+/**
+ * ...and the row they sit in is a table, not a gap.
+ *
+ * `.mat-well` is the foundation's recess and this is it, inlined: the inner
+ * shadow at the top-left where the lip of the tray blocks the key, the faint rim
+ * light along the bottom-right where the floor of it catches, the well's own
+ * quiet grain, and no cast, because a hole does not have a shadow. In
+ * `hearthstone_frames/frame_00003` the mana crystals sit *in* their tray with
+ * the tray's shadow crossing their tops; that is the whole difference between
+ * furniture and a background colour, and it is the reason six cards floating on
+ * a flat plate read as a web page.
+ *
+ * `padding` is what makes the tray visible around the hand — without it the
+ * cards cover their own recess and the effect stops existing at exactly the
+ * moment it is needed. `align-items: flex-end` stays: the cards stand on the
+ * floor of the tray.
+ */
 .mulligan-cards {
   display: flex;
   gap: var(--sp-3);
@@ -1695,7 +1879,31 @@
   justify-content: center;
   align-items: flex-end;
   max-width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  --mat-amp: var(--amp-well);
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+  background-color: transparent;
+  background-image: var(--tex-grain-well, none), var(--fill-well);
+  background-size: var(--tex-grain-well-size, auto), 100% 100%;
+  background-repeat: repeat, no-repeat;
+  background-origin: border-box;
+  border-style: solid;
+  border-width: 1px;
+  /* Inverted against the raised materials: dark on the two edges the lip
+     shades, lit on the two the floor catches. */
+  border-color:
+    rgb(0 0 0 / 0.75)
+    rgb(255 255 255 / 0.042)
+    rgb(255 255 255 / 0.085)
+    rgb(0 0 0 / 0.41);
+  box-shadow:
+    inset 0 3px 7px -1px rgb(0 0 0 / calc(0.62 * var(--mat-amp))),
+    inset 3px 0 7px -4px rgb(0 0 0 / calc(0.45 * var(--mat-amp))),
+    inset 0 -1px 0 rgb(255 255 255 / 0.047),
+    inset -1px 0 0 rgb(255 255 255 / 0.024);
 }
+
 .mulligan-card { flex: 0 1 auto; min-width: 0; }
 .mulligan-card canvas { max-width: 100%; height: auto; }
 
@@ -1705,11 +1913,88 @@
   background: none;
   border: none;
   border-radius: 10px;
+  /**
+   * The contact shadow that makes it an object.
+   *
+   * `filter: drop-shadow` rather than `box-shadow` because the shadow has to
+   * follow the *canvas's* own rounded silhouette, not the button's box — a card
+   * frame with 10px corners casting a square shadow is the tell §1 names in its
+   * last bullet. Two of them, per the recipe: a soft 18px drop that says how far
+   * off the tray the card is, and a tight 2px contact that says it is touching.
+   * Both throw down and to the right at 0.62 of the drop, which is
+   * `SHADOW_THROW_RATIO` and the same 315° key as everything else.
+   */
+  filter:
+    drop-shadow(3px 5px 12px rgb(0 0 0 / 0.55))
+    drop-shadow(1px 2px 2px rgb(0 0 0 / 0.7));
   transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast);
 }
-.mulligan-card:hover { transform: translateY(-10px) scale(1.04); }
+/* Lifted off the tray: the drop lengthens and softens, the contact tightens
+   rather than following it up — which is what a shadow does when the object
+   above it rises. */
+.mulligan-card:hover {
+  transform: translateY(-10px) scale(1.04);
+  filter:
+    drop-shadow(7px 12px 24px rgb(0 0 0 / 0.62))
+    drop-shadow(1px 2px 2px rgb(0 0 0 / 0.5));
+}
 .mulligan-card canvas { display: block; border-radius: 10px; }
+/* Marked for replacement: pushed back down into the tray as well as greyed, so
+   the state reads at a glance from the *silhouette* and not from colour alone.
+   MTG Arena does the same thing — dims the card and drops it back toward the
+   deck — and it is the difference between "this one is different" and "this one
+   is leaving". */
+.mulligan-card.selected {
+  transform: translateY(4px) scale(0.97);
+  filter: drop-shadow(1px 2px 4px rgb(0 0 0 / 0.6));
+}
+.mulligan-card.selected:hover {
+  transform: translateY(-2px) scale(1.0);
+  filter: drop-shadow(4px 7px 14px rgb(0 0 0 / 0.6));
+}
 .mulligan-card.selected canvas { filter: grayscale(0.7) brightness(0.6); }
+:root[data-reduced-motion="true"] .mulligan-card { transition: filter 90ms linear; }
+
+/**
+ * ...and it fits on a phone, which it did not before this wave and does not by
+ * accident now.
+ *
+ * `renderCardToCanvas(card, 180)` produces a 252px-tall card. Stack the panel's
+ * 48px of padding, a three-line head at about 78, two 16px gaps and a 44px
+ * action row on top of that and the opening hand wants **454 pixels of a 390px
+ * viewport** — measured at 844x390, where the top of the panel and the Confirm
+ * button were both off the screen. That is a pre-existing failure of §9's hard
+ * constraint rather than something the tray introduced, but the tray's own
+ * padding made it 36px worse, so fixing it belongs in the same change.
+ *
+ * The card is what gives way. `max-height` with `width: auto` on a canvas with
+ * intrinsic dimensions scales both axes together, so 44vh of card at 390 is 172
+ * tall and the whole panel comes to about 321 — and at 1280x720, where the
+ * media query does not apply at all, nothing moves.
+ */
+@media (max-height: 560px) {
+  .mulligan-panel {
+    padding: var(--sp-3);
+    gap: var(--sp-2);
+  }
+  .mulligan-head { padding-bottom: var(--sp-2); }
+  .mulligan-head .title { font-size: var(--fs-lg); }
+  .mulligan-head p { font-size: var(--fs-xs); }
+  .mulligan-cards {
+    padding: var(--sp-2) var(--sp-3);
+    gap: var(--sp-2);
+  }
+  .mulligan-card canvas {
+    /* 44vh fitted and left the plate flush against both edges of a 390px
+       viewport, which costs it the cast that makes it an object. 40 leaves it
+       standing in the room. */
+    max-height: 40vh;
+    width: auto;
+  }
+  /* Still over the 44px touch floor with the panel's own scale applied, and the
+     only control on this screen. */
+  .mulligan-actions .btn { min-height: 44px; }
+}
 /*
  * A stamped seal, not a magenta bar across the card's name.
  *
@@ -1775,20 +2060,78 @@
  * of the board must not take a click that would be lost. What changes is that
  * you can see what you are answering about.
  */
+/*
+ * ## And it stopped taking 57% of the light off the thing it is asking about
+ *
+ * Measured on the settled frame: the play area went from a mean luminance of
+ * **84.0 to 35.9** with this overlay up — a 57% cut — for a routine, reversible,
+ * one-key-to-undo question. The panel had already moved off the middle of the
+ * board in an earlier pass, which was the right move, and then the scrim it
+ * brought with it still blacked out the mat: 0.34 alpha over the centre and 0.14
+ * at the far edge is not "barely present", it is a stop and a half.
+ *
+ * The fix is two layers rather than one, and separating them is the whole trick.
+ * A **local pool** does the seating: 46% of the viewport wide, so it has fallen
+ * to nothing well before the middle of the mat instead of reaching all the way
+ * across it — that reach was the actual defect, not the peak alpha, because a
+ * `radial-gradient`'s stops are percentages of the *ray*, and at 128% of the
+ * width the old gradient's "0.34 at 56%" landed at 0.44 over the far row. Then a
+ * **flat 0.10 veil** over everything says the game is waiting, which is a job
+ * that wants uniformity rather than a spotlight.
+ *
+ * Measured on a matched seed over the play area, 1600x900: **78.7 unobscured,
+ * 56.7 under the old scrim (a 28% cut on this rectangle, 57% on the critic's
+ * larger one), and 65.8 under this one — a 16% cut.** Over the hand, which is
+ * literally what the sentence "you still have 1 playable card" is about, the
+ * same three readings are 69.6, 55.0 and 61.7: an 11% cut against 21%.
+ *
+ * MTG Arena never covers the battlefield for this at all; it puts the warning
+ * beside the pass button. Hearthstone does not ask. The pool of room light in
+ * the second layer is what replaces the missing darkness — the panel is seated
+ * by being *lit*, which is cheaper in contrast than digging a hole for it.
+ *
+ * ## What is deliberately still wrong here
+ *
+ * The scrim covers the viewport and eats every click, including the ones far
+ * from the panel. Keeping it that way is the lesser of the two evils available
+ * from CSS: making it click-through would let a stray click play a card while a
+ * yes/no the game is blocked on is still on screen. The right fix is four lines
+ * in `battleScreen.ts` — resolve the promise `false` when the scrim itself is
+ * clicked, which is what "reversible" ought to mean — and that file belongs to
+ * somebody else this wave.
+ */
 .battle-overlay.confirm-overlay {
   place-items: center end;
   padding-right: calc(var(--sp-5) + 132px + var(--sp-5));
-  background: radial-gradient(
-    128% 116% at 88% 50%,
-    rgba(3, 2, 8, 0.88) 0%,
-    rgba(3, 2, 8, 0.74) 26%,
-    rgba(3, 2, 8, 0.34) 56%,
-    rgba(3, 2, 8, 0.14) 100%
-  );
+  background-color: transparent;
+  background-image:
+    var(--tex-grain-well, none),
+    radial-gradient(
+      30% 60% at 90% 50%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 16%, transparent),
+      transparent 78%
+    ),
+    radial-gradient(
+      46% 96% at 92% 50%,
+      rgb(3 2 8 / 0.72) 0%,
+      rgb(3 2 8 / 0.56) 42%,
+      rgb(3 2 8 / 0.2) 76%,
+      rgb(3 2 8 / 0) 100%
+    ),
+    linear-gradient(rgb(3 2 8 / 0.1), rgb(3 2 8 / 0.1));
+  background-size: var(--tex-grain-well-size, auto), auto, auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
   /* No backdrop blur. The board underneath is a WebGL surface redrawing every
      frame, and a continuously-changing backdrop-filter costs a full-screen
      readback per frame for a panel that is on screen for a third of a second. */
   backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* It floats further than the other dialogues because it has almost no scrim
+   under it to separate it from the board — the cast is doing the whole job. */
+.battle-overlay.confirm-overlay .confirm-panel {
+  --cast-lift: 3.2;
 }
 
 .battle-overlay.confirm-overlay .confirm-panel {
@@ -1814,12 +2157,22 @@
   .battle-overlay.confirm-overlay {
     place-items: end center;
     padding: 0 var(--sp-4) var(--sp-4);
-    background: radial-gradient(
-      140% 90% at 50% 100%,
-      rgba(3, 2, 8, 0.88) 0%,
-      rgba(3, 2, 8, 0.6) 40%,
-      rgba(3, 2, 8, 0.16) 100%
-    );
+    background-image:
+      var(--tex-grain-well, none),
+      radial-gradient(
+        56% 22% at 50% 100%,
+        color-mix(in srgb, var(--room-key, #ff5fa2) 16%, transparent),
+        transparent 78%
+      ),
+      radial-gradient(
+        86% 40% at 50% 100%,
+        rgb(3 2 8 / 0.74) 0%,
+        rgb(3 2 8 / 0.5) 44%,
+        rgb(3 2 8 / 0) 100%
+      ),
+      linear-gradient(rgb(3 2 8 / 0.1), rgb(3 2 8 / 0.1));
+    background-size: var(--tex-grain-well-size, auto), auto, auto, auto;
+    background-repeat: repeat, no-repeat, no-repeat, no-repeat;
   }
   .battle-overlay.confirm-overlay .confirm-panel {
     min-width: min(420px, 92vw);
@@ -1855,16 +2208,35 @@
    * the blur it replaces.
    */
   backdrop-filter: none;
-  background: rgba(3, 2, 8, 0.88);
+  -webkit-backdrop-filter: none;
+  --ov-scrim: 0.88;
 }
 .detail-panel { display: flex; gap: var(--sp-5); align-items: flex-start; max-width: min(940px, 94vw); }
-.detail-panel canvas { border-radius: 14px; box-shadow: var(--shadow-lg); }
+/*
+ * The card is an object standing in front of the scrim, so it casts like one:
+ * a soft drop that says how far, a tight contact that says it is real, both
+ * throwing down and right from the same 315° key. `filter` rather than
+ * `box-shadow` so the cast follows the frame's own rounded silhouette instead
+ * of a rectangle around it — `var(--shadow-lg)` was drawing a square shadow
+ * behind a card with 14px corners on the biggest card image in the game.
+ */
+.detail-panel canvas {
+  border-radius: 14px;
+  box-shadow: none;
+  filter:
+    drop-shadow(9px 15px 34px rgb(0 0 0 / 0.62))
+    drop-shadow(1px 2px 3px rgb(0 0 0 / 0.7));
+}
 .detail-info { padding: var(--sp-5); max-width: 380px; }
 .detail-name { font-family: var(--font-display); font-size: var(--fs-xl); margin: var(--sp-1) 0 var(--sp-2); }
 
 /* ---- victory / defeat --------------------------------------------------- */
 
-.end-overlay { background: rgba(3, 2, 8, 0.9); }
+/* The deepest scrim in the game — the match is over and nothing behind it is
+   worth reading — but still the room rather than a black rectangle: the same
+   stock at 0.92, with the pool of light under the title where the eye is going
+   anyway. */
+.end-overlay { --ov-scrim: 0.92; }
 .end-panel { text-align: center; display: flex; flex-direction: column; gap: var(--sp-3); align-items: center; }
 
 .end-title {
@@ -2290,9 +2662,33 @@
  * hides the hand is the failure this feature exists to prevent, and the browser
  * check now asserts near-total opacity rather than merely "not transparent".
  */
+/*
+ * The one scrim in the game that keeps an opaque `background-color`, and it is
+ * not a style choice: `verify-custom.mjs` reads `getComputedStyle(overlay)
+ * .backgroundColor` and fails the hotseat outright below 0.98 alpha. Every other
+ * scrim here paints its fill as a `background-image` layer, which computes as
+ * `rgba(0,0,0,0)` for that check — correct for a translucent cover, and exactly
+ * the wrong answer for the one that must not be translucent at all. So the base
+ * colour stays a colour, and the room is painted on top of it.
+ *
+ * Fully opaque either way: every stop below is alpha 1, so the hand is as hidden
+ * as it was, and the cover is a lit room rather than a flat #050409 rectangle
+ * held in the player's hands while the device changes hands.
+ */
 .battle-overlay.handoff-overlay {
-  background: #050409;
+  background-color: #050409;
+  background-image:
+    var(--tex-grain-well, none),
+    radial-gradient(
+      104% 64% at 50% 106%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 20%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(var(--light-sweep), #171029 0%, #0b0817 58%, #06040e 100%);
+  background-size: var(--tex-grain-well-size, auto), auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat;
   backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   opacity: 1;
 }
 

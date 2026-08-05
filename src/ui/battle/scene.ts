@@ -299,43 +299,63 @@ const CONTENT_CENTRE_Z = (BOARD.enemyLeaderZ + BOARD.playerLeaderZ) / 2;
  * match is about, directly behind the chip.
  */
 function insetsFor(width: number, height: number): BoardInsets {
+  /**
+   * The reserve is the hand's **measured envelope**, not its card height times
+   * a scale factor, and that distinction is worth about sixteen pixels at
+   * 844×390 — which is exactly what the player's own medallion was losing.
+   *
+   * The previous formula was `handFraction * HAND_HOVER_SCALE + 10`, clamped to
+   * a fraction of the viewport. It accounted for the hover and for nothing else,
+   * and the hand does four other things that push pixels upward: it tilts each
+   * card 16° about its own bottom centre, which grows the bounding box by
+   * `w·sin θ`; it lifts the middle of the fan by an `arc` of 22px; it sits the
+   * whole strip on `--fan-drop` so the tilt's lowest corner clears the fold; and
+   * a playable card now stands `--ready` proud of the rest. Measured at 844×390
+   * with the old number: reserve 137px against a hand whose topmost pixel was
+   * 150px off the bottom, so the medallion overlapped the fan by 855px² of its
+   * own face.
+   *
+   * Every constant below is `battle.css`'s or `handBar.layout()`'s, named rather
+   * than folded together, because the failure mode of this function is silent:
+   * change the fan and the medallion goes back under the cards with nothing
+   * throwing. `tests/…` cannot see it either; `scripts/_w4b_fit.mjs` can.
+   */
   const handFraction = height < 620 ? 0.26 : 0.175;
+  const cardH = height * handFraction;
+  const cardW = cardH * CARD_ASPECT;
+  const tilt = (FAN_TILT_DEG * Math.PI) / 180;
+  /** `handBar.layout()` writes this as `--fan-drop`; `.hand-card` sits on it. */
+  const fanDrop = Math.sin(tilt) * (cardW / 2) + 2;
   /**
-   * The reserve is sized for a **hovered** card, not a resting one, and that is
-   * the whole fix for the second half of the leader-occlusion defect.
-   *
-   * It used to be `handFraction * 0.98` — the resting height — while the hand's
-   * focused card scaled to 1.85×. Measured at 1600×900 the focused card came out
-   * 220×291 spanning y588–880 over a player medallion centred at (800, 675) with
-   * r≈85, i.e. y590–760: covered outright, at 1600×900 *and* at 1280×720, with
-   * the plate in the corner covered by the ability rail at the same time. Your
-   * own life total was not legible anywhere on screen at either common desktop
-   * size.
-   *
-   * `HAND_HOVER_SCALE` is the same number `battle.css` scales by, and the two
-   * have to move together: the camera reserves what the hand can occupy, so the
-   * hand can never reach a leader. Changing one without the other puts the
-   * medallion back under the cards.
+   * The fanned rest state. `cardH·cos θ + cardW·sin θ` is the rotated bounding
+   * box; half of that lateral term hangs *below* the element's own bottom edge,
+   * which is what `--fan-drop` is paying for, so only the other half counts here.
    */
+  const fanned =
+    fanDrop + cardH * Math.cos(tilt) + (cardW * Math.sin(tilt)) / 2 + cardH * FAN_ARC + READY_LIFT_PX;
+  /** The hover: scaled about the bottom centre, then lifted in scaled space. */
+  const hovered = fanDrop + cardH * HAND_HOVER_SCALE * (1 + HOVER_LIFT);
   /**
-   * The 0.32 ceiling exists so a very short window does not hand the whole
-   * viewport to the hand; at 390px tall it was cutting the reserve to 125px
-   * against a 142px hover envelope, which put the player's medallion back under
-   * the cards on exactly the target the reserve exists for. Short viewports get
-   * a looser ceiling, because their hand is proportionally taller (26vh, not
-   * 17.5vh) and their leaders are the thing worth protecting.
+   * The ceiling is 0.42 rather than 0.38, and the eight pixels are slack rather
+   * than superstition.
+   *
+   * At 844×390 the honest envelope is 156px and 0.38 clamps it to 148 — so the
+   * clamp, which exists to stop a pathological hand eating the viewport, was
+   * instead quietly re-introducing the exact overlap the envelope had just
+   * measured away, two pixels deep. A clamp that binds at a supported size is
+   * not a guard, it is a second formula.
    */
-  const ceiling = height < COMPACT_HEIGHT ? 0.35 : 0.32;
-  const bottom = Math.min(height * ceiling, Math.max(104, height * handFraction * HAND_HOVER_SCALE + 10));
+  const bottom = Math.min(height * 0.42, Math.max(104, Math.max(fanned, hovered) + 8));
   /**
    * On a short viewport the rival's dial is no longer centred over the enemy
    * leader — `battle.css` moves it out to the right under 500px of height — so
-   * the top band only has to clear the leader plate in the corner, which the
-   * medallion is nowhere near. Reserving 84px there was costing the phone target
-   * a third of its scale for a collision that no longer happens.
+   * the top band only has to clear the leader plate in the corner. Measured at
+   * 844×390 that plate spans x=172–345 while the rival's medallion is at
+   * x=395–449: they do not meet on any axis, and the 46px reserved for them to
+   * miss each other in was paying for the bottom band's honest number instead.
    */
   const compact = height < COMPACT_HEIGHT;
-  const dial = compact ? 46 : width < 1024 ? 84 : 60;
+  const dial = compact ? 28 : width < 1024 ? 84 : 60;
   const top = Math.min(height * 0.24, Math.max(dial, height * (compact ? 0.05 : 0.075)));
   return { top, bottom };
 }
@@ -363,6 +383,29 @@ const COMPACT_HEIGHT = 500;
  * both of which already exist and neither of which covers the board.
  */
 const HAND_HOVER_SCALE = 1.3;
+
+/**
+ * The rest of the hand's shape, mirrored from the two files that own it.
+ *
+ * `CARD_ASPECT` and `HOVER_LIFT` are `battle.css`'s (`.hand-card canvas` is
+ * `width: auto` against a `--hand-card-height`, and `:hover` translates by
+ * -6% of it); `FAN_TILT_DEG`, `FAN_ARC_PX` come from `handBar.layout()`;
+ * `READY_LIFT_PX` is `--ready`. They live here because `insetsFor` has to
+ * predict how tall the hand can get *before* the hand exists — the camera is
+ * solved on resize and the strip is laid out afterwards — and a reserve that
+ * guesses is the defect this replaces.
+ */
+const CARD_ASPECT = 0.753;
+const FAN_TILT_DEG = 16;
+/**
+ * The fan's rise, as a fraction of the card's own height rather than a fixed
+ * 22px. Twenty-two pixels was tuned against a 900px-tall window, where the card
+ * is 157px and the arc is 14% of it; carried unchanged to a 390px phone it
+ * became 22% of a 101px card, and every pixel of it comes out of the board.
+ */
+const FAN_ARC = 0.14;
+const READY_LIFT_PX = 7;
+const HOVER_LIFT = 0.06;
 
 export function createBattleScene(container: HTMLElement, tier: QualityTier = detectQuality()): BattleSceneHandles {
   let quality = QUALITY_PRESETS[tier];

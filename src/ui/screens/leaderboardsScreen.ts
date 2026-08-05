@@ -83,7 +83,7 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
     </header>
 
     <main class="leaderboards-body data-body">
-      <section class="panel panel-chrome lb-standing">
+      <section class="mat-panel lb-standing">
         <div class="lb-standing-art" aria-hidden="true" ${artAttr("ladder", [1200, 400, "#b56cff"])}></div>
         <div class="lb-standing-inner">
           <div class="lb-crest">
@@ -139,7 +139,7 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
         </div>
       </section>
 
-      <section class="panel panel-chrome leaderboards-explainer d-enter">
+      <section class="mat-panel leaderboards-explainer d-enter">
         <h2 class="t-heading">Not yet — and not faked either</h2>
         <p class="t-body">
           Leaderboards need the server, and this build does not have one. Rather than show
@@ -157,7 +157,7 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
         </p>
       </section>
 
-      <section class="panel panel-chrome leaderboards-note d-enter">
+      <section class="mat-panel leaderboards-note d-enter">
         <h3 class="t-heading">What does work offline</h3>
         <ul class="lb-works">
           ${[

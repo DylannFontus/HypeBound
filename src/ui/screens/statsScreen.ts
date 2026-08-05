@@ -45,7 +45,20 @@ import { FACTION_COLOR } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
 import { sparkline, winRateCurve, type TrendResult } from "./data/chart";
 import { EMPTY } from "../format";
-import { chip, count, countUp, disposeBag, enter, esc, icon, meter, quantify, rovingList } from "./data/kit";
+import {
+  chip,
+  count,
+  countUp,
+  disposeBag,
+  drawSized,
+  enter,
+  esc,
+  icon,
+  meter,
+  modeName,
+  quantify,
+  rovingList,
+} from "./data/kit";
 
 export interface StatsCallbacks {
   onBack: () => void;
@@ -86,10 +99,10 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
    * was breaking it hardest.
    */
   const rateTable = (title: string, note: string, rows: Row[]): string => `
-    <section class="panel panel-chrome stats-table">
+    <section class="mat-panel stats-table">
       <div class="stats-table-head">
         <h3 class="t-heading">${esc(title)}</h3>
-        <span class="t-body">${esc(note)}</span>
+        <span class="t-label">${esc(note)}</span>
       </div>
       ${
         rows.length === 0
@@ -113,8 +126,8 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
                          className: "stats-row-bar",
                        })}
                        <span class="stats-row-rate num">${pct(row.winRate)}</span>
-                       <span class="stats-row-count num">${row.won}–${row.lost}${
-                         row.drawn > 0 ? `–${row.drawn}` : ""
+                       <span class="stats-row-count num">${count(row.won)}–${count(row.lost)}${
+                         row.drawn > 0 ? `–${count(row.drawn)}` : ""
                        }</span>
                      </li>`
                  )
@@ -124,10 +137,10 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
     </section>`;
 
   const deckTable = (rows: DeckRow[], detailed: number): string => `
-    <section class="panel panel-chrome stats-table stats-decks">
+    <section class="mat-panel stats-table stats-decks">
       <div class="stats-table-head">
         <h3 class="t-heading">By deck</h3>
-        <span class="t-body">
+        <span class="t-label">
           ${
             detailed === 0
               ? "Per-match detail starts being recorded from your next match."
@@ -159,12 +172,16 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
                       (row) => `
                         <tr class="${row.thin ? "thin" : ""}">
                           <td>${esc(row.name)}</td>
-                          <td class="stats-record">${row.won}–${row.lost}${row.drawn > 0 ? `–${row.drawn}` : ""}</td>
-                          <td>${pct(row.winRate)}${row.thin ? ` <span class="stats-thin-note">(${row.played})</span>` : ""}</td>
-                          <td>${round1(row.averageTurns)}</td>
-                          <td>${row.detailed > 0 ? round1(row.averagePeakObsession) : '<span class="stats-none">—</span>'}</td>
-                          <td>${row.detailed > 0 ? round1(row.confluencesPerMatch) : '<span class="stats-none">—</span>'}</td>
-                          <td>${row.detailed > 0 ? round1(row.resonancesPerMatch) : '<span class="stats-none">—</span>'}</td>
+                          <td class="stats-record num">${count(row.won)}–${count(row.lost)}${
+                            row.drawn > 0 ? `–${count(row.drawn)}` : ""
+                          }</td>
+                          <td class="num">${pct(row.winRate)}${
+                            row.thin ? ` <span class="stats-thin-note">(${count(row.played)})</span>` : ""
+                          }</td>
+                          <td class="num">${round1(row.averageTurns)}</td>
+                          <td class="num">${row.detailed > 0 ? round1(row.averagePeakObsession) : '<span class="stats-none">—</span>'}</td>
+                          <td class="num">${row.detailed > 0 ? round1(row.confluencesPerMatch) : '<span class="stats-none">—</span>'}</td>
+                          <td class="num">${row.detailed > 0 ? round1(row.resonancesPerMatch) : '<span class="stats-none">—</span>'}</td>
                         </tr>`
                     )
                     .join("")}
@@ -195,18 +212,20 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
       </header>
 
       <main class="stats-body data-body">
-        <section class="panel panel-chrome stats-summary">
+        <section class="mat-panel stats-summary">
           <dl class="d-stats stats-headline">
             <div class="d-stat"><dt>Matches</dt><dd class="num" data-count="${board.overall.played}" data-digits="4">0</dd></div>
             <div class="d-stat"><dt>Win rate <span class="d-stat-qual">${WIN_RATE_QUALIFIER}</span></dt><dd class="num">${pct(
               board.overall.winRate
             )}<span class="d-stat-of">${count(board.overall.won + board.overall.lost)} decided</span></dd></div>
-            <div class="d-stat"><dt>Record</dt><dd class="num">${board.overall.won}–${board.overall.lost}${
-              board.overall.drawn > 0 ? `–${board.overall.drawn}` : ""
-            }</dd></div>
+            <div class="d-stat"><dt>Record</dt><dd class="num">${count(board.overall.won)}–${count(
+              board.overall.lost
+            )}${board.overall.drawn > 0 ? `–${count(board.overall.drawn)}` : ""}</dd></div>
             <div class="d-stat"><dt>Longest streak</dt><dd class="num" data-count="${board.longestWinStreak}" data-digits="3">0</dd></div>
             <div class="d-stat is-quiet"><dt>${icon("st-scorched", 13)} Right now</dt><dd>${esc(streak)}</dd></div>
-            <div class="d-stat is-quiet"><dt>Average length</dt><dd>${round1(board.averageTurns)} turns</dd></div>
+            <div class="d-stat is-quiet"><dt>Average length</dt><dd><span class="num">${round1(
+              board.averageTurns
+            )}</span> turns</dd></div>
           </dl>
 
           <div class="stats-trend-block">
@@ -239,7 +258,7 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
           </p>
         </section>
 
-        <section class="panel panel-chrome stats-curve-panel">
+        <section class="mat-panel stats-curve-panel">
           <div class="stats-table-head">
             <h3 class="t-heading">Win rate over time</h3>
             <span class="t-body">Cumulative wins ${esc(
@@ -260,16 +279,29 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
 
         <nav class="stats-filters d-chips" role="radiogroup" aria-label="Mode">
           ${chip({ label: "All modes", value: "all", active: mode === "all", key: "mode" })}
-          ${modes
-            .map((id) =>
-              chip({
-                label: board.byMode.find((row) => row.id === id)?.name ?? id,
-                value: id,
-                active: mode === id,
-                key: "mode",
-              })
-            )
-            .join("")}
+          ${
+            /*
+             * `modeName`, not the dashboard's row name.
+             *
+             * `dashboard.ts` falls back to the raw engine id for anything it has
+             * no label for, so this row printed "casual" in lowercase beside
+             * "Practice", "The Gauntlet" and "Story" — four chips, two of them
+             * title case and one of them a JavaScript identifier. That table is
+             * in another module's file; `modeName` in the kit is this domain's
+             * copy of it and is what the nine other screens already use, so the
+             * chip and the Match History filter two clicks away now agree.
+             */
+            modes
+              .map((id) =>
+                chip({
+                  label: modeName(id),
+                  value: id,
+                  active: mode === id,
+                  key: "mode",
+                })
+              )
+              .join("")
+          }
         </nav>
 
         ${deckTable(board.byDeck, board.sample.detailed)}
@@ -293,26 +325,38 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
       </main>`;
 
     /**
-     * Both charts are drawn after the markup lands and sized from the box they
-     * were given, because a canvas laid out by CSS and drawn at a guessed width
-     * is the classic way to ship a blurry chart.
+     * Both charts are sized from the box they are actually in — which is not the
+     * box they were in when this markup was written.
+     *
+     * The old code read `host.clientWidth || 760` immediately after the
+     * `innerHTML`, and `shell.ts` builds a screen on a **detached tree**, so
+     * `clientWidth` was `0` and the fallback won every single time. Measured:
+     * the curve came out 304px short of its panel at 1600×900 and 313px short at
+     * 1280×720, and at 844×390 it was drawn at 760 into a 736px box and *scaled
+     * down* — so the one screen in the game whose subject is a chart drew that
+     * chart to a constant on desktop and softened it on a phone.
+     *
+     * `drawSized` waits for a real width and redraws when it changes, so both
+     * also follow the window and `--ui-scale`. See the note on it in `kit.ts`.
      */
-    const trendHost = root.querySelector<HTMLElement>("#stats-trend");
-    if (trendHost && board.trend.length > 0) {
-      const pane = sparkline(board.trend as readonly TrendResult[], {
-        width: Math.max(240, trendHost.clientWidth || 640),
-        height: 46,
-      });
-      if (pane) trendHost.appendChild(pane);
-    }
-
-    const curveHost = root.querySelector<HTMLElement>("#stats-curve");
-    if (curveHost && board.trend.length > 0) {
-      const pane = winRateCurve(board.trend as readonly TrendResult[], {
-        width: Math.max(320, curveHost.clientWidth || 760),
-        height: 200,
-      });
-      if (pane) curveHost.appendChild(pane);
+    if (board.trend.length > 0) {
+      bag.add(
+        drawSized(root.querySelector<HTMLElement>("#stats-trend"), (width) =>
+          sparkline(board.trend as readonly TrendResult[], { width: Math.max(240, width), height: 46 })
+        )
+      );
+      bag.add(
+        drawSized(root.querySelector<HTMLElement>("#stats-curve"), (width) =>
+          winRateCurve(board.trend as readonly TrendResult[], {
+            width: Math.max(320, width),
+            /* The curve gets taller as it gets wider, so a 1,060px chart is not
+               a 5:1 letterbox and a 700px one is not a square. Clamped at both
+               ends: below 170 the four gridline labels collide, above 240 the
+               panel starts pushing the mode filters off a 720px viewport. */
+            height: Math.round(Math.max(170, Math.min(240, width * 0.21))),
+          })
+        )
+      );
     }
 
     root.querySelector("#stats-back")?.addEventListener("click", () => {

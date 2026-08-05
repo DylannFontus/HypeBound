@@ -21,7 +21,7 @@ import { currentAccount, deleteAccount } from "../../auth/account";
 import { deleteMyServerData } from "../../net/playerRecord";
 import { policiesData } from "../../game/policies";
 import { audio } from "../../audio/audio";
-import { icon, longDate } from "./data/kit";
+import { count, enter, icon, longDate } from "./data/kit";
 
 export interface PrivacyCallbacks {
   onBack: () => void;
@@ -72,6 +72,23 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
 
   const render = (): void => {
     const bytes = saveSize();
+    /*
+     * Two things below are corrections rather than restyling.
+     *
+     * **The byte count went through `toLocaleString()` with no locale**, on the
+     * one screen in the game whose whole subject is saying exactly what is held.
+     * On a machine set to French it printed "1 093 448" and on one set to German
+     * "1.093.448", inside an English sentence, in a screenshot nobody could
+     * reproduce. It is the same defect the date on this file already carries a
+     * note about, forty lines up. `count()` is `format.ts`, pinned to en-GB.
+     *
+     * **Four `.btn` pills became materials.** `base.css`'s `.btn-primary` is a
+     * flat fill and `.btn-ghost` a 1px outline, both with an opacity-only
+     * disabled state, which A4 names as a contract violation twice over. Only
+     * the export is a hero — it is the promise this page makes — and the two
+     * destructive ones are danger-cased so the highest-consequence controls on
+     * the screen are not the quietest, which is §6 inverted.
+     */
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
@@ -85,13 +102,16 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
       </header>
 
       <main class="policy-body data-body data-doc">
-        <section class="panel panel-chrome policy-summary">
+        <section class="mat-panel policy-summary d-enter">
           <div class="t-label">In plain language · effective ${DATE.format(new Date(privacy.effectiveDate))}</div>
-          ${privacy.summary.map((line) => `<p>${esc(line)}</p>`).join("")}
+          ${privacy.summary.map((line) => `<p class="t-body">${esc(line)}</p>`).join("")}
         </section>
 
-        <section class="panel panel-chrome policy-table-panel">
-          <h2 class="profile-section-title">What is and is not collected</h2>
+        <section class="mat-panel policy-table-panel d-enter">
+          <div class="settings-head">
+            <span class="settings-mark" aria-hidden="true">${icon("log", 20)}</span>
+            <h2 class="t-heading">What is and is not collected</h2>
+          </div>
           <table class="d-table patch-table policy-table">
             <thead><tr><th>Category</th><th>Collected</th><th>Detail</th><th>Where</th></tr></thead>
             <tbody>
@@ -110,41 +130,62 @@ export function createPrivacyScreen(callbacks: PrivacyCallbacks): Screen {
           </table>
         </section>
 
-        <section class="panel panel-chrome policy-controls">
-          <h2 class="profile-section-title">Your controls</h2>
-          <p class="muted">
-            Your save is <strong id="privacy-size">${bytes.toLocaleString()}</strong> bytes in this browser.
-            The export is the whole of it — not a summary, not a subset.
+        <section class="mat-panel policy-controls d-enter">
+          <div class="settings-head">
+            <span class="settings-mark" aria-hidden="true">${icon("settings", 20)}</span>
+            <h2 class="t-heading">Your controls</h2>
+          </div>
+          <p class="t-body">
+            Your save is <strong class="num" id="privacy-size">${count(bytes)}</strong>
+            ${bytes === 1 ? "byte" : "bytes"} in this browser. The export is the whole of it — not a
+            summary, not a subset.
           </p>
           <div class="mail-actions">
-            <button class="btn btn-primary" id="privacy-export">Export my data</button>
-            <button class="btn btn-ghost" id="privacy-show">Show it here</button>
-            <button class="btn btn-ghost" id="privacy-delete">Delete everything on this device</button>
-            <button class="btn btn-ghost" id="privacy-delete-online" hidden>Delete my account</button>
+            <button type="button" class="mat-hero act r-chip" id="privacy-export">
+              ${icon("arrow-down", 15)} Export my data
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="privacy-show">
+              ${icon("eye", 15)} Show it here
+            </button>
+            <button type="button" class="mat-panel act r-chip policy-danger" id="privacy-delete">
+              ${icon("trash", 15)} Delete everything on this device
+            </button>
+            <button type="button" class="mat-panel act r-chip policy-danger" id="privacy-delete-online" hidden>
+              ${icon("warning", 15)} Delete my account
+            </button>
           </div>
-          <p class="muted" id="privacy-online-note" hidden>
+          <p class="t-body" id="privacy-online-note" hidden>
             This erases everything this game's server holds for you — the match results it recorded,
             and the uploaded copy of your save — <strong>and then deletes the account itself</strong>,
             email address and all. It cannot be undone and there is nobody to ask to reverse it.
           </p>
-          <p class="muted" id="privacy-online-note-2" hidden>
+          <p class="t-body" id="privacy-online-note-2" hidden>
             The save <em>on this device</em> is not touched: your collection, decks and progress stay
             in this browser and the game keeps working offline. Use the button above to clear those.
           </p>
-          <pre class="policy-dump" id="privacy-dump" hidden></pre>
+          <pre class="policy-dump mat-well" id="privacy-dump" hidden></pre>
         </section>
 
-        <section class="panel panel-chrome policy-note">
-          <h2 class="profile-section-title">Children</h2>
-          ${privacy.children.map((line) => `<p class="muted">${esc(line)}</p>`).join("")}
-          <h2 class="profile-section-title">Data requests</h2>
-          ${privacy.requests.map((line) => `<p class="muted">${esc(line)}</p>`).join("")}
+        <section class="mat-panel policy-note d-enter">
+          <div class="settings-head">
+            <span class="settings-mark" aria-hidden="true">${icon("help", 20)}</span>
+            <h2 class="t-heading">Children, and data requests</h2>
+          </div>
+          ${privacy.children.map((line) => `<p class="t-body">${esc(line)}</p>`).join("")}
+          <hr class="hairline" />
+          ${privacy.requests.map((line) => `<p class="t-body">${esc(line)}</p>`).join("")}
           <div class="mail-actions">
-            <button class="btn btn-ghost" id="privacy-support">Customer support ${icon("arrow-right", 15)}</button>
-            <button class="btn btn-ghost" id="privacy-legal">Legal information ${icon("arrow-right", 15)}</button>
+            <button type="button" class="mat-panel act r-chip" id="privacy-support">
+              ${icon("help", 15)} Customer support ${icon("chevron-right", 14)}
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="privacy-legal">
+              ${icon("log", 15)} Legal information ${icon("chevron-right", 14)}
+            </button>
           </div>
         </section>
       </main>`;
+
+    enter(root, ".d-enter", 40);
 
     root.querySelector("#privacy-back")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");
