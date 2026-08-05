@@ -29,6 +29,17 @@
  * Chrome is already here for the screenshot harness and it is a perfectly good
  * compositor: two <img> in a flex row, screenshot the page. Costs nothing and
  * adds nothing to package.json.
+ *
+ * ## The wrapper has to be `max-content` too, and this one cost a review
+ *
+ * `.sheet` was `width: max-content` but `#wrap` around it was not, so the wrapper
+ * stayed at the 800px starting viewport while its child overflowed to 3,204px.
+ * `boundingBox()` reports the wrapper's *layout* box and knows nothing about the
+ * overflow, so the viewport was resized to 800 and the element screenshot cropped
+ * to the left-hand eighth of contender A. Side B was never in the file. Nothing
+ * errored: the sheet was a valid PNG of a plausible screenshot, and a judge shown
+ * one has no way to tell that the comparison they were asked to make is not in
+ * the picture. Every sheet built from two 1600x900 captures had this shape.
  */
 
 import { chromium } from "playwright-core";
@@ -133,6 +144,7 @@ const dataUri = (file) => {
 const html = `
 <style>
   html, body { margin: 0; background: #101014; }
+  #wrap { width: max-content; }
   .sheet { display: flex; flex-direction: ${stacked ? "column" : "row"}; gap: 0; width: max-content; }
   .cell { position: relative; display: block; }
   .cell img { display: block; max-width: none; }
