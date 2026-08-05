@@ -258,14 +258,26 @@ function registerMatchBilling(content: ContentIndex): void {
           const difficulty = params.get("difficulty") ?? "casual";
           const tourFaction = params.get("tour") as FactionId | null;
           const loaner = tourFaction ? loanerDeckFor(content, tourFaction) : null;
-          const touring = loaner !== null && !getProfile().unlockedFactions.includes(tourFaction);
+          /**
+           * Narrowed on `tourFaction` itself, not on `loaner`.
+           *
+           * `loaner !== null` implies a faction to a reader and nothing at all
+           * to the compiler, so the two calls below were being handed
+           * `FactionId | null`. Asking the question directly costs a comparison
+           * and makes the narrowing real.
+           */
+          const touring =
+            tourFaction !== null && loaner !== null && !getProfile().unlockedFactions.includes(tourFaction);
           // Read, never consumed: the factory below is the one that claims it.
           const draft = params.get("test") === "1" ? testDeck : null;
           const deck = draft ?? (touring ? loaner : null) ?? ownDeck();
-          const away = touring
-            ? leaderCard(tourOpponentDeck(content, tourFaction)?.leaderCardId) ??
-              rivalLeader(deck.leaderCardId)
-            : rivalLeader(deck.leaderCardId);
+          // `touring` is a boolean, so it narrows nothing here — the faction has
+          // to be re-asked for the compiler's benefit even though it is implied.
+          const away =
+            touring && tourFaction
+              ? leaderCard(tourOpponentDeck(content, tourFaction)?.leaderCardId) ??
+                rivalLeader(deck.leaderCardId)
+              : rivalLeader(deck.leaderCardId);
           return {
             away: side(away, touring ? "TOUR RIVAL" : "RIVAL"),
             home: homeSide(deck, touring ? "LOANER DECK" : draft ? "TEST DECK" : "YOUR LEADER"),
@@ -304,7 +316,7 @@ function registerMatchBilling(content: ContentIndex): void {
           return {
             away: side(leaderCard(boss.leaderCardId), "THIS WEEK'S BOSS", boss.name),
             home: homeSide(ownDeck()),
-            mode: `WEEKLY BOSS — ${tier.name.toUpperCase()}`,
+            mode: `WEEKLY BOSS — ${tier.label.toUpperCase()}`,
           };
         }
 
@@ -368,7 +380,9 @@ function registerMatchBilling(content: ContentIndex): void {
           if (!run?.leaderCardId) return null;
           return {
             away: null,
-            home: side(leaderCard(run.leaderCardId), "YOUR RUN", `Depth ${run.depth ?? 1}`),
+            // `actIndex`, not `depth` — a run tracks which act it is in and the
+            // doomscroll screens count acts from one when they show them.
+            home: side(leaderCard(run.leaderCardId), "YOUR RUN", `Act ${run.actIndex + 1}`),
             mode: "DOOMSCROLL",
           };
         }
