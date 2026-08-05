@@ -89,6 +89,7 @@
 
 import "./theme/transitions.css";
 import { ROOMS, getAtmosphere, mountAtmosphere, type AtmosphereRoom, type TravelKind } from "./atmosphere";
+import { dressMatchCurtain } from "./intro/matchCurtain";
 import { motionEnabled, scaledDuration } from "./motion";
 
 export interface Screen {
@@ -972,6 +973,25 @@ export class Shell {
       if (veiled && outgoing) {
         this.raiseCurtain(plan, routeNode(id).room);
         await twoFrames();
+        /**
+         * And *then* put the match on it.
+         *
+         * The order is the whole of it. `dressMatchCurtain` downsamples two 4K
+         * leader paintings, which is tens of milliseconds of raster; doing that
+         * before `twoFrames()` would spend it inside the one window this
+         * ordering exists to keep clear and the curtain would cut instead of
+         * closing. Afterwards, the close is already a `translate3d` playing on
+         * the compositor, the portraits fade up over the first 420ms of a hold
+         * that has seconds in it, and the raster lands where there is nothing
+         * for it to interrupt. See the header of `intro/matchCurtain.ts`.
+         *
+         * A route with no billing — every menu veil, and any battle route the
+         * provider cannot answer without a side effect — returns false and gets
+         * the lit, roomed, grained cover it already had.
+         */
+        if (this.curtain && plan.relation === "curtain") {
+          dressMatchCurtain(this.curtain, id, params);
+        }
       }
 
       /**

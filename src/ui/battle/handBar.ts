@@ -137,12 +137,30 @@ export class HandBar {
       this.root.appendChild(element);
     }
 
-    // keep DOM order matching hand order
+    /**
+     * Hand order is a property of `left` and `z-index`, and **never** of DOM order.
+     *
+     * This used to end with `for (const entry of this.entries)
+     * this.root.appendChild(entry.element)` — a full re-insertion of every card
+     * node on every single sync. Moving a node in the DOM removes and re-inserts
+     * it, which resets its CSS animations, so every card in the hand replayed
+     * `hand-card-in` whenever the rival drew, played or dealt damage. Measured
+     * after one End Turn click: seven `animationstart` events at t+1196ms, seven
+     * more at +1820, +1994 and +2568 — twenty-eight entrance animations in 1.4
+     * seconds for cards that had not moved. The hand visibly un-fanned and
+     * re-fanned four times per opponent turn, which is the single most-looked-at
+     * object on the screen.
+     *
+     * Nothing needs the DOM order: `layout()` writes an absolute `left` and an
+     * explicit `z-index` on every card, `debugCards()` reads `this.entries`, and
+     * these divs are not focusable, so there is no tab order to preserve either.
+     * Sorting `this.entries` is still required — that is what feeds the fan — but
+     * it is now the only thing that happens.
+     */
     this.entries.sort(
       (a, b) =>
         hand.findIndex((c) => c.instanceId === a.instanceId) - hand.findIndex((c) => c.instanceId === b.instanceId)
     );
-    for (const entry of this.entries) this.root.appendChild(entry.element);
 
     this.refreshPlayability();
     this.applyKeyboardFocus();
@@ -173,6 +191,26 @@ export class HandBar {
     const element = document.createElement("div");
     element.className = "hand-card";
     element.dataset["instanceId"] = instanceId;
+    /**
+     * The entrance is armed **once**, on the card that is genuinely new.
+     *
+     * `.hand-card` used to carry `animation: hand-card-in` unconditionally, so
+     * anything that reset the element's animations — a DOM move, a class change
+     * that changed which rule matched — replayed it. Gating on an attribute that
+     * is set here and cleared the moment the animation finishes means a card
+     * that has been in the hand for three turns has no entrance animation to
+     * restart at all, which is a stronger guarantee than being careful about
+     * when we touch it.
+     */
+    element.dataset["new"] = "";
+    element.addEventListener(
+      "animationend",
+      (event) => {
+        if ((event as AnimationEvent).animationName !== "hand-card-in") return;
+        delete element.dataset["new"];
+      },
+      { capture: true }
+    );
 
     // renderCardToCanvas sets an inline width/height for standalone use; the
     // hand sizes its cards from the bar height in CSS, and inline styles would

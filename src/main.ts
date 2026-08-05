@@ -34,6 +34,11 @@ import { autoBuildDeck } from "./engine/deck";
 import { Shell, watchOrientation } from "./ui/shell";
 import { mountAtmosphere } from "./ui/atmosphere";
 import { startIntro } from "./ui/intro";
+import {
+  setMatchBillingProvider,
+  type MatchBilling,
+  type MatchSide,
+} from "./ui/intro/matchCurtain";
 import { createLobbyScreen } from "./ui/screens/lobbyScreen";
 import { createPlayScreen } from "./ui/screens/playScreen";
 import { createShopScreen } from "./ui/screens/shopScreen";
@@ -95,7 +100,7 @@ import { createPrivacyScreen } from "./ui/screens/privacyScreen";
 import { createLegalScreen } from "./ui/screens/legalScreen";
 import { createSupportScreen } from "./ui/screens/supportScreen";
 import { createA11yScreen } from "./ui/screens/a11yScreen";
-import type { AiDifficulty, ContentIndex, DeckList, FactionId } from "./engine/types";
+import type { AiDifficulty, CardDef, ContentIndex, DeckList, FactionId } from "./engine/types";
 
 /** Clout per tutorial stage, per docs/design/09-game-modes.md section 2.3. */
 const TUTORIAL_CLOUT_PER_STAGE = 100;
@@ -197,6 +202,191 @@ function clearBootPlate(): void {
   window.setTimeout(() => document.getElementById("hb-boot-plate")?.remove(), 600);
 }
 
+/**
+ * Answer "who would this hash deal?" for the curtain that covers a match load.
+ *
+ * `src/ui/intro/matchCurtain.ts` draws the two leaders on the closed panels and
+ * explains at length why it cannot look them up itself: the shell raises the
+ * curtain *before* it calls the route's factory, so at the moment the cover
+ * exists the battle screen does not and nobody has chosen an opponent. This file
+ * is the only one that holds the content index and all ten battle routes'
+ * deck-selection rules at once, so this is where the question is answered.
+ *
+ * **Nothing here may have a side effect**, and that is the constraint that
+ * decides how much each route can say. `#battle` and `#boss` pick their decks
+ * from pure reads and can be billed completely. `#gauntletfight` and
+ * `#doomfight` only learn their opponent from `enterFight`/`startFight`, which
+ * *advance the run* — calling either here would count a fight that the player
+ * might never enter — so they bill the player's own side and the mode, and the
+ * away plate is simply absent. A half-billed curtain is a lit, roomed cover with
+ * one leader and a mode rule on it; the alternative was 6.4 seconds of black.
+ *
+ * Every branch is inside one `try`. A billing card is decoration and a provider
+ * that throws must not be able to stop somebody entering a match — `billingFor`
+ * catches too, and this is the belt to its braces so a single bad route id
+ * cannot cost the other nine their portraits.
+ */
+function registerMatchBilling(content: ContentIndex): void {
+  const leaderCard = (id: string | null | undefined): CardDef | null =>
+    id ? (content.leaders[id] ?? content.cards[id] ?? null) : null;
+
+  /** The deck this account would actually be dealt, without touching the save. */
+  const ownDeck = (): DeckList => playableDeck(content, selectableLeaders(content)[0]?.id ?? "");
+
+  const side = (card: CardDef | null, label: string, detail?: string): MatchSide | null =>
+    card ? { card, label, ...(detail !== undefined && detail !== "" ? { detail } : {}) } : null;
+
+  const homeSide = (deck: DeckList, label = "YOUR LEADER"): MatchSide | null =>
+    side(leaderCard(deck.leaderCardId), label, deck.name);
+
+  /** The same "a different leader from the same pool" rule the routes use. */
+  const rivalLeader = (mineId: string): CardDef | null => {
+    const ids = selectableLeaders(content).map((leader) => leader.id);
+    return leaderCard(ids.find((id) => id !== mineId) ?? mineId);
+  };
+
+  const stageOf = (encounterId: string, index: number) => {
+    const encounter = getEncounters(new Set(Object.keys(content.cards)))[encounterId];
+    const stage = encounter?.stages[index];
+    return encounter && stage ? { encounter, stage } : null;
+  };
+
+  setMatchBillingProvider((routeId, params): MatchBilling | null => {
+    try {
+      switch (routeId) {
+        case "battle": {
+          const difficulty = params.get("difficulty") ?? "casual";
+          const tourFaction = params.get("tour") as FactionId | null;
+          const loaner = tourFaction ? loanerDeckFor(content, tourFaction) : null;
+          const touring = loaner !== null && !getProfile().unlockedFactions.includes(tourFaction);
+          // Read, never consumed: the factory below is the one that claims it.
+          const draft = params.get("test") === "1" ? testDeck : null;
+          const deck = draft ?? (touring ? loaner : null) ?? ownDeck();
+          const away = touring
+            ? leaderCard(tourOpponentDeck(content, tourFaction)?.leaderCardId) ??
+              rivalLeader(deck.leaderCardId)
+            : rivalLeader(deck.leaderCardId);
+          return {
+            away: side(away, touring ? "TOUR RIVAL" : "RIVAL"),
+            home: homeSide(deck, touring ? "LOANER DECK" : draft ? "TEST DECK" : "YOUR LEADER"),
+            mode: touring ? "GRAND TOUR" : `${difficulty.toUpperCase()} MATCH`,
+          };
+        }
+
+        case "tutorial": {
+          const found = stageOf("tutorial", Math.max(0, Number(params.get("stage") ?? "1") - 1));
+          if (!found) return null;
+          const rival = found.encounter.decks[found.stage.decks[1] ?? ""];
+          return {
+            away: side(leaderCard(rival?.leaderCardId), "TRAINER", found.stage.title),
+            home: homeSide(ownDeck()),
+            mode: "TUTORIAL",
+          };
+        }
+
+        case "puzzle": {
+          const index = Math.max(0, Number(params.get("n") ?? "1") - 1);
+          const found = stageOf("puzzles", index);
+          if (!found) return null;
+          const mine = found.encounter.decks[found.stage.decks[0] ?? ""];
+          const rival = found.encounter.decks[found.stage.decks[1] ?? ""];
+          return {
+            away: side(leaderCard(rival?.leaderCardId), "THE PROBLEM", found.stage.title),
+            home: side(leaderCard(mine?.leaderCardId), "YOU PLAY", `Puzzle ${index + 1}`),
+            mode: "PUZZLE RUSH",
+          };
+        }
+
+        case "boss": {
+          const now = Date.now();
+          const boss = bossById(params.get("boss"), now);
+          const tier = tierById(params.get("tier") ?? "normal");
+          return {
+            away: side(leaderCard(boss.leaderCardId), "THIS WEEK'S BOSS", boss.name),
+            home: homeSide(ownDeck()),
+            mode: `WEEKLY BOSS — ${tier.name.toUpperCase()}`,
+          };
+        }
+
+        case "remix": {
+          const modifier = modifierById(params.get("rule"), Date.now());
+          const deck = ownDeck();
+          return {
+            away: side(rivalLeader(deck.leaderCardId), "REMIX RIVAL", modifier.name),
+            home: homeSide(deck),
+            mode: "REMIX",
+          };
+        }
+
+        case "custombattle": {
+          if (!customSettings) return null;
+          const { settings, deckIndex } = customSettings;
+          const deck = getProfile().decks[deckIndex] ?? ownDeck();
+          const other =
+            settings.opponent === "hotseat" ? getProfile().decks[deckIndex === 0 ? 1 : 0] : null;
+          return {
+            away: other
+              ? side(leaderCard(other.leaderCardId), "PLAYER TWO", other.name)
+              : side(rivalLeader(deck.leaderCardId), "RIVAL"),
+            home: homeSide(deck, settings.opponent === "hotseat" ? "PLAYER ONE" : "YOUR LEADER"),
+            mode: "CUSTOM MATCH",
+          };
+        }
+
+        case "storybattle": {
+          const pending = pendingBattle();
+          const found = pending ? findEpisode(content, pending.chapterId, pending.episodeId) : null;
+          const step = found && pending ? found.episode.steps[pending.pc] : null;
+          if (!pending || !found || !step || step.s !== "battle") return null;
+          const setup = storyMatchSetup(content, step.battle, { assist: pending.assist });
+          return {
+            away: side(leaderCard(setup.aiDeck.leaderCardId), "OPPONENT", found.episode.title),
+            home: homeSide(setup.playerDeck),
+            mode: found.chapter.title.toUpperCase(),
+          };
+        }
+
+        /**
+         * The two run modes bill one side.
+         *
+         * `enterFight` and `startFight` are what name the opponent, and both
+         * write to the run — so asking them here would count an entry against a
+         * curtain the player has not finished walking through.
+         */
+        case "gauntletfight": {
+          const run = activeGauntlet();
+          if (!run?.leaderCardId) return null;
+          return {
+            away: side(leaderCard(run.pending?.enemyLeaderCardId), "NEXT UP"),
+            home: side(leaderCard(run.leaderCardId), "YOUR DRAFT", `Round ${(run.wins ?? 0) + 1}`),
+            mode: "GAUNTLET",
+          };
+        }
+
+        case "doomfight": {
+          const run = activeRun();
+          if (!run?.leaderCardId) return null;
+          return {
+            away: null,
+            home: side(leaderCard(run.leaderCardId), "YOUR RUN", `Depth ${run.depth ?? 1}`),
+            mode: "DOOMSCROLL",
+          };
+        }
+
+        /** Nobody is dealt yet — the server picks the opponent while this holds. */
+        case "online":
+          return { away: null, home: homeSide(activeDeck() ?? ownDeck()), mode: "ONLINE MATCH" };
+
+        default:
+          return null;
+      }
+    } catch (error) {
+      console.warn("[main] could not bill a match", error);
+      return null;
+    }
+  });
+}
+
 function boot(): void {
   applySettings();
   watchOrientation();
@@ -267,6 +457,8 @@ function boot(): void {
   if (!host) throw new Error("#app host element is missing");
 
   const shell = new Shell(host).setFallback("lobby");
+
+  registerMatchBilling(content);
 
   /**
    * A brand-new account has no cards at all until it picks a starting faction,
