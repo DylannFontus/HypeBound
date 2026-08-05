@@ -201,16 +201,16 @@ export function createNewsScreen(
           </button>
         </nav>
 
-        <section class="panel panel-chrome news-list-panel">
+        <section class="mat-panel news-list-panel">
           <div class="t-label news-list-count">
             ${quantify(visible.length, "article")}${unread > 0 ? ` · ${count(unread)} unread` : ""}
           </div>
           <ul class="news-list" id="news-list">${visible.map(row).join("")}</ul>
         </section>
 
-        <section class="panel panel-chrome news-reader" id="news-reader">${reader(open)}</section>
+        <section class="mat-panel news-reader" id="news-reader">${reader(open)}</section>
 
-        <section class="panel panel-chrome news-note">
+        <section class="mat-panel news-note">
           <h3 class="t-heading">About this feed</h3>
           <p class="t-body">
             Offline, the feed is a file shipped with the build — there is no live service behind

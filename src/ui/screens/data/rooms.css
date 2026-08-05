@@ -998,7 +998,7 @@
  * page to the picture above it without touching a contrast ratio.
  */
 .events-screen .event-play {
-  min-height: 40px;
+  min-height: max(40px, var(--touch-min));
   padding: 9px var(--sp-4);
   font-weight: 700;
 }
@@ -2626,9 +2626,19 @@
   gap: var(--sp-4);
 }
 
+/**
+ * The grab area, and why the 26px is written as a floor rather than a height.
+ *
+ * `foundation.css` grows a range input to 44px under a coarse pointer by
+ * raising `--slider-h`, and this rule was quietly cancelling it — a `.settings-
+ * screen .setting-slider` scores 0,2,0 against the primitive's 0,1,0, so six
+ * volume sliders measured 30×614 on every touch viewport. The track is still
+ * 12px and still looks like a 26px control on a mouse; only the area a thumb
+ * has to land in grows.
+ */
 .settings-screen .setting-slider {
   flex: 1 1 auto;
-  --slider-h: 26px;
+  --slider-h: max(26px, var(--touch-min));
 }
 
 .settings-screen .setting-output {

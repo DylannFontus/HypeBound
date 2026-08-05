@@ -241,7 +241,7 @@ export function createInboxScreen(content: ContentIndex, callbacks: InboxCallbac
       </header>
 
       <main class="inbox-body data-body data-wide">
-        <section class="panel panel-chrome inbox-list-panel">
+        <section class="mat-panel inbox-list-panel">
           <div class="inbox-list-head">
             <div>
               <div class="t-label">System mail</div>
@@ -264,9 +264,9 @@ export function createInboxScreen(content: ContentIndex, callbacks: InboxCallbac
           <ul class="mail-list" id="mail-list">${views.map(listRow).join("")}</ul>
         </section>
 
-        <section class="panel panel-chrome inbox-reader" id="inbox-reader">${reader(open)}</section>
+        <section class="mat-panel inbox-reader" id="inbox-reader">${reader(open)}</section>
 
-        <section class="panel panel-chrome inbox-deferred">
+        <section class="mat-panel inbox-deferred">
           <h3 class="t-heading">Who cannot write to you yet</h3>
           <p class="t-body">
             Offline, the game itself is the only sender. Everyone else is listed here with the

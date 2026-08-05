@@ -885,7 +885,12 @@
  * rides the figure.
  */
 .d-stat-qual {
-  font-size: 0.85em;
+  /* 0.85em of a `--fs-xs` label is 9.8px, which is under the 11px legibility
+     floor and was one of the three sub-11px sizes this overhaul introduced.
+     The ratio is kept — it is what makes the qualifier read as a qualifier —
+     and floored, so it only gives up its relative size at 100% and below,
+     where there is nothing left to give up. */
+  font-size: max(var(--fs-micro), 0.85em);
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: none;
@@ -1107,7 +1112,11 @@ th.num {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  min-height: 34px;
+  /* 34px is the mark's geometry on a mouse; `--touch-min` is base.css's 44px
+     floor, which is 0 here and 44px on a finger. A plain `34px` scores 0,1,0
+     and beats the element-level floor, which is how this row's only action came
+     to be under the touch minimum on all three phone viewports. */
+  min-height: max(34px, var(--touch-min));
   padding: 7px var(--sp-3) 7px var(--sp-4);
   border-radius: var(--r-chip);
   font-family: var(--font-display);
@@ -1166,7 +1175,7 @@ th.num {
   --lip-a: 0.28;
   --sheen-alpha: 0.1;
   --sheen-hover: 0.22;
-  min-height: 34px;
+  min-height: max(34px, var(--touch-min)); /* same floor as `.d-go` above */
   padding: 7px var(--sp-4);
   font-family: var(--font-display);
   font-weight: 700;

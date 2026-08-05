@@ -277,7 +277,7 @@ function commentsInEnclosingRule(sheet: string, line: number): string[] {
 const JUSTIFIED: readonly { sheet: string; line: number; source: string; reason: string }[] = [
   {
     sheet: "foundation.css",
-    line: 382,
+    line: 387,
     source: "45deg",
     reason:
       "--chevron-arm-l. Every stop is either `transparent` or the ink, and every " +
@@ -287,7 +287,7 @@ const JUSTIFIED: readonly { sheet: string; line: number; source: string; reason:
   },
   {
     sheet: "foundation.css",
-    line: 2955,
+    line: 3040,
     source: "45deg",
     reason: "The same chevron arm, restated a hair heavier under data-contrast=\"high\".",
   },

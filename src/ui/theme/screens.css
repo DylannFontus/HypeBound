@@ -377,7 +377,7 @@
   right: -5px;
   min-width: 17px;
   height: 17px;
-  font-size: 10px;
+  font-size: var(--fs-micro);
 }
 
 .lobby-cog:hover,
@@ -900,12 +900,48 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
  * instead of the single centred word that a round-4 critic called "the flattest
  * thing in any frame I captured".
  */
+/**
+ * …and the row height is stated in the units the tile is actually made of.
+ *
+ * `clamp(58px, 10.8vh, 106px)` sizes the row against the *window* and fills it
+ * with type sized against the *root font*, which is fine until somebody turns
+ * the interface scale up — at which point the box stands still while everything
+ * inside it grows. At `--ui-scale: 1.4` on a 1280×720 laptop the nine tiles
+ * wanted 320px and were given 257, and the result was not truncation: the
+ * subtitle was sliced horizontally through its x-height, so "Every card you
+ * own" showed as a row of ascender tips. At 1.6 it was gone altogether. The
+ * lobby is the most-visited screen in the game and 140% is a step the
+ * accessibility screen itself advertises.
+ *
+ * So the row is the larger of the window-relative size (which still governs a
+ * big display, where it is right) and the tile's own contents: 2.05rem of type
+ * — one label line and one hint line, or two label lines, which measure the
+ * same — plus 56px of mark, gaps and padding, which are `px` because that is
+ * what they are at every scale. Measured against the browser's own answer for
+ * what each tile wants at 100/125/140/160% on three window sizes; the tightest
+ * case is 1600×900 at 140%, which needs 100.4px and now gets 101.9.
+ *
+ * At 100% on a 720p laptop this makes the row 89px rather than 77.8 — the old
+ * value was two pixels short of its own descenders — and the actions column has
+ * 177px of slack there, so nothing else moves.
+ */
 .lobby-nav {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: clamp(58px, 10.8vh, 106px);
+  grid-auto-rows: max(clamp(58px, 10.8vh, 106px), calc(2.05rem + 56px));
   gap: var(--sp-3);
   min-height: 0;
+  /**
+   * A container, so the grid can answer one question about itself: is it wide
+   * enough for its own type? A container query's `em` resolves against the
+   * container's own font size, which makes an `em` threshold the only
+   * scale-aware test CSS can state — no media query can see `--ui-scale`, and
+   * a `px` threshold would be wrong at every combination of window and scale.
+   * `inline-size` rather than `size`: the width comes from the column, but the
+   * height has to stay free to be whatever the rows above add up to.
+   */
+  container-type: inline-size;
+  container-name: lobbynav;
 }
 
 .lobby-nav-btn {
@@ -1085,21 +1121,68 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
   font-family: var(--font-display);
   font-size: var(--fs-sm);
   font-weight: 600;
-  line-height: 1.15;
+  line-height: 1.2;
   letter-spacing: -0.005em;
   position: relative;
+  /**
+   * "Achievements" is one word and cannot wrap, so at 140% it simply ran past
+   * the tile and the tile's `overflow: hidden` cut it vertically through the
+   * stems — the horizontal version of the same razor. Breaking is the lesser
+   * evil, and with the document's `lang="en"` the browser breaks it at a
+   * hyphen rather than mid-syllable.
+   *
+   * `max-width` is the load-bearing half. The tile lays its rows out with
+   * `justify-items: start`, so the label is sized `fit-content` — and the
+   * fit-content of an unbreakable word is the whole word, grid area or not.
+   * Capping it at the area is what forces the line to break at all;
+   * `break-word` is then only the fallback for a word with no hyphenation
+   * point, so "Achievements" comes apart at "Achieve-" rather than wherever
+   * the pixel ran out.
+   */
+  max-width: 100%;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .lobby-nav-hint {
   grid-row: 3;
   font-size: var(--fs-xs);
   color: var(--text-faint);
-  line-height: 1.2;
+  /* 1.2 was tighter than the face's own descenders: with the tile clipping its
+     overflow, the tail of the "y" in "Every card you own" was shaved at 100%
+     before the interface scale was touched at all. */
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
   position: relative;
+}
+
+/**
+ * The hint stands down before the label has to break.
+ *
+ * Two label lines and one hint line do not both fit, and of the two the label
+ * is the navigation and the hint is the gloss. 20em is measured rather than
+ * chosen: the grid is 26.7em wide at 1280×720 and 100%, 21.4em at 125% and
+ * 19.1em at 140% — and 140% is exactly where "Deck Builder" and "Merch Drops"
+ * stop fitting on one line. Because the threshold is in `em` it moves with the
+ * type rather than with the window, so a 1600×900 display at 140% (24.2em)
+ * keeps its subtitles and a 720p laptop does not.
+ *
+ * The padding gives way one step earlier, at 22em, and the two thresholds are
+ * deliberately not the same number. Four pixels a side is not much, but the
+ * longest label in the grid — "Achievements", one unbreakable word — measures
+ * 113px against 108px of tile at 125%, so those four pixels are the whole
+ * difference between one line and a word split in half, at a step where the
+ * subtitle still fits and should still be there.
+ */
+@container lobbynav (max-width: 22em) {
+  .lobby-nav-btn { padding-inline: var(--sp-2); }
+}
+
+@container lobbynav (max-width: 20em) {
+  .lobby-nav-hint { display: none; }
 }
 
 /**
@@ -1411,10 +1494,22 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
    them — which is the same defect this screen used to have at the page level.
    `minmax(54px, 1fr)` means they stretch when there is room and shrink to a
    readable floor and scroll when there is not. */
+/**
+ * …and the 54px floor has to know how big the type is.
+ *
+ * Same defect as the lobby's tile grid, one screen over: a `px` row floor
+ * holding two lines of `rem`. At `--ui-scale: 1.6` the row stayed 54px while
+ * the name and the blurb grew 60%, and the list razored its own subtitles —
+ * "This Week's Meta: one global…" cut through the descenders on nine of eleven
+ * rows. The second term is the row's contents measured against the browser: the
+ * name line and the blurb line in `rem`, plus 11px of padding and gap in `px`.
+ * It is under 54 at 100% and 125%, so nothing about this screen moves until the
+ * scale is turned up past the point where it was already broken.
+ */
 .mode-tail-list {
   display: grid;
   flex: 1 1 auto;
-  grid-auto-rows: minmax(54px, 1fr);
+  grid-auto-rows: minmax(max(54px, calc(2.3rem + 11px)), 1fr);
   gap: var(--sp-2);
   min-height: 0;
   overflow-y: auto;
@@ -2868,7 +2963,7 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
   line-height: 1;
   transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
-.doom-node-label { font-size: 10px; letter-spacing: 0.04em; text-align: center; }
+.doom-node-label { font-size: var(--fs-micro); letter-spacing: 0.04em; text-align: center; }
 
 .doom-node-open { color: var(--text); cursor: pointer; }
 .doom-node-open .doom-node-icon { border-color: var(--accent); box-shadow: var(--glow-accent); }
@@ -5287,7 +5382,11 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   right: 4px;
   width: 26px;
   height: 26px;
-  min-height: 0;
+  /* Not `0`. A bare `min-height: 0` here scores 0,1,0 and beat the touch floor
+     on every phone — and it was cancelling nothing on a mouse, where the floor
+     does not apply in the first place. `--touch-min` is 0 on a mouse and 44px
+     on a finger, which is what the zero was reaching for. */
+  min-height: var(--touch-min);
   padding: 0;
   border-radius: 50%;
   border: 1px solid var(--glass-border);
@@ -6270,7 +6369,10 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 /* `min-width: 0` on the control and on the panel: an `<input>` carries an
    intrinsic width of about twenty characters, which at 1.4× ui-scale is wider
    than the column it lives in and is what the grid was being stretched by. */
-.signin-field .field { min-height: 46px; font-size: var(--fs-md); min-width: 0; width: 100%; }
+/* `--min-h` rather than `min-height`, because base.css's touch floor owns
+   `min-height` on a form control and a plain 46 here would be flattened to 44
+   on a phone. This is how a control asks to be taller than the floor. */
+.signin-field .field { --min-h: 46px; min-height: var(--min-h); font-size: var(--fs-md); min-width: 0; width: 100%; }
 .signin-panel, .signin-stage, .queue-call { min-width: 0; }
 
 .signin-actions { display: flex; flex-direction: column; gap: var(--sp-2); align-items: stretch; }

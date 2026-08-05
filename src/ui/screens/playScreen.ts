@@ -38,6 +38,8 @@ import { activeGauntlet } from "../../save/gauntletSave";
 import { icon, modeIcon, type IconId } from "../art/uiIcons";
 import { paintLeaderPortrait, paintVenue } from "../art/leaderPortrait";
 import { stagger } from "../motion";
+import { artAttr, paintArt } from "./data/kit";
+import type { EmblemShape } from "../cosmetics/emblem";
 
 export interface PlayCallbacks {
   onStartAiMatch: (difficulty: AiDifficulty) => void;
@@ -81,6 +83,17 @@ interface ModeCard {
   /** One hue per mode, used on the icon and its watermark and nowhere else. */
   accent: string;
   /**
+   * The mark the mode's poster is patterned with, and the reason a tile has a
+   * picture at all.
+   *
+   * Only the ranked tiles use it — a tail row is a row. `bracket` and `sunrise`
+   * exist in `EMBLEMS` explicitly as the Gauntlet's and the tutorial's, so two
+   * of these were already decided before this field did; the rest read the mode
+   * rather than the faction, because these are places and activities and not
+   * factions.
+   */
+  emblem?: EmblemShape;
+  /**
    * Required for `status: "online"`, and the reason this field exists.
    *
    * `../../docs/design/03-screens-and-navigation.md` §"Presentation rule for
@@ -99,9 +112,27 @@ interface ModeCard {
 }
 
 const MODES: ModeCard[] = [
-  { id: "ai", name: "Practice vs AI", blurb: "Six difficulty tiers, offline, no timer pressure.", status: "available", tier: "feature", accent: "#b56cff" },
-  { id: "tutorial", name: "Interactive Tutorial", blurb: "Learn Hype, combat, Currents and Confluences.", status: "available", tier: "feature", accent: "#52c8ff" },
-  { id: "tour", name: "The Grand Tour", blurb: "Win with a faction's loaner deck and keep it.", status: "available", tier: "feature", accent: "#ffd166" },
+  { id: "ai", name: "Practice vs AI", blurb: "Six difficulty tiers, offline, no timer pressure.", status: "available", tier: "feature", accent: "#b56cff", emblem: "visor" },
+  { id: "tutorial", name: "Interactive Tutorial", blurb: "Learn Hype, combat, Currents and Confluences.", status: "available", tier: "feature", accent: "#52c8ff", emblem: "sunrise" },
+  /*
+   * `#ffd86b` and `#4fe3d0` (below) rather than `#ffd166` and `#5fe0a8`, and
+   * the reason is that these hues stopped being decoration.
+   *
+   * A mode accent used to tint an icon and a corner wash; it is now the colour
+   * of the mode's whole poster, which makes an off-palette accent a full tile of
+   * a hue the game does not own. Of the modes that can reach a ranked slot,
+   * `ai`, `tutorial` and `casual` are already `--accent`, `--accent-cool` and
+   * `--accent-hot` on the nose; these two were the only ones that were not, so
+   * they snap to `--current-halo` and `--current-gale`. (`roguelike` is still
+   * off-token at `#ff7a5f` and stays that way: four features are taken by
+   * `ai`/`tutorial`/`tour`/`draft` or `tutorial`/`tour`/`casual`/`draft`, so it
+   * only ever appears as a 18px mark in the tail.)
+   *
+   * The Gauntlet is the one that mattered. At `#5fe0a8` it was hue 152°, within
+   * seven degrees of the lime this wave has just taken off the hand — and a
+   * poster is a whole tile of it.
+   */
+  { id: "tour", name: "The Grand Tour", blurb: "Win with a faction's loaner deck and keep it.", status: "available", tier: "feature", accent: "#ffd86b", emblem: "laurel" },
   {
     id: "casual",
     name: "Casual Match",
@@ -109,6 +140,7 @@ const MODES: ModeCard[] = [
     status: "online",
     tier: "feature",
     accent: "#ff5fa2",
+    emblem: "signal",
     explainer: [
       "Casual pairs you with another player for an unranked match: no divisions, no placements, nothing to lose. It widens who it will consider the longer you wait, and after four minutes it offers you a match against the AI instead — an offer, not a swap, and never a bot pretending to be a person.",
       "The match server that runs it is written and tested, but this build has no server configured, so there is nothing to connect to. Rather than show you a queue that spins for ever, this tile says so.",
@@ -132,7 +164,8 @@ const MODES: ModeCard[] = [
     blurb: "Draft a deck pick by pick, then ride it to 12 wins or 3 losses.",
     status: "available",
     tier: "feature",
-    accent: "#5fe0a8",
+    accent: "#4fe3d0",
+    emblem: "bracket",
   },
   {
     id: "remix",
@@ -150,7 +183,7 @@ const MODES: ModeCard[] = [
     tier: "tail",
     accent: "#a49cc2",
   },
-  { id: "roguelike", name: "The Doomscroll", blurb: "Branching run: temporary deck, artifacts, health that carries.", status: "available", tier: "feature", accent: "#ff7a5f" },
+  { id: "roguelike", name: "The Doomscroll", blurb: "Branching run: temporary deck, artifacts, health that carries.", status: "available", tier: "feature", accent: "#ff7a5f", emblem: "spiral" },
   { id: "story", name: "Story Chapters", blurb: "Leader campaigns with dialogue and choices.", status: "available", tier: "tail", accent: "#c77dff" },
   { id: "puzzle", name: "Puzzle Battles", blurb: "Find the exact lethal line.", status: "available", tier: "tail", accent: "#8fd6a0" },
   { id: "replays", name: "Replay Theater", blurb: "Watch your recent matches back, step by step.", status: "available", tier: "tail", accent: "#9fb4ff" },
@@ -163,8 +196,132 @@ function markFor(id: string): IconId {
   return modeIcon(id) ?? "play";
 }
 
+/* -------------------------------------------------------------------------
+   One treatment for all five ranked tiles
+   ------------------------------------------------------------------------- */
+
+/**
+ * Five tiles, two treatments, one row — which is what a screenshot of this
+ * screen showed and what this section removes.
+ *
+ * Casual Match carried a full-bleed painting of the leader you were about to
+ * play. The four beside it — Practice vs AI, Interactive Tutorial, The Grand
+ * Tour, The Gauntlet — carried a corner icon, a line of type at the foot and,
+ * between them, roughly 55% of the tile filled with nothing but a gradient. Two
+ * of those are a design; both of them on one row is an unfinished screen, and
+ * the eye goes to the one with a picture on it whether or not that is the mode
+ * you want.
+ *
+ * So all five carry a picture now. The hero keeps the painting, because the
+ * leader of the deck you would actually take into that match is the most
+ * specific thing this screen knows and no generated plate can beat it. The four
+ * features get **key art** — `art.ts`'s `banner()`, the same generator the event
+ * hub's hero plate is drawn with, in the mode's own hue and patterned with the
+ * mode's own emblem. Composition, scrim, plate, type and hover all become the
+ * same on all five; what differs is rank and subject, which is what differs
+ * between MTG Arena's featured event and its format tiles.
+ *
+ * ## Why generated art and not a fifth photograph
+ *
+ * The obvious alternative was `paintVenue`, which would have given four painted
+ * rooms. The boards are **3840×2160** — 33MB of decoded bitmap each, held for
+ * the session by the asset cache — so four of them is 130MB of texture memory
+ * and about 2MB of transfer, on a *menu*, to decorate four tiles. §9's frame
+ * floors are not negotiable and a phone is the case that would pay for it.
+ * `banner()` costs one canvas, is memoised by argument, and ships no bytes.
+ *
+ * ## Why it is painted late
+ *
+ * Straight into `innerHTML` these run inside the frame that mounts the screen —
+ * the same frame the shell's descend and the entrance cascade need — which is
+ * exactly the stall `kit.ts` documents at 727ms on the Grand Tour. `artAttr` +
+ * `paintArt` is that file's answer: the recipe rides on a `data-art` attribute,
+ * the sockets show `[data-art]`'s recess in the meantime, and one mark is drawn
+ * per frame once the navigation has landed.
+ *
+ * ## Why the sheet is here rather than in `screens.css`
+ *
+ * `screens.css` owns `.mode-*` and is being worked on elsewhere this wave. These
+ * six rules are additive and scoped to `.play-screen`; fold them into §"the four
+ * features" whenever the two files are in one pair of hands.
+ */
+const TILE_ART_STYLE_ID = "hb-mode-tile-art";
+
+const TILE_ART_CSS = `
+/* The picture, in the same slot and at the same depth as the hero's canvas. */
+.play-screen .mode-art-plate {
+  position: absolute;
+  inset: 0;
+  background-image: var(--key-art);
+  background-size: cover;
+  background-position: var(--mode-art-pos, 50% 42%);
+  transition: scale var(--dur-setpiece) var(--ease-arrive);
+}
+
+/* Secondary motion, matched to the hero's: the crop pushes in when the tile
+   lifts, so the picture reacts to the pointer rather than the frame sliding
+   over a still. */
+.play-screen .mode-feature:hover .mode-art-plate { scale: 1.035; }
+:root[data-reduced-motion="true"] .play-screen .mode-feature:hover .mode-art-plate { scale: 1; }
+
+/* §4: text over imagery is never raw. The hero's scrim, at the hero's angle,
+   and deeper than the hero's — it starts higher because a feature's type block
+   starts higher, and it is heavier because the hero's picture happens to be
+   dark where its type stands while a poster is a flat wash of the mode's hue
+   with hard line work in it. Measured on The Grand Tour, the tile with the
+   lightest poster: the title reads white-on-45 and the blurb 172-on-45, which
+   is roughly 8.6:1 and 6.1:1. */
+.play-screen .mode-feature::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(0deg, rgb(6 3 14 / 0.96) 0%, rgb(6 3 14 / 0.8) 34%, rgb(6 3 14 / 0.12) 72%);
+}
+
+/* The hue wash sat at 32% over an empty gradient, which was most of what the
+   tile had. Over a picture the same wash is a colour cast on somebody's key
+   art, so it steps back to a rim of light in the corner the key comes from and
+   lets the poster carry the middle. */
+.play-screen .mode-feature .mode-wash {
+  background:
+    radial-gradient(58% 66% at 4% 0%, color-mix(in srgb, var(--tile-accent) 26%, transparent), transparent 72%),
+    linear-gradient(var(--light-sweep, 135deg), color-mix(in srgb, var(--tile-accent) 9%, transparent), transparent 58%);
+}
+`;
+
+function installTileArt(doc: Document | undefined = globalThis.document): void {
+  if (!doc || doc.getElementById(TILE_ART_STYLE_ID)) return;
+  const style = doc.createElement("style");
+  style.id = TILE_ART_STYLE_ID;
+  style.textContent = TILE_ART_CSS;
+  doc.head.append(style);
+}
+
+/**
+ * The poster for one mode, as a deferred recipe rather than as a drawing.
+ *
+ * A fixed size rather than the tile's own, because `banner` memoises on its
+ * arguments: one plate per mode for the session instead of one per breakpoint.
+ * `cover` does the rest, and nobody reads a pixel of a poster.
+ *
+ * **820×1120, and the aspect is the whole reason.** `banner` sets its emblem
+ * pitch at `0.42 × min(w, h)`, so a plate the shape of the event hub's wide hero
+ * puts a 235px emblem into a 280px-wide tile and the poster reads as three
+ * enormous outlines rather than as a texture. Matching the tile's own portrait
+ * aspect drops the same mark to about 120px on screen, and 0.05 alpha takes it
+ * the rest of the way from a drawing to a watermark — §1 asks for texture at
+ * 2–6%, not for a second icon.
+ */
+function posterAttr(mode: ModeCard): string {
+  return artAttr("key", [mode.accent, 820, 1120, `mode-${mode.id}`, mode.emblem ?? "diamond", 0, 0.05]);
+}
+
 
 export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks): Screen {
+  installTileArt();
   const deck = activeDeck();
   const profile = getProfile();
 
@@ -417,13 +574,14 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
      * become an illustration by being scaled, and then this branch did it again
      * one rank down.
      *
-     * What replaces it is light rather than another drawing: the mode's hue
-     * arrives as a lit corner and a 135° fall across the plate, and a fading
-     * rule marks where the type stands. Nothing here is a second copy of
-     * anything.
+     * What replaced it was light — a lit corner and a 135° fall — and that was
+     * still 55% of the tile with nothing in it, which is how one row ended up
+     * carrying two treatments. What is there now is the poster: same slot, same
+     * scrim, same hover as the hero's painting. See `TILE_ART_CSS`.
      */
     card.innerHTML = `
       <span class="mode-wash" aria-hidden="true"></span>
+      <span class="mode-art" aria-hidden="true"><span class="mode-art-plate" ${posterAttr(mode)}></span></span>
       <span class="mode-plate">${icon(mark, { optical: "hero" })}</span>
       <span class="mode-body">
         <span class="mode-name">${mode.name}</span>
@@ -636,6 +794,18 @@ export function createPlayScreen(content: ContentIndex, callbacks: PlayCallbacks
 
   root.querySelector("#play-back")?.addEventListener("click", () => callbacks.onBack());
 
+  /**
+   * The posters, off the frame that mounted the screen.
+   *
+   * `paintArt` hands back its own cancel, and it is wired to `dispose` rather
+   * than dropped: the drain holds a `requestAnimationFrame` and an
+   * `IntersectionObserver` over elements that a navigation away is about to
+   * detach, and four canvas encodes for a screen nobody is looking at is
+   * exactly the kind of work that shows up as jank on the screen they *are*
+   * looking at.
+   */
+  const stopArt = paintArt(root);
+
   void profile;
-  return { root };
+  return { root, dispose: stopArt };
 }

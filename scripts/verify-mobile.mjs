@@ -20,6 +20,23 @@
  *
  * What it cannot do is feel a real finger, judge a real screen's contrast, or
  * report thermals. Those stay in the gap.
+ *
+ * ## The settle, and the sixth instrument that lied
+ *
+ * This used to measure 250ms after the screen root appeared, which was fine
+ * until the visual overhaul gave every screen the staggered entrance §3a of the
+ * bar demands. `getBoundingClientRect` returns the *visual* box, so a row that
+ * arrives from `scale: 0.985` scales its whole subtree — and a button sitting
+ * exactly on the 44px floor measures 43.4 and is rounded to 43. Eight controls
+ * on `#missions` and three on `#shop` were reported as under-size targets whose
+ * resting boxes are 390×44; the reading was a photograph of an animation, not
+ * of a control. Waiting cannot hide a genuine failure, because a `min-height`
+ * that is too small is too small at rest as well.
+ *
+ * So it waits for the entrance to finish rather than for a fixed number of
+ * milliseconds. `iterations !== Infinity` is the load-bearing half: the idle
+ * layer — ambient drift, specular crawl, the breathing hero — never stops, and
+ * waiting for zero animations would simply time out on every screen.
  */
 import { chromium, devices } from "playwright-core";
 import path from "node:path";
@@ -69,6 +86,23 @@ const browser = await chromium.launch({
   headless: true,
   args: ["--enable-unsafe-swiftshader", "--no-sandbox"],
 });
+
+/** Hold until every finite animation has finished; see the note at the top. */
+const settleEntrance = async (page) => {
+  await page
+    .waitForFunction(
+      () =>
+        document.getAnimations().filter((a) => {
+          if (a.playState !== "running") return false;
+          const timing = a.effect?.getTiming?.();
+          return Boolean(timing) && timing.iterations !== Infinity;
+        }).length === 0,
+      null,
+      { timeout: 6000 }
+    )
+    .catch(() => {});
+  await page.waitForTimeout(250);
+};
 
 let failures = 0;
 const fail = (m) => {
@@ -133,7 +167,7 @@ for (const viewport of VIEWPORTS) {
       fail(`${screen.hash} never rendered`);
       continue;
     }
-    await page.waitForTimeout(250);
+    await settleEntrance(page);
 
     const result = await measure(page);
     if (result.overflow > 2) {

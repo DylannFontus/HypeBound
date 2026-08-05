@@ -101,7 +101,19 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     </header>
 
     <div class="collection-body">
-      <aside class="filter-rail panel" id="filter-rail">
+      <!--
+        The tallest surface on the screen speaks the same language as the tile
+        beside it. It was base.css's plain .panel — one flat glass fill, a
+        single pale-violet 1px hairline on all four edges, one inset highlight
+        and a 20px radius no other surface in the game uses. Measured at
+        268x795, it was a panel lit from four directions at once standing one
+        click away from a lobby tile with a 315-degree rim and a contact
+        shadow, which is the "two suns" defect the foundation contract opens
+        with. Note that the drawer state below 900px keeps its own big
+        directional cast, declared in collectionKit.ts, and therefore replaces
+        the material's inset bevel while the rail is a drawer.
+      -->
+      <aside class="filter-rail mat-panel" id="filter-rail">
         <div class="filter-rail-head">
           ${icon("filter", { size: 15 })}
           <span class="t-label">Filters</span>

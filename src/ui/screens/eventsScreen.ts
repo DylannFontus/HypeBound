@@ -81,6 +81,79 @@ function elapsed(view: EventView, now: number): number {
   return Math.max(0, Math.min(1, (now - start) / (end - start)));
 }
 
+/**
+ * What a banner plate looks like before its picture has been drawn.
+ *
+ * `paintArt` resolves key art off the mounting frame and only within 400px of
+ * the fold, which is right — the alternative measured 385ms of frozen
+ * compositor on arrival at this screen. The cost is that the two rail banners
+ * sit below that margin at 1600×900 and hold their pending state indefinitely,
+ * and the pending state was `rooms.css`'s `background-color: #07040f`: two
+ * 549×309 rectangles of one solid colour, which §1 bans outright on anything
+ * larger than an icon. The census counted both.
+ *
+ * So the socket is lit while it waits, out of the same two ingredients
+ * `art.ts` starts every plate with — a two-stop base along the key vector and a
+ * shaft entering from the top-left corner, in the event's own accent. It goes
+ * into `--key-art` rather than into `background-image` on purpose: that is the
+ * property `paintArt` writes, on this same element's inline style, so the real
+ * banner replaces the placeholder instead of losing a specificity argument with
+ * it. There is no grain here because `.d-key` sizes every layer `cover` and a
+ * grain tile stretched to 549px is not grain; the drawing that lands carries
+ * module B's, which is the version anybody looks at for longer than a frame.
+ */
+const KEY_PENDING =
+  "--key-art:" +
+  "radial-gradient(120% 92% at 12% 0%," +
+  " color-mix(in srgb, var(--event-accent, var(--accent)) 24%, transparent) 0%," +
+  " transparent 62%)," +
+  "linear-gradient(var(--light-sweep)," +
+  " color-mix(in srgb, var(--event-accent, var(--accent)) 18%, rgb(28 19 52)) 0%," +
+  " rgb(7 4 15) 100%)";
+
+/**
+ * The three sections under the banner are plates, and this is what it costs to
+ * say so from here.
+ *
+ * They were `.event-panel .panel` and the census counted all three, but the
+ * class was not what was drawing them: `rooms.css` answers `.events-screen
+ * .event-panel` with `border: none; background: none`, so measured, every one
+ * rendered a background-colour of rgba(0, 0, 0, 0) with a border width of 0.
+ * Event missions and Reward shop were headings with tiles floating under them
+ * on the page background — no group, no plane, and a run of shop rows with
+ * nothing behind them. Mastery's own "Closest rewards" is exactly this shape
+ * and it is a `.mat-panel` holding `.mat-panel` rows; two screens in the same
+ * hub disagreeing about whether a headed group has a surface is the seam this
+ * wave exists to close.
+ *
+ * Adding the class alone does not work, and the failure is worse than the
+ * original: `.mat-panel` is one class, `.events-screen .event-panel` is two, so
+ * `background: none` and `border: none` still win and the section keeps nothing
+ * but the material's cast — a drop shadow with no highlight, which §1 bans by
+ * name. `rooms.css` is another owner's file this wave, so the two cancellations
+ * are answered where they can be answered from here.
+ *
+ * Everything below is a `var()` on module A's own tokens, never a literal, so
+ * the high-contrast and colour-blind modes still reach these surfaces and a
+ * retune of the panel rank still moves them. `background: none` resets the
+ * whole shorthand, which is why size, repeat and origin are restated; `border:
+ * none` resets style, width and colour; and the radius is here because
+ * `screens.css` gives `.event-panel` a 12px one that out-specifies the
+ * material's 18. **Delete this constant the day `rooms.css` drops those two
+ * declarations** — nothing else here depends on it.
+ */
+const EVENT_PLATE =
+  "background-image:var(--mat-grain),var(--mat-fill);" +
+  "background-size:var(--mat-grain-size),100% 100%;" +
+  "background-repeat:repeat,no-repeat;" +
+  "background-origin:border-box;" +
+  "border-style:solid;border-width:1px;" +
+  "border-color:rgb(255 255 255 / var(--rim-a))" +
+  " rgb(0 0 0 / calc(var(--lip-a) * 0.55))" +
+  " rgb(0 0 0 / var(--lip-a))" +
+  " rgb(255 255 255 / calc(var(--rim-a) * 0.5));" +
+  "border-radius:var(--r-panel)";
+
 export function createEventsScreen(callbacks: EventsCallbacks): Screen {
   const root = document.createElement("div");
   root.className = "screen events-screen";
@@ -115,7 +188,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
 
     return `
       <article class="event-card is-live" data-event="${esc(event.id)}" style="--event-accent:${esc(event.accent)}">
-        <div class="d-key event-key" ${key} style="--key-aspect:3.5/1">
+        <div class="d-key event-key" ${key} style="--key-aspect:3.5/1;${KEY_PENDING}">
           <div class="d-key-scrim"></div>
           <div class="d-key-caption">
             <span class="event-tag event-tag-live">${icon("live", 13)} Running now</span>
@@ -174,7 +247,9 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
         </div>
       </article>
 
-      <section class="event-panel panel">
+      <!-- See EVENT_PLATE for why the material arrives half in a class and
+           half in a style attribute. -->
+      <section class="event-panel mat-panel" style="${EVENT_PLATE}">
         <div class="event-panel-head">
           <h3 class="t-heading">Event missions</h3>
           <p class="event-completion">
@@ -222,7 +297,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
         </ul>
       </section>
 
-      <section class="event-panel panel">
+      <section class="event-panel mat-panel" style="${EVENT_PLATE}">
         <div class="event-panel-head">
           <h3 class="t-heading">Reward shop</h3>
           <p class="event-completion">Stock comes back when the event does.</p>
@@ -253,7 +328,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
           : ""
       }
 
-      <section class="event-panel event-locked panel">
+      <section class="event-panel event-locked mat-panel" style="${EVENT_PLATE}">
         <div class="event-panel-head">
           <h3 class="t-heading">Event leaderboard</h3>
         </div>
@@ -278,7 +353,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
       <article class="event-card is-${kind} d-enter" data-event="${esc(event.id)}" style="--event-accent:${esc(
         event.accent
       )}">
-        <div class="d-key event-key" ${key} style="--key-aspect:16/9">
+        <div class="d-key event-key" ${key} style="--key-aspect:16/9;${KEY_PENDING}">
           <div class="d-key-scrim"></div>
           ${currencyMark(view, 26)}
         </div>

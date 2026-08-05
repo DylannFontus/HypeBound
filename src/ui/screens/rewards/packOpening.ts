@@ -76,6 +76,119 @@ import {
 import { installRewardsTheme } from "./rewardsTheme";
 
 /* -------------------------------------------------------------------------
+   the room the reveal happens in
+   ------------------------------------------------------------------------- */
+
+/**
+ * A reveal is a set-piece, and a set-piece owns the screen.
+ *
+ * Photographed over the shop with five cards turning, the screen behind this
+ * overlay was still being read: "The Second Funeral", "Full probability
+ * disclosures" and "Open a free Drop — 5 left" were all legible through it.
+ * Measured off the capture, the shop's headings came back at a luminance of
+ * 4.4–11.2 against a veil of 23.0 — small in absolute terms and *plainly* visible,
+ * because near black is where the eye's contrast sensitivity is highest and
+ * every one of those shapes was still sharp.
+ *
+ * Two things were wrong and only one of them was the number.
+ *
+ * 1. **The veil was 97.2% opaque, not opaque.** `rgb(3 1 8 / 0.972)` lets 2.8%
+ *    of a 232-luminance heading through, which is a value of about six — and six
+ *    on three reads as text. There is nothing behind a pack opening that anybody
+ *    needs, so there is no argument for the remaining 2.8%.
+ * 2. **`backdrop-filter: blur(26px)` was not blurring anything.** If it were,
+ *    the bleed-through would be a smear rather than words; it is words. `.rw-open`
+ *    animates its own opacity, which makes it a backdrop root in Blink, and a
+ *    backdrop root is exactly the thing that empties a descendant's backdrop. So
+ *    the sheet was paying for a full-screen blur every frame of the set-piece and
+ *    getting a no-op for it. It is switched off here rather than fixed, because an
+ *    opaque field has no backdrop worth filtering.
+ *
+ * What replaces it is a *room* rather than a darker sheet: a wall lit on the
+ * 315° vector like every other surface in the game, a floor the cards stand on,
+ * a pool of the pull's own accent under them, a vignette and module B's grain.
+ * §1 bans a flat fill on anything larger than an icon, and "the reveal now owns
+ * the screen" would be a poor trade if what it owned were a rectangle of black.
+ *
+ * ## Why this sheet lives here and not in `rewardsTheme.ts`
+ *
+ * That file is the domain's stylesheet and is the right long-term home for these
+ * eleven rules. It is also being edited by somebody else this wave. Installing
+ * from here is a no-merge-conflict way to land the fix; it goes into the head
+ * *after* `installRewardsTheme()`, so the two low-tier and high-contrast rules
+ * that out-specify a bare `.rw-open-veil` are answered at their own specificity
+ * rather than by `!important`. Fold it into the sheet whenever the two files are
+ * next in one pair of hands.
+ */
+const ROOM_STYLE_ID = "hb-reveal-room";
+
+const ROOM_CSS = `
+/* Opaque. Written at three specificities because the theme sheet lowers the
+   alpha again for the low tier, and that rule is (0,3,0). */
+.rw-open-veil,
+:root .rw-open-veil,
+:root[data-gfx-tier="low"] .rw-open-veil {
+  background-color: var(--bg-void);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* The room: wall, floor, vignette. Behind the accent pool and the glow, in
+   front of nothing at all, which is the point. */
+.rw-open-room {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(128% 92% at 50% 44%, transparent 38%, rgb(0 0 0 / 0.66) 100%),
+    linear-gradient(180deg, rgb(4 2 10 / 0) 52%, rgb(15 9 30 / 0.85) 79%, rgb(3 1 8 / 0.98) 100%),
+    linear-gradient(var(--light-sweep, 135deg), rgb(30 20 56 / 0.5), rgb(5 3 11 / 0) 58%);
+}
+
+/* The pool the cards stand in, in whatever the best card so far is worth. It
+   reads --rw-accent, which \`flip\` re-points at the rarity ink, so a legendary
+   lights the floor as well as the room. */
+.rw-open-room::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    48% 32% at 50% 70%,
+    color-mix(in srgb, var(--rw-accent, #b56cff) 20%, transparent),
+    transparent 74%
+  );
+  transition: background 620ms var(--ease-arrive, ease-out);
+}
+
+/* Module B's tile, not a second grain generator. §1: 2–6% so the field is not
+   mathematically smooth. */
+.rw-open-room::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--tex-grain-hero, none);
+  background-size: var(--tex-grain-hero-size, auto);
+  opacity: 0.5;
+}
+
+:root[data-contrast="high"] .rw-open-room::after { opacity: 0; }
+`;
+
+/**
+ * Idempotent by id and not by a module-level flag, for the same reason
+ * `installRewardsTheme` is: a hot reload replaces the module and not the
+ * document, and two copies of a sheet is two copies of everything in it.
+ */
+function installRevealRoom(doc: Document | undefined = globalThis.document): void {
+  if (!doc || doc.getElementById(ROOM_STYLE_ID)) return;
+  const style = doc.createElement("style");
+  style.id = ROOM_STYLE_ID;
+  style.textContent = ROOM_CSS;
+  doc.head.append(style);
+}
+
+/* -------------------------------------------------------------------------
    the shape of a reveal
    ------------------------------------------------------------------------- */
 
@@ -199,6 +312,8 @@ let openInstance: PackOpening | null = null;
  */
 export function openPack(options: PackOpeningOptions): PackOpening {
   installRewardsTheme();
+  // ...and then the room, which has to land after the sheet it out-specifies.
+  installRevealRoom();
   openInstance?.close();
 
   const cards = orderForDrama(options.cards);
@@ -218,6 +333,7 @@ export function openPack(options: PackOpeningOptions): PackOpening {
 
   overlay.innerHTML =
     `<div class="rw-open-veil"></div>` +
+    `<div class="rw-open-room" aria-hidden="true"></div>` +
     `<div class="rw-open-glow"></div>` +
     `<header class="rw-open-head">` +
     `<div class="rw-open-title">` +

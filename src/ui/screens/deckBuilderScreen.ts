@@ -173,7 +173,16 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
         </div>
       </section>
 
-      <aside class="builder-side panel">
+      <!--
+        The deck rail is a material, not a sheet of glass. Same repair as the
+        Collection's filter rail and for the same reason: at 380x795 this is
+        the second-tallest surface in the game, it stands beside pool cells
+        that already carry the 315-degree bevel, and base.css's plain .panel
+        gave it a uniform pale hairline on all four edges — a lit bottom edge,
+        which is a second sun. The material also drops the 20px radius nothing
+        else in the game uses.
+      -->
+      <aside class="builder-side mat-panel">
         <div class="builder-side-head">
           <div class="deck-stats" id="db-stats"></div>
         </div>

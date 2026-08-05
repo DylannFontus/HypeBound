@@ -194,7 +194,7 @@ function renderArchive(list: Element | null, chapters: readonly StoryChapter[]):
   const unlocked = firstSignalUnlocked(chapters);
 
   const panel = document.createElement("section");
-  panel.className = "panel panel-tight story-archive";
+  panel.className = "mat-panel story-archive";
   panel.innerHTML = `
     <div class="eyebrow">The Archive · GLIMMR</div>
     <h2 class="story-archive-title">${found} of ${fragments.length} fragments recovered</h2>
@@ -250,7 +250,7 @@ function renderChapter(
       <div class="story-chapter">
         <p class="story-chapter-about">${escape(chapter.about)}</p>
         <div class="episode-list" id="episode-list"></div>
-        <div class="story-recap panel panel-tight" id="story-recap" hidden></div>
+        <div class="story-recap mat-panel" id="story-recap" hidden></div>
         <div class="story-chapter-actions">
           <button class="btn btn-ghost" id="story-reset">Start this chapter over</button>
         </div>

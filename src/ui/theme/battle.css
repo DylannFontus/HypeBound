@@ -71,7 +71,7 @@
      read. It is applied before the fan rotation so it travels in screen space:
      the card beside the read goes sideways, not sideways-along-its-own-tilt. */
   /* `--ready` is the fan's answer to "can I play this", and it is a POSITION
-     rather than a colour. The green rim below says the same thing in hue, and
+     rather than a colour. The gold rim below says the same thing in hue, and
      hue on its own is banned as a signal; a card that can be played standing
      seven pixels proud of one that cannot is readable in greyscale, at 844px
      wide, and by somebody who cannot tell the rim from the frame. */
@@ -216,18 +216,43 @@
  * artwork, keeps its text legible, and simply has none of that — the difference
  * between a card and the same card wearing three extra things, which is a much
  * larger read than it sounds and costs no contrast at all.
+ *
+ * ## ...and the light it is lit with is a colour this game actually owns
+ *
+ * This was `rgba(150, 255, 190, …)` — a saturated lime at hue 145° — and green
+ * is not in HYPEBOUND's board vocabulary anywhere else. The mat is violet, the
+ * player's rim light and leader ring are `--accent-hot`, the rival's are
+ * `--accent-cool`, the Hype crystals are cyan and the legendary furniture is
+ * gold. Five to seven lime outlines along the bottom of that were the only
+ * object on the board wearing a hue with no relatives, and at seven cards it is
+ * the most repeated colour on the screen — which is §6's "the most saturated
+ * thing on screen should be the thing that matters most" spent on a hue that
+ * means nothing here.
+ *
+ * Warm, because that is what the reference does: frames 60 and 150 of
+ * `hearthstone_frames/` light an affordable card with a warm gold-white halo,
+ * not with a status green. `--current-halo` (#ffd86b) carries the rim and
+ * `--accent-gold` (#ffcc66) the bloom — the same two tokens the legendary
+ * furniture and the Halo Current are drawn from, written as literals here
+ * because these are `outline`/`box-shadow` colour stops and battle.css states
+ * its colours the same way throughout.
+ *
+ * The dark hairline under the rim moved with it: it was a dark *green*
+ * (`rgba(8,40,24)`), which is what stops a bright rim from vibrating against
+ * the card's own frame, and a warm rim wants a warm shadow or the join reads as
+ * two different lights.
  */
 .hand-card.playable {
   --ready: -7px;
-  filter: drop-shadow(4.4px 7.1px 18px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 10px rgba(125, 255, 176, 0.3));
+  filter: drop-shadow(4.4px 7.1px 18px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 10px rgba(255, 204, 102, 0.32));
 }
 
 .hand-card.playable canvas {
-  outline: 2px solid rgba(150, 255, 190, 0.92);
+  outline: 2px solid rgba(255, 216, 107, 0.94);
   outline-offset: -2px;
   box-shadow:
-    0 0 0 1px rgba(8, 40, 24, 0.55),
-    0 0 26px rgba(125, 255, 176, 0.5);
+    0 0 0 1px rgba(44, 25, 4, 0.6),
+    0 0 26px rgba(255, 204, 102, 0.46);
 }
 
 /**
@@ -262,7 +287,7 @@
    the playable rule is written later, so without this the lit card would keep
    its resting shadow while every other card in the fan grew one. */
 .hand-card.playable:hover {
-  filter: drop-shadow(9.6px 15.6px 38px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 14px rgba(125, 255, 176, 0.34));
+  filter: drop-shadow(9.6px 15.6px 38px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 14px rgba(255, 204, 102, 0.36));
 }
 
 .hand-card.dragging {
@@ -328,11 +353,21 @@
  * rest, hover and *held* were three states with two appearances, and the one
  * the player was actively doing was the one that looked like it had shrunk.
  *
- * Held is now the largest, and it is lit rather than outlined: a warm rim and a
- * warm bloom, which cannot be confused with the green "you can afford this" of
- * the resting card nor with the green/red the *floor* answers with below. Those
- * two are different questions — "I am holding this" and "this will land here" —
- * and they now look different.
+ * Held is now the largest, and it is lit rather than outlined.
+ *
+ * It used to be told apart from the resting card by *hue* — warm here, green
+ * there. The resting card is warm now too (see `.hand-card.playable`), so the
+ * separation is carried by **rank** instead, which is the same argument
+ * `foundation.css` makes for its materials: hero 1.0, panel 0.55, chip 0.35 are
+ * one material at three amplitudes, not three materials. So the ladder up from
+ * the mat is one light getting stronger — gold rim at 0.94 on a resting card,
+ * near-white at 0.96 with twice the bloom on the one in your hand, at 1.4x the
+ * size, with a ground shadow that has visibly left the floor. Three of those
+ * four differences survive greyscale.
+ *
+ * What stays a *hue* change is the answer to a different question: green and
+ * red below are "this will land here" / "it will not", and they agree with the
+ * pool `vfx.ts` paints on the mat directly under the card.
  */
 .hand-drag-ghost canvas {
   display: block;
@@ -341,8 +376,8 @@
   border-radius: 12px;
   outline: none;
   box-shadow:
-    0 0 0 2px rgba(255, 226, 176, 0.92),
-    0 0 30px rgba(255, 186, 110, 0.42);
+    0 0 0 2px rgba(255, 247, 231, 0.96),
+    0 0 34px rgba(255, 204, 102, 0.5);
   transition:
     box-shadow var(--dur-fast) var(--ease-out),
     scale var(--dur-fast) var(--ease-snap);
@@ -389,14 +424,35 @@
   opacity: 0.5;
 }
 
-/* The card answers the same question the floor under it is answering. A drop
-   that will be refused has to look refused at the cursor, because that is where
-   the player is looking — an illegal drag and a legal one were pixel-identical
-   before this, on both the card and the board. */
+/**
+ * The card answers the same question the floor under it is answering. A drop
+ * that will be refused has to look refused at the cursor, because that is where
+ * the player is looking — an illegal drag and a legal one were pixel-identical
+ * before this, on both the card and the board.
+ *
+ * ## This is the one green left in the hand, and it is a token
+ *
+ * `--success` (#4ade80), not the invented `rgba(150,255,195)` pale lime that
+ * used to be here — the refusal below is already `--danger` (#ff4d6a) under a
+ * lighter ring. Legality is a *binary answer to a question the player has just
+ * asked*, it is on screen only while a card is being carried, and green-yes /
+ * red-no is what `base.css` keeps that pair of tokens for. That is a different
+ * job from the resting hand's "you can afford this", which was wearing the same
+ * hue for five to seven cards at a time and is now warm — see
+ * `.hand-card.playable`.
+ *
+ * Not colour alone: `.drop-blocked` also greys and dims the whole ghost, and the
+ * board answers underneath at the same time.
+ *
+ * Two other places on the board answer this question and they do not agree with
+ * each other: `board.ts` lights its drop pool violet (`0x9a6cff`) and `vfx.ts`
+ * spills the old lime (`0x7dffb0`). Both are outside this file's ownership;
+ * whoever holds them next should bring them onto these two tokens.
+ */
 .hand-drag-ghost.drop-valid canvas {
   box-shadow:
-    0 0 0 2px rgba(150, 255, 195, 1),
-    0 0 34px rgba(125, 255, 176, 0.6);
+    0 0 0 2px rgba(74, 222, 128, 1),
+    0 0 34px rgba(74, 222, 128, 0.62);
 }
 
 .hand-drag-ghost.drop-blocked {
@@ -420,7 +476,7 @@
  * The frame between letting go and the token existing.
  *
  * The ghost stops being a card being dragged and becomes a card that has been
- * put down, so the two things that said "I am in your hand" — the green legality
+ * put down, so the two things that said "I am in your hand" — the legality
  * outline and the big lifted drop shadow — come off. Underneath it the real
  * board token is being placed at the same point at the same apparent size, and
  * the pair cross-fade over 90ms; the closer the ghost looks to the token during
@@ -1251,6 +1307,46 @@
  */
 .battle-hud { --controls-bottom: calc(var(--sp-3) + 44px); }
 
+/**
+ * The log is a material, and it is the last thing on this HUD that was not.
+ *
+ * The leader plates, the Obsession dial, the ability rail and the Hype well all
+ * take `.mat-panel` from `hud.ts`. The log took `.panel` — `base.css`'s glass:
+ * one flat fill, one pale hairline on all four edges, one inset highlight and a
+ * 20px radius. Ten pixels from a plate whose bottom edge terminates in shadow,
+ * that reads as a second sun on the one screen a player spends a whole match
+ * looking at.
+ *
+ * ## Why the recipe is copied instead of composed
+ *
+ * `hud.ts` belongs to another owner this wave, so the class on the element
+ * cannot change, and **there is no way to apply a material to a selector you do
+ * not control** — `.mat-panel` is reachable only by writing the class into the
+ * markup. `screens.css` §O already made exactly this trade for the fourteen
+ * dialogue shapes, and this is the same move for the fifteenth surface. Every
+ * value below is read from module A's own tokens — `--fill-panel`, `--amp-panel`,
+ * `--rim-a`, `--lip-a`, `--tex-grain-mid`, `--cast-lift` — so the copy cannot
+ * drift in *colour*; it can drift in *shape*, and the fix for that is one line
+ * in `foundation.css` §3's selector list.
+ *
+ * Two departures from the plain panel rank, both because of where this sits:
+ *
+ *  - **`--cast-lift: 1.6`.** The log floats over a live 3D board rather than
+ *    lying on a screen, and the drop and the contact shadow are the only things
+ *    that say which of the two is nearer. The dialogues use 2.1 for the same
+ *    reason; a HUD widget is not as far off the page as a modal.
+ *  - **`--r-self: var(--r-panel)`.** Measured off the live board rather than
+ *    chosen: the leader plate, the Obsession dial and the Hype well all compute
+ *    to 18px and only the ability tiles are 14px, so the HUD has exactly two
+ *    radii and the log was a third at 20px. It is a container with a header and
+ *    a scrolling list — structural furniture, not a tile — so it joins the
+ *    majority. §7's first craft line is three radii on one screen.
+ *
+ * `backdrop-filter` is turned off rather than inherited. The plate is 95% opaque
+ * and it is over a WebGL canvas that redraws every frame, so `blur(18px)
+ * saturate(1.3)` buys a picture nobody can see and costs a viewport readback per
+ * frame of the one route with a frame budget already spoken for.
+ */
 .history-panel {
   position: absolute;
   right: var(--sp-4);
@@ -1261,7 +1357,109 @@
   flex-direction: column;
   padding: var(--sp-2) var(--sp-3);
   transition: max-height var(--dur-med) var(--ease-out);
+
+  --mat-amp: var(--amp-panel);
+  --mat-fill: var(--fill-panel);
+  --rim-a: 0.06;
+  --lip-a: 0.63;
+  --mat-grain: var(--tex-grain-mid, none);
+  --mat-grain-size: var(--tex-grain-mid-size, auto);
+  --sheen-alpha: 0.03;
+  --r-self: var(--r-panel);
+  --cast-lift: 1.6;
+
+  /* Absolute already establishes a containing block for the band; the isolation
+     is what puts a `z-index: -1` child above the fill and below the entries. */
+  isolation: isolate;
+  border-radius: var(--r-self);
+  color: var(--text);
+
+  background-color: transparent;
+  background-image: var(--mat-grain), var(--mat-fill);
+  background-repeat: repeat, no-repeat;
+  background-size: var(--mat-grain-size), 100% 100%;
+  background-position: 0 0, 0 0;
+  /* `border-box`, or the fill stops inside the border and the rim composites
+     over the board behind the log rather than over the log's own surface —
+     which would make the bevel a function of whatever card is underneath it. */
+  background-origin: border-box;
+
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+
+  /* top, right, bottom, left. Lit on the two edges facing 315°, dark on the two
+     facing away — the outer pixel of the bevel, at full amplitude. */
+  border-style: solid;
+  border-width: 1px;
+  border-color:
+    rgb(255 255 255 / var(--rim-a))
+    rgb(0 0 0 / calc(var(--lip-a) * 0.55))
+    rgb(0 0 0 / var(--lip-a))
+    rgb(255 255 255 / calc(var(--rim-a) * 0.5));
+
+  --mat-cast:
+    inset 0 1px 0 rgb(255 255 255 / calc(var(--rim-a) * 0.55)),
+    inset 1px 0 0 rgb(255 255 255 / calc(var(--rim-a) * 0.28)),
+    inset 0 -1px 0 rgb(0 0 0 / calc(var(--lip-a) * 0.55)),
+    inset -1px 0 0 rgb(0 0 0 / calc(var(--lip-a) * 0.3)),
+    calc(6.2px * var(--mat-amp) * var(--cast-lift)) calc(10px * var(--mat-amp) * var(--cast-lift))
+      calc(26px * var(--mat-amp) * var(--cast-lift)) calc(-6px * var(--mat-amp))
+      rgb(0 0 0 / calc(0.55 * var(--mat-amp))),
+    calc(1.24px * var(--cast-lift)) calc(2px * var(--cast-lift)) calc(3px * var(--cast-lift)) -1px
+      rgb(0 0 0 / calc(0.3 + 0.3 * var(--mat-amp)));
+  box-shadow: var(--mat-cast);
 }
+
+/**
+ * ...and it is alive between actions.
+ *
+ * §3a: "the screen is alive at rest", and a log with nothing new in it is at
+ * rest for most of a turn. Module A's own band and module A's own keyframe —
+ * 40% of the plate wide, travelling 150% of its own width so it can never
+ * overhang a corner, on `translate` so the compositor owns it and the plate is
+ * never repainted. The negative delay drops it into a cycle that is already
+ * running, so the first frame of a match is mid-sweep rather than at the
+ * keyframe, and -5100ms is deliberately not the -3400ms `screens.css` §O hands
+ * the dialogues: the mulligan sheet and the log are on screen together at the
+ * start of every match and two plates sweeping in step is one flash rather than
+ * light crossing a room.
+ *
+ * The length-wise feather is the same repair §O documents. A 135° gradient's
+ * iso-lines run at 45°, so the value along the band's own vertical edges is not
+ * constant and the band can end on a hard step; the mask guarantees it ends in a
+ * ramp. It carries no light of its own — 90° is the band's long axis, the only
+ * angle a length-wise taper can have — so it is not a second sun.
+ *
+ * `::after` is free here: nothing else in this file claims `.history-panel`'s,
+ * and `.history-head::after` and `.history-list` are different elements.
+ */
+.history-panel::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    var(--light-sweep),
+    transparent 0%,
+    rgb(255 255 255 / var(--sheen-alpha)) 50%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
+  animation: hb-sheen-pass var(--dur-sheen-panel) var(--ease-sweep) -5100ms infinite;
+}
+
+:root[data-reduced-motion="true"] .history-panel::after { animation: none; }
+
+/* Collapsed, the log is a 40px header with the list clipped behind it. The band
+   is clipped with it, which is correct — it is light on the plate, and the plate
+   is the part still on screen. */
 .history-panel.collapsed { max-height: 40px; overflow: hidden; }
 .history-head {
   display: flex;

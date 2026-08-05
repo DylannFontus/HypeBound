@@ -338,6 +338,11 @@
   --focus-gap: 2px;
 
   /* ---- scrollbars ------------------------------------------------------- */
+  /* One gutter, stated once. It was a literal `10px` in §7 and an `8px` in the
+     collection's own sheet, which is how a player walking collection → profile
+     watched the scroller change width as well as column. Everything that draws
+     a scrollbar reads this; nothing declares a width of its own. */
+  --scroll-gutter: 10px;
   --scroll-thumb: rgb(120 106 178 / 0.75);
   --scroll-thumb-hot: rgb(168 150 232 / 0.9);
   --scroll-track: rgb(0 0 0 / 0.3);
@@ -1927,11 +1932,91 @@
    in §1, and the two mechanisms are now mutually exclusive by construction
    rather than by hope. The long note there says why that mattered.
 
-   The thumb is lit from the top-left like everything else. */
+   The thumb is lit from the top-left like everything else.
+
+   ## Where the scroller is, not just what it looks like
+
+   A styled scrollbar that lands in a different column on every route is not a
+   styled scrollbar; it is four of them. Measured at 1600×900, right edge of the
+   scroller by route:
+
+       collection ......... 1584   gutter  8   .card-grid.hb-scroll
+       profile / stats .... 1410   gutter 10   .data-body
+       events / boards .... 1410   gutter 10   .data-body
+       settings / a11y .... 1290   gutter 10   .data-body.data-doc
+       missions ........... 1600   gutter 10   .rw-missions-body
+
+   Two causes, both answered below. The 8 is the collection's own sheet
+   declaring a private width; the 1410 and the 1290 are `.data-body` being both
+   the page's measure *and* the thing that scrolls, so the bar rides the inside
+   edge of a centred 1220px (or 980px) column and moves whenever the measure
+   does. Missions, which puts the measure on its content and lets the page
+   scroll, is the one that was already right. */
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: var(--scroll-gutter);
+  height: var(--scroll-gutter);
+}
+
+/**
+ * The one deviation, pinned back to the token.
+ *
+ * `collectionKit.ts` ships `.hb-scroll::-webkit-scrollbar { width: 8px }` in a
+ * runtime-injected sheet, so it out-orders this file and wins at equal
+ * specificity — hence `:root`. The real fix is deleting that declaration where
+ * it lives; this is the version that can be written from here, and it is
+ * deliberately width-only so the collection keeps its own track inset and its
+ * own thumb.
+ */
+:root .hb-scroll::-webkit-scrollbar {
+  width: var(--scroll-gutter);
+  height: var(--scroll-gutter);
+}
+
+/**
+ * ...and the scroller is the page's edge rather than an inner column's.
+ *
+ * `data.css` gives `.data-body` `max-width: var(--data-measure)` and
+ * `margin-inline: auto`, which makes one element carry two jobs: it is the
+ * reading measure *and* it is the scroll container. The measure is right and
+ * stays; what has to move is the scrolling. Twenty-three screens use it, and
+ * three different measures (1220, 1440 for `.data-wide`, 980 for `.data-doc`)
+ * mean the bar sits in three different columns depending on which screen you
+ * walked to.
+ *
+ * The element goes full width and the measure is re-expressed as symmetric
+ * padding, which puts **exactly** the same content in exactly the same place —
+ * before, content width was `M − 2g`; after, it is
+ * `100% − 2·((100% − M)/2 + g)`, which is `M − 2g`. Below the measure the
+ * `max()` falls back to the plain gutter, which is what `max-width` was already
+ * doing. `scrollbar-gutter: stable` (rooms.css §"gutter") reserves its 10px
+ * inside the padding box either way, so the content lands on the same pixel in
+ * both arrangements too.
+ *
+ * **The gutter values are duplicated from `data.css` and that is a coupling.**
+ * They have to be, because this rule replaces the `padding-inline` that carries
+ * them and there is no way to add to a padding you cannot read. It is written
+ * as a custom property so the two live in one place *here*, and the honest end
+ * state is these four declarations moving into `data.css` §1 and this block
+ * disappearing. If the measure or the gutter changes there, change it here.
+ */
+:root .screen .data-body {
+  --data-gutter: clamp(16px, 3.4vw, 48px);
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: max(
+    var(--data-gutter),
+    calc((100% - var(--data-measure, 1220px)) / 2 + var(--data-gutter))
+  );
+}
+
+/* The same breakpoint `data.css` §11 uses, for the same reason: 844×390 has no
+   room for a 48px gutter. Only the gutter changes; `padding-block` is still
+   that file's and is not restated. */
+@media (max-width: 900px), (max-height: 460px) {
+  :root .screen .data-body {
+    --data-gutter: clamp(12px, 3vw, 24px);
+  }
 }
 
 ::-webkit-scrollbar-track {

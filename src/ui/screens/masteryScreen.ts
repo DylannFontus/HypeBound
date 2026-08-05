@@ -381,7 +381,7 @@ export function createMasteryScreen(content: ContentIndex, callbacks: MasteryCal
     const colour = colourFor(view.factionId);
     const toGo = Math.max(0, view.toNext - view.intoRank);
     return `
-      <section class="panel panel-chrome mastery-detail" data-track="${esc(view.id)}"
+      <section class="mat-panel mastery-detail" data-track="${esc(view.id)}"
                style="--row-accent:${esc(colour)}">
         <div class="mastery-detail-head">
           <button type="button" class="mat-chip act r-chip" id="mastery-close">
@@ -412,7 +412,7 @@ export function createMasteryScreen(content: ContentIndex, callbacks: MasteryCal
     const ap = publishedAffinity().ap;
     const colour = colourFor(view.factionId);
     return `
-      <section class="panel panel-chrome mastery-detail" data-track="${esc(view.cardId)}"
+      <section class="mat-panel mastery-detail" data-track="${esc(view.cardId)}"
                style="--row-accent:${esc(colour)}">
         <div class="mastery-detail-head">
           <button type="button" class="mat-chip act r-chip" id="mastery-close">
@@ -535,7 +535,7 @@ export function createMasteryScreen(content: ContentIndex, callbacks: MasteryCal
       if (pool.length === 0) return "";
 
       return `
-        <section class="panel panel-chrome mastery-next">
+        <section class="mat-panel mastery-next">
           <div class="mastery-next-head">
             <h2 class="t-heading">Closest rewards</h2>
             <p class="t-body">The three ranks you are nearest to, across every track.</p>
@@ -577,7 +577,7 @@ export function createMasteryScreen(content: ContentIndex, callbacks: MasteryCal
       </header>
 
       <main class="mastery-body data-body">
-        <section class="panel panel-chrome mastery-intro">
+        <section class="mat-panel mastery-intro">
           <p class="mastery-rule">
             <strong>Mastery counts matches, not missions.</strong> Every match pays its own XP into
             the faction and the leader you played it with — win or lose. Nothing here expires, and

@@ -1007,7 +1007,7 @@ const KIT_CSS = String.raw`
   color: var(--cur);
   filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.6));
 }
-.hb-current-code { font-size: 0.66rem; letter-spacing: 0.06em; font-weight: 700; }
+.hb-current-code { font-size: var(--fs-micro); letter-spacing: 0.06em; font-weight: 700; }
 .hb-rarity { display: inline-flex; color: var(--rar); filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.6)); }
 
 /*
@@ -1170,7 +1170,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 .col-v2 .filter-rail-head .t-label { flex: 1 1 auto; }
 .col-v2 .filter-active-count {
   min-width: 22px; text-align: center;
-  padding: 1px 7px; font-size: 0.68rem;
+  padding: 1px 7px; font-size: var(--fs-micro);
 }
 .col-v2 .filter-active-count[hidden] { display: none; }
 
@@ -1194,7 +1194,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 .col-v2 .filter-group.is-shut .filter-head .hb-icon { transform: rotate(-90deg); }
 .col-v2 .filter-group.is-shut .filter-chips { display: none; }
 .col-v2 .filter-head .filter-group-count {
-  font-size: 0.66rem; padding: 0 6px; line-height: 1.5;
+  font-size: var(--fs-micro); padding: 0 6px; line-height: 1.5;
   color: var(--accent-bright);
 }
 .col-v2 .filter-head .filter-group-count[hidden] { display: none; }
@@ -1442,7 +1442,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   background-size: 100% 1px, 100% 1px;
   background-position: 0 0, 0 100%;
 }
-.col-v2 .col-shelf-count { font-size: 0.68rem; color: var(--text-faint); }
+.col-v2 .col-shelf-count { font-size: var(--fs-micro); color: var(--text-faint); }
 
 /* the plane the cards stand on: lit at the top-left, dark under the row */
 /* The plane the cards stand on. It carries the four things §1 asks of any
@@ -1552,7 +1552,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   display: grid; place-items: center;
   width: 24%; aspect-ratio: 1;
   border-radius: 50%;
-  font-size: 0.68rem;
+  font-size: var(--fs-micro);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: rgb(255 255 255 / 0.62);
@@ -1560,7 +1560,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), inset 0 -1px 2px rgb(0 0 0 / 0.4);
 }
 @media (max-width: 900px), (max-height: 480px) {
-  .col-v2 .card-cell .card-slot::after { font-size: 0.56rem; }
+  .col-v2 .card-cell .card-slot::after { font-size: var(--fs-micro); }
 }
 /*
  * And no shimmer on it, deliberately.
@@ -1651,7 +1651,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 
 .col-v2 .card-count {
   bottom: 1px; right: 3px;
-  font-size: 0.66rem;
+  font-size: var(--fs-micro);
   padding: 1px 8px;
   transition: color var(--dur-micro) var(--ease-arrive);
 }
@@ -1806,7 +1806,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
     gap: 7px;
     min-height: 44px;
   }
-  .col-v2 .filter-disclose .filter-active-count { padding: 1px 7px; font-size: 0.68rem; }
+  .col-v2 .filter-disclose .filter-active-count { padding: 1px 7px; font-size: var(--fs-micro); }
   .col-v2 .filter-rail {
     display: grid;
     position: absolute;
@@ -1848,10 +1848,15 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   .col-v2 .col-shelf-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: var(--sp-3) 7px; padding: 10px 8px 8px; }
   .col-v2 .col-shelf { margin-bottom: var(--sp-3); }
   .col-v2 .col-shelf-head { padding: 3px 8px; }
-  .col-v2 .col-shelf-gem { width: 19px; height: 19px; font-size: 0.66rem; }
+  .col-v2 .col-shelf-gem { width: 19px; height: 19px; font-size: var(--fs-micro); }
   .col-v2 .card-cell { padding-bottom: 15px; }
-  .col-v2 .card-count { font-size: 0.58rem; padding: 0 6px; }
-  .col-v2 .search-field, .col-v2 .ownership-tabs { height: 36px; }
+  .col-v2 .card-count { font-size: var(--fs-micro); padding: 0 6px; }
+  /* --touch-min is base.css's 44px floor written as a value: 0 on a mouse,
+     44px on a finger. These two are *housings* — one holds an input, the other
+     holds the ownership tabs — and an element-selector floor cannot reach a
+     housing, so a 36px field on a phone would have a 44px control hanging out
+     of the bottom of it. */
+  .col-v2 .search-field, .col-v2 .ownership-tabs { height: max(36px, var(--touch-min)); }
   .col-v2 .filter-disclose { min-height: 36px; padding: 0 10px; font-size: 0.72rem; }
   .col-v2 .ownership-tab { padding: 0 10px; font-size: 0.72rem; }
   .col-v2 .cd-stage { gap: var(--sp-2); }
@@ -1991,7 +1996,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 .db-v2 .type-pill {
   display: inline-flex; align-items: baseline; gap: 5px;
   padding: 2px 8px;
-  font-size: 0.63rem;
+  font-size: var(--fs-micro);
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -2079,7 +2084,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   top: auto;
   bottom: 0;
   transform: translate(-50%, 0);
-  font-size: 0.64rem;
+  font-size: var(--fs-micro);
   font-variant-numeric: tabular-nums;
   color: var(--text);
   padding: 0 3px;
@@ -2089,7 +2094,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 }
 .db-v2 .curve-count[hidden] { display: none; }
 .db-v2 .curve-axis { display: flex; gap: 4px; }
-.db-v2 .curve-axis span { flex: 1 1 0; text-align: center; font-size: 0.62rem; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.db-v2 .curve-axis span { flex: 1 1 0; text-align: center; font-size: var(--fs-micro); color: var(--text-faint); font-variant-numeric: tabular-nums; }
 .db-v2 .curve-note { font-size: 0.7rem; margin: 0; }
 
 /* ---- the deck list ----------------------------------------------------- */
@@ -2108,7 +2113,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   padding: 3px 8px;
   margin: 5px 0 3px;
   border-radius: 5px;
-  font-size: 0.62rem;
+  font-size: var(--fs-micro);
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -2168,7 +2173,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 .db-v2 .deck-row-name { font-size: 0.8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-v2 .deck-row-count { font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--text-dim); min-width: 20px; text-align: right; }
 .db-v2 .deck-row.is-max .deck-row-count { color: var(--accent-gold); }
-.db-v2 .deck-legend { display: flex; flex-wrap: wrap; gap: var(--sp-2); font-size: 0.62rem; color: var(--text-faint); padding: 5px 4px 0; }
+.db-v2 .deck-legend { display: flex; flex-wrap: wrap; gap: var(--sp-2); font-size: var(--fs-micro); color: var(--text-faint); padding: 5px 4px 0; }
 .db-v2 .deck-legend > span { display: inline-flex; align-items: center; gap: 3px; }
 
 /* the row that just changed lights for one UI beat, so an add is visible in the
@@ -2303,17 +2308,17 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   .db-v2 .curve-frame { height: 58px; }
   .db-v2 .builder-side-head { padding: var(--sp-2) var(--sp-3); }
   .db-v2 .deck-types { gap: 3px; }
-  .db-v2 .type-pill { padding: 1px 6px; font-size: 0.58rem; gap: 4px; }
+  .db-v2 .type-pill { padding: 1px 6px; font-size: var(--fs-micro); gap: 4px; }
   .db-v2 .type-pill b { font-size: 0.7rem; }
   .db-v2 .deck-count-value { font-size: var(--fs-xl); }
   .db-v2 .builder-side-foot { padding: var(--sp-2) var(--sp-3); gap: 5px; }
   .db-v2 .builder-actions { grid-template-columns: repeat(auto-fit, minmax(5.2rem, 1fr)); gap: 5px; }
-  .db-v2 .builder-actions .btn { min-height: 32px; font-size: 0.68rem; padding: 0 8px; }
+  .db-v2 .builder-actions .btn { min-height: 32px; font-size: var(--fs-micro); padding: 0 8px; }
   .db-v2 .builder-actions .btn:first-child { min-height: 38px; font-size: var(--fs-sm); }
   .db-v2 .builder-actions .btn { white-space: nowrap; }
   .db-v2 .builder-actions .btn-note { display: none; }
   .db-v2 .builder-side-scroll { padding: var(--sp-2) var(--sp-2) var(--sp-3) var(--sp-3); gap: var(--sp-2); }
-  .db-v2 .curve-note { font-size: 0.64rem; }
+  .db-v2 .curve-note { font-size: var(--fs-micro); }
 }
 @media (max-width: 1150px) and (min-width: 1001px) {
   .db-v2 .builder-body { grid-template-columns: minmax(0, 1fr) 320px; }
@@ -2348,15 +2353,16 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   .db-v2 .builder-body { padding: var(--sp-2) var(--sp-3) var(--sp-2); }
   .db-v2 .pool-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--sp-2); }
   .db-v2 .builder-pool-head { gap: var(--sp-2); }
-  .db-v2 .leader-select, .db-v2 .search-field { height: 36px; min-height: 36px; }
+  /* Same housing rule as the collection's toolbar; see --touch-min. */
+  .db-v2 .leader-select, .db-v2 .search-field { height: max(36px, var(--touch-min)); min-height: max(36px, var(--touch-min)); }
   .db-v2 .curve-frame { height: 46px; }
   .db-v2 .deck-count-value { font-size: var(--fs-lg); }
   .db-v2 .deck-types { display: none; }
   .db-v2 .builder-side-head { padding: 6px var(--sp-3); }
   .db-v2 .builder-side-foot { padding: 6px var(--sp-3); }
   .db-v2 .builder-actions { grid-template-columns: repeat(4, 1fr); gap: 4px; }
-  .db-v2 .builder-actions .btn { min-height: 30px; font-size: 0.68rem; padding: 0 6px; }
-  .db-v2 .deck-validation { font-size: 0.68rem; }
+  .db-v2 .builder-actions .btn { min-height: 30px; font-size: var(--fs-micro); padding: 0 6px; }
+  .db-v2 .deck-validation { font-size: var(--fs-micro); }
 }
 /*
  * A phone in landscape is wide and short, so the two things go side by side.
@@ -2544,7 +2550,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 .ds-v2 .deck-slot-index {
   position: absolute;
   top: 10px; left: 12px;
-  font-size: 0.58rem;
+  font-size: var(--fs-micro);
   letter-spacing: 0.13em;
   text-transform: uppercase;
   padding: 1px 7px;
@@ -2565,7 +2571,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   max-width: 100%;
 }
 .ds-v2 .deck-slot-split { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.ds-v2 .deck-slot-badge { font-size: 0.62rem; padding: 1px 8px; letter-spacing: 0.06em; text-transform: uppercase; }
+.ds-v2 .deck-slot-badge { font-size: var(--fs-micro); padding: 1px 8px; letter-spacing: 0.06em; text-transform: uppercase; }
 .ds-v2 .deck-slot-badge.is-active-badge { color: #fff; background: linear-gradient(var(--light-sweep), var(--accent-bright), var(--accent-hot)); }
 .ds-v2 .deck-slot-badge.is-valid-badge { color: #8ff0be; }
 .ds-v2 .deck-slot-badge.is-invalid-badge { color: #ffb0b8; }
@@ -2636,7 +2642,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   transition: transform var(--dur-micro) var(--ease-overshoot);
 }
 .ds-v2 .deck-socket-plus .hb-icon { width: 18px; height: 18px; }
-.ds-v2 .deck-socket-label { font-size: 0.66rem; letter-spacing: 0.09em; text-transform: uppercase; }
+.ds-v2 .deck-socket-label { font-size: var(--fs-micro); letter-spacing: 0.09em; text-transform: uppercase; }
 @media (hover: hover) {
   .ds-v2 .deck-socket:hover:not(:disabled) { color: var(--text); box-shadow: inset 2px 2.6px 8px rgb(0 0 0 / 0.6), inset 0 0 0 1px rgb(181 108 255 / 0.3); }
   .ds-v2 .deck-socket:hover:not(:disabled) .deck-socket-plus { transform: translateY(-2px) scale(1.07); color: #fff; }
@@ -2843,7 +2849,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .gal-v2 .gallery-tile-role {
-  font-size: 0.6rem;
+  font-size: var(--fs-micro);
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--c, var(--text-dim));
@@ -2885,7 +2891,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   position: absolute;
   top: 9px; left: 8px;
   padding: 1px 6px;
-  font-size: 0.5rem;
+  font-size: var(--fs-micro);
   font-weight: 600;
   letter-spacing: 0.11em;
   text-transform: uppercase;
@@ -2953,7 +2959,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 @media (max-height: 480px) {
   .gal-v2 .gallery-body { gap: var(--sp-2); padding-top: var(--sp-2); }
   .gal-v2 .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 7px; }
-  .gal-v2 .gallery-filters .btn { min-height: 28px; font-size: 0.68rem; padding: 0 9px; }
+  .gal-v2 .gallery-filters .btn { min-height: 28px; font-size: var(--fs-micro); padding: 0 9px; }
   /*
    * Eleven faction pills wrapped to two rows and took a hundred pixels of a
    * three-hundred-and-ninety pixel screen — a third of the cast browser spent
@@ -2971,12 +2977,24 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   .gal-v2 .gallery-filters::-webkit-scrollbar { height: 0; }
   .gal-v2 .gallery-filters .btn { flex: 0 0 auto; }
   .gal-v2 .gallery-tile-name { font-size: 0.7rem; }
-  .gal-v2 .gallery-tile-role { font-size: 0.54rem; }
+  .gal-v2 .gallery-tile-role { font-size: var(--fs-micro); }
   .gal-v2 .gallery-tile-body { padding: var(--sp-2) 8px 6px; }
 }
 @media (max-height: 480px) {
   .ds-v2 .deck-slots-body { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); padding: var(--sp-2) var(--sp-3) var(--sp-4); }
-  .ds-v2 .deck-slot, .ds-v2 .deck-socket { min-height: 138px; }
+  /*
+   * The copy plus one row of actions, stated as a sum rather than as 138.
+   *
+   * Two things were coming out of the same flat number. The action row is 28px
+   * on a mouse and 44px under base.css's touch floor, so on a phone those
+   * sixteen pixels came out of the copy: the name rose into the SLOT badge
+   * pinned at the top-left and "DJ Kilowatt — 30/30 cards" was drawn behind the
+   * Edit button. And the copy is rem, so at --ui-scale 1.4 it wanted sixteen
+   * more pixels than 138 gave it and the meta column clipped its own last line.
+   * Both terms are now written in the units they are actually made of: 2.7rem
+   * of type, 70px of padding and gaps, and whichever action row applies.
+   */
+  .ds-v2 .deck-slot, .ds-v2 .deck-socket { min-height: calc(2.7rem + 70px + max(28px, var(--touch-min))); }
   .ds-v2 .deck-slot { grid-template-columns: 80px minmax(0, 1fr); }
   .ds-v2 .deck-slot-cover canvas { height: 100%; object-fit: cover; }
   /*
@@ -2994,7 +3012,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   .ds-v2 .deck-slot-meta { align-self: stretch; min-height: 0; overflow: hidden; }
   .ds-v2 .deck-slot-split, .ds-v2 .deck-slot-record, .ds-v2 .deck-slot-bar { display: none; }
   .ds-v2 .deck-slot-actions { flex-wrap: nowrap; }
-  .ds-v2 .deck-slot-actions .btn { min-height: 28px; font-size: 0.68rem; padding: 0 8px; }
+  .ds-v2 .deck-slot-actions .btn { min-height: 28px; font-size: var(--fs-micro); padding: 0 8px; }
 }
 `;
 

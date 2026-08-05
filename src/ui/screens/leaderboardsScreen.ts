@@ -46,6 +46,59 @@ export interface LeaderboardsCallbacks {
 /** What a placement would need, if there were a ladder to be placed on. */
 const PLACEMENT_MATCHES = 10;
 
+/**
+ * The crest is an object, and at tier 0 it was a cut-out.
+ *
+ * `art.ts`'s `rankCrest` branches hard on `tier === 0`: the metal drops to a
+ * flat `#5b5470`, the light shaft falls to 0.35 of a neutral grey and the rim
+ * stroke to `rgba(255,255,255,0.16)`. Photographed on this screen the result was
+ * the only unlit thing on an otherwise migrated page — a grey silhouette with no
+ * readable rim, no readable gradient and a straight-down `drop-shadow` that
+ * disagrees with the 315° key every other surface here is lit by. The *idea* is
+ * right (an unplaced crest is an empty socket, and the empty socket is what
+ * makes a filled one mean something); the execution reads as a placeholder.
+ *
+ * Three things bring it back into the room, and none of them touches the
+ * generator — which lives in another module's file and serves five screens.
+ *
+ * 1. **A socket to sit in.** `.mat-well` is the contract's material for exactly
+ *    this: "recessed — inputs, progress tracks, empty slots, sockets". The
+ *    shield now stands in a recess with a lit bottom-right lip and a shaded
+ *    top-left, which is a surrounding gradient and a surrounding rim it did not
+ *    have, and gives its cast a floor to land on.
+ * 2. **A specular that follows the real silhouette**, by masking a 315° gradient
+ *    with the crest's own art. `--rank-art` is the data URI `paintArt` writes on
+ *    the element, so the sheen is cut to exactly the shape the generator drew and
+ *    keeps following it if that shape ever changes — no second copy of the
+ *    geometry. The fallback is a transparent gradient rather than `none`, because
+ *    the property arrives late and an unmasked sheen would flash as a square.
+ * 3. **A rim and a cast at the game's angle.** `drop-shadow(-1px -1px 0 …)` on
+ *    the silhouette puts one pixel of light on the top and left edges — the rim
+ *    §1 asks for, again cut to the true shape for free — and the cast moves from
+ *    `0 4px` to `4px 7px`, which is `LIGHT_RIG`'s ratio and the same offset the
+ *    hand cards use.
+ *
+ * Scoped to this screen because `.d-rank` is the data domain's and appears on
+ * the profile, in Mastery and in match history. The generator's `tier === 0`
+ * branch is the real fix and it should take this with it.
+ */
+const CREST_SHEEN =
+  `<span aria-hidden="true" style="` +
+  `grid-area:1/1;width:100%;height:100%;pointer-events:none;` +
+  `background:` +
+  `linear-gradient(var(--light-sweep,135deg),rgb(255 255 255/0.20),rgb(255 255 255/0) 48%),` +
+  `radial-gradient(64% 52% at 24% 16%,rgb(217 165 255/0.20),transparent 64%);` +
+  `-webkit-mask-image:var(--rank-art,linear-gradient(#0000,#0000));` +
+  `mask-image:var(--rank-art,linear-gradient(#0000,#0000));` +
+  `-webkit-mask-size:contain;mask-size:contain;` +
+  `-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;` +
+  `-webkit-mask-position:center;mask-position:center;` +
+  `"></span>`;
+
+/** The recess the crest stands in. Inline geometry, foundation's material. */
+const CREST_MOUNT_STYLE =
+  "display:grid;place-items:center;padding:var(--sp-4);--mat-amp:0.85";
+
 export function createLeaderboardsScreen(_content: ContentIndex, callbacks: LeaderboardsCallbacks): Screen {
   const root = document.createElement("div");
   root.className = "screen leaderboards-screen";
@@ -87,7 +140,16 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
         <div class="lb-standing-art" aria-hidden="true" ${artAttr("ladder", [1200, 400, "#b56cff"])}></div>
         <div class="lb-standing-inner">
           <div class="lb-crest">
-            ${rankMark({ tier, tiers: 20 }, 132, placed ? `<span class="d-rank-value">${count(tier)}</span>` : "")}
+            <span class="lb-crest-mount mat-well r-panel" style="${CREST_MOUNT_STYLE}">
+              ${rankMark(
+                { tier, tiers: 20 },
+                132,
+                CREST_SHEEN +
+                  (placed
+                    ? `<span class="d-rank-value" style="grid-area:1/1">${count(tier)}</span>`
+                    : "")
+              )}
+            </span>
             <span class="t-label">${placed ? `Local tier ${count(tier)} of ${count(TIERS)}` : "Unplaced"}</span>
           </div>
 
@@ -185,6 +247,30 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
     callbacks.onBack();
   });
   root.querySelector("#leaderboards-stats")?.addEventListener("click", () => callbacks.onStats());
+
+  /*
+   * The rim and the cast, written inline rather than into a stylesheet.
+   *
+   * `data.css` §"the rank crest" sets `.d-rank { filter: drop-shadow(0 4px 12px
+   * …) }`, which is (0,1,0) in a sheet this file cannot edit; an inline style is
+   * the one thing that beats it without inventing a fourth injected stylesheet
+   * for one declaration. See the note on `CREST_SHEEN` for what the two shadows
+   * are doing and why the first one is a rim.
+   */
+  root
+    .querySelector<HTMLElement>(".lb-crest .d-rank")
+    ?.style.setProperty(
+      "filter",
+      /*
+       * 1px of blur on the rim, and it is not a nicety. `rankCrest` draws its
+       * own 2.4px highlight and then clips it to the top-left 62% of the
+       * canvas, so the existing rim stops dead partway along the shield's top
+       * edge. A hard 0-blur stroke butted against that made the seam louder;
+       * one pixel of falloff at a matched alpha reads as the same light
+       * continuing round rather than as two rims meeting.
+       */
+      "drop-shadow(-1px -1px 1px rgb(255 255 255 / 0.34)) drop-shadow(4px 7px 14px rgb(0 0 0 / 0.72))"
+    );
 
   enter(root);
   countUp(root);
