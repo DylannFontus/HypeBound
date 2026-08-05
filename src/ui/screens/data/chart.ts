@@ -134,10 +134,30 @@ export interface CurveOptions {
 /**
  * Cumulative win rate over the series, with a confidence band.
  *
- * The band is a Wald interval at 95% — `1.96 · sqrt(p(1-p)/n)` — clamped to the
- * plot. It is not a claim about the population; it is a picture of how little a
- * five-match sample knows about itself, and it collapses toward the line as the
- * series grows, which is exactly the intuition the screen is trying to hand over.
+ * The band is a Wald interval — `z · sqrt(p(1-p)/n)` — and it is *not* a claim
+ * about the population; it is a picture of how little a five-match sample knows
+ * about itself, collapsing toward the line as the series grows.
+ *
+ * ## Three things it used to get wrong, all of them about edges
+ *
+ * **The band was unclamped.** At three matches the 95% half-width is wider than
+ * the whole scale, so the upper bound left the plot and came back as a *hard
+ * horizontal edge* running the width of the panel, and the lower bound left the
+ * bottom and cut a black wedge out of the corner. Measured on the seeded
+ * account, the top edge was a straight line from x=110 to x=350. A confidence
+ * band whose own shape is a rectangle is telling the reader the opposite of what
+ * it means. Both bounds are clamped to [0,1] *and* the path is clipped to the
+ * plot rect, so nothing ever meets the panel edge.
+ *
+ * **It was one flat fill, and it outweighed the line it was qualifying.** Now it
+ * is two nested intervals — 50% inside 95% — at alphas well under the line's,
+ * which is both quieter and strictly more informative: the inner band is where
+ * the rate probably is, the outer is where it could be. The boundary is
+ * smoothed through midpoints rather than drawn as a stair of straight segments.
+ *
+ * **The rate itself counted draws.** `won / counted` against the rest of the
+ * product's `won / decided` — see `winRate` in `dashboard.ts`. This is why the
+ * curve's own footer printed 50% two hundred pixels under a headline of 67%.
  */
 export function winRateCurve(
   results: readonly TrendResult[],
@@ -153,11 +173,11 @@ export function winRateCurve(
   const padL = 40;
   const padR = 12;
   const padT = 12;
-  const padB = 22;
+  const padB = 30;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
 
-  const yFor = (rate: number): number => padT + plotH * (1 - rate);
+  const yFor = (rate: number): number => padT + plotH * (1 - Math.max(0, Math.min(1, rate)));
 
   // the well the chart sits in: recessed, lit from the bottom-right like
   // `.mat-well`, so the plot is a groove in the panel rather than a sticker
@@ -177,15 +197,42 @@ export function winRateCurve(
   ctx.fillStyle = floor;
   ctx.fillRect(padL, padT, plotW, plotH);
 
-  // grid at 25/50/75, labelled where it matters
+  /*
+   * The plot is a groove, so it has a frame: a dark lip along the top-left and a
+   * faint rim along the bottom-right, which is `.mat-well`'s inversion at chart
+   * scale. Without it the fill met the panel with nothing between them and the
+   * chart read as a sticker rather than as a recess in the surface.
+   */
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.beginPath();
+  ctx.moveTo(padL + 0.5, padT + plotH);
+  ctx.lineTo(padL + 0.5, padT + 0.5);
+  ctx.lineTo(padL + plotW, padT + 0.5);
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,0.055)";
+  ctx.beginPath();
+  ctx.moveTo(padL + plotW - 0.5, padT);
+  ctx.lineTo(padL + plotW - 0.5, padT + plotH - 0.5);
+  ctx.lineTo(padL, padT + plotH - 0.5);
+  ctx.stroke();
+
+  /*
+   * The grid runs 0–100 rather than 25–75.
+   *
+   * A curve at 92% used to run through open space with no line above it, so a
+   * reader had no way to tell 92 from 100 without measuring against the panel
+   * edge — which is exactly the ambiguity the unclamped band then made worse.
+   */
   ctx.font = "500 10px system-ui, sans-serif";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
-  for (const rate of [0.25, 0.5, 0.75]) {
+  for (const rate of [0, 0.25, 0.5, 0.75, 1]) {
+    const bound = rate === 0 || rate === 1;
     const y = Math.round(yFor(rate)) + 0.5;
-    ctx.strokeStyle = rate === 0.5 ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.075)";
+    ctx.strokeStyle = rate === 0.5 ? "rgba(255,255,255,0.2)" : bound ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.075)";
     ctx.lineWidth = 1;
-    ctx.setLineDash(rate === 0.5 ? [] : [3, 4]);
+    ctx.setLineDash(rate === 0.5 || bound ? [] : [3, 4]);
     ctx.beginPath();
     ctx.moveTo(padL, y);
     ctx.lineTo(padL + plotW, y);
@@ -197,36 +244,90 @@ export function winRateCurve(
 
   if (results.length === 0) return canvas;
 
-  // cumulative rate, oldest first
-  const points: { x: number; rate: number; n: number }[] = [];
+  /*
+   * Cumulative rate, oldest first — wins over *decided* matches, so a draw
+   * advances the timeline without moving the rate. One definition; see
+   * `winRate` in `dashboard.ts` for the three that used to be in the product.
+   */
+  const points: { x: number; rate: number; n: number; played: number }[] = [];
   let won = 0;
-  let counted = 0;
+  let decided = 0;
   results.forEach((result, i) => {
-    counted += 1;
     if (result === "win") won += 1;
+    if (result !== "draw") decided += 1;
     const x = padL + (results.length === 1 ? plotW / 2 : (i / (results.length - 1)) * plotW);
-    points.push({ x, rate: won / counted, n: counted });
+    points.push({ x, rate: decided > 0 ? won / decided : 0, n: Math.max(1, decided), played: i + 1 });
   });
 
-  if (options.band !== false) {
-    ctx.beginPath();
-    points.forEach((point, i) => {
-      const halfWidth = 1.96 * Math.sqrt(Math.max(0.02, point.rate * (1 - point.rate)) / point.n);
-      const y = yFor(Math.min(1, point.rate + halfWidth));
-      if (i === 0) ctx.moveTo(point.x, y);
-      else ctx.lineTo(point.x, y);
+  /** A boundary of the interval, clamped to the scale, at `z` standard errors. */
+  const boundOf = (point: { rate: number; n: number }, z: number, sign: 1 | -1): number => {
+    const half = z * Math.sqrt(Math.max(0.02, point.rate * (1 - point.rate)) / point.n);
+    return Math.max(0, Math.min(1, point.rate + sign * half));
+  };
+
+  /**
+   * A polyline drawn through midpoints, so the boundary is a curve.
+   *
+   * The band is a stair by construction — each match moves the rate by a
+   * discrete step — and drawing that stair with straight segments made the
+   * uncertainty look like data. Quadratics anchored on the midpoint between
+   * consecutive samples round it off without inventing values between them.
+   */
+  const traceSmooth = (xs: readonly number[], ys: readonly number[], reverse: boolean): void => {
+    const order = reverse ? [...xs.keys()].reverse() : [...xs.keys()];
+    order.forEach((index, step) => {
+      const x = xs[index]!;
+      const y = ys[index]!;
+      if (step === 0) {
+        ctx.lineTo(x, y);
+        return;
+      }
+      const prev = order[step - 1]!;
+      ctx.quadraticCurveTo(xs[prev]!, ys[prev]!, (xs[prev]! + x) / 2, (ys[prev]! + y) / 2);
+      if (step === order.length - 1) ctx.lineTo(x, y);
     });
-    for (let i = points.length - 1; i >= 0; i--) {
-      const point = points[i]!;
-      const halfWidth = 1.96 * Math.sqrt(Math.max(0.02, point.rate * (1 - point.rate)) / point.n);
-      ctx.lineTo(point.x, yFor(Math.max(0, point.rate - halfWidth)));
+  };
+
+  if (options.band !== false) {
+    /*
+     * Clipped to the plot, so no boundary can meet the panel edge no matter how
+     * wide the interval is at three matches.
+     */
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(padL, padT, plotW, plotH);
+    ctx.clip();
+
+    const xs = points.map((point) => point.x);
+    // 95% outside, 50% inside: where it could be, and where it probably is.
+    for (const [z, alpha] of [
+      [1.96, "16"],
+      [0.674, "20"],
+    ] as const) {
+      const upper = points.map((point) => yFor(boundOf(point, z, 1)));
+      const lower = points.map((point) => yFor(boundOf(point, z, -1)));
+      ctx.beginPath();
+      ctx.moveTo(xs[0]!, upper[0]!);
+      traceSmooth(xs, upper, false);
+      ctx.lineTo(xs[xs.length - 1]!, lower[lower.length - 1]!);
+      traceSmooth(xs, lower, true);
+      ctx.closePath();
+      ctx.fillStyle = `${accent}${alpha}`;
+      ctx.fill();
     }
-    ctx.closePath();
-    const wash = ctx.createLinearGradient(0, padT, 0, padT + plotH);
-    wash.addColorStop(0, `${accent}2e`);
-    wash.addColorStop(1, `${accent}12`);
-    ctx.fillStyle = wash;
-    ctx.fill();
+
+    // the outer boundary as a hairline, so the band ends rather than stops
+    const edge = points.map((point) => yFor(boundOf(point, 1.96, 1)));
+    const floorLine = points.map((point) => yFor(boundOf(point, 1.96, -1)));
+    ctx.strokeStyle = `${accent}33`;
+    ctx.lineWidth = 1;
+    for (const series of [edge, floorLine]) {
+      ctx.beginPath();
+      ctx.moveTo(xs[0]!, series[0]!);
+      traceSmooth(xs, series, false);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // the line, with its own soft glow — the brightest thing in the plot,
@@ -257,12 +358,35 @@ export function winRateCurve(
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // sample count, bottom-left, so the axis says what it is counting
+  /*
+   * X ticks with match numbers, so "30 matches, oldest first" is measurable
+   * rather than asserted. Four at most — enough to read the axis, few enough
+   * that the labels never collide at 320px.
+   */
+  const ticks = Math.min(4, results.length);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "rgba(164,156,194,0.62)";
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < ticks; i++) {
+    const point = points[Math.round((i / Math.max(1, ticks - 1)) * (points.length - 1))]!;
+    const x = Math.round(point.x) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, padT + plotH);
+    ctx.lineTo(x, padT + plotH + 3);
+    ctx.stroke();
+    ctx.fillText(String(point.played), Math.min(padL + plotW - 8, Math.max(padL + 8, x)), padT + plotH + 5);
+  }
+
+  // the footer says what is counted and what the figure means, in one place
+  ctx.textBaseline = "middle";
   ctx.textAlign = "left";
   ctx.fillStyle = "rgba(164,156,194,0.85)";
-  ctx.fillText(`${results.length} matches, oldest first`, padL + 2, height - 10);
+  ctx.fillText(`${results.length} matches, oldest first`, padL + 2, height - 9);
   ctx.textAlign = "right";
-  ctx.fillText(`${Math.round(last.rate * 100)}% overall`, padL + plotW, height - 10);
+  ctx.fillStyle = "rgba(230,226,244,0.9)";
+  ctx.fillText(`${Math.round(last.rate * 100)}% of ${last.n} decided`, padL + plotW, height - 9);
 
   return canvas;
 }

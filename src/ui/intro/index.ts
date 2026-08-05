@@ -64,7 +64,13 @@ import { animationScale } from "../../save/settings";
 import { needsStarterChoice } from "../../save/profile";
 import { createIntroStage, restingLook, type IntroLook, type IntroStage, type IntroTier } from "./stage";
 import type { Sequence } from "./timeline";
-import { FIRST_RUN_GATES, FIRST_RUN_REST, firstRunSequence } from "./firstRun";
+import {
+  FIRST_RUN_GATES,
+  FIRST_RUN_HANDOVER,
+  FIRST_RUN_HANDOVER_MS,
+  FIRST_RUN_REST,
+  firstRunSequence,
+} from "./firstRun";
 import { RETURNING_REST, returningSequence } from "./returning";
 import { forgetTitle, markTitlePlayed, titleAlreadyPlayed } from "./introStore";
 
@@ -489,6 +495,22 @@ export function playIntro(kind: IntroKind): () => void {
       host.appendChild(hint);
     }
 
+    /**
+     * Whether the game behind the cinematic has been uncovered yet.
+     *
+     * See `FIRST_RUN_HANDOVER`. The plate is the thing that made the exit a
+     * hole, and there are three ways out of this sequence — it runs to the end,
+     * the player skips, or something goes wrong and `close()` is called
+     * directly — so the reveal is a function all three go through rather than a
+     * line in the frame loop that the other two would have missed.
+     */
+    let uncovered = false;
+    const uncover = (): void => {
+      if (uncovered) return;
+      uncovered = true;
+      delete host.dataset["plate"];
+    };
+
     let stopFrames: (() => void) | null = null;
     let holdTimer: ReturnType<typeof setTimeout> | null = null;
     let removeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -551,8 +573,20 @@ export function playIntro(kind: IntroKind): () => void {
     close = (): void => {
       if (finished) return;
       finished = true;
+      /**
+       * Whatever brought us here, the plate goes first and on the same frame.
+       *
+       * A black hold plate under a layer that is *fading out* is the hole this
+       * sequence was measured producing: the picture dissolves to the plate,
+       * and only then does the plate dissolve to the game. One of those two
+       * dissolves has to be against the real destination, and it may as well be
+       * both.
+       */
+      uncover();
       host.classList.add("is-leaving");
-      removeTimer = setTimeout(teardown, still ? 140 : 300);
+      // Already dissolved on the way through the handover: the element is
+      // transparent and the only thing left to do is stop taking clicks with it.
+      removeTimer = setTimeout(teardown, still ? 140 : host.classList.contains("is-handover") ? 90 : 300);
     };
 
     /**
@@ -575,6 +609,14 @@ export function playIntro(kind: IntroKind): () => void {
        * lives while the rest of the picture folds out around it.
        */
       claimBrand(null);
+      /**
+       * A skip folds the picture out over 150ms, and it folds it out over the
+       * game rather than over the plate. Without this the player who asks for
+       * the title to stop being in the way is answered with a black rectangle
+       * for a sixth of a second, which is the same defect as the ending and is
+       * worse for being the one they explicitly requested.
+       */
+      uncover();
       if (still) {
         close();
         return;
@@ -690,6 +732,21 @@ export function playIntro(kind: IntroKind): () => void {
       }
 
       film.seek(clock);
+      /**
+       * The handover, and it is a frame-loop decision rather than a timer
+       * because the clock it belongs to is the *sequence* clock — which stalls
+       * at a gate and runs at the player's animation-speed multiplier. A
+       * `setTimeout` would uncover the game in the middle of a stalled title on
+       * a slow first load.
+       */
+      if (first && !uncovered && clock >= FIRST_RUN_HANDOVER) {
+        uncover();
+        // One source of truth for the length of the dissolve: the sequence
+        // module owns it, because it is the sequence's last beat in everything
+        // but name.
+        host.style.setProperty("--hb-handover-ms", `${FIRST_RUN_HANDOVER_MS}ms`);
+        host.classList.add("is-handover");
+      }
       if (!first && bailAt === null) syncBrand(look);
       if (bailAt !== null) {
         const out = Math.min(1, (wall - bailAt) / BAIL_MS);

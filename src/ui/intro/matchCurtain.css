@@ -17,22 +17,37 @@
 /* ---- the two halves ----------------------------------------------------- */
 
 /**
- * Anchored to the seam, not to the panel.
+ * ## Each face keeps its own name, and that is a correction
  *
- * Each panel is 52% of the viewport tall and the seam sits on its inner edge, so
- * `bottom: 0` on the top panel and `top: 0` on the bottom one put both figures
- * against the light. That is the whole composition: two people either side of a
- * horizon, which is what a versus card is, and it also means the part pulls them
- * apart rather than sliding two pictures off in the same direction.
+ * The first version put the away portrait at the top-**left** and the away name
+ * plate at the top-**right**, the home portrait bottom-right and the home name
+ * bottom-left. Photographed at 1600x900 that is four unrelated objects: each
+ * name sat roughly nine hundred pixels from its own face across empty
+ * near-black, about 60% of the frame carried nothing at all, and there was no
+ * way to tell by looking which name belonged to which fighter. The reasoning
+ * written down at the time — that stacking the two figures dead centre is a
+ * mirror and a mirror has no read — was answering a question nobody had asked:
+ * the fix for a mirror is to offset the *pair*, not to scatter its parts.
+ *
+ * Hearthstone puts the hero's name directly under the hero, in a plate that
+ * belongs to that hero, and never anywhere else. So does this now. The away
+ * figure and its plate are one object left of centre above the light, the home
+ * figure and its plate are one object right of centre below it, and the two
+ * face each other across the seam with the mode chip in the gap between them.
+ * The offsets are 12% rather than the old 6%/8% split, which closes most of the
+ * dead middle without letting either pair reach the chip.
+ *
+ * `.match-side` is the whole panel rather than 78% of it, because the anchor
+ * that matters is the seam — `bottom: 0` on the top half and `top: 0` on the
+ * bottom half put both figures against the light — and the percentage height
+ * was only ever a way of keeping the portrait small enough to fit. `max-height`
+ * does that job properly; see below.
  */
 .match-side {
   position: absolute;
   left: 0;
   right: 0;
-  height: 78%;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  height: 100%;
   pointer-events: none;
   /* Below the seam's own glow, above the panel's specular crawl. */
   z-index: 1;
@@ -40,73 +55,94 @@
 
 .match-side.is-away {
   bottom: 0;
-  align-items: flex-end;
 }
 
-.match-side.is-bottom,
 .match-side.is-home {
   top: 0;
-  align-items: flex-start;
 }
 
 /**
- * The portrait, off to one side.
+ * ## The portrait cannot resize, move or escape its panel
  *
- * Not centred, and the asymmetry is the point: two figures stacked dead centre
- * across a horizon is a mirror, and a mirror has no read. The away leader stands
- * left of the axis and the home leader right of it, so the eye travels the
- * diagonal — the same 315° the light comes from.
+ * Measured at 844x390 with the billing attached: top panel [-17,-102,878,203],
+ * bottom panel [-17,85,878,203] — in a 390px viewport. **y=288 to y=390, 102
+ * pixels and 26% of the screen, was covered by neither half**, the mulligan
+ * hand and the Confirm button were plainly visible through a curtain the code
+ * believed was closed, the seam sat at 24% of the height instead of 50%, and
+ * 59% of the away leader's portrait was clipped off the top of the screen. The
+ * same viewport a beat earlier, before the portraits were attached, was covered
+ * correctly. 1280x720 and 1600x900 at `--ui-scale 1.4` were both fine.
+ *
+ * A 246px-tall canvas was being inserted into a 203px panel, overflowing it,
+ * and taking the curtain's own origin with it. Three independent guarantees
+ * now, because any one of them alone is a thing the next person can undo by
+ * accident:
+ *
+ *  - `max-height: 100%` on a *replaced* element with an explicit width scales
+ *    both axes down together, so the art can never be taller than its panel at
+ *    any viewport;
+ *  - `overflow: hidden` on the panel itself (in `transitions.css`), so nothing
+ *    inside one can contribute overflow to anything outside it;
+ *  - `position: fixed` on the curtain (also there), so no scroll container
+ *    anywhere in the document can move the cover off the screen.
+ *
+ * `50vh` rather than the old `52vh`: the panel is 52% tall, `.match-side` is
+ * now all of it, and two points of margin is what stops a rounding error at an
+ * awkward viewport height from putting the head under the clip.
  */
 .match-portrait {
   position: absolute;
-  bottom: 0;
-  width: min(46vw, 52vh);
+  width: min(34vw, 50vh);
   height: auto;
+  max-height: 100%;
   opacity: 0;
   will-change: opacity, transform;
 }
 
 .is-away .match-portrait {
   bottom: 0;
-  left: 6%;
+  left: 12%;
   transform: translate3d(0, 4%, 0) scale(1.03);
 }
 
 .is-home .match-portrait {
   top: 0;
-  bottom: auto;
-  right: 6%;
+  right: 12%;
   transform: translate3d(0, -4%, 0) scale(1.03);
 }
 
-/* ---- the name plates ---------------------------------------------------- */
+/* ---- the name plates, each under its own face --------------------------- */
 
+/**
+ * Exactly as wide as the portrait it belongs to and pinned to the same edge, so
+ * the name is centred on the face by construction rather than by a second
+ * number that has to be kept in step with the first. It sits *over* the lower
+ * band of the art, which is the band `sideElement` already fades out — the type
+ * lands on the darkest part of its own portrait, right next to the brightest
+ * thing on screen.
+ */
 .match-plate {
   position: absolute;
-  bottom: clamp(14px, 4vh, 40px);
+  width: min(34vw, 50vh);
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 2px;
-  max-width: 40vw;
   opacity: 0;
   will-change: opacity, transform;
 }
 
 .is-away .match-plate {
-  right: 8%;
-  bottom: clamp(16px, 4.4vh, 44px);
-  text-align: right;
-  align-items: flex-end;
-  transform: translate3d(2%, 0, 0);
+  left: 12%;
+  bottom: clamp(8px, 2.4vh, 22px);
+  transform: translate3d(0, 30%, 0);
 }
 
 .is-home .match-plate {
-  left: 8%;
-  bottom: auto;
-  top: clamp(16px, 4.4vh, 44px);
-  text-align: left;
-  align-items: flex-start;
-  transform: translate3d(-2%, 0, 0);
+  right: 12%;
+  top: clamp(8px, 2.4vh, 22px);
+  transform: translate3d(0, -30%, 0);
 }
 
 .match-role {
@@ -115,6 +151,7 @@
   text-transform: uppercase;
   font-weight: 700;
   color: color-mix(in srgb, var(--room-key, #ff5fa2) 62%, #efe7ff);
+  text-shadow: 0 2px 10px rgb(4 2 12 / 0.85);
 }
 
 .match-name {
@@ -123,7 +160,7 @@
   letter-spacing: -0.015em;
   font-weight: 800;
   color: #f6f1ff;
-  /* Type over imagery always gets a plate, a scrim or a shadow — §4. The
+  /* Type over imagery always gets a plate, a scrim or a shadow — S4. The
      portrait already carries a scrim; this is the shadow that survives a light
      patch of art landing behind a letterform. */
   text-shadow:
@@ -250,10 +287,13 @@
   }
 }
 
+/* The plates rise out of their own portraits towards the light rather than
+   sliding in from the edge of the frame. They belong to the face beside them
+   now, so they arrive from it. */
 @keyframes match-plate-in {
   from {
     opacity: 0;
-    transform: translate3d(2%, 0, 0);
+    transform: translate3d(0, 30%, 0);
   }
   to {
     opacity: 1;
@@ -264,7 +304,7 @@
 @keyframes match-plate-in-home {
   from {
     opacity: 0;
-    transform: translate3d(-2%, 0, 0);
+    transform: translate3d(0, -30%, 0);
   }
   to {
     opacity: 1;
@@ -306,15 +346,27 @@
     match-breathe-home 8s var(--nav-ease-glide, cubic-bezier(0.65, 0, 0.35, 1)) 4.7s infinite;
 }
 
+/*
+ * Transform only, and the opacity that used to be in here is the reason the
+ * billing flashed at the moment the curtain parted.
+ *
+ * The breathe is the last animation to touch `opacity` on these elements, so
+ * its fill was what held them visible during the hold — which meant the exit
+ * rule below had to write `opacity: 1` back on when it cancelled it, and a
+ * portrait caught mid-entrance was **brightened to full white on the frame the
+ * panels started moving**, over a board that was already showing through.
+ * Leaving opacity to the entrance's own fill means the exit has nothing to
+ * restore and nothing jumps. 1.5% of scale on an eight-second period is plenty
+ * for a frame-differencer and still under the threshold at which anybody can
+ * name it.
+ */
 @keyframes match-breathe-away {
   0%,
   100% {
     transform: translate3d(0, 0, 0) scale(1);
-    opacity: 0.96;
   }
   50% {
     transform: translate3d(0, -0.5%, 0) scale(1.015);
-    opacity: 1;
   }
 }
 
@@ -322,11 +374,9 @@
   0%,
   100% {
     transform: translate3d(0, 0, 0) scale(1.015);
-    opacity: 1;
   }
   50% {
     transform: translate3d(0, 0.5%, 0) scale(1);
-    opacity: 0.96;
   }
 }
 
@@ -346,13 +396,7 @@
 .nav-curtain[data-phase="open"] .match-vs {
   animation: none;
   opacity: 0;
-  transition: opacity 90ms var(--nav-ease-leave, cubic-bezier(0.4, 0, 1, 1));
-}
-
-.nav-curtain[data-phase="open"] .match-portrait,
-.nav-curtain[data-phase="open"] .match-plate {
-  animation: none;
-  opacity: 1;
+  transition: opacity 130ms var(--nav-ease-leave, cubic-bezier(0.4, 0, 1, 1));
 }
 
 /* ---- reduced motion, and the small screen -------------------------------- */
@@ -391,20 +435,37 @@
  * the portraits come down to the smaller of the two dimensions and the plates
  * lose their second line's breathing room rather than their second line.
  */
+/**
+ * 844x390 landscape. The portraits are **kept**, and that is a decision against
+ * the obvious alternative of dropping them below this height.
+ *
+ * Dropping them was the first draft, because at `min(38vw, 62vh)` the art came
+ * out 246px tall inside a 203px panel and broke the curtain outright. But
+ * `min(38vw, 46vh)` is 179px at this viewport against a 203px panel, and
+ * `max-height: 100%` makes that a guarantee rather than an arithmetic
+ * coincidence — so the small screen gets the same two fighters the large one
+ * does, which is the entire point of a versus card. What it loses is the second
+ * line's breathing room, not the second line.
+ */
 @media (max-height: 460px) {
-  .match-portrait {
-    width: min(38vw, 62vh);
+  .match-portrait,
+  .match-plate {
+    width: min(38vw, 46vh);
   }
 
   .match-name {
-    font-size: clamp(16px, 4.6vh, 26px);
+    font-size: clamp(15px, 4.4vh, 24px);
   }
 
-  .match-plate {
-    bottom: clamp(8px, 2.6vh, 18px);
+  .match-detail {
+    font-size: clamp(10px, 2.6vh, 12px);
+  }
+
+  .is-away .match-plate {
+    bottom: clamp(4px, 1.6vh, 12px);
   }
 
   .is-home .match-plate {
-    top: clamp(8px, 2.6vh, 18px);
+    top: clamp(4px, 1.6vh, 12px);
   }
 }

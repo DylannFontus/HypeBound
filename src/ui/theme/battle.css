@@ -24,6 +24,11 @@
      the bottom inset against. The two must move together or the hand starts
      covering the player's own leader again — see insetsFor(). */
   --hand-hover-scale: 1.3;
+  /* A deal is longer than a UI transition and shorter than a set-piece: the
+     card has to cross most of the mat and turn over on the way, and it happens
+     several times a turn. Derived from the shared token so the reduced-motion
+     override in base.css takes it down with everything else. */
+  --dur-deal: calc(var(--dur-med) * 1.6);
 }
 
 .battle-board-host {
@@ -62,13 +67,41 @@
   bottom: var(--fan-drop, 0px);
   cursor: grab;
   transform-origin: 50% 100%;
-  transform: rotate(var(--tilt, 0deg)) translateY(var(--lift, 0px));
+  /* `--spread-x/y` is the shove a neighbour takes when the card next to it is
+     read. It is applied before the fan rotation so it travels in screen space:
+     the card beside the read goes sideways, not sideways-along-its-own-tilt. */
+  transform: translate(var(--spread-x, 0px), var(--spread-y, 0px)) rotate(var(--tilt, 0deg))
+    translateY(var(--lift, 0px));
   transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast) var(--ease-out);
   filter: drop-shadow(4.4px 7.1px 18px rgba(0, 0, 0, 0.65));
-  /* `backwards`, NOT `both`: with `both` the finished animation keeps applying
-     its final keyframe, and because CSS animations outrank normal declarations
-     that permanently defeats the :hover transform below. */
-  animation: hand-card-in var(--dur-med) var(--ease-out) backwards;
+  /**
+   * The entrance runs on `translate`/`scale`, not on `transform`.
+   *
+   * They are separate animatable properties and they compose *before*
+   * `transform`, so a keyframe can carry a card in from the deck without ever
+   * having to restate the fan's rotation, the neighbour shove or the hover —
+   * which is what the old `backwards` note below was working around. Nothing
+   * the entrance does can now defeat `:hover`, because they are not writing to
+   * the same property at all.
+   *
+   * `animation-delay` reads `--enter-delay`, which is what `stagger()` has been
+   * writing all along. Before this line the property was written by
+   * `handBar.sync` and `battleView.playCurtain`, computed correctly, and read
+   * by nothing: `grep -n enter-delay src/ui/theme/battle.css` returned zero
+   * hits and six cards logged `animationstart` at an identical millisecond.
+   * §3a names a 30–60ms cascade as the single biggest perceived-quality gap
+   * between a hobby menu and a shipped one, and this is the line that was
+   * missing.
+   */
+  animation: hand-card-in var(--dur-deal) var(--ease-out) var(--enter-delay, 0ms) backwards;
+}
+
+/* The turn is the inner wrapper's job; the fan is the outer element's. */
+.hand-card-flip {
+  display: block;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: hand-card-turn var(--dur-deal) var(--ease-out) var(--enter-delay, 0ms) backwards;
 }
 
 .hand-card canvas {
@@ -76,11 +109,67 @@
   width: auto;
   height: var(--hand-card-height);
   border-radius: 10px;
+  backface-visibility: hidden;
 }
 
+/* The other side of the same object: `renderCardBack` on a canvas, taken to a
+   data URI once per session by `handBar.ts`, so seven cards turning over cost
+   one decode rather than seven card renders. */
+.hand-card-back {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background-position: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  backface-visibility: hidden;
+  transform: rotateY(180deg);
+}
+
+/**
+ * A card comes out of the deck, face down, and turns over on the way.
+ *
+ * `--from-x`/`--from-y` are written by `handBar.aimAtPile()` from the deck
+ * stack's projected screen position — the plinth is a real object on the mat and
+ * `BattleView` publishes where it is — so the travel is a straight line from the
+ * pile the player can watch draining, not a 40px rise out of thin air. The
+ * midpoint pulls the path off that line so it arcs, and the scale ramp does the
+ * perspective: a card at the far end of the mat is small.
+ *
+ * The fallback keeps a hand working before the board has projected anything
+ * (the first sync, and every test without a GPU): 40px and no lateral travel,
+ * which is exactly the entrance this replaces.
+ */
 @keyframes hand-card-in {
-  from { opacity: 0; transform: translateY(40px) scale(0.9); }
-  to { opacity: 1; }
+  0% {
+    opacity: 0;
+    translate: var(--from-x, 0px) var(--from-y, 40px);
+    scale: 0.38;
+  }
+  14% {
+    opacity: 1;
+  }
+  58% {
+    translate: calc(var(--from-x, 0px) * 0.3) calc(var(--from-y, 40px) * 0.3 - 26px);
+    scale: 0.84;
+  }
+  100% {
+    opacity: 1;
+    translate: none;
+    scale: 1;
+  }
+}
+
+@keyframes hand-card-turn {
+  0% {
+    transform: perspective(760px) rotateY(176deg) rotateZ(-10deg);
+  }
+  58% {
+    transform: perspective(760px) rotateY(74deg) rotateZ(-4deg);
+  }
+  100% {
+    transform: perspective(760px) rotateY(0deg) rotateZ(0deg);
+  }
 }
 
 /* Hover enlarges dramatically and straightens the card — this is how the
@@ -94,6 +183,13 @@
   transform: rotate(0deg) translateY(calc(var(--hand-card-height) * -0.06)) scale(var(--hand-hover-scale));
   z-index: 200 !important;
   filter: drop-shadow(9.6px 15.6px 38px rgba(0, 0, 0, 0.85));
+}
+
+/* The hovered card's own spread is dropped: it is the thing being made room
+   for, and it straightens rather than sliding. */
+.hand-card:hover {
+  --spread-x: 0px;
+  --spread-y: 0px;
 }
 
 .hand-card.playable canvas {
@@ -120,12 +216,42 @@
 }
 
 .hand-card.leaving {
-  animation: hand-card-out var(--dur-med) var(--ease-in-out) both;
+  animation: hand-card-out var(--dur-deal) var(--ease-in-out) both;
   pointer-events: none;
 }
 
+.hand-card.leaving .hand-card-flip {
+  animation: hand-card-away var(--dur-deal) var(--ease-in-out) both;
+}
+
+/**
+ * ...and a card that leaves goes to the discard tray, which is a real object on
+ * the mat with a height that grows as it fills.
+ *
+ * `translateY(-70px)` sent every discard straight up off the top of the screen,
+ * towards nothing — the mirror image of cards materialising 40px below where
+ * they land. `--exit-x/y` are the discard pile's projected screen position,
+ * written by `handBar.aimAtPile()`; the same fallback applies when there is no
+ * board to project from.
+ */
 @keyframes hand-card-out {
-  to { opacity: 0; transform: translateY(-70px) scale(0.85); }
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: var(--exit-x, 0px) var(--exit-y, -70px);
+    scale: 0.4;
+  }
+}
+
+@keyframes hand-card-away {
+  0% {
+    transform: perspective(760px) rotateY(0deg);
+  }
+  100% {
+    transform: perspective(760px) rotateY(112deg);
+  }
 }
 
 /* the card that follows the cursor while dragging */
@@ -138,14 +264,74 @@
   filter: drop-shadow(9.6px 15.6px 34px rgba(0, 0, 0, 0.75));
 }
 
+/**
+ * ## Carried is its own state, and it used to be the smallest of the three
+ *
+ * The ghost rendered at `--hand-card-height - 20px` — smaller than a resting
+ * card and far smaller than the 1.3x hover — and wore `rgba(125,255,176,0.9)`,
+ * which is `.hand-card.playable`'s outline to within five per cent of alpha. So
+ * rest, hover and *held* were three states with two appearances, and the one
+ * the player was actively doing was the one that looked like it had shrunk.
+ *
+ * Held is now the largest, and it is lit rather than outlined: a warm rim and a
+ * warm bloom, which cannot be confused with the green "you can afford this" of
+ * the resting card nor with the green/red the *floor* answers with below. Those
+ * two are different questions — "I am holding this" and "this will land here" —
+ * and they now look different.
+ */
 .hand-drag-ghost canvas {
   display: block;
   width: auto;
-  height: calc(var(--hand-card-height) - 20px);
+  height: calc(var(--hand-card-height) * var(--hand-hover-scale) * 1.08);
   border-radius: 12px;
-  outline: 2px solid rgba(125, 255, 176, 0.9);
-  outline-offset: -2px;
-  transition: outline-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(255, 226, 176, 0.92),
+    0 0 30px rgba(255, 186, 110, 0.42);
+  transition:
+    box-shadow var(--dur-fast) var(--ease-out),
+    scale var(--dur-fast) var(--ease-snap);
+  scale: 0.86;
+}
+
+/* One frame after pickup: the card rises. `scale` rather than `transform`
+   because the ghost's transform is the pointer follow plus the swing, and the
+   two must not fight over the same property sixty times a second. */
+.hand-drag-ghost.lifted canvas {
+  scale: 1;
+}
+
+/**
+ * The ground shadow, separating.
+ *
+ * Its own composited layer under the card rather than a `drop-shadow` on it,
+ * because a filter shadow is welded to its object: it can soften but it cannot
+ * move away, so lifting a card looked exactly like sliding one. This starts
+ * tight and dark under the card and, over the same 160ms the card scales up,
+ * grows, drops and fades — which is the whole read of an object coming off a
+ * surface. A pre-blurred radial gradient scaled by the compositor, so there is
+ * no blur radius being re-rasterised while the pointer moves.
+ */
+.hand-drag-shadow {
+  position: absolute;
+  left: 50%;
+  top: 78%;
+  width: calc(var(--hand-card-height) * 0.9);
+  height: calc(var(--hand-card-height) * 0.3);
+  margin-left: calc(var(--hand-card-height) * -0.45);
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(3, 1, 8, 0.72), rgba(3, 1, 8, 0.28) 58%, transparent 100%);
+  transform: translate3d(0, 0, 0) scale(0.6);
+  opacity: 0.9;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+
+.hand-drag-ghost.lifted .hand-drag-shadow {
+  transform: translate3d(6%, 34%, 0) scale(1.25);
+  opacity: 0.5;
 }
 
 /* The card answers the same question the floor under it is answering. A drop
@@ -153,8 +339,9 @@
    the player is looking — an illegal drag and a legal one were pixel-identical
    before this, on both the card and the board. */
 .hand-drag-ghost.drop-valid canvas {
-  outline-color: rgba(140, 255, 190, 1);
-  box-shadow: 0 0 26px rgba(125, 255, 176, 0.55);
+  box-shadow:
+    0 0 0 2px rgba(150, 255, 195, 1),
+    0 0 34px rgba(125, 255, 176, 0.6);
 }
 
 .hand-drag-ghost.drop-blocked {
@@ -162,8 +349,9 @@
 }
 
 .hand-drag-ghost.drop-blocked canvas {
-  outline-color: rgba(255, 110, 135, 0.95);
-  box-shadow: 0 0 22px rgba(255, 77, 106, 0.5);
+  box-shadow:
+    0 0 0 2px rgba(255, 120, 145, 0.98),
+    0 0 26px rgba(255, 77, 106, 0.55);
 }
 
 /* While it flies to the slot it must not take the pointer or repaint its
@@ -189,13 +377,38 @@
   will-change: opacity;
 }
 .hand-drag-ghost.handed-off canvas {
-  outline-color: transparent;
   box-shadow: none;
 }
 
-:root[data-reduced-motion="true"] .hand-card {
+/* The card has been put down, so it is not lifted off anything any more. */
+.hand-drag-ghost.handed-off .hand-drag-shadow {
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.7);
+}
+
+:root[data-reduced-motion="true"] .hand-card,
+:root[data-reduced-motion="true"] .hand-card-flip,
+:root[data-reduced-motion="true"] .hand-card.leaving,
+:root[data-reduced-motion="true"] .hand-card.leaving .hand-card-flip {
   animation: none;
   transition: none;
+}
+
+/* ...and the card is face-up and where it belongs, rather than parked at
+   whatever the first keyframe happened to be. */
+:root[data-reduced-motion="true"] .hand-card {
+  translate: none;
+  scale: 1;
+}
+
+:root[data-reduced-motion="true"] .hand-card-flip {
+  transform: none;
+}
+
+:root[data-reduced-motion="true"] .hand-drag-ghost canvas,
+:root[data-reduced-motion="true"] .hand-drag-shadow {
+  transition: none;
+  scale: 1;
 }
 
 @media (max-height: 620px) {
@@ -1218,6 +1431,155 @@
   0% { opacity: 0; }
   25% { opacity: 1; }
   100% { opacity: 0; }
+}
+
+/* ---- the targeting arrow's motion --------------------------------------- */
+
+/**
+ * ## The arrow was a still image, held for as long as the player held the drag
+ *
+ * Measured by keeping an attack arrow perfectly motionless for two seconds and
+ * diffing the corridor between attacker and target: the ribbon, the arrowhead,
+ * the target's ring and the damage chip were **pixel-identical** between t=5ms
+ * and t=970ms. Everything that changed in the crop was the mat's own ambient
+ * sweep behind them. `targeting.ts` declared `transition: opacity 120ms` and no
+ * keyframe named `arrow-*` existed in any stylesheet in the project.
+ *
+ * A targeting arrow is the only object on screen whose entire job is to say
+ * "this is about to happen to that". Hearthstone's arrow has a charge running up
+ * it and a rotating rune under the target; Gwent pulses the whole target row;
+ * MTGA runs an animated dashed line. A still arrow states it in the past tense.
+ *
+ * Everything below is `stroke-dashoffset`, `transform` and `opacity` on five
+ * SVG nodes — one ribbon spine, one head, two reticle rings, four ticks — which
+ * is the budget §3 leaves once "never a paint property on many elements at
+ * once" has been honoured. All of it is gated on `.is-live`, so an arrow that
+ * is not being aimed costs nothing at all.
+ */
+.targeting-layer .arrow-flow {
+  stroke-width: 5;
+  stroke-dasharray: 13 27;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+  mix-blend-mode: screen;
+}
+
+.targeting-layer.is-live .arrow-flow {
+  opacity: 0.85;
+  animation: arrow-charge 700ms linear infinite;
+}
+
+/* Negative offset walks the dashes along increasing path length, i.e. from the
+   attacker toward the target. 40 is one full dash + gap, so the loop is seamless
+   at any arrow length — the charge travels at a constant speed rather than
+   taking 700ms to cross whatever distance it happens to be. */
+@keyframes arrow-charge {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+.targeting-layer .arrow-cast {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.targeting-layer.is-live .arrow-cast {
+  opacity: 1;
+}
+
+.targeting-layer .arrow-head {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.targeting-layer.is-live .arrow-head {
+  animation: arrow-head-pulse 700ms var(--ease-in-out) infinite;
+}
+
+@keyframes arrow-head-pulse {
+  0%,
+  100% {
+    scale: 1;
+  }
+  46% {
+    scale: 1.13;
+  }
+}
+
+.targeting-layer .arrow-reticle {
+  transition: opacity 120ms ease-out;
+}
+
+.targeting-layer .arrow-reticle-outer {
+  stroke: var(--arrow-key, #ff4d6a);
+  opacity: 0.9;
+}
+
+.targeting-layer .arrow-reticle-inner {
+  stroke: #f6f1ff;
+  opacity: 0.55;
+}
+
+.targeting-layer .arrow-reticle-tick {
+  stroke: var(--arrow-key, #ff4d6a);
+  opacity: 0.8;
+}
+
+/* Counter-rotating, because two rings turning the same way is one ring with a
+   gap in it. The ticks stay square to the screen so the mark keeps an up. */
+.targeting-layer.is-live .arrow-reticle-spin {
+  animation: arrow-reticle-turn 5.2s linear infinite;
+}
+
+.targeting-layer.is-live .arrow-reticle-inner {
+  animation: arrow-reticle-turn-back 3.4s linear infinite;
+  transform-origin: 0 0;
+}
+
+.targeting-layer.is-live .arrow-reticle-tick {
+  animation: arrow-reticle-breathe 1.4s var(--ease-in-out) infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+@keyframes arrow-reticle-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes arrow-reticle-turn-back {
+  to {
+    rotate: -360deg;
+  }
+}
+
+@keyframes arrow-reticle-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    scale: 1;
+  }
+  50% {
+    opacity: 1;
+    scale: 1.3;
+  }
+}
+
+/* Reduced motion keeps the arrow — it is functional, it says what is about to
+   be attacked — and parks every decorative loop on it. The charge stays visible
+   as a dashed line so the direction of travel is still drawn, it simply stops
+   travelling. */
+:root[data-reduced-motion="true"] .targeting-layer.is-live .arrow-flow,
+:root[data-reduced-motion="true"] .targeting-layer.is-live .arrow-head,
+:root[data-reduced-motion="true"] .targeting-layer.is-live .arrow-reticle-spin,
+:root[data-reduced-motion="true"] .targeting-layer.is-live .arrow-reticle-inner,
+:root[data-reduced-motion="true"] .targeting-layer.is-live .arrow-reticle-tick {
+  animation: none;
 }
 
 /* ---- damage preview badge ----------------------------------------------- */

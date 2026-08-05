@@ -49,10 +49,11 @@ import { audio } from "../../audio/audio";
 import { currentAccount, signIn, signOut, signUp } from "../../auth/account";
 import { forgetCloudLink, stopAutoSync } from "../../save/cloudSaves";
 import { activeDeck } from "../../save/profile";
-import { ONLINE, onlineAvailable } from "../../config";
+import { onlineAvailable } from "../../config";
 import { paintLeaderPortrait, paintVenue } from "../art/leaderPortrait";
 import { icon } from "../art/uiIcons";
 import { motionEnabled, stagger } from "../motion";
+import { warmQueueRoom } from "./queueScreen";
 
 export interface SignInCallbacks {
   onBack: () => void;
@@ -83,10 +84,38 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
         <div class="signin-stage-wash" aria-hidden="true"></div>
         <div class="t-label">Why an account</div>
         <h2 class="signin-stage-title t-display">Two people, one game</h2>
+        <!--
+          Each point is a complete sentence followed by its elaboration, in two
+          elements, because a phone in landscape has room for the first and not
+          the second. The old markup ran them together in one span and the
+          media query answered by deleting the whole panel — measured at 844×390,
+          .signin-stage measured 0×0, so a stranger was asked for an email address
+          and a password with no reason given anywhere on the screen. Split, the
+          small layout keeps all three reasons and drops only the detail, which
+          is still in the disclosure underneath.
+        -->
         <ul class="signin-points">
-          <li><span class="signin-point-mark">${icon("live")}</span><span><strong>Casual matches</strong> pair you with another player. The server has to know which two people are in a game.</span></li>
-          <li><span class="signin-point-mark">${icon("chest")}</span><span><strong>Your save travels.</strong> Sign in on another device and your collection, decks and progress come with you.</span></li>
-          <li><span class="signin-point-mark">${icon("eye")}</span><span><strong>Nothing is hidden from you.</strong> What gets uploaded is listed below, and the privacy page deletes all of it.</span></li>
+          <li>
+            <span class="signin-point-mark">${icon("live")}</span>
+            <span>
+              <strong>Casual matches pair you with another player.</strong>
+              <span class="signin-point-tail">The server has to know which two people are in a game.</span>
+            </span>
+          </li>
+          <li>
+            <span class="signin-point-mark">${icon("chest")}</span>
+            <span>
+              <strong>Your save travels.</strong>
+              <span class="signin-point-tail">Sign in on another device and your collection, decks and progress come with you.</span>
+            </span>
+          </li>
+          <li>
+            <span class="signin-point-mark">${icon("eye")}</span>
+            <span>
+              <strong>Nothing is hidden from you.</strong>
+              <span class="signin-point-tail">What gets uploaded is listed below, and the privacy page deletes all of it.</span>
+            </span>
+          </li>
         </ul>
       </section>
 
@@ -229,14 +258,19 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
   }
 
   /**
-   * Three pieces of furniture, in reading order, 55ms apart.
+   * Three pieces of furniture, in reading order, 45ms apart.
    *
    * The room and the person are not in this list: they belong to the place and
    * arrive with the screen. What cascades is the argument, then the form, then
    * the small print — which is also the order somebody reads them in, and the
    * order in which they matter.
+   *
+   * The step came down from 55 and the lead-in from 40 to nothing, because
+   * `screens.css` now offsets the whole cascade again by half the incoming
+   * screen's own delay and the sum has to land inside §3a's 260–420ms. At the
+   * old numbers the last panel's final frame was measured at 887ms.
    */
-  stagger(root.querySelectorAll(".signin-stage, .signin-panel, .signin-note"), { step: 55, from: 40 });
+  stagger(root.querySelectorAll(".signin-stage, .signin-panel, .signin-note"), { step: 45, from: 0 });
 
   const panel = root.querySelector<HTMLElement>(".signin-panel");
   const status = root.querySelector<HTMLElement>("#signin-status");
@@ -252,6 +286,17 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
   let creating = false;
 
   /**
+   * What the message row says when nothing has gone wrong.
+   *
+   * One useful sentence per mode, so the reserved space is occupied by something
+   * a player wants rather than by a gap held open against a future error.
+   */
+  const hint = (): string =>
+    creating
+      ? "Ten characters or more. Nothing is ever emailed to the address."
+      : "Your collection, your decks and your progress come back with you.";
+
+  /**
    * The error state, and the four things it changes rather than the one it did.
    *
    * Colour alone is forbidden by §9, and amber was the wrong colour anyway —
@@ -263,11 +308,18 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
    */
   const say = (message: string, tone: "error" | "info" = "error"): void => {
     if (!status || !statusText) return;
-    statusText.textContent = message;
-    status.dataset.tone = tone;
-    status.hidden = message.length === 0;
+    /**
+     * An empty message is the rest state, not the absence of one.
+     *
+     * The slot never leaves the flow — see the markup — so clearing it means
+     * putting the mode's own hint back rather than hiding the row and moving the
+     * button under the player's cursor.
+     */
+    const resting = message.length === 0;
+    statusText.textContent = resting ? hint() : message;
+    status.dataset.tone = resting ? "hint" : tone;
 
-    const invalid = tone === "error" && message.length > 0;
+    const invalid = tone === "error" && !resting;
     for (const field of [emailInput, passwordInput]) {
       if (!field) continue;
       if (invalid) field.setAttribute("aria-invalid", "true");
@@ -390,7 +442,49 @@ export function createSignInScreen(content: ContentIndex, callbacks: SignInCallb
    */
   queueMicrotask(() => emailInput?.focus({ preventScroll: true }));
 
-  return { root };
+  /**
+   * Paint the room next door while this one is standing still.
+   *
+   * Nearly every player who reaches the queue reaches it from here, and the
+   * first entry costs 357ms of a 75Hz machine with no frame drawn: measured
+   * three times, rAF deltas of 160ms and 173ms and screencast gaps of 161ms and
+   * 196ms, with **zero longtask entries**, so it is raster and decode rather
+   * than script. Repeat the same navigation twice more and it maxes at 40ms,
+   * because by then every plate is in `leaderPortrait.ts`'s cache. The whole
+   * defect is that the first visit pays and the transition is what it pays with.
+   *
+   * There is nothing to do about the work except do it somewhere else, and this
+   * screen is somewhere else: a form the player is typing into is idle by
+   * definition, and `requestIdleCallback` will not run until the entrance has
+   * finished and the main thread is free. The 2.5s timeout is the backstop for a
+   * browser that never finds an idle moment — a player who signs in that fast
+   * has bigger news.
+   *
+   * `warmQueueRoom` owns the numbers, so a change to the queue's crop cannot
+   * quietly stop warming the queue's crop. That is exactly how this diverged in
+   * the first place: sign-in asked for aspect 0.60/softness 10 and the queue for
+   * 0.56/7, so not one of the four plates was ever shared.
+   */
+  let cancelWarm: (() => void) | undefined;
+  if (leaderCard) {
+    const idle = (
+      window as Window & {
+        requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number;
+        cancelIdleCallback?: (handle: number) => void;
+      }
+    ).requestIdleCallback;
+    const warm = (): void => warmQueueRoom(leaderCard, leaderCard.faction ?? "default");
+    if (typeof idle === "function") {
+      const handle = idle(warm, { timeout: 2500 });
+      cancelWarm = () =>
+        (window as Window & { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback?.(handle);
+    } else {
+      const handle = window.setTimeout(warm, 1200);
+      cancelWarm = () => window.clearTimeout(handle);
+    }
+  }
+
+  return { root, dispose: () => cancelWarm?.() };
 }
 
 function formMarkup(): string {
@@ -406,7 +500,21 @@ function formMarkup(): string {
         <input class="field" id="signin-password" type="password" name="password" autocomplete="current-password"
                required minlength="10" placeholder="At least 10 characters" />
       </label>
-      <p class="signin-status" id="signin-status" role="status" aria-live="polite" hidden>
+      <!--
+        The message slot is always in the flow, and it always says something.
+
+        It used to be hidden until there was an error, so the panel grew when
+        one arrived — and the panel centres its contents, so the growth was split
+        in both directions: measured, #signin-submit sat at y=471 clean and
+        y=490 with an error shown. A nineteen-pixel jump under the cursor at the
+        exact moment the player is about to click again is the worst nineteen
+        pixels in the game to move.
+
+        Reserving the space would have left an empty gap, so the gap says the one
+        thing worth saying at rest, which changes with the mode. §5: every state
+        is designed, and "nothing has gone wrong yet" is a state.
+      -->
+      <p class="signin-status" id="signin-status" data-tone="hint" role="status" aria-live="polite">
         <span class="signin-status-mark" aria-hidden="true">${icon("warning")}</span>
         <span id="signin-status-text"></span>
       </p>
@@ -419,16 +527,46 @@ function formMarkup(): string {
     </form>`;
 }
 
+/**
+ * The panel a signed-in player sees, which used to be two paragraphs and a ghost
+ * button.
+ *
+ * Three things were wrong with it and all three were visible in one screenshot.
+ * It printed `vnvaqwbnmawcnvhodbel.supabase.co` — a raw database hostname, as
+ * product chrome, on the one screen whose whole job is to be trusted. Its body
+ * copy was set at the panel default while the stage panel beside it runs at
+ * 13.44px, so two panels standing side by side carried two body sizes. And it
+ * had none of the furniture the signed-out variant has: no eyebrow, no marked
+ * facts, no designed action — just prose and a 42%-opacity pill.
+ *
+ * What replaced the hostname is the name of the service, which is the fact a
+ * player can actually use. The project id was never information; it was a
+ * connection string that had escaped.
+ */
 function signedInMarkup(email: string): string {
   return `
-    <p class="signin-lead">Signed in as <strong>${escapeHtml(email || "an account with no address on it")}</strong>.</p>
-    <p class="muted">
-      Signed in at ${escapeHtml(new URL(ONLINE.supabaseUrl).host)}. Signing out clears the
-      session from this device; it does not delete the account, and there is nothing on
-      this page that can.
-    </p>
+    <div class="t-label signin-account-eyebrow">Your account</div>
+    <div class="signin-account">
+      <span class="signin-account-mark">${icon("profile")}</span>
+      <div class="signin-account-who">
+        <p class="signin-account-email">${escapeHtml(email || "an account with no address on it")}</p>
+        <p class="signin-account-state"><span class="signin-account-pip" aria-hidden="true"></span>Signed in — your save travels with this account</p>
+      </div>
+    </div>
+    <ul class="signin-points signin-facts">
+      <li>
+        <span class="signin-point-mark">${icon("lock")}</span>
+        <span><strong>Logins are handled by Supabase.</strong>
+          <span class="signin-point-tail">This game's own server never sees your password, and never stores your address.</span></span>
+      </li>
+      <li>
+        <span class="signin-point-mark">${icon("info")}</span>
+        <span><strong>Signing out clears the session from this device.</strong>
+          <span class="signin-point-tail">It does not delete the account, and nothing on this page can.</span></span>
+      </li>
+    </ul>
     <div class="signin-actions">
-      <button class="btn btn-ghost" id="signin-signout" type="button">Sign out</button>
+      <button class="signin-signout act" id="signin-signout" type="button">Sign out</button>
     </div>`;
 }
 

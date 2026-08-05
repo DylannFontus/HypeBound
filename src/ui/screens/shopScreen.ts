@@ -48,14 +48,15 @@ import { num as formatNumber, plural } from "../format";
 import {
   HOUSE_BACK,
   backButton,
-  cardBackThumb,
   coinChip,
   coinInline,
   esc,
   railHtml,
+  riseIn,
   syncWallets,
   WASH,
 } from "./rewards/rewardKit";
+import { cardBackSpec, createPaintQueue, paintRewardArt, type PaintQueue } from "./rewards/rewardArt";
 import { installRewardsTheme } from "./rewards/rewardsTheme";
 import { openPack } from "./rewards/packOpening";
 
@@ -85,6 +86,17 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
   /** the roll currently on screen, kept for the automation hook */
   let lastDrop: DropResult | null = null;
   let opening: { close: () => void } | null = null;
+  /**
+   * Nothing on this screen is rasterised on the frame it is navigated to.
+   *
+   * The pack the shop sells is a 282×374 card back drawn to a canvas and
+   * PNG-encoded, and doing that inside `render()` cost a measured **146ms** long
+   * task with a 147ms gap between painted frames — on `lobby → shop`, a
+   * transition budgeted at 260–420ms. The markup asks for the picture by name
+   * and this queue delivers it once the descend is over.
+   */
+  let art: PaintQueue | null = null;
+  let cascaded = false;
 
   const render = (): void => {
     const profile = getProfile();
@@ -162,7 +174,7 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
 
           <div class="rw-shop-pack">
             <div class="rw-pack-still" aria-hidden="true">
-              <img src="${cardBackThumb(HOUSE_BACK, 0.55)}" alt="">
+              <span class="rw-art" data-rw-art="${esc(cardBackSpec(HOUSE_BACK, 0.55))}"></span>
             </div>
           </div>
 
@@ -206,6 +218,15 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
       callbacks.onBack();
     });
     root.querySelector("#shop-buy")?.addEventListener("click", buy);
+
+    art?.stop();
+    art = createPaintQueue();
+    paintRewardArt(root, art);
+
+    if (!cascaded) {
+      cascaded = true;
+      riseIn(root.querySelectorAll(".rw-shop-left > section, .rw-shop-hero > *"), { from: 180, step: 45 });
+    }
 
     syncWallets(root);
   };
@@ -292,6 +313,7 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
     root,
     dispose: () => {
       opening?.close();
+      art?.stop();
       unsubscribe();
       delete (window as unknown as { hypeboundShop?: unknown }).hypeboundShop;
     },

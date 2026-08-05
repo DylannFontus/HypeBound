@@ -119,17 +119,26 @@ function renderList(
         </div>
       </div>
       <div class="story-card-meta">
-        <span class="story-status ${
+        <!--
+          The row is the button; this is the mark that says so.
+
+          It used to be a fully-saturated magenta pill, repeated on every one of
+          ten rows, so the screen squinted down to a column of identical fizzing
+          lozenges and nothing on it was the hero. See the note on \`.d-go\` in
+          data.css. The ink is the *chapter's* faction colour, so ten rows are
+          ten colours rather than ten copies of the same one.
+        -->
+        <span class="d-go story-status ${
           !unlocked ? "is-locked" : done ? "is-done" : progress.cleared.length ? "is-going" : "is-new"
-        }">
+        }" style="--go-ink:${colour}">
           ${
             !unlocked
               ? `${icon("lock", 14)} ${escape(lockedBy ?? "")}`
               : done
-                ? `${icon("check", 14)} Complete`
+                ? `${icon("check", 14)} Complete ${icon("chevron-right", 15, "d-go-arrow")}`
                 : progress.cleared.length
-                  ? `${icon("play", 14)} Continue`
-                  : `${icon("play", 14)} Start`
+                  ? `${icon("play", 14)} Continue ${icon("chevron-right", 15, "d-go-arrow")}`
+                  : `${icon("play", 14)} Start ${icon("chevron-right", 15, "d-go-arrow")}`
           }
         </span>
       </div>`;

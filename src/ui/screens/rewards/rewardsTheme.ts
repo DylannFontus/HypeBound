@@ -394,6 +394,142 @@ const CSS = `
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 26%, #000 74%, transparent 100%);
 }
 
+/* And the specular comes *off* the objects there are a hundred and fifty of.
+   Every material carries an infinite sweep on its own ::after, which is right
+   for a panel and wrong for a rail of fifty tiers with two lanes and a
+   medallion each: profiled on lobby -> pass, the browser spent 168ms of the
+   arrival inside getAnimations({subtree:true}) enumerating them, and the same
+   list has to be walked by the animation engine on every frame thereafter. It
+   is also the §9 rule the lobby already learned the hard way — a sheen crossing
+   twenty-one plates halved its frame rate — and it is noise besides: a track
+   where every one of a hundred and fifty objects has its own travelling
+   highlight has no highlight at all. What still moves is the one lit medallion,
+   the claimable breathe and the rail crawl, which are the three things that
+   mean something. */
+.pass-cell::after,
+.pass-node::after,
+.checkin-step::after,
+.rw-tile-qty::after,
+.banner-pill::after { animation: none; }
+
+/* =========================================================================
+   3c. Content reacts, and it arrives in order
+   =========================================================================
+   Two §3a failures with one cause: the six-state interaction mixin and the
+   entrance cascade were both applied to *buttons and top-level panels only*.
+
+   Measured at rest and hovered, .pass-cell, .mission, .ach-row and
+   .checkin-step returned byte-identical transform, filter, box-shadow and
+   border-colour — four of the five screens' entire content area was inert under
+   the pointer. On the pass that compounds the census problem: the tile shows an
+   object and pointing at it told you nothing more about it. MTG Arena's Mastery
+   Pass lights and names every node you point at; Gwent's rows lift.
+
+   Half amplitude, on purpose. A content tile is not a button: -1px and a rim
+   that doubles reads as "this is live" where a button's -2px and 1.015 reads as
+   "press me", and a grid of forty things that each jump two pixels is a
+   twitching page. Only transform and filter animate; the rim is a custom
+   property the material already composes, so nothing here paints. */
+
+.pass-cell,
+.mission,
+.ach-row,
+.ach-milestone,
+.checkin-step,
+.banner-card.act {
+  transition:
+    transform var(--dur-micro) var(--ease-arrive),
+    filter var(--dur-micro) var(--ease-arrive),
+    border-color var(--dur-micro) var(--ease-arrive);
+}
+
+@media (hover: hover) {
+  .pass-cell:hover,
+  .mission:hover,
+  .ach-row:hover,
+  .ach-milestone:hover,
+  .checkin-step:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.09);
+    --rim-boost: 2;
+    z-index: 2;
+  }
+
+  .pass-cell:hover .rw-tile-art,
+  .checkin-step:hover .rw-tile-art {
+    filter: brightness(1.14) saturate(1.08);
+  }
+}
+
+/* A keyboard user gets the same read as a pointer — §5 lists focus-visible
+   beside hover rather than under it. */
+.pass-cell:focus-within,
+.mission:focus-within,
+.ach-row:focus-within,
+.checkin-step:focus-within {
+  --rim-boost: 2;
+}
+
+/* On the rail the tile *is* a picture, and its name is clamped to a line and a
+   half inside a 9.2em lane — so pointing at a tier has to be able to say what
+   the thing is. The caption lifts out of the cell as a plate rather than
+   growing inside it, because the lane height is what keeps the rail line at
+   exactly 50% of every row and a cell that grows on hover would move the track.
+
+   Single-reward cells only: a milestone tier pays two, and two plates anchored
+   to the same edge would stack on each other. Those keep the title. */
+.rw-track .pass-cell[data-rewards="1"]:hover,
+.rw-track .pass-cell[data-rewards="1"]:focus-within {
+  overflow: visible;
+}
+
+.rw-track .pass-cell[data-rewards="1"]:hover .pass-reward,
+.rw-track .pass-cell[data-rewards="1"]:focus-within .pass-reward {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 7px);
+  translate: -50% 0;
+  z-index: 8;
+  width: max-content;
+  max-width: 15em;
+  padding: 6px 10px;
+  border-radius: var(--r-field);
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  color: var(--text);
+  background: linear-gradient(var(--light-sweep), rgb(46 32 78 / 0.99) 0%, rgb(14 9 27 / 0.99) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 10px 22px rgb(0 0 0 / 0.7);
+  animation: rw-pop 160ms var(--ease-arrive) both;
+}
+
+/*
+ * The cascade, one level lower than the shell can reach.
+ *
+ * transitions.css staggers .screen[data-nav] > container > *:nth-child(-n+7),
+ * which is exactly right for panels and cannot see inside them. Measured
+ * nav-child-rise starts: shop 451/451/451/519/525ms, pass 648x5/678/719ms —
+ * five to seven elements, after which the ten check-in tiles, the nine mission
+ * cards, the eight achievement rows and the hundred-and-seven pass tiles all
+ * arrived in one block. §3a calls that the single biggest perceived-quality gap
+ * between a hobby menu and a shipped one.
+ *
+ * --enter-delay is what motion.ts::stagger writes, and stagger caps the
+ * tail so the pass does not run a two-second wave. The class is added for the
+ * first render after a mount and taken off again once the cascade has landed,
+ * because a claim re-renders the whole screen and a list that re-cascades every
+ * time you press Claim is worse than one that never did.
+ */
+.rw-rise {
+  animation: rw-rise 300ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+}
+
+@keyframes rw-rise {
+  from { opacity: 0.15; translate: 0 12px; scale: 0.985; }
+  to   { opacity: 1; translate: none; scale: 1; }
+}
+
 /* =========================================================================
    4. The reward tile
    =========================================================================
@@ -416,6 +552,15 @@ const CSS = `
   border-radius: var(--r-tile);
 }
 
+/* The plate is the brightest object on the panel, and that is a correction.
+   Measured by squinting at the Hype Wave: the track resolved to a purple field
+   with a grid of black holes in it, because the tile ramped from 34% ink to
+   near-black while the plate holding it sat at rgb(26 21 40). The reward is the
+   thing the player is deciding about — §6 says the most saturated thing on
+   screen should be the thing that matters most — and in Hearthstone's Rewards
+   Track the chests are the *lightest* objects on the rail. So the ramp is a lit
+   metal now: two thirds ink at the top-left, a mid tone at the bottom, and a
+   milled ring round the outside so it reads as struck rather than printed. */
 .rw-tile-art {
   position: relative;
   display: grid;
@@ -425,30 +570,60 @@ const CSS = `
   border-radius: var(--r-field);
   color: var(--tile-ink, var(--accent-bright));
   background:
-    radial-gradient(circle at 34% 26%, rgb(255 255 255 / 0.16), transparent 62%),
-    linear-gradient(var(--light-sweep), rgb(from var(--tile-ink, #b56cff) r g b / 0.34) 0%, rgb(8 5 16 / 0.86) 100%);
+    radial-gradient(circle at 32% 24%, rgb(255 255 255 / 0.3), rgb(255 255 255 / 0) 58%),
+    linear-gradient(var(--light-sweep), rgb(from var(--tile-ink, #b56cff) r g b / 0.72) 0%, rgb(from var(--tile-ink, #b56cff) r g b / 0.2) 54%, rgb(20 13 36 / 0.94) 100%);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.13),
-    inset 0 -1px 0 rgb(0 0 0 / 0.6),
-    0 2px 6px rgb(0 0 0 / 0.5);
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 0 0 1px rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(0 0 0 / 0.62),
+    0 3px 8px rgb(0 0 0 / 0.55);
 }
 
-.rw-tile-art > .hb-icon {
+/* The picture is its own layer inside the plate, because the plate also holds
+   the quantity chip and the deferred painter swaps the picture's children when
+   the drawing lands. See rewardKit::rewardTileHtml. */
+.rw-art {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.rw-art > .hb-icon {
   width: 58%;
   height: 58%;
-  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.7));
+  /* Struck into the plate rather than laid on it: a light edge on the 315° side
+     and a shadow on the other is the two-pixel version of an emboss, and it is
+     the difference between an icon and a coin. */
+  color: #fff;
+  filter:
+    drop-shadow(0 1px 0 rgb(0 0 0 / 0.55))
+    drop-shadow(0 -1px 0 rgb(255 255 255 / 0.3))
+    drop-shadow(0 0 7px rgb(from var(--tile-ink, #b56cff) r g b / 0.75));
 }
 
-.rw-tile-art > img,
-.rw-tile-art > canvas {
+.rw-art > img,
+.rw-art > canvas {
   width: 100%;
   height: 100%;
   object-fit: contain;
   border-radius: inherit;
 }
 
+/* Nothing pops in — §7. A picture that arrived from the queue crossfades over
+   the icon that was standing in for it. */
+.rw-art-in { animation: rw-art-in var(--dur-ui) var(--ease-arrive) both; }
+
+@keyframes rw-art-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 .rw-tile-qty {
   position: absolute;
+  z-index: 4;
   right: -4px;
   bottom: -4px;
   padding: 1px 6px;
@@ -478,9 +653,13 @@ const CSS = `
    the panel rather than as nine locked objects. The seal belongs to the thing it
    qualifies. Locked and claimed are mutually exclusive, so they share a corner,
    which also keeps them clear of the quantity chip at bottom-right. */
+/* z-index, because the picture is now a positioned layer of its own and a
+   later-painted positioned sibling wins on equal footing: without it the
+   darkening scrim and both seals were drawn *under* the drawing they qualify. */
 .rw-tile[data-state="claimed"] .rw-tile-art::after {
   content: "";
   position: absolute;
+  z-index: 2;
   inset: -6px auto auto -6px;
   width: 18px;
   height: 18px;
@@ -489,16 +668,30 @@ const CSS = `
   box-shadow: 0 2px 5px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.4);
 }
 
+/* A locked reward keeps its colour, and this is the correction that makes the
+   rail readable at all.
+
+   grayscale(0.7) brightness(0.82) was the state design working exactly against
+   the screen it was on: on a new account every one of a hundred tiers is locked,
+   so the entire Hype Wave rendered as a grid of grey holes in a purple field —
+   which is the §6 value-structure failure the review named, caused by the §5
+   state design meant to fix a different one. Hearthstone's un-earned chests are
+   full-colour, bright and desirable with a gold padlock struck across them; the
+   thing you are being asked to grind for is the last thing that should be
+   drained. What says "locked" is the seal, the darker plate under it and the
+   word on .rw-sr — three signals, none of them alpha, and none of them the
+   object's own colour. */
 .rw-tile[data-state="locked"] .rw-tile-art {
-  filter: grayscale(0.7) brightness(0.82);
+  filter: saturate(0.86) brightness(0.94);
 }
 
 .rw-tile[data-state="locked"] .rw-tile-art::before {
   content: "";
   position: absolute;
+  z-index: 2;
   inset: 0;
   border-radius: inherit;
-  background: rgb(4 2 10 / 0.26);
+  background: rgb(4 2 10 / 0.14);
 }
 
 /* The padlock is *struck on the object*, the way the tick is, rather than
@@ -512,6 +705,7 @@ const CSS = `
 .rw-tile[data-state="locked"] .rw-tile-art::after {
   content: "";
   position: absolute;
+  z-index: 3;
   /* Top-left, not bottom-centre.
      A bare tile — the Hype Wave's, which has no caption under it — is nothing
      but the art plate, so a mark centred on its bottom edge sat squarely across
@@ -689,6 +883,13 @@ const CSS = `
   gap: clamp(6px, 1.1vw, 18px);
   justify-content: center;
   align-content: center;
+  /* Centred in the stage, not merely centred *within itself*. fit() sizes the
+     card from the stage but never re-centred the grid, so at 844x390 the ten
+     pull sat at x=357-724 — 43% of the width, with the entire left half of the
+     overlay empty beside it. */
+  justify-self: center;
+  margin-inline: auto;
+  max-width: 100%;
 }
 
 /* The perspective is per card, not on the grid. A single vanishing point at the
@@ -1056,6 +1257,15 @@ const CSS = `
   gap: var(--sp-4);
   flex-wrap: wrap;
   padding: var(--sp-3) var(--sp-4);
+  /* A grid item's automatic minimum size is its min-content size, and
+     width: max-content is not a definite length, so it cannot clamp it: the
+     footer resolved to **1,057px inside an 844px viewport**, which put
+     #reveal-collection at x=819 and #reveal-done at x=957 — both entirely
+     off-screen, on the only pointer route out of a modal. min-width: 0
+     releases that floor and fit-content is min(max-content, available) by
+     definition, which is what max-content + max-width: 100% was trying and
+     failing to express. */
+  min-width: 0;
   /* Shrink-wrapped and centred, not full-bleed. A slab the width of the viewport
      with three buttons huddled at one end and eleven hundred empty pixels at the
      other is a lot of pale furniture at the moment the player is looking
@@ -1064,7 +1274,7 @@ const CSS = `
      from the first frame and only its opacity changes — so max-content already
      reserves the room it will need. */
   margin-inline: auto;
-  width: max-content;
+  width: fit-content;
   max-width: 100%;
 }
 
@@ -1073,12 +1283,23 @@ const CSS = `
   align-items: center;
   gap: var(--sp-4);
   flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
   opacity: 0;
   translate: 0 12px;
   transition: opacity var(--dur-ui) var(--ease-arrive), translate var(--dur-ui) var(--ease-arrive);
 }
 
 .rw-open-foot.rw-ready .rw-open-summary { opacity: 1; translate: 0 0; }
+
+/* Below about a phone's width the footer is two rows, and the actions are the
+   second of them, right-aligned. Wrapping them into the summary's row is what
+   pushed Done past the viewport edge in the first place. */
+@media (max-width: 900px) {
+  .rw-open-foot { flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+  .rw-open-foot .rw-open-actions { justify-content: flex-end; }
+  .rw-open-summary { justify-content: center; }
+}
 
 .rw-sum {
   display: inline-flex;
@@ -1159,6 +1380,8 @@ const CSS = `
   position: relative;
   display: grid;
   place-items: center;
+  /* min-height:0 lets the row give way; the grid row it sits in is the 1fr of
+     .rw-shop-hero, and it is the row that has to win when the type grows. */
   min-height: 0;
   /* not overflow: hidden: the pack floats a few pixels and casts a 34px
      shadow, and clipping the box clips both */
@@ -1167,11 +1390,21 @@ const CSS = `
 
 .rw-shop-pack > .rw-pack-still {
   position: relative;
-  /* Sized from the viewport rather than from height: 100%. The percentage
-     resolved to auto here — the grid row is 1fr, which is definite, but the
-     intermediate box is not — and the pack fell back to its 340px cap and
-     overhung the pity meter by twenty pixels at 1280x720. */
+  /* Sized from the row it is in, capped by the viewport — not the other way
+     round. height: min(36vh, 330px) alone is a *fixed* height that ignores
+     the space actually available, and at --ui-scale 1.4 / 1280x720 the row
+     resolved to 183px while the pack drew 259px inside it: the pity meter and
+     the Buy button were painted over the pack's bottom seventy pixels, the
+     label read "LEGENDARY G" with the rest covered, and the button's text
+     wrapped across the artwork.
+
+     max-height: 100% rather than height: 100%, deliberately: against an
+     indefinite containing block a percentage *max*-height computes to none,
+     so this degrades to exactly the old behaviour on any layout where the row
+     is not definite, where height: 100% would collapse the pack to nothing.
+     A responsive rule must never be able to delete the object it is sizing. */
   height: min(36vh, 330px);
+  max-height: 100%;
   width: auto;
   max-width: 100%;
   aspect-ratio: 512 / 680;
@@ -1204,8 +1437,19 @@ const CSS = `
   50%      { opacity: 1; transform: scaleX(1.05); }
 }
 
-.rw-shop-pack .rw-pack-still > img,
-.rw-shop-pack .rw-pack-still > canvas { width: 100%; height: 100%; border-radius: 4.5%; display: block; }
+.rw-shop-pack .rw-pack-still img,
+.rw-shop-pack .rw-pack-still canvas { width: 100%; height: 100%; border-radius: 4.5%; display: block; }
+
+/* The socket the pack stands in until the pack is drawn.
+   §3a: "loading is part of the world. No spinner." The card back is rasterised
+   off the navigation frame, so for a beat there is a card-shaped alcove here
+   rather than a card — and an alcove is a thing, where an empty box is a bug. */
+.rw-shop-pack .rw-pack-still {
+  background:
+    radial-gradient(70% 60% at 34% 22%, rgb(181 108 255 / 0.22), rgb(181 108 255 / 0) 70%),
+    linear-gradient(var(--light-sweep), rgb(38 26 66 / 0.9) 0%, rgb(8 5 17 / 0.95) 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), inset 0 -1px 0 rgb(0 0 0 / 0.6);
+}
 
 .rw-shop-pack .rw-pack-still::after {
   content: "";
@@ -1427,7 +1671,17 @@ const CSS = `
 .rw-hero-copy { display: grid; gap: var(--sp-2); min-width: 0; align-content: center; }
 .rw-hero-copy .t-display { font-size: clamp(1.5rem, 3.1vw, var(--fs-2xl)); }
 
-.rw-hero-meta { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
+/* Every child of the copy column has to release its own minimum too, not just
+   the column. At --ui-scale 1.4 / 1280x720 the hero's children measured a right
+   edge of 773 against a host clipping at 764 — nine pixels of overflow, which
+   sliced the rate-up chip and the Legendary's name flat against the panel's
+   overflow: hidden. min-width: 0 on the column alone does not reach a flex
+   row inside it, and .rw-hero-meta is a flex row of two chips. */
+.rw-hero-copy > * { min-width: 0; }
+
+.rw-hero-meta { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; min-width: 0; }
+.rw-hero-meta > .rw-tok { min-width: 0; max-width: 100%; }
+.rw-hero-meta > .rw-tok > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .rw-spotlight {
   display: grid;
@@ -1448,6 +1702,18 @@ const CSS = `
 
 .banner-card-art { width: 100%; display: grid; place-items: center; }
 .banner-card-art > canvas { width: 100%; height: auto; display: block; border-radius: 4.5%; }
+
+/* The card-shaped alcove a spotlight stands in until its card is drawn.
+   The seven cards on this screen are rendered off the navigation frame, which
+   is what unfroze the route; for a beat there is a socket here rather than a
+   card, and a socket is a thing where an empty gap is a bug. Nothing moves when
+   the picture lands, because the slot is already exactly its size. */
+.banner-card-art > canvas.rw-card-slot {
+  background:
+    radial-gradient(72% 50% at 32% 20%, rgb(from var(--rw-accent, #b56cff) r g b / 0.24), rgb(0 0 0 / 0) 72%),
+    linear-gradient(var(--light-sweep), rgb(38 27 64 / 0.9) 0%, rgb(9 6 19 / 0.95) 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1), inset 0 -1px 0 rgb(0 0 0 / 0.6);
+}
 
 .banner-card figcaption { display: grid; gap: 5px; justify-items: center; text-align: center; width: 100%; }
 .banner-card figcaption > strong { font-size: var(--fs-sm); line-height: 1.2; }
@@ -2027,8 +2293,37 @@ const CSS = `
 .rw-lane-tag > .hb-icon { width: 14px; height: 14px; }
 
 /* The list view, kept for keyboard and screen-reader users and for anybody who
-   simply wants to read fifty rows. A rail must never be the only way in. */
-.rw-pass-list { display: grid; gap: 4px; padding: var(--sp-3) var(--sp-4); }
+   simply wants to read fifty rows. A rail must never be the only way in.
+
+   This state shipped broken and had clearly never been photographed. One click
+   on LIST at 1600x900 collapsed all fifty tiers to 8px slivers laid out
+   *horizontally*, burst every panel past the right edge of the viewport and
+   took the WAVE REBOUND chip, the Backstage CTA, Skip a tier and the toggle
+   itself off-screen with it. The cause is one missing override: the rule below
+   restyled .pass-row, but the <ul class="pass-rows"> *between* the scroller
+   and the rows kept grid-auto-flow: column; grid-auto-columns: 8.6em from the
+   rail — so fifty list rows were laid out as fifty 8.6em columns and every row
+   was squeezed to a track. A container that changes what its rows mean has to
+   restate the flow, and it has to contain its own overflow the way .rw-track
+   does or the whole page scrolls sideways instead. */
+.rw-pass-list {
+  display: grid;
+  gap: 4px;
+  padding: var(--sp-3) var(--sp-4);
+  min-width: 0;
+  max-height: min(56vh, 620px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.rw-pass-list .pass-rows {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  min-width: 0;
+  gap: 4px;
+}
 
 .rw-pass-list .pass-row {
   grid-template-rows: none;
@@ -2041,9 +2336,28 @@ const CSS = `
 
 .rw-pass-list .pass-row::before,
 .rw-pass-list .pass-row::after { display: none; }
-.rw-pass-list .pass-cell { min-height: 0; grid-auto-flow: column; justify-content: space-between; align-items: center; }
-.rw-pass-list .pass-rewards { grid-auto-flow: column; justify-content: start; gap: var(--sp-2); }
+.rw-pass-list .pass-cell {
+  min-height: 0;
+  min-width: 0;
+  height: auto;
+  grid-auto-flow: column;
+  grid-template-columns: minmax(0, 1fr) auto;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px var(--sp-3);
+}
+.rw-pass-list .pass-rewards { grid-auto-flow: column; justify-content: start; align-items: center; gap: var(--sp-2); min-width: 0; }
 .rw-pass-list .pass-node { width: 40px; height: 40px; }
+/* A row is a row: the rail's 3.6em tile is a picture you scroll past, and in a
+   document it is a bullet beside a sentence. */
+.rw-pass-list .rw-tile-art { width: 2.2em !important; height: 2.2em !important; }
+.rw-pass-list .pass-reward {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: var(--fs-xs);
+  max-width: none;
+  text-align: left;
+}
 
 /* =========================================================================
    9. Missions
@@ -2242,12 +2556,34 @@ const CSS = `
   border-radius: var(--r-tile);
 }
 
+/* A slot, not an image. The badge is struck off the navigation frame, so this
+   has to be the right size and the right shape while it is empty — a socket the
+   plate drops into, rather than a hole that appears and then fills. */
 .ach-badge {
+  position: relative;
   width: 58px;
   height: 58px;
   flex: none;
-  display: block;
+  display: grid;
+  place-items: center;
+  overflow: visible;
   image-rendering: auto;
+}
+
+.ach-badge > img { width: 100%; height: 100%; display: block; object-fit: contain; }
+
+.ach-badge-num {
+  display: grid;
+  place-items: center;
+  width: 78%;
+  height: 78%;
+  border-radius: 26%;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--rw-faint);
+  background: linear-gradient(var(--light-sweep), rgb(46 38 68 / 0.9) 0%, rgb(12 8 22 / 0.95) 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), inset 0 -1px 0 rgb(0 0 0 / 0.6);
 }
 
 .ach-row-body { display: grid; gap: 6px; min-width: 0; }
@@ -2564,8 +2900,37 @@ const CSS = `
   display: none;
 }
 
+/* Enumerating them was the mistake, and it is why two survived: rw-pack-shadow
+   on .rw-shop-pack::after and rw-hero-drift on .rw-shop-hero::before were
+   both still running under prefers-reduced-motion: reduce, so the shop showed
+   a completely static pack standing over a contact shadow that kept pulsing and
+   scaling underneath it — worse than either state on its own. Nothing this
+   domain owns is exempt, so the rule is now everything under a rewards body and
+   everything in the overlay, with the entrance cascade named back in because a
+   backwards-filled animation that never runs would leave its element at 20%
+   opacity forever. */
+:root[data-reduced-motion="true"] .rw-shop-body *,
+:root[data-reduced-motion="true"] .rw-shop-body *::before,
+:root[data-reduced-motion="true"] .rw-shop-body *::after,
+:root[data-reduced-motion="true"] .rw-banner-body *,
+:root[data-reduced-motion="true"] .rw-banner-body *::before,
+:root[data-reduced-motion="true"] .rw-banner-body *::after,
+:root[data-reduced-motion="true"] .rw-pass-body *,
+:root[data-reduced-motion="true"] .rw-pass-body *::before,
+:root[data-reduced-motion="true"] .rw-pass-body *::after,
+:root[data-reduced-motion="true"] .rw-missions-body *,
+:root[data-reduced-motion="true"] .rw-missions-body *::before,
+:root[data-reduced-motion="true"] .rw-missions-body *::after,
+:root[data-reduced-motion="true"] .rw-ach-body *,
+:root[data-reduced-motion="true"] .rw-ach-body *::before,
+:root[data-reduced-motion="true"] .rw-ach-body *::after,
+:root[data-reduced-motion="true"] .rw-open *,
+:root[data-reduced-motion="true"] .rw-open *::before,
+:root[data-reduced-motion="true"] .rw-open *::after,
 :root[data-reduced-motion="true"] .rw-pack,
 :root[data-reduced-motion="true"] .rw-shop-pack > .rw-pack-still,
+:root[data-reduced-motion="true"] .rw-shop-pack::after,
+:root[data-reduced-motion="true"] .rw-shop-hero::before,
 :root[data-reduced-motion="true"] .rw-pack-hint,
 :root[data-reduced-motion="true"] .rw-hero::before,
 :root[data-reduced-motion="true"] .checkin-step.next::before,
@@ -2574,6 +2939,13 @@ const CSS = `
 :root[data-reduced-motion="true"] .reveal-slot.shown[data-rarity="legendary"]::before {
   animation: none;
 }
+
+/* Nothing is excepted, and nothing needs to be: every entrance in this domain
+   is authored backwards or both, which fills only while the animation
+   exists — an element whose animation never runs simply renders at its own
+   resting style. The functional half of the claim survives regardless, because
+   the counter is tickerTo, which reads the same setting in JavaScript and
+   writes the final number in one assignment. */
 
 :root[data-reduced-motion="true"] .rw-flip { transition-duration: 90ms; }
 :root[data-reduced-motion="true"] .reveal-slot.rw-dealing { animation-duration: 90ms; animation-delay: 0ms; }

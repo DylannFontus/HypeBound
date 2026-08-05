@@ -34,6 +34,7 @@
 import type { ContentIndex } from "../../engine/types";
 import type { Screen } from "../shell";
 import { getProfile } from "../../save/profile";
+import { WIN_RATE_QUALIFIER, winRate } from "../../game/stats/dashboard";
 import { audio } from "../../audio/audio";
 import { artAttr, count, countUp, enter, icon, meter, quantify, rankMark } from "./data/kit";
 
@@ -54,7 +55,9 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
   const toPlace = Math.max(0, PLACEMENT_MATCHES - played);
   const placed = toPlace === 0;
   const wins = profile.stats.wins;
-  const rate = played > 0 ? Math.round((wins / played) * 100) : 0;
+  /* One definition, imported — see the note on `winRate` in `dashboard.ts`. */
+  const decided = wins + profile.stats.losses;
+  const rate = Math.round(winRate({ won: wins, lost: profile.stats.losses }) * 100);
 
   /**
    * Two different meters, because "placed" and "unplaced" are two questions.
@@ -123,7 +126,9 @@ export function createLeaderboardsScreen(_content: ContentIndex, callbacks: Lead
             <dl class="d-stats lb-stats">
               <div class="d-stat"><dt>Matches</dt><dd class="num" data-count="${played}" data-digits="4">0</dd></div>
               <div class="d-stat"><dt>Wins</dt><dd class="num" data-count="${wins}" data-digits="4">0</dd></div>
-              <div class="d-stat"><dt>Win rate</dt><dd class="num">${rate}%</dd></div>
+              <div class="d-stat"><dt>Win rate <span class="d-stat-qual">${WIN_RATE_QUALIFIER}</span></dt><dd class="num">${rate}%<span class="d-stat-of">${count(
+                decided
+              )} decided</span></dd></div>
             </dl>
             <div class="lb-actions">
               <button type="button" class="mat-hero act r-chip" id="leaderboards-stats">

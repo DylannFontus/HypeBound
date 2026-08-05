@@ -59,6 +59,36 @@ import type { IntroLook } from "./stage";
 export const FIRST_RUN_REST = 3400;
 
 /**
+ * When the game behind the title becomes visible *through* it.
+ *
+ * The sequence used to end and only then hand over, and filmed at 1600×900 that
+ * cost 21 consecutive composited frames below 60% of the settled screen —
+ * **290ms**, with the deepest ~110ms at mean luminance 8.7/255, sd 3.3, p95 15,
+ * against a settled lobby of 34.8 / 30.1 / 87.5. A quarter of the brightness
+ * and a ninth of the image structure, reproduced identically at 844×390. The
+ * first thing a new player ever sees, and AAA bar §3a makes a blank frame an
+ * automatic fail.
+ *
+ * Nothing in the *picture* was wrong. The camera flies through the mark, the
+ * lens blows out at 4,547ms and the room decays behind it — all correct. What
+ * was wrong is that the decay ran down to nothing over an **opaque black
+ * plate**, and only once it had finished did the layer itself start to fade.
+ * Two dissolves in series, the second one starting after the first had reached
+ * zero, which is a hole by construction.
+ *
+ * So the plate comes off here, at the top of the blow-out, and the layer's own
+ * alpha rides the flash down. The destination has been sitting fully painted
+ * underneath since boot — `index.ts`'s header is explicit that the game was
+ * never *inside* the cinematic — so what the player sees is the lobby arriving
+ * through the light rather than out of the dark. `swell(_, 0.45)` peaks at
+ * 4,580 and is 4% of itself by 4,800, which is the window this sits inside.
+ */
+export const FIRST_RUN_HANDOVER = 4440;
+
+/** How long the layer takes to dissolve once the handover starts, in ms. */
+export const FIRST_RUN_HANDOVER_MS = 340;
+
+/**
  * The two moments the clock is allowed to stop and wait for artwork.
  *
  * The brand PNGs are 2.4 MB and take a second or two to arrive on a cold load,

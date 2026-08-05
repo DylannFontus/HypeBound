@@ -89,6 +89,34 @@
     #05020e;
 }
 
+/**
+ * The handover: the layer dissolves *while the picture is still bright*.
+ *
+ * `is-leaving` is the old exit and it is still what a skip and a failure use —
+ * a 260ms fade of whatever happens to be on screen. The ending needs something
+ * different, because the ending has a blow-out in it. Filmed at 1600×900, the
+ * lens peaks at t=4,547 (mean 91.7) and the sequence then rode all the way down
+ * to **8.7** before the game came up at 5,180: 21 frames under 60% of the
+ * settled screen, 290ms, the deepest of them at a ninth of the settled image's
+ * structure. Two dissolves in series with a hole between them.
+ *
+ * `firstRun.ts`'s `FIRST_RUN_HANDOVER` starts this one at the top of the flash
+ * instead, so the alpha ramp and the light's own decay are the *same* dissolve
+ * and the destination — painted and waiting underneath since boot — arrives
+ * through the light. Linear, deliberately: an eased fade holds the layer opaque
+ * through the brightest part and then drops it once the picture behind it has
+ * already gone dark, which is the shape that produced the hole.
+ *
+ * `pointer-events` goes with it. The layer is transparent from here on and a
+ * transparent layer that still eats a click on PLAY is the trap `is-live` was
+ * written to avoid, arriving from the other end.
+ */
+.hb-intro.is-handover {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--hb-handover-ms, 340ms) linear;
+}
+
 .hb-intro.is-leaving {
   opacity: 0;
 }

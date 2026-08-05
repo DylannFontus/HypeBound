@@ -5793,12 +5793,45 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   pointer-events: none;
   transform: perspective(400px) rotateX(74deg);
   transform-origin: 50% 0%;
+  /* Anti-aliased and depth-tapered, for the reason the queue's floor is — a
+     hard 1px line under a projection breaks into a chain of dashes wherever its
+     projected width falls under a device pixel, and the left third of this
+     screen's floor was exactly that. Three pixels of ramp always has coverage
+     to sample; the mask then takes the far field out, where every dash was. */
   background:
-    repeating-linear-gradient(90deg, rgb(206 168 255 / 0.15) 0 1px, transparent 1px 60px),
-    repeating-linear-gradient(0deg, rgb(206 168 255 / 0.11) 0 1px, transparent 1px 60px),
+    repeating-linear-gradient(
+      90deg,
+      rgb(206 168 255 / 0) 0,
+      rgb(206 168 255 / 0.19) 1px,
+      rgb(206 168 255 / 0.19) 2px,
+      rgb(206 168 255 / 0) 3px,
+      rgb(206 168 255 / 0) 60px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgb(206 168 255 / 0) 0,
+      rgb(206 168 255 / 0.14) 1px,
+      rgb(206 168 255 / 0.14) 2px,
+      rgb(206 168 255 / 0) 3px,
+      rgb(206 168 255 / 0) 60px
+    ),
     linear-gradient(180deg, rgb(62 40 112 / 0.42) 0%, rgb(44 27 82 / 0.34) 56%, rgb(16 9 34 / 0.16) 100%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 64%, transparent 100%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 64%, transparent 100%);
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgb(0 0 0 / 0.2) 9%,
+    rgb(0 0 0 / 0.7) 24%,
+    #000 52%,
+    rgb(0 0 0 / 0.86) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgb(0 0 0 / 0.2) 9%,
+    rgb(0 0 0 / 0.7) 24%,
+    #000 52%,
+    rgb(0 0 0 / 0.86) 100%
+  );
 }
 
 /**
@@ -5860,25 +5893,74 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
  * at length: a per-element entrance from zero holds the whole content plane at
  * nothing for the first ~90ms of a screen that has already replaced the one
  * behind it, and that is a blank frame the DOM probes cannot see.
+ *
+ * ## Two entrances owned the same five elements, and the second one ran late
+ *
+ * This rule used to be `.signin-panel { animation: front-panel-rise … }` —
+ * specificity (0,1,0) — sitting under §2.7's cascade in `transitions.css`,
+ * `.screen[data-nav$="-in"] > :is(header,nav,main,…) > *:nth-child(-n+7)` at
+ * (0,3,1). The shell's rule therefore won for the whole length of the
+ * navigation, and the moment `watchEntrance` wrote `data-nav="settled"` its
+ * selector stopped matching, the element's `animation-name` list changed from
+ * `nav-child-rise` to `front-panel-rise`, and the browser did the only thing it
+ * can with a new animation name: it started it, from its `from` keyframe, on an
+ * element that had arrived a third of a second earlier.
+ *
+ * Measured at 75Hz with `getComputedStyle` on `lobby → signin`: `.signin-panel`
+ * reached opacity 1.00 at t=474ms, dropped to **0.42 at t=539ms in a single
+ * frame**, sat there for nine frames and only came back to 1.00 at t=833ms.
+ * Twenty-three consecutive samples of a panel going *backwards* after it had
+ * landed. §7 says nothing ever pops in; this popped back out.
+ *
+ * So there is one owner, and it is this file. Four classes deep — `.screen`,
+ * the screen, the body, the panel — puts it at (0,4,0), which beats the shell's
+ * (0,3,1) in **every** state including `settled`, so the declaration never
+ * changes and the animation is declared once and runs once. The delay still
+ * reads `--nav-delay` so the cascade is timed off the incoming screen rather
+ * than off the frame the element was inserted on, and it takes **half** of it:
+ * the screen root is held at its `from` keyframe for the whole of that delay, so
+ * a cascade that waited for all of it would start after the screen was already
+ * standing there. Half means the panels are visibly mid-rise on the first frame
+ * anybody can see them, which is §3a's "everything overlaps" applied to the two
+ * halves of one arrival.
+ *
+ * The keyframe is named `nav-front-panel-rise` for one non-cosmetic reason:
+ * `shell.ts`'s `isNavAnimation` filters `getAnimations({subtree:true})` on the
+ * `nav-` prefix, and the settle watcher and `rewindEntrance` both use that list.
+ * A differently-named keyframe is invisible to both — the screen would settle
+ * while these five were still rising, and behind a curtain they would play out
+ * unseen. Prefixed, they are part of the entrance the shell is waiting for.
+ *
+ * Budget: the last sign-in panel starts at 0.5·167 + 90 = 173ms and ends at
+ * 373ms, inside §3a's 260–420ms.
  */
-.signin-stage,
-.signin-panel,
-.signin-note,
-.queue-call,
-.queue-note {
-  animation: front-panel-rise var(--dur-ui, 260ms) var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+.screen.signin-screen > .signin-body > :is(.signin-stage, .signin-panel, .signin-note),
+.screen.queue-screen > .queue-body > :is(.queue-call, .queue-note) {
+  animation: nav-front-panel-rise 200ms var(--ease-arrive)
+    calc(var(--nav-delay, 0ms) * 0.5 + var(--enter-delay, 0ms)) backwards;
 }
 
-@keyframes front-panel-rise {
+/**
+ * ...and the room is not furniture.
+ *
+ * §2.7's cascade takes the first seven children of any body container, which on
+ * the queue means the plinth — the floor, the figure, her cast and her
+ * reflection — rises 14px and fades up like a panel. A place does not assemble
+ * itself while somebody walks into it; it is simply already there behind the
+ * screen's own transition. Same (0,4,0) so it beats the shell's rule outright
+ * rather than racing it.
+ */
+.screen.queue-screen > .queue-body > .queue-stage { animation: none; }
+
+@keyframes nav-front-panel-rise {
   from { opacity: 0.42; translate: 0 14px; }
   to { opacity: 1; translate: none; }
 }
 
-:root[data-reduced-motion="true"] .signin-stage,
-:root[data-reduced-motion="true"] .signin-panel,
-:root[data-reduced-motion="true"] .signin-note,
-:root[data-reduced-motion="true"] .queue-call,
-:root[data-reduced-motion="true"] .queue-note { animation: none; }
+:root[data-reduced-motion="true"]
+  .screen:is(.signin-screen, .queue-screen)
+  > :is(.signin-body, .queue-body)
+  > * { animation: none; }
 
 /**
  * The travelling highlight has two straight sides, and on a big quiet plate you
@@ -5998,6 +6080,10 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   color: var(--text-dim);
 }
 .signin-points strong { color: var(--text); font-weight: 600; }
+/* The half of each point that a short viewport folds away. It is a separate
+   element rather than a `::after` so the copy stays in the markup where it can
+   be read, and so the disclosure below is genuinely the same words. */
+.signin-point-tail { display: inline; }
 .signin-point-mark {
   display: grid;
   place-items: center;
@@ -6053,17 +6139,131 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 .signin-note { grid-column: 1 / -1; grid-row: 2; }
 
 /**
- * The signed-in panel prints a hostname, and a hostname does not wrap.
+ * The panel still breaks anything, and now it is an address rather than a
+ * hostname.
  *
- * "Signed in at vnvaqwbnmawcnvhodbel.supabase.co" is one unbreakable word, so
- * it set the panel's min-content width: measured at `--ui-scale: 1.4` the panel
- * wanted 405px inside a 338px column and the whole screen gained a horizontal
- * scrollbar. `anywhere` rather than `break-word` because the string genuinely
- * has no break opportunity in it, and a project id sliced across two lines is
- * still readable where a clipped one is not.
+ * This rule was written for "Signed in at vnvaqwbnmawcnvhodbel.supabase.co" —
+ * one unbreakable word that set the panel's min-content width, and at
+ * `--ui-scale: 1.4` wanted 405px inside a 338px column and gave the whole screen
+ * a horizontal scrollbar. The hostname is gone: a database project id is a
+ * connection string that had escaped into product chrome, on the one screen
+ * whose job is to be trusted. What is left in that slot is the player's own
+ * email address, which has exactly the same property — no break opportunity, any
+ * length — so the guard stays and now protects something worth printing.
  */
 .signin-lead { line-height: 1.55; }
 .signin-panel { overflow-wrap: anywhere; }
+
+/* ---- the signed-in panel ------------------------------------------------- */
+
+/**
+ * "Your account", designed like the thing next to it.
+ *
+ * The signed-out variant is an eyebrow, a display line, three marked facts and a
+ * hero plate. The signed-in one was two paragraphs and a 42%-opacity ghost pill
+ * — materially less designed than its own twin, in the same material, at the
+ * same size, side by side. Worse, its body copy ran at the panel default while
+ * the stage panel beside it runs at 13.44px, so two panels standing together
+ * carried two body sizes: §4's hierarchy is a set of roles, and "whatever the
+ * parent happened to inherit" is not one of them.
+ *
+ * So it takes the same furniture: the eyebrow, the identity as an object with a
+ * mark and a live pip, the same marked-fact list the argument panel uses, and
+ * one designed action.
+ */
+.signin-account-eyebrow { color: var(--text-faint); }
+
+.signin-account {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  --r-self: var(--r-field);
+  border-radius: var(--r-field);
+  /* A well, because an identity is a thing the panel holds rather than a thing
+     standing on it — same inverted light as the fields above it. */
+  background: linear-gradient(var(--light-sweep), rgb(10 6 22 / 0.6), rgb(38 26 68 / 0.44));
+  box-shadow: inset 0 2px 5px rgb(0 0 0 / 0.5), inset 0 -1px 0 rgb(255 255 255 / 0.07);
+}
+.signin-account-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  font-size: 22px;
+  color: var(--accent-bright);
+  border-radius: var(--r-chip);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.12), rgb(0 0 0 / 0.3));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 -1px 0 rgb(0 0 0 / 0.44);
+}
+.signin-account-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.signin-account-email {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+}
+.signin-account-state {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+/* Not colour alone: the word "Signed in" is beside it and carries the meaning.
+   The pip is the same object the queue's board uses, at the same period, so the
+   two screens are lit by one mechanism. */
+.signin-account-pip {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #d8ffe8, var(--success));
+  box-shadow: 0 0 10px rgb(120 240 180 / 0.55), inset 0 -1px 0 rgb(0 0 0 / 0.35);
+  animation: queue-pip-pulse var(--queue-period, 4.2s) var(--ease-in-out) infinite;
+}
+:root[data-reduced-motion="true"] .signin-account-pip { animation: none; opacity: 0.8; }
+
+.signin-facts { gap: var(--sp-3); max-width: none; }
+
+/**
+ * One action, at the scale of the only action.
+ *
+ * `btn btn-ghost` gave the panel's single control a 44px stock pill and the
+ * foundation's disabled-looking rest state. It is a panel-material plate the
+ * width of the form's submit, so the two variants of this screen have the same
+ * silhouette in the same place, and it takes its danger tint on hover rather
+ * than at rest — signing out is not an error, it is just the last thing you
+ * would do here by accident.
+ */
+.signin-signout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 30rem;
+  align-self: center;
+  min-height: 50px;
+  padding: 0 var(--sp-5);
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text);
+  --r-self: var(--r-panel);
+  border-radius: var(--r-panel);
+  border: 1px solid rgb(198 170 255 / 0.24);
+  background: linear-gradient(var(--light-sweep), rgb(72 54 116 / 0.72), rgb(28 18 54 / 0.82));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), inset 0 -1px 0 rgb(0 0 0 / 0.44), 0 6px 16px rgb(0 0 0 / 0.4);
+  transition:
+    color var(--dur-micro) var(--ease-arrive),
+    border-color var(--dur-micro) var(--ease-arrive);
+}
+.signin-signout:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 52%, transparent); }
 .signin-form { display: flex; flex-direction: column; gap: var(--sp-4); }
 .signin-field { display: flex; flex-direction: column; gap: var(--sp-1); }
 .signin-field .t-label { color: var(--text-faint); }
@@ -6124,14 +6324,28 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   margin: 0;
   font-size: var(--fs-sm);
   line-height: 1.4;
+  /**
+   * Two lines, always, whatever the row happens to be saying.
+   *
+   * The row used to be `hidden` at rest, so an error grew the form — and the
+   * panel centres its contents, so the growth was shared in both directions:
+   * measured, `#signin-submit` sat at y=471 clean and y=490 with an error
+   * showing. Nineteen pixels, under the cursor, on the frame the player is about
+   * to click again. Every message this screen can produce fits in two lines at
+   * this size, so the slot is two lines tall from the first frame and the button
+   * is nailed down.
+   */
+  min-height: calc(2 * 1.4em);
 }
 .signin-status[hidden] { display: none; }
 .signin-status-mark { display: inline-flex; font-size: 16px; margin-top: 1px; }
 /* `--danger`, not `--warning`: amber is a caution and a rejected password is a
    failure. The two were being signalled with the same colour. */
 .signin-status[data-tone="error"] { color: var(--danger); }
-.signin-status[data-tone="info"] { color: var(--text-faint); }
-.signin-status[data-tone="info"] .signin-status-mark { display: none; }
+.signin-status[data-tone="info"],
+.signin-status[data-tone="hint"] { color: var(--text-faint); }
+.signin-status[data-tone="info"] .signin-status-mark,
+.signin-status[data-tone="hint"] .signin-status-mark { display: none; }
 
 /* One shake, 180ms, and only for people who have not asked for less motion —
    the message and the marked fields carry the whole meaning without it. */
@@ -6205,9 +6419,52 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
        top with no way to scroll up to it. */
     align-content: start;
   }
-  .signin-stage { display: none; }
+  /**
+   * The argument collapses; it is not deleted.
+   *
+   * This rule was `display: none`, so at 844×390 `.signin-stage` measured 0×0
+   * and the three reasons the screen exists — that casual matches pair you with
+   * another player, that your save travels, that nothing is hidden from you —
+   * were simply gone. A stranger on a phone in landscape was asked for an email
+   * address and a password with no stated reason anywhere on the screen. The
+   * comment thirty lines below in this same query calls deleting the portrait
+   * "not a responsive strategy", and then this line deleted the argument.
+   *
+   * Collapsed, the panel becomes a row of three marked chips above the
+   * disclosure: the eyebrow and the display headline go (a headline is rhetoric,
+   * and rhetoric is what a 390px viewport can afford to lose), each point keeps
+   * its complete first sentence, and the elaboration folds into the `<details>`
+   * underneath, which already contains every word of it. Note that this query
+   * also fires at 1600×540, not only on phones.
+   */
+  .signin-stage {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    flex-flow: row wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--sp-2) var(--sp-4);
+    padding: var(--sp-2) var(--sp-4);
+    min-height: 0;
+  }
+  .signin-stage .t-label,
+  .signin-stage-title { display: none; }
+  .signin-stage .signin-points { display: contents; }
+  .signin-stage .signin-points li {
+    display: flex;
+    gap: var(--sp-2);
+    align-items: center;
+    font-size: var(--fs-sm);
+    line-height: 1.3;
+    color: var(--text);
+  }
+  .signin-point-tail { display: none; }
+  .signin-point-mark { width: 26px; height: 26px; font-size: 14px; border-radius: var(--r-chip); }
+  .signin-note { grid-row: 3; }
   .signin-screen.has-leader .signin-body { grid-template-columns: minmax(0, 1fr); padding-left: var(--sp-3); }
-  .signin-panel, .signin-note { grid-column: 1; grid-row: auto; }
+  .signin-panel { grid-column: 1; grid-row: 1; }
+  .signin-note { grid-column: 1; }
   /**
    * `auto`, and `flex-start`, and the pair of them is the fix.
    *
@@ -6269,7 +6526,9 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
      * past the body, and `overflow-y: auto` above turns that into scroll the
      * player can actually use. Nothing can be drawn through anything.
      */
-    grid-template-rows: minmax(min-content, 1fr) auto;
+    /* Three rows, because the argument came back. The chip row is row 2 and the
+       disclosure that carries its detail is row 3, directly under it. */
+    grid-template-rows: minmax(min-content, 1fr) auto auto;
     align-content: stretch;
     align-items: stretch;
     padding: var(--sp-2) var(--sp-4) var(--sp-3);
@@ -6295,7 +6554,8 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
        form and hand the difference to whatever was painted next. */
     min-height: min-content;
   }
-  .signin-note { grid-column: 1 / -1; grid-row: 2; }
+  .signin-stage { grid-column: 1 / -1; grid-row: 2; }
+  .signin-note { grid-column: 1 / -1; grid-row: 3; }
   .signin-note-body { max-height: 40vh; }
   .signin-portrait {
     display: block;
@@ -6547,6 +6807,31 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   perspective-origin: 50% 0%;
   pointer-events: none;
 }
+/**
+ * Two-pixel lines with a ramp on each side, and the far field taken down.
+ *
+ * The lines were `rgb(206 168 255 / 0.24) 0 1px` — a hard-edged single pixel in
+ * the *source*, which is then texture-mapped through `rotateX(72deg)` and a
+ * 420px perspective. The compositor rasterises the plane at layout size and
+ * samples it under the projection, so a one-pixel line whose projected width
+ * falls below a device pixel does not get fainter, it gets *intermittent*: at
+ * 2.4× exposure the receding lines were solid across the right two thirds and a
+ * chain of dashes across the left, and the dashes were visible unenhanced at 1×
+ * in the bottom band of both front-door screens. That is the strongest "it is
+ * CSS" tell left in either frame, and it is an aliasing artefact rather than a
+ * design decision.
+ *
+ * A line that is transparent → full → transparent over three pixels always has
+ * real coverage to sample, whatever the projection does to it, so it thins
+ * smoothly instead of breaking up. The alpha comes down to compensate for the
+ * extra width, so the near field is no heavier than it was.
+ *
+ * The mask does the other half: it now holds the *near* lines at full and takes
+ * the far ones almost out, which is both what atmospheric perspective does and
+ * where every dash was. Weight tapering with depth is the thing that was missing
+ * — before this, a line four hundred metres away was drawn at the same strength
+ * as one under the player's feet.
+ */
 .queue-floor::before {
   content: "";
   position: absolute;
@@ -6554,14 +6839,42 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   transform: rotateX(72deg);
   transform-origin: 50% 0%;
   background:
-    repeating-linear-gradient(90deg, rgb(206 168 255 / 0.24) 0 1px, transparent 1px 56px),
-    repeating-linear-gradient(0deg, rgb(206 168 255 / 0.18) 0 1px, transparent 1px 56px),
+    repeating-linear-gradient(
+      90deg,
+      rgb(206 168 255 / 0) 0,
+      rgb(206 168 255 / 0.3) 1px,
+      rgb(206 168 255 / 0.3) 2px,
+      rgb(206 168 255 / 0) 3px,
+      rgb(206 168 255 / 0) 56px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgb(206 168 255 / 0) 0,
+      rgb(206 168 255 / 0.22) 1px,
+      rgb(206 168 255 / 0.22) 2px,
+      rgb(206 168 255 / 0) 3px,
+      rgb(206 168 255 / 0) 56px
+    ),
     /* A lit floor, not a dark one. The far end is the one in shadow — the near
        field is under the lamp, and painting it near-black is what left the fifth
        sixth of this screen 91% dark-and-flat with a grid drawn on top of it. */
     linear-gradient(180deg, rgb(60 38 108 / 0.55) 0%, rgb(52 32 96 / 0.66) 44%, var(--queue-floor-near) 100%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 62%, rgb(0 0 0 / 0.7) 100%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 16%, #000 62%, rgb(0 0 0 / 0.7) 100%);
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgb(0 0 0 / 0.18) 8%,
+    rgb(0 0 0 / 0.62) 20%,
+    #000 44%,
+    #000 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgb(0 0 0 / 0.18) 8%,
+    rgb(0 0 0 / 0.62) 20%,
+    #000 44%,
+    #000 100%
+  );
 }
 
 /**
@@ -7266,6 +7579,7 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 }
 .queue-count[hidden] { display: none; }
 .queue-count-value {
+  position: relative;
   font-family: var(--font-display);
   font-size: clamp(2rem, 5.2vh, 3rem);
   font-weight: 800;
@@ -7277,6 +7591,83 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 .queue-count .t-label { color: var(--ink-dim, var(--text-dim)); line-height: 1.35; }
 .queue-record { color: var(--ink-dim, var(--text-dim)); }
 .queue-record[hidden] { display: none; }
+
+/**
+ * The count, before there is a count.
+ *
+ * `Connecting…` was two words in the top-left corner of a 600×332 board with
+ * roughly 250px of blank purple under them — about 60% of the one bright object
+ * on the screen, in the state every player sees on arrival and stays in for as
+ * long as the Worker is cold. Below it, the full-width footnote was already on
+ * screen explaining "the count", and there was no count. §5: empty states are
+ * designed too, and this was not an empty state so much as an unfinished one.
+ *
+ * So the well is furniture from the first frame, in the exact geometry the
+ * figure will occupy — the plate is the *glyph box*, so when the number lands
+ * nothing in the board moves by a pixel. What is drawn in it is a skeleton with
+ * a light passing through it, which is §A4's loading state ("skeleton shimmer or
+ * an in-world meter, never a spinner") and, unlike a placeholder digit, cannot
+ * be mistaken for an answer. This screen's whole argument is that the number it
+ * prints is real; printing a fake one for four seconds would be the one lie it
+ * cannot afford.
+ */
+.queue-count[data-state="pending"] .queue-count-value {
+  color: transparent;
+  text-shadow: none;
+  overflow: hidden;
+  border-radius: var(--r-field);
+  background: linear-gradient(var(--light-sweep), rgb(206 168 255 / 0.17), rgb(206 168 255 / 0.06));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.09), inset 0 -1px 0 rgb(0 0 0 / 0.34);
+}
+.queue-count[data-state="pending"] .queue-count-value::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 60%;
+  background: linear-gradient(var(--light-sweep), transparent, rgb(248 236 255 / 0.34), transparent);
+  /* On the room's clock, like the marquee and the pip — the board has one
+     mechanism running it, not four. `translate` rather than a paint property. */
+  animation: queue-skeleton-pass calc(var(--queue-period) * 0.55) var(--ease-in-out) infinite;
+}
+@keyframes queue-skeleton-pass {
+  from { translate: 0 0; }
+  to { translate: 267% 0; }
+}
+:root[data-reduced-motion="true"] .queue-count[data-state="pending"] .queue-count-value::after {
+  animation: none;
+  translate: 100% 0;
+  opacity: 0.5;
+}
+
+/* And it stops pretending the moment there is nothing to count. A skeleton
+   shimmering over a closed socket is the same lie the pip and the marquee were
+   stopped for. */
+.queue-count[data-state="unknown"] .queue-count-value {
+  color: var(--text-faint);
+  text-shadow: none;
+}
+
+/**
+ * The rule the server is actually following, printed where a progress bar would
+ * be.
+ *
+ * §9.3 widens the rating band as the wait grows. That is the honest answer to
+ * "what is happening while nothing appears to happen", it is true before the
+ * socket has even opened, and it is the second thing standing in the space the
+ * connecting state used to leave empty.
+ */
+.queue-rule {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--ink-dim, var(--text-dim));
+  max-width: 46ch;
+}
+.queue-rule-mark { display: inline-flex; flex: none; font-size: 16px; margin-top: 1px; color: var(--accent-bright); }
 
 @keyframes queue-count-in {
   from { opacity: 0; translate: 0 8px; }
@@ -7319,12 +7710,23 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 .queue-note {
   padding: var(--sp-3) var(--sp-5);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  /* The measure is a column width, not a `max-width` on the paragraph: capping
+     the text inside a full-bleed grid track left the heading pinned to the left
+     edge with eight hundred pixels of nothing beside it. The pair is centred in
+     the panel and the paragraph stops at a readable measure. */
+  grid-template-columns: auto minmax(0, 68ch);
+  justify-content: center;
   align-items: center;
   gap: var(--sp-2) var(--sp-4);
   --r-self: var(--r-panel);
   border-radius: var(--r-panel);
 }
+/* `display: grid` on the class beats the `hidden` attribute's UA rule, so the
+   attribute did nothing at all until this line existed — and the footnote is
+   held back until the number it explains has arrived. Coming back from
+   `display: none` restarts the panel's declared entrance, which is how it gets
+   one without a second keyframe. */
+.queue-note[hidden] { display: none; }
 .queue-note h3 {
   display: inline-flex;
   align-items: center;
@@ -7333,7 +7735,27 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   color: var(--accent-bright);
   white-space: nowrap;
 }
-.queue-note p { margin: 0; font-size: var(--fs-sm); line-height: 1.55; color: var(--text-dim); }
+/**
+ * Sixty-eight characters, not a hundred and forty.
+ *
+ * Measured at 1600×900 the paragraph set a 1256px line at 13.44px — roughly 140
+ * characters to the measure, which is two and a half times the width at which a
+ * reader reliably finds the start of the next line. §4 is a section about type
+ * being designed and a measure is the first decision in it. The panel is
+ * full-width because it is a footnote under a two-column board; the *text* does
+ * not have to be. The cap lives on the grid track above so the heading travels
+ * with it.
+ */
+.queue-note p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+/* The half a short viewport folds away, so the note collapses rather than being
+   deleted the way the 540px query used to delete it outright. */
+.queue-note-tail,
+.queue-offer-tail { display: inline; }
 
 /**
  * A phone in landscape is short, not narrow, so the two columns stay.
@@ -7356,9 +7778,11 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     --queue-ground: 0.1;
   }
   .queue-body {
-    grid-template-rows: minmax(0, 1fr);
-    gap: var(--sp-3);
-    padding: var(--sp-2) var(--sp-4) var(--sp-3);
+    /* Two rows again: the footnote is a strip under the board rather than a
+       thing that is not there. See `.queue-note` below. */
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: var(--sp-2) var(--sp-3);
+    padding: var(--sp-2) var(--sp-4) var(--sp-2);
   }
   /* The head padding is the rail's room. At `--sp-3` the lamps were drawn
      across the top of the board's own label. */
@@ -7369,9 +7793,33 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
   .queue-count { margin-top: 0; padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
   .queue-count-value { font-size: clamp(1.4rem, 7vh, 2rem); }
   .queue-offer { gap: var(--sp-2); }
-  .queue-offer-text { display: none; }
+  /**
+   * The offer keeps its first sentence, and the footnote keeps its first
+   * sentence, and neither of them is deleted.
+   *
+   * This query used to `display: none` the paragraph explaining what happens if
+   * you keep waiting, and `display: none` the whole footnote — on the screen
+   * whose only job is to explain a number, on the viewport where a player is
+   * most likely to be waiting on a phone. Recon defect 4 scored exactly this
+   * pattern CRITICAL on the lobby ("deleting a feature is not a responsive
+   * strategy") and it was still the strategy here. Each of the two is now a lead
+   * sentence and a tail, and only the tail folds.
+   */
+  .queue-offer-text { font-size: var(--fs-xs); line-height: 1.4; }
+  .queue-offer-tail { display: none; }
+  .queue-rule { font-size: var(--fs-xs); line-height: 1.35; }
+  .queue-rule-mark { font-size: 13px; }
   .queue-offer-btn { min-height: 44px; }
-  .queue-note { display: none; }
+  .queue-note {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-items: center;
+    padding: var(--sp-2) var(--sp-4);
+    gap: var(--sp-2) var(--sp-3);
+  }
+  .queue-note h3 { font-size: var(--fs-xs); }
+  .queue-note p { font-size: var(--fs-xs); line-height: 1.4; }
+  .queue-note-tail { display: none; }
   /* The out-of-focus radius is in CSS pixels and the figure is 162 of them wide
      here rather than 348, so the same 9px reads as twice the defocus and she
      goes soft. A lens stopped down for a smaller subject. */
@@ -7440,12 +7888,38 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
 .queue-offer-btn {
   position: relative;
   isolation: isolate;
-  /* Proportional, so a 500px PLAY plate and a 180px confirm get caps that read
-     as the same piece of hardware at two sizes rather than as two decisions. */
-  --hero-cap: clamp(13px, 4.2%, 26px);
+  /**
+   * Proportional, so a 500px PLAY plate and a 180px confirm get caps that read
+   * as the same piece of hardware at two sizes rather than as two decisions.
+   *
+   * It was `clamp(13px, 4.2%, 26px)`, which put the whole cap — shoulder, lit
+   * edge and falloff — inside seventeen pixels on the 403px Sign in plate. All
+   * the value change a bevel needs had nowhere to go, so it went into six of
+   * them: scanned across the text-free top of the button, **+34 grey levels over
+   * 6px at x=1155 and −35 over 8px at x=1519** on a plate whose mean is 158.
+   * That is two bright vertical bars, not two ends of a bar sign. Widening the
+   * cap does not make the furniture bigger — the peaks below are less than half
+   * what they were — it makes the ramp long enough to read as a curve.
+   */
+  --hero-cap: clamp(20px, 7%, 42px);
   text-shadow: 0 1px 0 rgb(255 255 255 / 0.34), 0 -1px 0 rgb(0 0 0 / 0.34);
 }
 
+/**
+ * The cap is a lit edge now, not a drawn line.
+ *
+ * Three changes, and all three are the same idea in a different unit. The peak
+ * alpha on the lit edge drops from 0.40/0.24 to 0.11/0.075, the ramp either side
+ * of it runs over twenty-odd pixels instead of five, and the whole layer is
+ * masked along the rig so the furniture is strongest where the key falls and
+ * nearly gone in the shade. The last one is what stops the cap being a *vertical
+ * bar*: a hairline of constant brightness from the top of a plate to the bottom
+ * is the one thing a real bevel never is, because the light comes from one place.
+ *
+ * The mask costs the bottom-right of the chamfer ring, which is fine — the host
+ * `.mat-hero` draws its own unlit lip along exactly that edge, and this layer's
+ * job was always the *inside* face of it.
+ */
 .lobby-play::before,
 .mode-cta::before,
 .signin-submit::before,
@@ -7461,23 +7935,52 @@ button.assist-row:hover { background: rgba(255, 255, 255, 0.07); border-color: v
     radial-gradient(50% 104% at 22% 2%, rgb(255 255 255 / 0.34), transparent 64%),
     linear-gradient(
       90deg,
-      rgb(0 0 0 / 0.34) 0,
-      rgb(0 0 0 / 0.16) calc(var(--hero-cap) - 2px),
-      rgb(255 255 255 / 0.4) var(--hero-cap),
-      rgb(255 255 255 / 0) calc(var(--hero-cap) + 3px)
+      rgb(0 0 0 / 0.24) 0,
+      rgb(0 0 0 / 0.17) calc(var(--hero-cap) * 0.3),
+      rgb(0 0 0 / 0.05) calc(var(--hero-cap) * 0.7),
+      rgb(255 255 255 / 0.11) var(--hero-cap),
+      rgb(255 255 255 / 0.04) calc(var(--hero-cap) + 9px),
+      rgb(255 255 255 / 0) calc(var(--hero-cap) + 24px)
     ),
     linear-gradient(
       270deg,
-      rgb(0 0 0 / 0.34) 0,
-      rgb(0 0 0 / 0.16) calc(var(--hero-cap) - 2px),
-      rgb(255 255 255 / 0.24) var(--hero-cap),
-      rgb(255 255 255 / 0) calc(var(--hero-cap) + 3px)
+      rgb(0 0 0 / 0.24) 0,
+      rgb(0 0 0 / 0.17) calc(var(--hero-cap) * 0.3),
+      rgb(0 0 0 / 0.05) calc(var(--hero-cap) * 0.7),
+      rgb(255 255 255 / 0.075) var(--hero-cap),
+      rgb(255 255 255 / 0.028) calc(var(--hero-cap) + 9px),
+      rgb(255 255 255 / 0) calc(var(--hero-cap) + 24px)
     );
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.26),
     inset 0 -1px 0 rgb(0 0 0 / 0.26),
     inset 0 0 0 1px rgb(0 0 0 / 0.14);
+  mask-image: linear-gradient(var(--light-sweep), #000 0%, #000 46%, rgb(0 0 0 / 0.42) 100%);
+  -webkit-mask-image: linear-gradient(var(--light-sweep), #000 0%, #000 46%, rgb(0 0 0 / 0.42) 100%);
   transition: opacity var(--dur-micro) var(--ease-arrive);
+}
+
+/**
+ * ...and the loudest grain in the system comes off the lightest plate.
+ *
+ * Module B ships one tile per material rank and sets the hero's amount at
+ * 0.225 against the panel's 0.04, on the argument that the same *relative*
+ * contrast needs more amplitude on a light face. The arithmetic holds and the
+ * picture does not: measured on the Sign in plate, high-frequency energy is
+ * **7.97 grey levels against the form panel's 1.49** — 5.3× the absolute
+ * amplitude for the same 5% of mean — and at that size on a 403×56 object it
+ * reads as speckle rather than as material. The two front-door heroes take the
+ * panel tile instead; §1 asks for 2–6% and this lands inside it without the
+ * plate turning into a photograph of sand.
+ *
+ * Scoped to these two screens rather than written over module A's rule: the
+ * measurement was taken here and the fix belongs where the measurement is until
+ * the foundation takes it.
+ */
+.signin-screen .signin-submit,
+.queue-screen .queue-offer-btn {
+  --mat-grain: var(--tex-grain-chip, none);
+  --mat-grain-size: var(--tex-grain-chip-size, auto);
 }
 
 /* Hover lights the hot spot rather than moving it: the plate itself is already

@@ -39,7 +39,7 @@
 import type { ContentIndex } from "../../engine/types";
 import type { Screen } from "../shell";
 import type { DeckRow, Row } from "../../game/stats/dashboard";
-import { baseMode, buildDashboard, toCsv } from "../../game/stats/dashboard";
+import { WIN_RATE_CAPTION, WIN_RATE_QUALIFIER, baseMode, buildDashboard, toCsv } from "../../game/stats/dashboard";
 import { getProfile } from "../../save/profile";
 import { FACTION_COLOR } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
@@ -198,7 +198,9 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
         <section class="panel panel-chrome stats-summary">
           <dl class="d-stats stats-headline">
             <div class="d-stat"><dt>Matches</dt><dd class="num" data-count="${board.overall.played}" data-digits="4">0</dd></div>
-            <div class="d-stat"><dt>Win rate</dt><dd class="num">${pct(board.overall.winRate)}</dd></div>
+            <div class="d-stat"><dt>Win rate <span class="d-stat-qual">${WIN_RATE_QUALIFIER}</span></dt><dd class="num">${pct(
+              board.overall.winRate
+            )}<span class="d-stat-of">${count(board.overall.won + board.overall.lost)} decided</span></dd></div>
             <div class="d-stat"><dt>Record</dt><dd class="num">${board.overall.won}–${board.overall.lost}${
               board.overall.drawn > 0 ? `–${board.overall.drawn}` : ""
             }</dd></div>
@@ -240,7 +242,9 @@ export function createStatsScreen(content: ContentIndex, callbacks: StatsCallbac
         <section class="panel panel-chrome stats-curve-panel">
           <div class="stats-table-head">
             <h3 class="t-heading">Win rate over time</h3>
-            <span class="t-body">Cumulative, oldest match first. The band is how much a sample this size actually knows.</span>
+            <span class="t-body">Cumulative wins ${esc(
+              WIN_RATE_CAPTION
+            )}, oldest first. The two bands are how much a sample this size actually knows — the inner one is where the rate probably is, the outer one where it could be.</span>
           </div>
           <div class="stats-curve" id="stats-curve"></div>
           ${

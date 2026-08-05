@@ -218,10 +218,85 @@ export function dressMatchCurtain(curtain: HTMLElement, routeId: string, params:
   curtain.appendChild(vs);
 
   /**
-   * Reduced motion gets the card and not the assembly. The class gates every
+   * Reduced motion gets the card and not the assembly. The attribute gates every
    * entrance in the stylesheet at once rather than each of them checking, so
    * there is exactly one place where "does this animate" is decided.
    */
-  curtain.dataset["billing"] = motionEnabled() ? "live" : "still";
+  if (!motionEnabled()) {
+    curtain.dataset["billing"] = "still";
+    return true;
+  }
+  armBilling(curtain);
   return true;
+}
+
+/**
+ * How long the entrance will wait for a frame worth arriving on, measured from
+ * the first frame anybody actually saw.
+ *
+ * From the first *observed* frame rather than from the call, and that is the
+ * whole trick. A wall-clock deadline set here is consumed by the very block it
+ * exists to survive — the 737ms task this is dressed in front of would expire
+ * it before a single frame had been drawn, and the entrance would arm on the
+ * frame with the most raster still outstanding, which is precisely the failure.
+ */
+const BILLING_PATIENCE_MS = 900;
+
+/** A frame the page could afford to draw. The same 34ms `shell.ts` uses. */
+const CALM_FRAME_MS = 34;
+
+/**
+ * Start the card assembling on a frame that can carry it.
+ *
+ * ## What was measured
+ *
+ * Warm entry, CDP screencast: at t=1423 the frame held the two names and no
+ * portraits (mean 27.7, sd 16.3); at t=1451 it held both portraits at full
+ * strength (mean 39.6, sd 37.1). A twenty-eight millisecond step, on a card
+ * whose entrance is authored as a 640ms stagger. Cold entry did the same thing
+ * with the names arriving about 140ms before their faces.
+ *
+ * The entrances were not missing. They were *spent*: `dressMatchCurtain` is
+ * called two frames after the curtain is raised and the battle constructor
+ * takes the thread immediately afterwards for 737ms warm and 3,175ms cold. A
+ * CSS animation's clock runs in real time, so the 620ms portrait fade elapsed
+ * entirely inside the block, and the first frame drawn afterwards showed a
+ * finished animation over a canvas the compositor had only just rasterised.
+ * The type arrived first because type is cheap to raster and a downsampled 4K
+ * painting is not.
+ *
+ * So the DOM is built now — that part genuinely does want to happen before the
+ * block, so the raster is already queued — and the *entrance* is armed on the
+ * first two on-time frames after it. Two rather than one for the reason
+ * `shell.ts` gives at `quietFrame`: the first frame after a long task is the
+ * gap between two expensive ones, and a card that starts assembling into a
+ * dropped frame has not assembled in front of anybody.
+ */
+function armBilling(curtain: HTMLElement): void {
+  if (typeof requestAnimationFrame !== "function") {
+    curtain.dataset["billing"] = "live";
+    return;
+  }
+  const clock = (): number =>
+    typeof performance === "object" && typeof performance.now === "function" ? performance.now() : Date.now();
+  let previous = clock();
+  let deadline = Infinity;
+  let seen = 0;
+  let calm = 0;
+  const step = (): void => {
+    // Abandoned: the player left, or the shell dropped the veil under us.
+    if (!curtain.isConnected || curtain.dataset["billing"] !== undefined) return;
+    const stamp = clock();
+    const delta = stamp - previous;
+    previous = stamp;
+    seen += 1;
+    if (seen === 1) deadline = stamp + BILLING_PATIENCE_MS;
+    calm = delta <= CALM_FRAME_MS ? calm + 1 : 0;
+    if (calm >= 2 || stamp >= deadline) {
+      curtain.dataset["billing"] = "live";
+      return;
+    }
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }

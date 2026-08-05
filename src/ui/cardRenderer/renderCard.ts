@@ -700,7 +700,29 @@ export function drawCardMotion(
     if (tile) ctx.clip(paths.outer);
     else ctx.clip(paths.band, "evenodd");
     const travel = (sheen % 1) * (CARD_W + CARD_H) * 1.5 - CARD_H * 0.5;
-    const sweep = ctx.createLinearGradient(travel - CARD_H * (tile ? 0.9 : 0.55), 0, travel, CARD_H);
+    /**
+     * The band's axis is the key light's axis, and it was not.
+     *
+     * It ran from `(travel − CARD_H·k, 0)` to `(travel, CARD_H)` — an angle
+     * fixed by an arbitrary reach rather than by the rig, which at tile finish
+     * came out at about 48° and at full finish at about 61°, so the *same*
+     * highlight crossed a 168px card and a 420px card at two different angles
+     * and neither of them was 315°. `tests/card-light.test.ts` exists to catch
+     * exactly this and did: an oblique gradient in the card renderer that no
+     * longer matched the exception registered for it.
+     *
+     * Deriving the start point from `TO_LIGHT` makes the sweep travel along the
+     * light instead of across it. `span` is the length of the gradient's axis,
+     * so the visible band — the 0.46–0.58 stop window — is about an eighth of it
+     * whatever the finish, and the two sizes finally agree.
+     */
+    const span = CARD_H * (tile ? 1.25 : 0.85);
+    const sweep = ctx.createLinearGradient(
+      travel + TO_LIGHT.x * span,
+      CARD_H + TO_LIGHT.y * span,
+      travel,
+      CARD_H
+    );
     const edge = (0.1 + 0.2 * style.glow) * lit * (tile ? 0.62 : 1);
     const core = (0.12 + 0.3 * style.glow) * lit * (tile ? 0.72 : 1);
     sweep.addColorStop(0, "rgba(255,255,255,0)");
@@ -1410,7 +1432,15 @@ function drawFoil(
    */
   const travel = ((phase * 1.4) % 1) * (CARD_W + CARD_H) - CARD_H * 0.4;
   const specular = (peak: number, tinted: boolean): CanvasGradient => {
-    const sweep = ctx.createLinearGradient(travel - CARD_H * 0.62, 0, travel, CARD_H);
+    // the same axis as the plain card's sweep, for the same reason: a specular
+    // is a reflection of the key light and there is only one of those
+    const span = CARD_H * 0.95;
+    const sweep = ctx.createLinearGradient(
+      travel + TO_LIGHT.x * span,
+      CARD_H + TO_LIGHT.y * span,
+      travel,
+      CARD_H
+    );
     sweep.addColorStop(0, "rgba(0,0,0,0)");
     sweep.addColorStop(0.4, hexToRgba(tinted ? "#7df9ff" : "#ffffff", peak * 0.24));
     sweep.addColorStop(0.5, hexToRgba("#ffffff", peak));

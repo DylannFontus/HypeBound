@@ -218,12 +218,36 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
   hold: (ms: number) => void;
   stop: () => void;
 } {
+  interface Job {
+    /** The cell. */
+    el: Element;
+    /** Its top edge in the scroller's own content coordinates. */
+    top: number;
+    /** Its height, so "which is nearest" compares centres rather than edges. */
+    height: number;
+  }
+
   const jobs = new WeakMap<Element, () => void>();
-  let queue: Element[] = [];
+  let queue: Job[] = [];
   let draining = 0;
   let heldUntil = 0;
   /** Set by any scroll, and by every arrival: the order on file may be stale. */
   let unsorted = true;
+  /**
+   * Where the fold is, remembered rather than asked.
+   *
+   * A drain runs immediately after inserting a card canvas, so the layout is
+   * dirty and **every** geometry read in it is a full re-layout of an
+   * eight-thousand-pixel grid. The first version of this ordering read two rects
+   * per drain and sixty on a re-sort, and the profile caught it exactly:
+   * `getBoundingClientRect` went from nothing to **228ms** of a 3.4-second
+   * navigation, and the frame gaps it was supposed to shrink got longer. So the
+   * scroller's own numbers are cached and refreshed only where reading them is
+   * free — inside the intersection callback and in the passive scroll handler,
+   * both of which run on a layout the browser has already computed.
+   */
+  let viewTop = 0;
+  let viewHeight = 0;
 
   /**
    * How much of a frame one drain may spend *starting* work.
@@ -246,45 +270,58 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
    * arrives into is drawn rather than blank.
    */
   const REST_ABOVE_MS = 12;
-  /** Rest frames after a card that ran long, near the fold and far from it. */
-  const NEAR_REST = 1;
-  const FAR_REST = 3;
-  /** Beyond this many pixels from the viewport a tile is lead, not content. */
-  const NEAR_BAND = 260;
+  /**
+   * Rest frames after a card that ran long, near the fold and far from it.
+   *
+   * Two rather than one, and the arithmetic is the argument. A card is about
+   * 43ms on this machine — profiled, 855ms of `fillRect` for the twenty tiles a
+   * filter brings into view — so one rest frame is a 43/16 duty cycle and the
+   * page runs at about twelve frames a second for as long as the queue lasts.
+   * Two rest frames is 43/32, which measures in the thirties, and the price is
+   * that a screenful fills in about a second and a half instead of a second.
+   * The sleeve is drawn, so that second is a rack filling rather than a hole.
+   */
+  const NEAR_REST = 2;
+  const FAR_REST = 4;
 
   const clock = (): number => (typeof performance === "object" ? performance.now() : Date.now());
 
-  /**
-   * Put the nearest tile at the front.
-   *
-   * One layout flush for the whole queue rather than one per tile — every
-   * `getBoundingClientRect` here reads a layout that the first of them already
-   * forced, and nothing is written in between. The queue is bounded by what an
-   * observer with a screen of margin can see, so this is tens of rects, not
-   * hundreds.
-   */
+  /** Read the fold from a layout somebody else already paid for. */
+  const readView = (): void => {
+    viewTop = root.scrollTop;
+    viewHeight = root.clientHeight;
+  };
+
+  /** Put the nearest tile at the front. Arithmetic only — no layout is read. */
   const sortByProximity = (): void => {
     unsorted = false;
     if (queue.length < 2) return;
-    const frame = root.getBoundingClientRect();
-    const middle = frame.top + frame.height / 2;
-    const distance = new Map<Element, number>();
-    for (const target of queue) {
-      const box = target.getBoundingClientRect();
-      distance.set(target, Math.abs(box.top + box.height / 2 - middle));
-    }
-    queue.sort((a, b) => (distance.get(a) ?? 0) - (distance.get(b) ?? 0));
+    const middle = viewTop + viewHeight / 2;
+    queue.sort(
+      (a, b) => Math.abs(a.top + a.height / 2 - middle) - Math.abs(b.top + b.height / 2 - middle)
+    );
   };
 
-  /** How far the front of the queue is from the fold, in pixels. */
-  const leadDistance = (): number => {
-    const head = queue[0] as HTMLElement | undefined;
-    if (!head) return 0;
-    const frame = root.getBoundingClientRect();
-    const box = head.getBoundingClientRect();
-    if (box.bottom > frame.top && box.top < frame.bottom) return 0;
-    return box.top >= frame.bottom ? box.top - frame.bottom : frame.top - box.bottom;
+  /**
+   * How many queued tiles are actually on screen right now.
+   *
+   * Arithmetic on numbers that were read from a settled layout, so it is free —
+   * and it is the number that should set the pace. A trickle of one tile coming
+   * over the fold is worth resting for; twenty holes under the player's eyes
+   * after a filter or a wheel scroll are not. The rest is therefore spent where
+   * nobody is waiting and skipped where somebody is.
+   */
+  const visibleBacklog = (): number => {
+    let count = 0;
+    const bottom = viewTop + viewHeight;
+    for (const job of queue) {
+      if (job.top + job.height > viewTop && job.top < bottom) count += 1;
+      if (count > URGENT) break;
+    }
+    return count;
   };
+  /** Above this many holes on screen, the fill stops being polite. */
+  const URGENT = 3;
 
   const drain = (): void => {
     draining = 0;
@@ -305,20 +342,20 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
       return;
     }
     if (unsorted) sortByProximity();
-    const lead = leadDistance();
+    const backlog = visibleBacklog();
 
     while (queue.length > 0 && clock() - started < BUDGET_MS) {
-      const target = queue.shift();
-      if (!target) break;
-      const job = jobs.get(target);
+      const next = queue.shift();
+      if (!next) break;
+      const job = jobs.get(next.el);
       if (!job) continue;
-      jobs.delete(target);
+      jobs.delete(next.el);
       job();
     }
     if (queue.length === 0) return;
     const spent = clock() - started;
-    if (spent <= REST_ABOVE_MS) schedule(1);
-    else schedule(lead > NEAR_BAND ? FAR_REST : NEAR_REST);
+    if (spent <= REST_ABOVE_MS || backlog > URGENT) schedule(1);
+    else schedule(backlog > 0 ? NEAR_REST : FAR_REST);
   };
 
   /** Chain `frames` animation frames before the next drain. */
@@ -345,6 +382,8 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
    * flown past and the twenty-two under the cursor were behind all of them.
    */
   const onScroll = (): void => {
+    // a scroll event fires against a settled layout, so this costs nothing
+    readView();
     unsorted = true;
   };
   root.addEventListener("scroll", onScroll, { passive: true });
@@ -355,11 +394,20 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
   const observer = supported
     ? new IntersectionObserver(
         (entries) => {
+          /*
+           * The observer hands over the geometry it has already computed, and
+           * that is the only reason this ordering is affordable. `entry
+           * .boundingClientRect` costs nothing here; the same rectangle asked
+           * for a millisecond later, from inside a drain, is a re-layout.
+           */
+          const origin = root.getBoundingClientRect().top;
+          readView();
           for (const entry of entries) {
             if (!entry.isIntersecting) continue;
             if (!jobs.has(entry.target)) continue;
             observer?.unobserve(entry.target);
-            queue.push(entry.target);
+            const box = entry.boundingClientRect;
+            queue.push({ el: entry.target, top: box.top - origin + viewTop, height: box.height });
             unsorted = true;
           }
           if (queue.length > 0) schedule(1);
@@ -380,6 +428,8 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
     release(cell) {
       jobs.delete(cell);
       observer?.unobserve(cell);
+      const at = queue.findIndex((job) => job.el === cell);
+      if (at >= 0) queue.splice(at, 1);
     },
     hold(ms) {
       heldUntil = clock() + ms;
@@ -739,21 +789,36 @@ export function debounce<A extends unknown[]>(ms: number, fn: (...args: A) => vo
  * beyond the three numbers the scroller already has.
  */
 export function bindScrollFades(wrap: HTMLElement, scroller: HTMLElement): () => void {
+  /**
+   * The last pair written, so a fade that has not changed writes nothing.
+   *
+   * This is the whole of the fix and it is not a micro-optimisation. Setting a
+   * custom property on the wrapper invalidates style for its subtree, so the
+   * *next* frame's `scrollHeight` read has to recompute the layout of an
+   * eight-thousand-pixel grid before it can answer — a read/write ping-pong in
+   * which the write is almost always redundant, because the answer to "is there
+   * more below" changes twice in the life of a screen. Profiled on the
+   * navigation into the collection at 1280×720, `sync` alone was **99ms** of the
+   * window in which the shell is waiting for two calm frames to part its veil.
+   */
+  let wroteTop = "";
+  let wroteBottom = "";
   const sync = (): void => {
     const top = scroller.scrollTop;
     const room = scroller.scrollHeight - scroller.clientHeight;
-    wrap.style.setProperty("--fade-top", top > 6 ? "1" : "0");
-    wrap.style.setProperty("--fade-bottom", room - top > 6 ? "1" : "0");
+    const wantTop = top > 6 ? "1" : "0";
+    const wantBottom = room - top > 6 ? "1" : "0";
+    if (wantTop !== wroteTop) {
+      wroteTop = wantTop;
+      wrap.style.setProperty("--fade-top", wantTop);
+    }
+    if (wantBottom !== wroteBottom) {
+      wroteBottom = wantBottom;
+      wrap.style.setProperty("--fade-bottom", wantBottom);
+    }
   };
   /*
-   * One read per frame at most.
-   *
-   * The grid grows every time a card canvas lands in it, so the ResizeObserver
-   * fires once per painted tile — thirty-five times during a mount, each of them
-   * reading three layout properties in the middle of the paint loop. Profiled at
-   * 37ms of the navigation into the collection, which is a whole dropped frame
-   * spent deciding whether to show a gradient. Coalescing to the frame clock
-   * makes it one read.
+   * One read per frame at most, on the axis the player is moving.
    */
   let queued = 0;
   const later = (): void => {
@@ -764,22 +829,29 @@ export function bindScrollFades(wrap: HTMLElement, scroller: HTMLElement): () =>
     });
   };
   /*
-   * The scroll handler goes through the same gate.
+   * The scroll handler goes through the frame gate; the resize handler goes
+   * through a timer.
    *
-   * It used to read `scrollTop`, `scrollHeight` and `clientHeight` inline on
-   * every scroll event, which on a trackpad is one forced layout of an
-   * eight-thousand-pixel grid per wheel tick. Profiled during the navigation
-   * into the collection, `sync` was 44ms of a window in which the page was
-   * already dropping frames — a whole dropped frame spent deciding whether to
-   * show a gradient.
+   * They are asking the same question for opposite reasons. A scroll changes the
+   * answer *now* and the player is looking at the edge it changes. A resize
+   * fires because the grid grew by one card canvas, thirty-five times during a
+   * mount, in the middle of the only window on this navigation where a dropped
+   * frame is expensive — and an end fade that catches up 180ms after the last
+   * tile lands is a fade nobody can see arriving.
    */
   scroller.addEventListener("scroll", later, { passive: true });
-  const observer = typeof ResizeObserver === "function" ? new ResizeObserver(later) : null;
+  let resizeTimer = 0;
+  const onResize = (): void => {
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(later, 180);
+  };
+  const observer = typeof ResizeObserver === "function" ? new ResizeObserver(onResize) : null;
   observer?.observe(scroller);
   sync();
   return () => {
     scroller.removeEventListener("scroll", later);
     observer?.disconnect();
+    window.clearTimeout(resizeTimer);
     if (queued && typeof cancelAnimationFrame === "function") cancelAnimationFrame(queued);
   };
 }
@@ -1021,6 +1093,33 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 }
 :root[data-reduced-motion="true"] .hb-row-in { animation-duration: 80ms; animation-name: hb-row-fade; }
 @keyframes hb-row-fade { from { opacity: 0; } }
+
+/*
+ * And one row exit, which the same list did not have.
+ *
+ * A row whose last copy was removed used to be deleted by a sweep from the end
+ * of the list, so the rows below it jumped up on the frame the click landed and
+ * nothing said which card had gone. It folds now: the row loses its colour and
+ * its height over one UI beat, and the rows under it close the gap as it goes,
+ * which is the same beat and the same curve as the insert it mirrors.
+ *
+ * The height *is* a layout animation and it is deliberate. §3a bans animating a
+ * paint or layout property "on many elements at once"; this is one row, inside a
+ * 'contain: layout' scroll region, and there is no other way to make the list
+ * close behind it.
+ */
+.hb-row-out {
+  overflow: hidden;
+  pointer-events: none;
+  transform-origin: top center;
+  animation: hb-row-out var(--dur-ui) var(--ease-leave) both;
+}
+@keyframes hb-row-out {
+  0%   { opacity: 1; transform: scaleY(1) translateX(0); max-height: 60px; }
+  50%  { opacity: 0; transform: scaleY(0.6) translateX(-14px); max-height: 60px; }
+  100% { opacity: 0; transform: scaleY(0.6) translateX(-14px); max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0; }
+}
+:root[data-reduced-motion="true"] .hb-row-out { animation-duration: 90ms; }
 
 /* =======================================================================
    COLLECTION
@@ -1753,6 +1852,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   .col-v2 .card-cell { padding-bottom: 15px; }
   .col-v2 .card-count { font-size: 0.58rem; padding: 0 6px; }
   .col-v2 .search-field, .col-v2 .ownership-tabs { height: 36px; }
+  .col-v2 .filter-disclose { min-height: 36px; padding: 0 10px; font-size: 0.72rem; }
   .col-v2 .ownership-tab { padding: 0 10px; font-size: 0.72rem; }
   .col-v2 .cd-stage { gap: var(--sp-2); }
 }
@@ -1816,13 +1916,44 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   box-shadow: 0 1px 0 rgb(255 255 255 / 0.05);
   display: flex; flex-direction: column; gap: var(--sp-2);
 }
-.db-v2 .builder-side-scroll { padding: var(--sp-3) var(--sp-3) var(--sp-5) var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }
+/*
+ * The list ends in air, and no row ever rests half under the footer.
+ *
+ * Measured at 3x, "Light Stick Wave" was sliced through its own cap height by a
+ * hard one-pixel rule running the full width of the panel, which is §7's
+ * "dividers that fade at the ends" failing twice over — the divider did not
+ * fade, and the content butting into it did not either. The scroll padding is
+ * the half of it nobody sees: a row scrolled to by the keyboard, or by
+ * 'scrollIntoView' after an add, used to come to rest exactly on the boundary.
+ */
+.db-v2 .builder-side-scroll {
+  padding: var(--sp-3) var(--sp-3) var(--sp-5) var(--sp-4);
+  display: flex; flex-direction: column; gap: var(--sp-3);
+  scroll-padding-block-end: 34px;
+}
+.db-v2 #db-side-wrap::after { height: 56px; }
 .db-v2 .builder-side-foot {
+  position: relative;
   padding: var(--sp-3) var(--sp-4);
-  border-top: 1px solid rgb(0 0 0 / 0.55);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  border-top: 0;
   background: linear-gradient(var(--light-sweep), rgb(34 24 62 / 0.72), rgb(13 8 28 / 0.82));
   display: flex; flex-direction: column; gap: var(--sp-2);
+}
+/* the hairline the foundation already draws: a dark line over a lit one, both
+   fading across the outer 15% at each end so the rule never butts into the
+   panel wall */
+.db-v2 .builder-side-foot::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 2px;
+  pointer-events: none;
+  background-image:
+    linear-gradient(90deg, transparent, var(--hairline-dark) 15%, var(--hairline-dark) 85%, transparent),
+    linear-gradient(90deg, transparent, var(--hairline-lit) 15%, var(--hairline-lit) 85%, transparent);
+  background-repeat: no-repeat;
+  background-size: 100% 1px, 100% 1px;
+  background-position: 0 0, 0 100%;
 }
 
 .db-v2 .builder-body { padding: var(--sp-3) var(--sp-4) var(--sp-4); }
@@ -1893,50 +2024,70 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   background-size: 100% 1px, 100% 1px, 100% 1px, 100% 1px;
   background-position: 0 25%, 0 50%, 0 75%, 0 100%;
 }
-/* The bars grow on height and the labels ride up on bottom, which are layout
-   properties — so the invalidation is fenced inside the chart. Seventeen small
-   boxes re-laying their own 200x60 box on a click is nothing; the same
-   seventeen re-laying the side panel behind them would not be. */
+/* Nothing in the chart moves on a layout property any more: the fills scale
+   from their own bottom edge, the labels and the target lids translate, and the
+   whole thing is one composited pass. §3a's non-negotiables are explicit that a
+   layout animation is not an option even when containment makes it cheap. */
 .db-v2 .curve-bars { position: relative; display: flex; align-items: flex-end; gap: 4px; height: 100%; contain: layout style; }
 .db-v2 .curve-bar { flex: 1 1 0; position: relative; height: 100%; display: flex; align-items: flex-end; }
 .db-v2 .curve-fill {
   width: 100%;
+  height: 100%;
   border-radius: 3px 3px 0 0;
+  transform: scaleY(0);
+  transform-origin: bottom center;
   background: linear-gradient(var(--light-sweep), color-mix(in srgb, var(--accent-bright) 88%, white), var(--accent) 55%, var(--accent-hot));
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 -1px 6px rgb(181 108 255 / 0.3);
-  transition: height var(--dur-ui) var(--ease-overshoot) var(--bar-delay, 0ms);
+  transition: transform var(--dur-ui) var(--ease-overshoot) var(--bar-delay, 0ms);
   min-height: 0;
 }
-.db-v2 .curve-bar.is-empty .curve-fill { background: rgb(255 255 255 / 0.08); box-shadow: none; }
-.db-v2 .curve-bar.is-thin .curve-fill { background: linear-gradient(var(--light-sweep), #ffd27a, #f0a63c 55%, #c96b18); }
-/* the target curve, as a ghost outline over the bars — the caption already
-   claimed it existed */
-.db-v2 .curve-target {
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  border-top: 1.5px dashed rgb(255 255 255 / 0.42);
-  pointer-events: none;
-  transition: height var(--dur-ui) var(--ease-arrive);
+/* An empty bucket keeps a two-pixel rail. Without it the axis appeared to start
+   at 1 — the zero column was nothing at all, and its "0" label floated twenty
+   pixels above the "0" axis tick with a gap between two identical characters. */
+.db-v2 .curve-bar.is-empty .curve-fill {
+  background: rgb(255 255 255 / 0.1);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  border-radius: 2px;
 }
+.db-v2 .curve-bar.is-thin .curve-fill { background: linear-gradient(var(--light-sweep), #ffd27a, #f0a63c 55%, #c96b18); }
+/*
+ * The target, drawn per bucket as a dashed lid stepping over each column.
+ *
+ * It was one flat rule at the mean of the target curve, under a caption reading
+ * "Thinnest at 3 Hype — 2 short of the target curve". A flat line cannot be
+ * short at 3 and right at 2, so the chart and its own caption disagreed about
+ * what was being compared. Eight lids at eight targets make the shape visible,
+ * and the column that is under its own lid is the one the sentence names.
+ */
+.db-v2 .curve-step {
+  position: absolute;
+  left: -1px; right: -1px; bottom: 0;
+  height: 0;
+  border-top: 1.5px dashed rgb(255 255 255 / 0.34);
+  pointer-events: none;
+  transition: transform var(--dur-ui) var(--ease-arrive) var(--bar-delay, 0ms);
+}
+.db-v2 .curve-bar.is-short .curve-step { border-top-color: rgb(255 210 122 / 0.7); }
+.db-v2 .curve-step[hidden] { display: none; }
 .db-v2 .curve-count {
   position: absolute;
   left: 50%;
-  transform: translateX(-50%);
   /* top:auto is load-bearing. The shared stylesheet pins this element to
      top:-2px, and an absolutely positioned box with both top and bottom set
      stretches between them — which drew the count's dark plate as a 60px black
      column down the middle of every bar. */
   top: auto;
-  bottom: calc(var(--fill-h, 0%) + 2px);
+  bottom: 0;
+  transform: translate(-50%, 0);
   font-size: 0.64rem;
   font-variant-numeric: tabular-nums;
   color: var(--text);
   padding: 0 3px;
   border-radius: 3px;
   background: rgb(6 3 14 / 0.72);
-  transition: bottom var(--dur-ui) var(--ease-overshoot) var(--bar-delay, 0ms);
+  transition: transform var(--dur-ui) var(--ease-overshoot) var(--bar-delay, 0ms);
 }
-.db-v2 .curve-bar.is-zero .curve-count { color: var(--text-faint); }
+.db-v2 .curve-count[hidden] { display: none; }
 .db-v2 .curve-axis { display: flex; gap: 4px; }
 .db-v2 .curve-axis span { flex: 1 1 0; text-align: center; font-size: 0.62rem; color: var(--text-faint); font-variant-numeric: tabular-nums; }
 .db-v2 .curve-note { font-size: 0.7rem; margin: 0; }
@@ -2492,6 +2643,85 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 }
 .ds-v2 .deck-slots-full { grid-column: 1 / -1; }
 
+/*
+ * The floor under the rack.
+ *
+ * Everything above this line was a rack with nothing under it: measured at
+ * 1600x900, a hundred and forty pixels of featureless near-black below the last
+ * row with the atmosphere showing straight through. The rail across the top of
+ * the rack has had a partner all along and it was never drawn — a lit front
+ * edge and a footer with the three things a deck manager knows and had nowhere
+ * to say: the size of the library these decks are cut from, how the active one
+ * is doing, and the way in for a deck somebody sent you.
+ */
+.ds-v2 .deck-rack-foot {
+  grid-column: 1 / -1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3) var(--sp-4);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-field);
+  background: linear-gradient(var(--light-sweep), rgb(34 24 62 / 0.62), rgb(10 6 22 / 0.72));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.075),
+    inset 0 -1px 0 rgb(0 0 0 / 0.6),
+    0 10px 26px rgb(0 0 0 / 0.42);
+}
+/* the shelf's front edge: a lit lip and the contact shadow the row above casts
+   onto it, which is what turns a tinted band into a surface the sockets stand
+   on rather than a second panel floating beside them */
+.ds-v2 .deck-rack-foot::before {
+  content: "";
+  position: absolute;
+  left: 4%; right: 4%; top: calc(var(--sp-3) * -1);
+  height: var(--sp-3);
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.5), rgb(0 0 0 / 0));
+}
+.ds-v2 .deck-rack-foot::after {
+  content: "";
+  position: absolute;
+  left: 6%; right: 6%; top: 0;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.16), transparent);
+}
+.ds-v2 .deck-rack-fact { display: inline-flex; align-items: baseline; gap: 7px; min-width: 0; }
+.ds-v2 .deck-rack-fact .hb-icon { width: 15px; height: 15px; align-self: center; color: var(--text-dim); }
+.ds-v2 .deck-rack-fact .t-label { color: var(--text-faint); }
+.ds-v2 .deck-rack-fact b { color: var(--text); font-weight: 600; }
+.ds-v2 .deck-rack-foot-sep {
+  width: 1px; height: 18px;
+  background: linear-gradient(to bottom, transparent, rgb(255 255 255 / 0.14), transparent);
+}
+.ds-v2 .deck-rack-import { margin-left: auto; min-height: 36px; font-size: var(--fs-sm); }
+/* a deck code that cannot be read says so, in the same language the drag
+   refusal does — a shape and a colour, not a colour */
+.ds-v2 .deck-rack-foot.is-refused {
+  box-shadow: inset 0 0 0 1.5px var(--danger), 0 0 22px rgb(255 90 120 / 0.22);
+  animation: ds-refuse 380ms var(--ease-arrive);
+}
+@keyframes ds-refuse {
+  0%, 100% { transform: translateX(0); }
+  22% { transform: translateX(-5px); }
+  62% { transform: translateX(4px); }
+}
+:root[data-reduced-motion="true"] .ds-v2 .deck-rack-foot.is-refused { animation: none; }
+
+/* the recess deepens and the numeral quietens with distance from the live
+   socket, so eleven empty slots read as a sequence rather than a wall */
+.ds-v2 .deck-socket {
+  box-shadow:
+    inset 3px 4px calc(10px + 8px * var(--depth, 0)) rgb(0 0 0 / calc(0.7 + 0.22 * var(--depth, 0))),
+    inset 0 0 0 1px rgb(0 0 0 / 0.6),
+    inset -1.5px -1.5px 0 rgb(255 255 255 / calc(0.085 - 0.045 * var(--depth, 0)));
+}
+.ds-v2 .deck-socket .deck-socket-number { color: rgb(255 255 255 / calc(0.1 - 0.055 * var(--depth, 0))); }
+.ds-v2 .deck-socket .deck-socket-label { opacity: calc(1 - 0.45 * var(--depth, 0)); }
+
 /* Five, exactly, wherever there is room for five. Auto-fill would give six at
    1280 and leave a three-cell hole in the last row; the rack's whole trick is
    that its arithmetic comes out even. */
@@ -2535,6 +2765,18 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
      inside it gave the page two scrollbars and neither of them the fade */
   overflow: hidden;
 }
+/*
+ * The scroller has to *take* the room, or its end fade is 2,900 pixels down.
+ *
+ * '.hb-scrollwrap' draws the bottom ramp on its own ::after, which is right —
+ * and here the wrapper had no 'flex' of its own inside a column flex body, so it
+ * sized to its content, grew to the grid's full 2,902px, and was clipped by the
+ * body's 'overflow: hidden'. The fade was drawn, correctly, two and a half
+ * screens below the fold. Probed: '.gallery-grid' scrollHeight 2902 against
+ * clientHeight 638, and the visible result was a razor cut through six
+ * portraits. The collection's main column states this and the gallery never did.
+ */
+.gal-v2 .gallery-body > .hb-scrollwrap { flex: 1 1 auto; min-height: 0; }
 .gal-v2 .gallery-filters { flex: 0 0 auto; }
 .gal-v2 .gallery-filters .btn { gap: 7px; }
 .gal-v2 .gallery-filters .hb-icon { width: 14px; height: 14px; color: var(--text-dim); }
@@ -2684,7 +2926,22 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1);
 }
 .gal-v2 .gallery-tile-locked .hb-icon { width: 12px; height: 12px; }
-.gal-v2 .gallery-note { flex: 0 0 auto; padding: 0 0 var(--sp-3); font-size: 0.74rem; }
+/* §4: text over imagery gets a plate. "Showing 90 of 138" sat on raw void
+   directly under a cut row of portraits, which is the one place on this screen
+   where a line of copy has a painting immediately above it. */
+.gal-v2 .gallery-note {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin: 0 0 var(--sp-3);
+  padding: 5px var(--sp-3);
+  font-size: 0.74rem;
+  border-radius: var(--r-chip);
+  background: linear-gradient(var(--light-sweep), rgb(38 27 70 / 0.62), rgb(12 7 26 / 0.7));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5),
+    0 3px 10px rgb(0 0 0 / 0.4);
+}
 
 .gal-v2 .gallery-page { min-height: 0; }
 .gal-v2 .gallery-portrait canvas { border-radius: var(--r-tile); }

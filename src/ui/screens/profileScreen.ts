@@ -61,6 +61,7 @@ import {
 } from "../../save/profile";
 import { drawEmblem, hexToRgb } from "../cosmetics/emblem";
 import { paintLeaderPortrait } from "../art/leaderPortrait";
+import { WIN_RATE_QUALIFIER, winRate } from "../../game/stats/dashboard";
 import { audio } from "../../audio/audio";
 import {
   colourFor,
@@ -264,8 +265,14 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
     const houseEmblem = factionId ? emblemFor(factionId) : "diamond";
 
     const xpNeeded = xpForLevel(profile.accountLevel);
-    const winRate =
-      profile.stats.matchesPlayed > 0 ? Math.round((profile.stats.wins / profile.stats.matchesPlayed) * 100) : 0;
+    /*
+     * One definition, imported rather than re-derived — see the long note on
+     * `winRate` in `dashboard.ts`. This screen used `wins / matchesPlayed`,
+     * which on a record with draws in it disagrees with Statistics one click
+     * away by up to seventeen points.
+     */
+    const decided = profile.stats.wins + profile.stats.losses;
+    const winRatePct = Math.round(winRate({ won: profile.stats.wins, lost: profile.stats.losses }) * 100);
 
     /**
      * A cosmetic slot, showing the thing rather than the word "Default".
@@ -411,7 +418,9 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
           <dl class="d-stats profile-stats">
             <div class="d-stat"><dt>Matches</dt><dd class="num" data-count="${profile.stats.matchesPlayed}" data-digits="4">0</dd></div>
             <div class="d-stat"><dt>Wins</dt><dd class="num" data-count="${profile.stats.wins}" data-digits="4">0</dd></div>
-            <div class="d-stat"><dt>Win rate</dt><dd class="num">${winRate}%</dd></div>
+            <div class="d-stat"><dt>Win rate <span class="d-stat-qual">${WIN_RATE_QUALIFIER}</span></dt><dd class="num">${winRatePct}%<span class="d-stat-of">${count(
+              decided
+            )} decided</span></dd></div>
             <div class="d-stat"><dt>Cards</dt><dd class="num" data-count="${Object.keys(profile.collection).length}" data-digits="4">0</dd></div>
             <div class="d-stat"><dt>Points</dt><dd class="num" data-count="${points}" data-digits="4">0</dd></div>
           </dl>

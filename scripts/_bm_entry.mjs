@@ -12,6 +12,7 @@ import { chromium } from "playwright-core";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { seedPlayedAccount } from "./lib/account.mjs";
+import { suppressHmrReload } from "./lib/nohmr.mjs";
 
 const CHROME = ["C:/Program Files/Google/Chrome/Application/chrome.exe"].find((p) => existsSync(p));
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i === -1 ? d : process.argv[i + 1]; };
@@ -39,6 +40,7 @@ await page.addInitScript(() => {
     });
   }, true);
 });
+await suppressHmrReload(page);
 await seedPlayedAccount(page);
 await page.goto("http://localhost:5173/?nointro#lobby", { waitUntil: "networkidle" });
 await page.waitForTimeout(2000);

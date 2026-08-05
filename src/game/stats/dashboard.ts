@@ -86,9 +86,39 @@ export interface Dashboard {
 
 const emptyTally = (): Tally => ({ played: 0, won: 0, lost: 0, drawn: 0, winRate: 0, thin: true });
 
-const finish = (tally: Tally): Tally => {
+/**
+ * The one definition of a win rate in the product, and the caption that has to
+ * travel with it.
+ *
+ * There were three. Measured on one seeded account of 32 matches — 16 won, 8
+ * lost, 8 drawn — the Profile printed **50%**, Leaderboards printed **50%**,
+ * Statistics printed **67%** beside "RECORD 16–8–8", and the win-rate curve's
+ * own footer, two hundred pixels under that 67%, read **"50% overall"**. Three
+ * files had each answered "what does a draw do to a win rate?" separately:
+ * `won / played` here, `won / played` on the ladder, `won / counted` in the
+ * chart, against this file's `won / decided`. A player clicking Profile →
+ * Statistics watched the same record move seventeen points with no explanation,
+ * and one of those screens printed both readings within one scroll of itself.
+ *
+ * `decided` wins because a draw is genuinely neither — the reasoning is in this
+ * file's header and it has not changed. What was missing is that the convention
+ * is **not self-evident**: with eight draws in thirty-two, both readings are
+ * defensible, so the number cannot ship bare. `WIN_RATE_CAPTION` is the words
+ * that make it legible and every consumer prints it next to the figure.
+ */
+export function winRate(tally: { won: number; lost: number }): number {
   const decided = tally.won + tally.lost;
-  tally.winRate = decided > 0 ? tally.won / decided : 0;
+  return decided > 0 ? tally.won / decided : 0;
+}
+
+/** The caption under every win rate the product prints. Four words, everywhere. */
+export const WIN_RATE_CAPTION = "of decided matches";
+
+/** …and the short form, for a `<dt>` that has to fit in a stat cell. */
+export const WIN_RATE_QUALIFIER = "excl. draws";
+
+const finish = (tally: Tally): Tally => {
+  tally.winRate = winRate(tally);
   tally.thin = tally.played < MIN_SAMPLE;
   return tally;
 };

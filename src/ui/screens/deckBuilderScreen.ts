@@ -51,7 +51,7 @@ import { cosmeticById } from "../../game/cosmetics";
 import { drawEmblem } from "../cosmetics/emblem";
 import { audio } from "../../audio/audio";
 import { icon } from "../art/uiIcons";
-import { motionEnabled } from "../motion";
+import { DUR, motionEnabled } from "../motion";
 import {
   bindScrollFades,
   canvasGhost,
@@ -511,6 +511,34 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
   const rows = new Map<string, Row>();
   const bucketHeads = new Map<number, HTMLElement>();
 
+  /** Rows and bucket headers mid-exit, with the timer that will remove them. */
+  const leavingRows = new Map<HTMLElement, number>();
+
+  function departRow(node: HTMLElement): void {
+    if (!motionEnabled()) {
+      node.remove();
+      return;
+    }
+    node.classList.add("hb-row-out");
+    leavingRows.set(
+      node,
+      window.setTimeout(() => {
+        leavingRows.delete(node);
+        node.classList.remove("hb-row-out");
+        node.remove();
+      }, DUR.ui + 40)
+    );
+  }
+
+  /** Cancel an exit, whichever way it ended. */
+  function landRow(node: HTMLElement): void {
+    const timer = leavingRows.get(node);
+    if (timer === undefined) return;
+    window.clearTimeout(timer);
+    leavingRows.delete(node);
+    node.classList.remove("hb-row-out");
+  }
+
   function bucketHead(cost: number, total: number): HTMLElement {
     let head = bucketHeads.get(cost);
     if (!head) {
@@ -597,11 +625,40 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       wanted.push(row.root);
     }
 
+    /**
+     * A row that reaches zero leaves; it is not deleted out from under the
+     * player.
+     *
+     * The list reconciles on the way in — an added card touches one row and
+     * nothing else moves — and used to be swept on the way out by
+     * `while (children.length > wanted.length) lastElementChild.remove()`, which
+     * is not a reconcile at all: it deletes from the *end* regardless of which
+     * row actually went, so the surviving rows below the gap shuffled up on the
+     * same frame with no animation and nothing said which card had gone.
+     *
+     * Now the row that lost its last copy collapses where it stands, and the
+     * rows under it close the gap over the same beat. §3a: everything that
+     * appears has an entrance and everything that leaves has an exit.
+     */
+    const keep = new Set<Element>(wanted);
+    for (const node of [...listHost.children]) {
+      const row = node as HTMLElement;
+      if (keep.has(row)) {
+        // it came back while it was still folding away
+        landRow(row);
+        continue;
+      }
+      if (!leavingRows.has(row)) departRow(row);
+    }
+
     // patch the children into the wanted order, creating and removing only what
     // actually changed — the whole reason an insert can be animated at all
     let index = 0;
     let arrived = 0;
     for (const node of wanted) {
+      // a row on its way out holds its place while it collapses, so it must not
+      // be mistaken for the row that belongs at this index
+      while (leavingRows.has(listHost.children[index] as HTMLElement)) index += 1;
       const here = listHost.children[index];
       if (here !== node) {
         const fresh = !node.isConnected;
@@ -610,7 +667,6 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       }
       index += 1;
     }
-    while (listHost.children.length > wanted.length) listHost.lastElementChild?.remove();
 
     for (const [id, row] of rows) {
       if (!row.root.isConnected) {
@@ -650,10 +706,12 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     root: HTMLElement;
     fill: HTMLElement;
     count: HTMLElement;
+    /** The target for *this* bucket, drawn as a dashed lid over the column. */
+    step: HTMLElement;
   }
   let curveBars: CurveBar[] = [];
-  let curveTarget: HTMLElement | null = null;
   let curveNote: HTMLElement | null = null;
+  let curveBarsHost: HTMLElement | null = null;
 
   /**
    * The chart frame, built once.
@@ -661,8 +719,18 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
    * `.curve-fill` declared `transition: height` and never ran it, because
    * `renderStats` replaced the whole `innerHTML` on every keystroke — a
    * transition on an element that is destroyed before the next frame is dead
-   * code. Building the frame once and mutating the heights is what makes the
+   * code. Building the frame once and mutating the bars is what makes the
    * declared transition real, and it is also why the bars can stagger.
+   *
+   * ## The target is per bucket, because the caption always said it was
+   *
+   * There used to be one dashed rule across all eight columns, at the mean of
+   * the target curve — while the note under it read "Thinnest at 3 Hype — 2
+   * short of the target curve", which promises a shape the chart was not
+   * drawing. A flat line cannot be short at 3 and fine at 2. Each column now
+   * carries its own dashed lid at its own target, so the sentence is a caption
+   * for something the eye can already see rather than a claim it has to take on
+   * trust.
    */
   function buildCurve(): void {
     if (!curveHost || curveBars.length > 0) return;
@@ -670,6 +738,7 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     frame.className = "curve-frame";
     const bars = document.createElement("div");
     bars.className = "curve-bars";
+    curveBarsHost = bars;
 
     for (let cost = 0; cost <= 7; cost += 1) {
       const bar = document.createElement("div");
@@ -678,16 +747,15 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       fill.className = "curve-fill";
       const count = document.createElement("div");
       count.className = "curve-count";
-      bar.append(fill, count);
+      const step = document.createElement("div");
+      step.className = "curve-step";
+      step.setAttribute("aria-hidden", "true");
+      bar.append(fill, step, count);
       bar.style.setProperty("--bar-delay", `${cost * 34}ms`);
       bars.appendChild(bar);
-      curveBars.push({ root: bar, fill, count });
+      curveBars.push({ root: bar, fill, count, step });
     }
 
-    curveTarget = document.createElement("div");
-    curveTarget.className = "curve-target";
-    curveTarget.setAttribute("aria-hidden", "true");
-    bars.appendChild(curveTarget);
     frame.appendChild(bars);
 
     const axis = document.createElement("div");
@@ -749,25 +817,47 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     const targetPeak = Math.max(...Object.values(TARGET_CURVE));
     const peak = Math.max(targetPeak, ...buckets);
 
+    /**
+     * One layout read for the whole chart, and then nothing but transforms.
+     *
+     * The bars used to grow on `height` and the labels to ride up on `bottom`,
+     * which §3a's non-negotiables name outright: "Animate transform, opacity and
+     * filter. Never width, top, or box-shadow on a large surface." Containment
+     * fenced the invalidation inside the chart, which made it affordable rather
+     * than correct — a layout animation still runs on the main thread and still
+     * cannot be handed to the compositor. Sixteen elements moving on `transform`
+     * cost the same as one.
+     *
+     * The pixel height is what makes that possible: a `translateY` percentage
+     * resolves against the *label's* own box, not the column's, so the label has
+     * to be told where to go in real units.
+     */
+    const track = curveBarsHost?.clientHeight ?? 62;
+    /** An empty column still draws a rail, so the axis reads as continuous. */
+    const EMPTY_RAIL = 2;
+
     for (const [cost, bar] of curveBars.entries()) {
       const count = buckets[cost] ?? 0;
-      const height = (count / peak) * 100;
-      bar.fill.style.height = `${height}%`;
-      bar.root.style.setProperty("--fill-h", `${height}%`);
+      const filled = count === 0 ? EMPTY_RAIL : Math.max(3, (count / peak) * track);
+      bar.fill.style.transform = `scaleY(${(filled / track).toFixed(4)})`;
+      bar.count.style.transform = `translate(-50%, ${-Math.round(filled + 3)}px)`;
       bar.root.classList.toggle("is-zero", count === 0);
       bar.root.classList.toggle("is-empty", count === 0);
       bar.root.classList.toggle("is-thin", cost === need.worstBucket);
+      /*
+       * A zero prints twice otherwise: once as the count label and once as the
+       * axis tick 20px below it, with nothing in between, so the chart appeared
+       * to start at 1.
+       */
+      bar.count.hidden = count === 0;
       if (bar.count.textContent !== String(count)) bar.count.textContent = String(count);
+      const target = TARGET_CURVE[cost] ?? 0;
+      bar.step.style.transform = `translateY(${-Math.round((target / peak) * track)}px)`;
+      bar.step.hidden = target <= 0;
+      bar.root.classList.toggle("is-short", target > 0 && count < target);
       bar.root.title = `${cost === 7 ? "7+" : cost} Hype — ${count} card${count === 1 ? "" : "s"}${
-        TARGET_CURVE[cost] ? `, target ${TARGET_CURVE[cost]}` : ""
+        target ? `, target ${target}` : ""
       }`;
-    }
-
-    if (curveTarget) {
-      // one dashed line at the target's own mean, which is the shape the bars are
-      // being compared against rather than an arbitrary rule
-      const mean = Object.values(TARGET_CURVE).reduce((a, b) => a + b, 0) / Object.keys(TARGET_CURVE).length;
-      curveTarget.style.height = `${(mean / peak) * 100}%`;
     }
 
     if (curveNote) {
@@ -1337,6 +1427,8 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       unbindRetile();
       for (const cell of poolCells.values()) cell.stopDrag();
       for (const row of rows.values()) row.stopDrag();
+      for (const timer of leavingRows.values()) window.clearTimeout(timer);
+      leavingRows.clear();
       delete (window as unknown as { hypeboundBuilder?: unknown }).hypeboundBuilder;
     },
   };

@@ -732,7 +732,16 @@ export function drawLeaderMotion(ctx: CanvasRenderingContext2D, card: CardDef, s
   ctx.save();
   ctx.clip(outer);
   const travel = (sheen % 1) * (LEADER_W + LEADER_H) * 1.4 - LEADER_H * 0.6;
-  const sweep = ctx.createLinearGradient(travel - LEADER_H * 0.75, 0, travel, LEADER_H);
+  // the coin's specular runs along the key light, like the card's — this is the
+  // surface the light-rig test was written after, so it above all may not own a
+  // private angle
+  const span = LEADER_H * 1.05;
+  const sweep = ctx.createLinearGradient(
+    travel + TO_LIGHT.x * span,
+    LEADER_H + TO_LIGHT.y * span,
+    travel,
+    LEADER_H
+  );
   sweep.addColorStop(0, "rgba(255,255,255,0)");
   sweep.addColorStop(0.46, hexToRgba(palette.hi, 0.16));
   sweep.addColorStop(0.52, hexToRgba("#ffffff", 0.2));

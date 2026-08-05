@@ -222,7 +222,25 @@ function shaft(ctx: CanvasRenderingContext2D, w: number, h: number, accent: stri
   ctx.restore();
 }
 
-/** Ingredient 3 — the faction's own mark, tiled, barely there. */
+/**
+ * Ingredient 3 — the faction's own mark, scattered on the walls, barely there.
+ *
+ * It used to be a perfect lattice: one emblem every `step` pixels at one scale
+ * and one alpha, offset half a cell on odd rows. On the Events hub that field
+ * was drawn *twice* at two sizes, and the two grids beating against each other
+ * at a fixed period is precisely what makes a surface read as **wallpaper**
+ * rather than as a lit wall — a reviewer called it a rendering error, which is
+ * the correct reading of two regular grids overlapping.
+ *
+ * Three things break the period without making it noise: each mark is nudged off
+ * its cell by up to a third of a step, scaled between 0.62× and 1.28×, and given
+ * its own alpha between 0.45× and 1.3× of the base. Every one of those comes out
+ * of the seeded PRNG, so the field is stable for a given event and different for
+ * every event, and the whole thing is still one pass over one loop.
+ *
+ * `depth` fades the far marks: the wall recedes toward the top-right, away from
+ * the 315° key, so the marks nearest the light are the ones you can see.
+ */
 function pattern(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -230,17 +248,34 @@ function pattern(
   emblem: EmblemShape,
   accent: string,
   step: number,
-  alpha: number
+  alpha: number,
+  seed = 1
 ): void {
   ctx.save();
-  ctx.globalAlpha = alpha;
   ctx.strokeStyle = rgba(accent, 1);
   ctx.fillStyle = rgba(accent, 0.5);
   ctx.lineWidth = 1.2;
+
+  /* A 32-bit xorshift, so "random" here is a function of the event id alone. */
+  let state = (seed | 0) || 0x9e3779b9;
+  const rand = (): number => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return ((state >>> 0) % 100000) / 100000;
+  };
+
   const scale = step / 260;
+  const diagonal = Math.hypot(w, h) || 1;
   for (let y = -step * 0.4, row = 0; y < h + step; y += step, row++) {
     for (let x = row % 2 === 0 ? -step * 0.4 : step * 0.1; x < w + step; x += step) {
-      drawEmblem(ctx, emblem, x, y, scale);
+      const jx = x + (rand() - 0.5) * step * 0.66;
+      const jy = y + (rand() - 0.5) * step * 0.66;
+      /* Nearest the key light at the top-left is brightest; the wall recedes. */
+      const depth = 1 - (jx + jy) / (diagonal * 1.35);
+      ctx.globalAlpha = Math.max(0, alpha * (0.45 + rand() * 0.85) * Math.max(0.25, depth));
+      ctx.lineWidth = 1.2 * (0.75 + rand() * 0.6);
+      drawEmblem(ctx, emblem, jx, jy, scale * (0.62 + rand() * 0.66));
     }
   }
   ctx.restore();
@@ -618,7 +653,7 @@ export function banner(accent: string, options: BannerOptions = {}): string {
     const step = Math.max(64, Math.round(Math.min(w, h) * 0.42));
     ctx.save();
     ctx.translate(-(hash % step), -((hash >>> 8) % step));
-    pattern(ctx, w + step * 2, h + step * 2, emblem, accent, step, patternAlpha);
+    pattern(ctx, w + step * 2, h + step * 2, emblem, accent, step, patternAlpha, hash | 1);
     ctx.restore();
 
     // one hard streak of light along the key axis — the foil sweep

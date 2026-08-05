@@ -189,12 +189,33 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
         </div>
 
         <section class="panel panel-chrome cloud-save-actions">
+          <!--
+            Both of these can be disabled, so both of them are on the
+            foundation's material rather than on .btn.
+
+            .btn:disabled in base.css is opacity 0.42 and nothing else, which is
+            a straight A4 violation on all three counts — it changes neither the
+            fill nor the border nor the icon — and measured on "Use the
+            account's save" (white ink, the whole element at 0.42, the hero
+            gradient showing through underneath) the label came out at about
+            4.0:1, under the floor. The .act disabled branch is the compliant
+            one: it re-fills the plate on the panel's violet axis, re-tunes the
+            rim and the lip, drops to the panel grain, re-points the ink to
+            --text-dim and drains the icon on its own. 7.05:1 on that plate.
+
+            Only one of the two is a hero, because only one of them is the safe
+            answer here; the other is the destructive one and reads as such.
+            That is also §6's one-hero rule, which two identical primary pills
+            side by side were breaking.
+          -->
           <div class="mail-actions">
-            <button class="btn btn-primary" id="cloud-keep-local" ${loading ? "disabled" : ""}>
-              Keep this device's save
-            </button>
-            <button class="btn btn-primary" id="cloud-keep-cloud" ${loading || !cloud ? "disabled" : ""}>
+            <button class="mat-hero act r-chip cloud-save-btn" id="cloud-keep-cloud" ${
+              loading || !cloud ? "disabled" : ""
+            }>
               Use the account's save
+            </button>
+            <button class="mat-panel act r-chip cloud-save-btn" id="cloud-keep-local" ${loading ? "disabled" : ""}>
+              Keep this device's save
             </button>
           </div>
           <p class="muted">

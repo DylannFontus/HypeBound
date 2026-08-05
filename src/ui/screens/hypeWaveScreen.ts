@@ -75,12 +75,16 @@ import {
   describeReward,
   esc,
   flyReward,
+  patchRow,
   railHtml,
   rewardTileHtml,
+  riseIn,
   syncWallets,
+  updateWallet,
   WASH,
   type CoinKind,
 } from "./rewards/rewardKit";
+import { createPaintQueue, paintRewardArt, type PaintQueue } from "./rewards/rewardArt";
 import { installRewardsTheme } from "./rewards/rewardsTheme";
 
 export interface HypeWaveCallbacks {
@@ -135,18 +139,25 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
   let view: "rail" | "list" = "rail";
   /** kept across renders so claiming a tier does not throw the track back to 1 */
   let railScroll: number | null = null;
+  /** Nothing is rasterised on the navigation frame — see `rewardArt.ts`. */
+  let art: PaintQueue | null = null;
+  let cascaded = false;
 
   /* ---------------------------------------------------------------------
      one tier
      --------------------------------------------------------------------- */
 
-  const tierRow = (pass: PassView, row: PassView["rows"][number]): string => {
+  /**
+   * One lane of one tier, buildable on its own so a claim can patch just it.
+   *
+   * It used to be a closure inside `tierRow`, which is the shape that forces a
+   * claim to rebuild all fifty rows: there was no way to produce one cell's
+   * markup without producing the whole track.
+   */
+  const cellHtml = (pass: PassView, row: PassView["rows"][number], track: "free" | "backstage"): string => {
     const pick = row.free.find((reward) => reward.kind === "pick");
-    const choices =
-      picking === row.tier && pick ? (passPickChoices(content, pass.season.id, row.tier) ?? []) : [];
     const milestone = row.tier % 10 === 0 || row.tier === hypeWaveData().tiers;
-
-    const cell = (track: "free" | "backstage"): string => {
+    {
       const rewards = track === "free" ? row.free : row.backstage;
       const claimed = track === "free" ? row.freeClaimed : row.backstageClaimed;
       const claimable = track === "free" ? row.freeClaimable : row.backstageClaimable;
@@ -188,7 +199,7 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
             ${rewards
               .map((reward) => {
                 const note = deferredNote(reward);
-                const visual = describeReward(reward, content, pass.season.id);
+                const visual = describeReward(reward, content, pass.season.id, { tier: row.tier });
                 return (
                   rewardTileHtml(visual, {
                     /* em, because the lane it sits in is em: a fixed 40px tile
@@ -211,7 +222,14 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
           </div>
           ${stateMark}
         </div>`;
-    };
+    }
+  };
+
+  const tierRow = (pass: PassView, row: PassView["rows"][number]): string => {
+    const pick = row.free.find((reward) => reward.kind === "pick");
+    const choices =
+      picking === row.tier && pick ? (passPickChoices(content, pass.season.id, row.tier) ?? []) : [];
+    const milestone = row.tier % 10 === 0 || row.tier === hypeWaveData().tiers;
 
     /*
      * The tier the player is working on, marked.
@@ -228,12 +246,12 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
     return `
       <li class="pass-row ${row.unlocked ? "unlocked" : ""} ${row.onPaceLine ? "pace" : ""}"
           data-tier="${row.tier}"${next ? ` data-next="1"` : ""}>
-        ${cell("free")}
+        ${cellHtml(pass, row, "free")}
         <div class="pass-node mat-chip" data-milestone="${milestone ? 1 : 0}">
           <span class="num">${row.tier}</span>
           ${next ? `<span class="rw-sr">Your next tier</span>` : ""}
         </div>
-        ${cell("backstage")}
+        ${cellHtml(pass, row, "backstage")}
         ${
           choices.length > 0
             ? `<div class="pass-choices mat-panel">
@@ -414,6 +432,23 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
       </main>`;
 
     bind(pass);
+
+    art?.stop();
+    art = createPaintQueue();
+    paintRewardArt(root, art);
+
+    if (!cascaded) {
+      cascaded = true;
+      /*
+       * Ten of the fifty, capped: `stagger` compresses to a 24ms floor and then
+       * clamps the index, so the leading tiers cascade visibly and the tail —
+       * which is off the right-hand edge of a scroller that has not been
+       * scrolled yet — arrives together. Fifty tiers at 40ms would be a
+       * two-second entrance for content nobody is looking at.
+       */
+      riseIn(root.querySelectorAll(".pass-rows > li"), { from: 200, step: 38, max: 620 });
+    }
+
     syncWallets(root);
     restoreScroll(pass);
   };
@@ -473,25 +508,11 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
     }
 
     for (const button of root.querySelectorAll<HTMLElement>(".pass-claim-btn")) {
-      button.addEventListener("click", () => {
-        if (!pass) return;
-        const tier = Number(button.dataset["tier"]);
-        const track = button.dataset["track"] as "free" | "backstage";
-        const row = pass.rows.find((entry) => entry.tier === tier);
-        const rewards = row ? (track === "free" ? row.free : row.backstage) : [];
-        celebrate(button, rewards);
-        const grant = claimPassTier(content, pass.season.id, track, tier);
-        if (grant) audio.play("sfx.pack.rareReveal", { volume: 0.45, rate: 1.2 });
-        render();
-      });
+      bindTierClaim(button, pass);
     }
 
     for (const button of root.querySelectorAll<HTMLElement>(".pass-pick-open")) {
-      button.addEventListener("click", () => {
-        picking = picking === Number(button.dataset["tier"]) ? null : Number(button.dataset["tier"]);
-        audio.play("sfx.ui.hover");
-        render();
-      });
+      bindPickOpen(button);
     }
 
     for (const button of root.querySelectorAll<HTMLElement>(".pass-pick")) {
@@ -534,6 +555,62 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
         render();
       });
     }
+  };
+
+  /**
+   * Claiming a tier patches that tier's lane, the wallet and the tab badge.
+   *
+   * The track already kept its own scroll across a claim; the rest of the
+   * screen did not keep anything, because `render()` replaced all of it. One
+   * cell is the whole state change — the tier's rewards are paid, the plate
+   * goes to `claimed`, the seal is struck on the tile — so one cell is what
+   * moves. Every other plate on the rail keeps the phase of its own specular,
+   * which is what stops fifty of them sweeping in lockstep on the frame the
+   * player pressed Claim.
+   */
+  const bindTierClaim = (button: HTMLElement, pass: PassView | null): void => {
+    button.addEventListener("click", () => {
+      if (!pass) return;
+      const tier = Number(button.dataset["tier"]);
+      const track = button.dataset["track"] as "free" | "backstage";
+      const before = pass.rows.find((entry) => entry.tier === tier);
+      const rewards = before ? (track === "free" ? before.free : before.backstage) : [];
+      celebrate(button, rewards);
+      const grant = claimPassTier(content, pass.season.id, track, tier);
+      if (grant) audio.play("sfx.pack.rareReveal", { volume: 0.45, rate: 1.2 });
+
+      const { live, archives } = hypeWaveViews();
+      const after = [live, ...archives].find((entry) => entry?.season.id === pass.season.id) ?? null;
+      const row = after?.rows.find((entry) => entry.tier === tier);
+      const cell = root.querySelector(`.pass-row[data-tier="${tier}"] .pass-cell[data-lane="${track}"]`);
+      if (!after || !row || !cell) {
+        render();
+        return;
+      }
+      const replacement = patchRow(cell, cellHtml(after, row, track));
+      if (replacement) {
+        const next = replacement.querySelector<HTMLElement>(".pass-claim-btn");
+        if (next) bindTierClaim(next, after);
+        const pick = replacement.querySelector<HTMLElement>(".pass-pick-open");
+        if (pick) bindPickOpen(pick);
+        paintRewardArt(replacement, art ?? undefined);
+      }
+      const profile = getProfile();
+      updateWallet(root, { clout: profile.clout, glimmer: profile.glimmer ?? 0 });
+      const badge = root.querySelector<HTMLElement>(`.pass-tabs .rw-tab[data-season="${CSS.escape(after.season.id)}"] .rw-badge`);
+      if (badge) {
+        if (after.unclaimed > 0) badge.textContent = String(after.unclaimed);
+        else badge.remove();
+      }
+    });
+  };
+
+  const bindPickOpen = (button: HTMLElement): void => {
+    button.addEventListener("click", () => {
+      picking = picking === Number(button.dataset["tier"]) ? null : Number(button.dataset["tier"]);
+      audio.play("sfx.ui.hover");
+      render();
+    });
   };
 
   /**
@@ -624,6 +701,7 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
   return {
     root,
     dispose: () => {
+      art?.stop();
       delete (window as unknown as { hypeboundPass?: unknown }).hypeboundPass;
     },
   };

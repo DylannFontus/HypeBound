@@ -234,21 +234,29 @@ const SOURCES = [
  * a diffraction grating drifting across a foil are travelling in the direction
  * of their own travel, which is a different claim from where the sun is.
  */
+/**
+ * Two entries came out of this list rather than being brought up to date, and
+ * that is the outcome the list is for.
+ *
+ * Both said the same thing — *"its angle is its travel, not the key light"* —
+ * about the specular band on the card frame and about the foil's version of it.
+ * That excuse was wrong on its own terms: a specular **is** a reflection of the
+ * key light, and the proof that nobody was watching is that both drifted away
+ * from the strings registered for them (`0.55` had become
+ * `(tile ? 0.9 : 0.55)`, `0.8` had become `0.62`) and the sweep therefore
+ * crossed a 168px tile and a 420px card at two different angles. All three
+ * sweeps — card, foil and leader coin — now build their endpoints from
+ * `TO_LIGHT`, so there is nothing left here to excuse.
+ *
+ * The grating stays, because it is the one gradient in the renderer that is
+ * genuinely not a light: it is printed foil stock, and its direction is a
+ * property of the print rather than of the room.
+ */
 const JUSTIFIED: { file: string; match: string; why: string }[] = [
-  {
-    file: "renderCard.ts",
-    match: "travel - CARD_H * 0.55",
-    why: "the specular band crawling the frame; its angle is its travel, not the key light",
-  },
   {
     file: "renderCard.ts",
     match: "-drift, 0, CARD_W * 1.2 - drift",
     why: "the foil's diffraction grating, which drifts across the card on the shared clock",
-  },
-  {
-    file: "renderCard.ts",
-    match: "travel - CARD_H * 0.8",
-    why: "the foil's specular, running the other way across the grating",
   },
 ];
 

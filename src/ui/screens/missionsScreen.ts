@@ -69,12 +69,16 @@ import {
   describeReward,
   esc,
   flyReward,
+  patchRow,
   railHtml,
   rewardTileHtml,
+  riseIn,
   syncWallets,
   tokenHtml,
+  updateWallet,
   WASH,
 } from "./rewards/rewardKit";
+import { createPaintQueue, paintRewardArt, type PaintQueue } from "./rewards/rewardArt";
 import { installRewardsTheme } from "./rewards/rewardsTheme";
 
 export interface MissionsCallbacks {
@@ -112,21 +116,22 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
     flyReward(source.getBoundingClientRect(), "clout", root);
   };
 
-  const render = (): void => {
-    const now = Date.now();
-    const views = syncMissions(content, now);
-    const profile = getProfile();
-    const bonus = bonusDailies(content, now);
-    const dailies = views.filter((view) => view.active.cadence === "daily");
-    const weeklies = views.filter((view) => view.active.cadence === "weekly");
-    const restock = restockAvailable(content, now);
-    const checkIn = checkInView(now);
-    const tokens = rerollTokens();
-    const rookie = onRookieRoad(content, now);
+  /** Nothing is rasterised on the navigation frame — see `rewardArt.ts`. */
+  let art: PaintQueue | null = null;
+  let cascaded = false;
 
-    const card = (view: MissionView): string => {
-      const rerollable = canReroll(profile.missions.rotation, view.active.cadence, now);
-      return `
+  /**
+   * One mission card, buildable outside `render` so a claim can patch one row.
+   *
+   * It used to be a closure inside `render`, which is the shape that forces
+   * every claim to rebuild the entire screen: there was no way to produce a
+   * single row's markup without producing all of them. Measured, that rebuild
+   * threw the scroller from `scrollTop: 561` to `0` on every claim and restarted
+   * about fifty ambient sweeps on the same frame.
+   */
+  const card = (view: MissionView, now: number): string => {
+    const rerollable = canReroll(getProfile().missions.rotation, view.active.cadence, now);
+    return `
         <li class="mission mat-panel ${view.progress.complete ? "done" : ""}"
             data-id="${esc(view.active.missionId)}" data-cadence="${view.active.cadence}">
           <div class="mission-head">
@@ -164,7 +169,70 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
             }
           </div>
         </li>`;
-    };
+  };
+
+  /** Wire one mission row's own two buttons. Called per row, never per screen. */
+  const bindMission = (element: HTMLElement, now: number): void => {
+    const missionId = element.dataset["id"] ?? "";
+    const cadence = (element.dataset["cadence"] ?? "daily") as "daily" | "weekly";
+    element.querySelector(".mission-claim")?.addEventListener("click", (event) => {
+      const source = event.currentTarget as HTMLElement;
+      const view = syncMissions(content, Date.now()).find(
+        (entry) => entry.active.missionId === missionId && entry.active.cadence === cadence,
+      );
+      celebrate(source, view?.reward.clout ?? 0);
+      if (claimMission(content, cadence, missionId, Date.now())) {
+        audio.play("sfx.pack.rareReveal", { volume: 0.5, rate: 1.15 });
+      }
+      patchAfterClaim(element, missionId, cadence);
+    });
+    element.querySelector(".mission-reroll")?.addEventListener("click", () => {
+      if (rerollSlot(content, cadence, missionId, Date.now())) audio.play("sfx.ui.hover");
+      render();
+    });
+    void now;
+  };
+
+  /**
+   * A claim changes one row, one chip and two counters. Nothing else moves.
+   *
+   * A reroll still re-renders — it replaces the mission with a different one and
+   * the grid's shape can change — but a claim is a state change on a row the
+   * player is looking at, and that is exactly the case the recon named: the
+   * flight survived the rebuild only because it lives on `document.body`, while
+   * the scroll position and every animation's phase did not.
+   */
+  const patchAfterClaim = (element: HTMLElement, missionId: string, cadence: "daily" | "weekly"): void => {
+    const now = Date.now();
+    const view = syncMissions(content, now).find(
+      (entry) => entry.active.missionId === missionId && entry.active.cadence === cadence,
+    );
+    if (view) {
+      const replacement = patchRow(element, card(view, now));
+      if (replacement) bindMission(replacement, now);
+    }
+    const profile = getProfile();
+    updateWallet(root, { clout: profile.clout });
+    const bonus = bonusDailies(content, now);
+    const toward = root.querySelector<HTMLElement>("#missions-bonus-toward");
+    if (toward) toward.textContent = formatNumber(bonus.progress.toward);
+    const done = root.querySelector<HTMLElement>("#missions-dailies-done");
+    if (done) done.textContent = formatNumber(profile.missions.dailiesCompleted);
+    const weekDone = root.querySelector<HTMLElement>("#missions-weeklies-done");
+    if (weekDone) weekDone.textContent = formatNumber(profile.missions.weekliesCompleted);
+  };
+
+  const render = (scrollTo?: number): void => {
+    const now = Date.now();
+    const views = syncMissions(content, now);
+    const profile = getProfile();
+    const bonus = bonusDailies(content, now);
+    const dailies = views.filter((view) => view.active.cadence === "daily");
+    const weeklies = views.filter((view) => view.active.cadence === "weekly");
+    const restock = restockAvailable(content, now);
+    const checkIn = checkInView(now);
+    const tokens = rerollTokens();
+    const rookie = onRookieRoad(content, now);
 
     /** A bonus daily, in the same plate as every other mission on the screen. */
     const bonusCard = (options: {
@@ -287,13 +355,13 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
             <h2 class="rw-section-title t-heading">${icon("sun")}<span>Daily</span></h2>
             <span class="rw-note rw-quiet">New mission in ${untilReset(now, false)}</span>
           </div>
-          <ul class="missions-list" id="missions-daily">${dailies.map(card).join("")}</ul>
+          <ul class="missions-list" id="missions-daily">${dailies.map((view) => card(view, now)).join("")}</ul>
         </section>
 
         <section class="missions-group">
           <div class="rw-section-head">
             <h2 class="rw-section-title t-heading">${icon("flame")}<span>Bonus dailies</span></h2>
-            <span class="rw-note rw-quiet"><span class="num" style="min-width:0">${bonus.progress.toward}</span> / ${bonus.progress.every} toward a Merch Drop</span>
+            <span class="rw-note rw-quiet"><span class="num" style="min-width:0" id="missions-bonus-toward">${bonus.progress.toward}</span> / ${bonus.progress.every} toward a Merch Drop</span>
           </div>
           <ul class="missions-list" id="missions-bonus">
             ${bonusCard({
@@ -343,12 +411,12 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
             <h2 class="rw-section-title t-heading">${icon("moon")}<span>Weekly</span></h2>
             <span class="rw-note rw-quiet">New missions in ${untilReset(now, true)}</span>
           </div>
-          <ul class="missions-list" id="missions-weekly">${weeklies.map(card).join("")}</ul>
+          <ul class="missions-list" id="missions-weekly">${weeklies.map((view) => card(view, now)).join("")}</ul>
         </section>
 
         <p class="rw-note rw-quiet missions-foot" style="margin:0">
-          Completed <span class="num" style="min-width:0">${formatNumber(profile.missions.dailiesCompleted)}</span> dailies and
-          <span class="num" style="min-width:0">${formatNumber(profile.missions.weekliesCompleted)}</span> weeklies.
+          Completed <span class="num" style="min-width:0" id="missions-dailies-done">${formatNumber(profile.missions.dailiesCompleted)}</span> dailies and
+          <span class="num" style="min-width:0" id="missions-weeklies-done">${formatNumber(profile.missions.weekliesCompleted)}</span> weeklies.
           Finish all of a week's missions for ${content.balance.economy.missions.weeklyWrapDrops} extra Merch Drop.
         </p>
       </main>`;
@@ -369,6 +437,7 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
       const source = event.currentTarget as HTMLElement;
       const step = checkIn.steps[checkIn.claimed];
       const box = source.getBoundingClientRect();
+      const before = root.querySelector<HTMLElement>(".missions-body")?.scrollTop ?? 0;
       if (claimCheckIn(content, Date.now())) {
         /*
          * A claim sound, not the confirm sound the Back button and the Buy
@@ -379,33 +448,46 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
         const visual = step ? describeReward(step, content) : null;
         if (visual?.coin && motionEnabled()) flyReward(box, visual.coin, root);
       }
-      render();
+      /*
+       * The check-in track's *state* moves along the row — the claimed node, the
+       * next node and the footer all change together — so this one is a real
+       * re-render. What it must not do is throw the page back to the top, which
+       * is what the recon measured at scrollTop 561 → 0.
+       */
+      render(before);
     });
     root.querySelector("#missions-restock")?.addEventListener("click", (event) => {
       const source = event.currentTarget as HTMLElement;
+      const before = root.querySelector<HTMLElement>(".missions-body")?.scrollTop ?? 0;
       if (claimWeeklyRestock(content, Date.now()) > 0) {
         audio.play("sfx.pack.open", { volume: 0.6 });
         void source;
       }
-      render();
+      render(before);
     });
 
     for (const element of root.querySelectorAll<HTMLElement>(".mission[data-id]")) {
-      const missionId = element.dataset["id"] ?? "";
-      const cadence = (element.dataset["cadence"] ?? "daily") as "daily" | "weekly";
-      const view = views.find((entry) => entry.active.missionId === missionId && entry.active.cadence === cadence);
-      element.querySelector(".mission-claim")?.addEventListener("click", (event) => {
-        const source = event.currentTarget as HTMLElement;
-        celebrate(source, view?.reward.clout ?? 0);
-        if (claimMission(content, cadence, missionId, Date.now())) {
-          audio.play("sfx.pack.rareReveal", { volume: 0.5, rate: 1.15 });
-        }
-        render();
-      });
-      element.querySelector(".mission-reroll")?.addEventListener("click", () => {
-        if (rerollSlot(content, cadence, missionId, Date.now())) audio.play("sfx.ui.hover");
-        render();
-      });
+      bindMission(element, now);
+    }
+
+    art?.stop();
+    art = createPaintQueue();
+    paintRewardArt(root, art);
+
+    if (!cascaded) {
+      cascaded = true;
+      /*
+       * Every group's rows, not only the four sections. The shell's cascade
+       * reaches `main > section`; the ten check-in tiles and the nine mission
+       * cards are one level below that and used to arrive in a single block.
+       */
+      riseIn(root.querySelectorAll(".checkin-steps > li"), { from: 240, step: 34, max: 620 });
+      riseIn(root.querySelectorAll(".missions-list > li"), { from: 300, step: 40, max: 700 });
+    }
+
+    if (scrollTo !== undefined) {
+      const body = root.querySelector<HTMLElement>(".missions-body");
+      if (body) body.scrollTop = scrollTo;
     }
 
     syncWallets(root);
@@ -445,6 +527,7 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
   return {
     root,
     dispose: () => {
+      art?.stop();
       delete (window as unknown as { hypeboundMissions?: unknown }).hypeboundMissions;
     },
   };

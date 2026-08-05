@@ -128,17 +128,24 @@
    * — see §2.0. Derived from the recede rather than chosen, so the hold is
    * literally the first stretch of the exit and the two cannot drift apart.
    *
-   * 0.72 of the geometry and 0.28 of the dim. The parent is unambiguously
-   * behind something — blurred 5px, 2% smaller, lifted — and it is still *lit*,
-   * which is the whole distinction: a screen may be pushed away for as long as
-   * a constructor takes, and it may not be drained while it is the only thing
-   * on the glass.
+   * 0.55 of the geometry and 0.2 of the dim, and the first attempt at 0.72/0.28
+   * is why those are two separate numbers. A `blur()` does not only soften an
+   * edge, it *spends* the brightest pixels in the frame — so a parent held at
+   * 5px for the length of a constructor and then handed to an exit that starts
+   * dimming immediately produced a composited frame at 18% of the reference
+   * 95th percentile, which is a darker hole than the one the exit floor was
+   * added to close. 3.9px still reads unambiguously as out of focus, at about
+   * two thirds of the cost to the highlights.
+   *
+   * The distinction the pair encodes: a screen may be *pushed away* for as long
+   * as a constructor takes, and it may not be *drained* while it is the only
+   * thing on the glass.
    */
-  --nav-hold-opacity: 0.82;
-  --nav-hold-scale: calc(1 - (1 - var(--nav-recede-scale)) * 0.72);
-  --nav-hold-lift: calc(var(--nav-recede-lift) * -0.72);
-  --nav-hold-blur: calc(var(--nav-recede-blur) * 0.72);
-  --nav-hold-dim: calc(1 - (1 - var(--nav-recede-dim)) * 0.28);
+  --nav-hold-opacity: 0.88;
+  --nav-hold-scale: calc(1 - (1 - var(--nav-recede-scale)) * 0.55);
+  --nav-hold-lift: calc(var(--nav-recede-lift) * -0.55);
+  --nav-hold-blur: calc(var(--nav-recede-blur) * 0.55);
+  --nav-hold-dim: calc(1 - (1 - var(--nav-recede-dim)) * 0.2);
   --nav-hold-fall: calc(var(--nav-rise) * 0.22);
   --nav-hold-slide: calc(var(--nav-slide) * var(--nav-dir) * -0.26);
 }
@@ -1177,7 +1184,7 @@
     transform: translate3d(0, 0, 0) scale(1);
   }
   to {
-    opacity: 0.88;
+    opacity: 0.9;
     transform: translate3d(0, var(--nav-hold-fall), 0) scale(0.9966);
   }
 }
@@ -1327,11 +1334,11 @@
     transform: scale(var(--nav-hold-scale)) translate3d(0, var(--nav-hold-lift), 0);
     filter: blur(var(--nav-hold-blur)) brightness(var(--nav-hold-dim));
   }
-  25% {
-    opacity: 0.66;
+  30% {
+    opacity: 0.74;
   }
-  70% {
-    opacity: 0.42;
+  72% {
+    opacity: 0.46;
   }
   to {
     opacity: var(--nav-exit-floor);
@@ -1360,7 +1367,7 @@
  */
 @keyframes nav-descend-in {
   from {
-    opacity: 0.22;
+    opacity: 0.42;
     transform: translate3d(0, var(--nav-rise), 0) scale(0.985);
   }
   to {
@@ -1403,7 +1410,7 @@
  */
 @keyframes nav-ascend-out {
   from {
-    opacity: 0.88;
+    opacity: 0.9;
     transform: translate3d(0, var(--nav-hold-fall), 0) scale(0.9966);
   }
   46% {
@@ -1431,12 +1438,12 @@
  */
 @keyframes nav-ascend-in {
   from {
-    opacity: 0;
+    opacity: 0.3;
     transform: scale(var(--nav-recede-scale)) translate3d(0, calc(var(--nav-recede-lift) * -1), 0);
     filter: blur(var(--nav-recede-blur)) brightness(var(--nav-recede-dim));
   }
   38% {
-    opacity: 0.72;
+    opacity: 0.8;
     transform: scale(calc(1 - (1 - var(--nav-recede-scale)) * 0.28))
       translate3d(0, calc(var(--nav-recede-lift) * -0.28), 0);
     filter: blur(calc(var(--nav-recede-blur) * 0.28)) brightness(calc(1 - (1 - var(--nav-recede-dim)) * 0.22));
@@ -1473,7 +1480,7 @@
 
 @keyframes nav-sibling-in {
   from {
-    opacity: 0;
+    opacity: 0.32;
     transform: translate3d(calc(var(--nav-slide) * var(--nav-dir)), 0, 0) scale(0.985);
   }
   to {
@@ -1551,7 +1558,7 @@
 
 @keyframes nav-replace-in {
   from {
-    opacity: 0;
+    opacity: 0.32;
     transform: scale(0.99);
   }
   to {
@@ -1888,7 +1895,7 @@
  */
 @keyframes nav-child-rise {
   from {
-    opacity: 0.2;
+    opacity: 0.42;
     translate: 0 14px;
   }
   to {
@@ -1919,8 +1926,37 @@
  * The panels are 52% tall each, so they overlap by 4% at full close and no
  * rounding error can open a one-pixel line onto whatever is behind them.
  */
+/**
+ * ## `fixed` rather than `absolute`, because the cover was moved off the screen
+ *
+ * Measured at 844x390 with the match billing attached: the two panels reported
+ * [-17,-102,878,203] and [-17,85,878,203] in a 390px viewport. The heights were
+ * right and the widths were right, and **both halves had been moved 102 pixels
+ * up the screen** — so y=288 to y=390, 26% of the viewport, was covered by
+ * neither of them, and the mulligan hand and the Confirm button were plainly
+ * visible through a curtain the router believed was shut. The seam landed at
+ * 24% of the height instead of 50%. The same viewport one beat earlier, with
+ * nothing on the panels, was covered exactly; 1280x720 and 1600x900 at
+ * `--ui-scale 1.4` were both correct.
+ *
+ * `#app` is `position: fixed; inset: 0; overflow: hidden`, which makes it a
+ * scroll container, and an absolutely positioned child is laid out against its
+ * *scrolled* origin. A 246px portrait canvas dropped into a 203px panel gave it
+ * something to scroll, and the cover went with it. Three guards, because any
+ * one of them alone is a thing the next person undoes by accident:
+ *
+ *  - `fixed` takes the viewport as the containing block, so nothing inside the
+ *    document can move the curtain again;
+ *  - `overflow: hidden` on each panel, so nothing placed inside one can hand a
+ *    scroll container anything to scroll in the first place;
+ *  - `min-height: 52vh`, so a panel is 52% of the *viewport* even if some
+ *    future ancestor turns out to be shorter than one.
+ *
+ * The panels are 52% tall each, so they overlap by 4% at full close and no
+ * rounding error can open a one-pixel line onto whatever is behind them.
+ */
 .nav-curtain {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 900;
   pointer-events: none;
@@ -1932,9 +1968,61 @@
   left: -2%;
   right: -2%;
   height: 52%;
+  min-height: 52vh;
+  overflow: hidden;
   animation-duration: var(--nav-dur, 200ms);
   animation-fill-mode: both;
   will-change: transform;
+}
+
+/**
+ * ## The dirt moves, and it is the only layer here that a differencer can find
+ *
+ * Filmed with a **lossless** PNG screencast on a warm entry into a match: mean
+ * per-pixel delta 0.00-0.03/255, **0.0% of pixels moving**, and 9 of 17
+ * consecutive frame pairs byte-identical across a 421ms window. The lobby at
+ * rest, on the same instrument, manages 0.408/255 and 3.51% with 0 of 35 pairs
+ * identical. The crawl and the horizon below were both running the whole time.
+ *
+ * Amplitude is the obvious lever and it is the second-best one. The best is
+ * *spatial frequency*: a wide soft gradient sliding across a screen changes
+ * each pixel by a fraction of one 255th per frame however bright it is, while
+ * film grain is the highest-frequency thing on the surface, so a sub-pixel
+ * drift changes every pixel it covers by a few units. A whole 96px tile in 2.6
+ * seconds is about 0.6 of a pixel per frame — invisible as motion, unmissable
+ * as a difference, and exactly what grain does on real film.
+ *
+ * On the curtain rather than on a panel, for two reasons. Both pseudo-elements
+ * of the panel are already spent (the crawl and the horizon), and the grain
+ * should cross the seam and the billing rather than stopping at a panel edge —
+ * one photographed surface, not two. It is a single composited `translate3d` on
+ * one tiled texture, which is the only kind of animation allowed to run while a
+ * battle constructor holds the thread.
+ */
+.nav-curtain[data-phase="close"]::after {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  z-index: 3;
+  pointer-events: none;
+  background-image: var(--grain-src, none);
+  background-repeat: repeat;
+  background-size: 96px 96px;
+  opacity: 0.55;
+  animation: nav-veil-grain 2.6s linear var(--nav-dur, 200ms) infinite;
+  will-change: transform;
+}
+
+@keyframes nav-veil-grain {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-96px, -44px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 /**
@@ -2081,9 +2169,24 @@
     linear-gradient(var(--light-sweep, 135deg), #120d24 0%, #0b0817 56%, #08050f 100%);
 }
 
-/* The same specular crawl the menu veil gets, at the same period, because a
-   six-second hold is the longest still image any player is ever shown and §3
-   makes "idle is never dead" a rule with no exception for loading. */
+/**
+ * The specular crawl, at an amplitude that survives being written to eight bits.
+ *
+ * The previous version was `rgb(255 255 255 / 0.03)` over a base of `#0b0817`,
+ * and it was measured out of existence: across a full second of composited
+ * frames the mean max-channel delta between consecutive frames was **0.27/255**
+ * and the largest change anywhere on screen was 18/255 — against Hearthstone's
+ * floor of 0.6–1.3 with nothing happening, and against this game's own board at
+ * rest at 3.5–4.7. 3% white on a near-black surface *is* a band, arithmetically;
+ * it is one that rounds to the same byte for most of its width.
+ *
+ * So the band is roughly three times the amplitude, warmed with the room's own
+ * accent so it reads as a light passing over the surface rather than as grey
+ * fog, and it is wider — 34%→66% of a 170%-wide element was a narrow smear
+ * crossing quickly. Still `transform` and `opacity` on a pseudo-element that is
+ * already composited, so it costs the same nothing it cost before while a
+ * constructor holds the thread.
+ */
 .nav-curtain[data-veil="battle"] .nav-curtain-panel::after {
   content: "";
   position: absolute;
@@ -2091,9 +2194,11 @@
   pointer-events: none;
   background: linear-gradient(
     var(--light-sweep, 135deg),
-    transparent 34%,
-    rgb(255 255 255 / 0.03) 50%,
-    transparent 66%
+    transparent 22%,
+    color-mix(in srgb, var(--room-key, #ff5fa2) 26%, rgb(255 255 255 / 0.07)) 44%,
+    rgb(255 255 255 / 0.1) 52%,
+    color-mix(in srgb, var(--room-rim, #52c8ff) 20%, rgb(255 255 255 / 0.05)) 60%,
+    transparent 80%
   );
   opacity: 0;
 }
@@ -2105,6 +2210,64 @@
 
 .nav-curtain[data-veil="battle"][data-phase="close"] .is-bottom::after {
   animation-delay: calc(var(--nav-dur, 200ms) + 320ms);
+}
+
+/**
+ * ...and the horizon breathes, because a crawl alone leaves the middle of the
+ * screen — where the light is, and where the eye goes — perfectly static.
+ *
+ * The panels' own `background-image` already carries a room-key glow lying along
+ * each inner edge, but a background layer cannot be animated without repainting
+ * the whole panel. This is the same glow, given its own composited layer so its
+ * opacity and its vertical scale can move: a slow swell of the light in the gap
+ * on a 5.8s period, counter-phased between the halves so the pair reads as one
+ * light source rather than as two lamps blinking together.
+ *
+ * Under the panel's `::after` crawl and under the billing (`z-index: 1`), so a
+ * leader portrait stands in front of the glow rather than behind it.
+ */
+.nav-curtain[data-veil="battle"] .nav-curtain-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.6;
+  background: radial-gradient(
+    120% 62% at 50% 100%,
+    color-mix(in srgb, var(--room-key, #ff5fa2) 30%, transparent),
+    transparent 72%
+  );
+}
+
+.nav-curtain[data-veil="battle"] .nav-curtain-panel.is-bottom::before {
+  background: radial-gradient(
+    120% 62% at 50% 0%,
+    color-mix(in srgb, var(--room-key, #ff5fa2) 32%, transparent),
+    transparent 72%
+  );
+}
+
+.nav-curtain[data-veil="battle"][data-phase="close"] .nav-curtain-panel::before {
+  animation: nav-veil-horizon 5.8s var(--nav-ease-glide) var(--nav-dur, 200ms) infinite;
+  will-change: opacity, transform;
+  transform-origin: 50% 100%;
+}
+
+.nav-curtain[data-veil="battle"][data-phase="close"] .nav-curtain-panel.is-bottom::before {
+  animation-delay: calc(var(--nav-dur, 200ms) + 2900ms);
+  transform-origin: 50% 0%;
+}
+
+@keyframes nav-veil-horizon {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scaleY(0.86);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1.12);
+  }
 }
 
 /**
@@ -2217,23 +2380,63 @@
    the brightest thing on screen during the hold and it must not read as a
    throbbing progress indicator. */
 .nav-curtain[data-phase="close"] .nav-curtain-seam::after {
-  animation: nav-seam-breathe 3.4s var(--nav-ease-glide) var(--nav-dur, 200ms) infinite;
+  animation: nav-seam-breathe 3s var(--nav-ease-glide) var(--nav-dur, 200ms) infinite;
   will-change: opacity, transform;
 }
 
-/* The floor came up from 0.72 to 0.86. This is the only light on screen for as
-   long as a build takes, and a third of it going away and coming back on a 3.4s
-   period is a hold that visibly dims rather than one that breathes. */
+/**
+ * The floor stays at 0.82 and the *height* swing widens to 0.86-1.26 over 3s.
+ *
+ * 0.94-1.14 moved the bloom's edge about a fifth of a pixel per frame, which no
+ * eye and no differencer could find — on the brightest object in the frame and
+ * therefore the one with the most to give. Roughly doubling the travel doubles
+ * the change per frame across a 120px band spanning the full width of the
+ * screen, and it is height rather than opacity that widens because a light
+ * whose *brightness* pulses by a fifth reads as a progress indicator and one
+ * whose *spread* breathes reads as a light.
+ */
 @keyframes nav-seam-breathe {
   0%,
   100% {
-    opacity: 0.86;
-    transform: scaleY(0.94);
+    opacity: 0.82;
+    transform: scaleY(0.86);
   }
   50% {
     opacity: 1;
-    transform: scaleY(1.14);
+    transform: scaleY(1.26);
   }
+}
+
+/**
+ * ## A cover the build asked for, rather than one the table predicted
+ *
+ * `shell.ts` cannot know, on the first visit of a session, that Missions will
+ * take 147ms to construct and another 441ms to lay out and paint. It knows the
+ * instant the constructor returns, and the paint is still ahead of it — so it
+ * raises the cover *then*, with `data-arm="late"`.
+ *
+ * A curtain that closes two hundred milliseconds after the button was pressed
+ * is a lie about when the button was pressed. So this one does not close: the
+ * panels are already where they end up, the seam is already lit, and the whole
+ * element fades up where it stands. It reads as a light coming on over a screen
+ * that has begun to recede, which is what actually happened. The part at the
+ * other end is the ordinary one, because by then it is an ordinary curtain.
+ */
+.nav-curtain[data-arm="late"] {
+  animation: nav-curtain-veil var(--nav-dur, 170ms) linear both;
+}
+
+.nav-curtain[data-arm="late"][data-phase="close"] .nav-curtain-panel {
+  animation-name: none;
+  transform: none;
+}
+
+/* The seam's resting opacity is 0 and the close is what lights it, so a seam
+   with no close needs telling. */
+.nav-curtain[data-arm="late"][data-phase="close"] .nav-curtain-seam {
+  animation-name: none;
+  transform: none;
+  opacity: 1;
 }
 
 /* closing: in fast, settling onto the seam */
@@ -2288,6 +2491,64 @@
   }
   to {
     transform: translate3d(0, 101%, 0);
+  }
+}
+
+/**
+ * ## The reveal was a slit with a one-pixel boundary
+ *
+ * Photographed on a warm entry into a match: the mulligan appearing through a
+ * gap whose edges were straight, hard and exactly one pixel, at y=225 and
+ * y=668. A curtain does not have a razor for a hem.
+ *
+ *  - **A feather on each panel's inner edge**, 34px of `mask-image`, and only
+ *    while parting. Not during the close: there the seam *is* the composition,
+ *    and a soft edge would show the board through the brightest part of the
+ *    frame for the whole of the hold.
+ *  - **Light spilling onto what is revealed.** A bloom centred on the gap that
+ *    widens and dies as the halves travel — on the seam rather than on either
+ *    panel, because the seam is the one part of this element that stays where
+ *    the opening is instead of riding off the top of the screen with the top
+ *    half.
+ *
+ * Both are free: a mask on an already-composited layer, and one more
+ * transformed gradient for the 210ms the part lasts.
+ */
+.nav-curtain[data-phase="open"] .nav-curtain-panel.is-top {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent);
+}
+
+.nav-curtain[data-phase="open"] .nav-curtain-panel.is-bottom {
+  mask-image: linear-gradient(to top, #000 calc(100% - 34px), transparent);
+}
+
+.nav-curtain[data-phase="open"] .nav-curtain-seam::before {
+  content: "";
+  position: absolute;
+  left: -12%;
+  right: -12%;
+  top: 50%;
+  height: 62vh;
+  margin-top: -31vh;
+  pointer-events: none;
+  background: radial-gradient(
+    58% 50% at 50% 50%,
+    color-mix(in srgb, var(--nav-seam, #d9a5ff) 46%, #ffffff) 0%,
+    color-mix(in srgb, var(--nav-seam, #d9a5ff) 20%, transparent) 36%,
+    transparent 70%
+  );
+  animation: nav-curtain-spill var(--nav-dur, 210ms) var(--nav-ease-arrive) both;
+  will-change: transform, opacity;
+}
+
+@keyframes nav-curtain-spill {
+  from {
+    opacity: 0.9;
+    transform: scale3d(0.52, 0.1, 1);
+  }
+  to {
+    opacity: 0;
+    transform: scale3d(1.2, 1, 1);
   }
 }
 
@@ -2489,11 +2750,42 @@
 
 :root[data-reduced-motion="true"] .nav-curtain-panel,
 :root[data-reduced-motion="true"] .nav-curtain-seam,
+:root[data-reduced-motion="true"] .nav-curtain-panel::before,
 :root[data-reduced-motion="true"] .nav-curtain-panel::after,
 :root[data-reduced-motion="true"] .nav-curtain-seam::after {
   animation: none;
   transform: none;
   opacity: 1;
+}
+
+/* The grain is parked rather than deleted, the same call this section makes for
+   the crawl and the horizon: the surface keeps its dirt and loses its drift. A
+   veil with no grain on it is the one mathematically smooth surface in the
+   game, which is a worse answer than a still one. */
+:root[data-reduced-motion="true"] .nav-curtain[data-phase="close"]::after {
+  animation: none;
+  transform: none;
+  opacity: 0.55;
+}
+
+/* The feather and the spill belong to a part that does not happen under this
+   setting — the whole element cross-fades instead — and a mask on a panel that
+   is not travelling would only clip it. */
+:root[data-reduced-motion="true"] .nav-curtain[data-phase="open"] .nav-curtain-panel {
+  mask-image: none;
+}
+
+:root[data-reduced-motion="true"] .nav-curtain[data-phase="open"] .nav-curtain-seam::before {
+  display: none;
+}
+
+/* The horizon glow is parked lit rather than parked at its keyframe default,
+   for the same reason the crawl is: `nav-veil-horizon` starts at 0.42 and a
+   still veil should be the picture the moving one averages to, not its dimmest
+   frame. `opacity: 1` above already does that; this only restates the intent so
+   a later edit to the keyframe does not silently change the still state. */
+:root[data-reduced-motion="true"] .nav-curtain[data-veil="battle"] .nav-curtain-panel::before {
+  opacity: 0.7;
 }
 
 /* The crawl is parked rather than deleted, the same call §1.8 makes for the

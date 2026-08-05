@@ -76,9 +76,11 @@ import {
   coinInline,
   esc,
   railHtml,
+  riseIn,
   syncWallets,
   WASH,
 } from "./rewards/rewardKit";
+import { createPaintQueue, type PaintQueue } from "./rewards/rewardArt";
 import { installRewardsTheme } from "./rewards/rewardsTheme";
 import { openPack } from "./rewards/packOpening";
 
@@ -128,6 +130,28 @@ export function createBannerScreen(content: ContentIndex, callbacks: BannerCallb
   /** the most recent pull, itemised under the spotlights until the next action */
   let lastPull: ReturnType<typeof pullBanner> = null;
   let opening: { close: () => void } | null = null;
+  /** Nothing is rasterised on the navigation frame — see `rewardArt.ts`. */
+  let art: PaintQueue = createPaintQueue();
+  let cascaded = false;
+
+  /**
+   * A card-shaped hole of exactly the right size, and nothing in it yet.
+   *
+   * An unpainted canvas costs a `createElement` and two attribute writes; the
+   * point of it is that the grid's geometry is settled on the first frame, so
+   * the picture arriving later cannot move anything. Its aspect ratio is the
+   * renderer's own, taken from what `renderCardToCanvas` would have written.
+   */
+  const slotCanvas = (width: number): HTMLCanvasElement => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 2;
+    canvas.height = Math.round(2 * (680 / 512));
+    canvas.style.width = "100%";
+    canvas.style.height = "auto";
+    canvas.className = "rw-card-slot";
+    canvas.setAttribute("aria-hidden", "true");
+    return canvas;
+  };
 
   const cardName = (cardId: string): string => content.cards[cardId]?.name ?? cardId;
   const accentOf = (view: BannerView): string =>
@@ -485,6 +509,9 @@ export function createBannerScreen(content: ContentIndex, callbacks: BannerCallb
     const views = bannerViews(content);
     const view = views.find((entry) => entry.banner.id === showing) ?? views[0] ?? null;
 
+    art.stop();
+    art = createPaintQueue();
+
     root.innerHTML = `
       ${WASH}
       <header class="screen-header">
@@ -552,16 +579,44 @@ export function createBannerScreen(content: ContentIndex, callbacks: BannerCallb
         }
       </main>`;
 
-    // featured art is drawn, not templated — the same renderer the board uses
+    /*
+     * The seven cards are *slots first, pictures second*, and this is the single
+     * change that unfreezes this route.
+     *
+     * Drawing them here cost a measured **637ms** long task on the frame the
+     * hash changed, with a 640ms gap between painted frames — during which
+     * `nav-descend-out` fired `animationstart` and `animationend` on the same
+     * millisecond. The transition was authored, mounted and never rendered,
+     * because there was no frame to render it on. Gwent and MTG Arena never let
+     * the camera stop moving between destinations; this stopped the browser.
+     *
+     * So each slot gets a correctly-sized empty canvas immediately — the layout
+     * is final on the first frame, and `verify-banner.mjs`, which counts
+     * `.banner-card-art canvas` the instant the screen settles, still finds
+     * seven — and the real render is handed to a queue that does not start until
+     * the descend is over and spaces itself by however long the previous card
+     * took. `renderCardToCanvas` memoises its tiles, so a second visit paints
+     * from cache and the queue simply drains.
+     */
     for (const host of root.querySelectorAll<HTMLElement>("[data-art]")) {
       const card = content.cards[host.dataset["art"] ?? ""];
       if (!card) continue;
-      const canvas = renderCardToCanvas(card, host.dataset["hero"] ? 320 : 200);
-      // the renderer writes an inline width, which outranks the stylesheet; the
-      // tiles are fluid, so the inline value has to be handed back
-      canvas.style.width = "100%";
-      canvas.style.height = "auto";
-      host.appendChild(canvas);
+      const hero = host.dataset["hero"] !== undefined;
+      /* 150, not 200: the spotlight tile is about 135 CSS pixels wide in the
+         side column, and the renderer already multiplies by devicePixelRatio,
+         so 200 was drawing a 400px backing store for a 270px slot. */
+      const width = hero ? 320 : 150;
+      host.appendChild(slotCanvas(width));
+      art.push(() => {
+        if (!host.isConnected) return;
+        const canvas = renderCardToCanvas(card, width);
+        // the renderer writes an inline width, which outranks the stylesheet; the
+        // tiles are fluid, so the inline value has to be handed back
+        canvas.style.width = "100%";
+        canvas.style.height = "auto";
+        canvas.className = "rw-art-in";
+        host.replaceChildren(canvas);
+      });
     }
 
     root.querySelector("#banner-back")?.addEventListener("click", () => {
@@ -618,6 +673,11 @@ export function createBannerScreen(content: ContentIndex, callbacks: BannerCallb
       link.click();
       URL.revokeObjectURL(url);
     });
+
+    if (!cascaded) {
+      cascaded = true;
+      riseIn(root.querySelectorAll(".rw-spotlight > .banner-card"), { from: 240, step: 42, max: 560 });
+    }
 
     syncWallets(root);
   };
@@ -742,6 +802,7 @@ export function createBannerScreen(content: ContentIndex, callbacks: BannerCallb
     root,
     dispose: () => {
       opening?.close();
+      art.stop();
       delete (window as unknown as { hypeboundBanner?: unknown }).hypeboundBanner;
     },
   };

@@ -182,6 +182,139 @@ export function bloomOf(source: BrandSource, sigmaFraction: number): {
   };
 }
 
+/**
+ * The brand artwork, lit — a 315 degree key across the plate, a rim on the lit
+ * edge, a lip on the unlit one, and grain.
+ *
+ * ## Why the largest object in the game was the flattest
+ *
+ * Photographed at the camera push, the mark fills about 400 of 900 pixels and
+ * was, at that size, **a two-colour pink rounded rectangle with a hard black HB
+ * knocked out of it**: no bevel, no rim, no inner shadow, no specular, no
+ * material and no key light — on the single most important object in the
+ * domain, in the one sequence a player watches with nothing else to look at.
+ * Everything else in HYPEBOUND gets §1's treatment from `foundation.css` and
+ * `texture.ts`; the logo was exempt because it arrives as a PNG and a PNG looks
+ * finished.
+ *
+ * It is not finished, it is *unlit*. Hearthstone's logo is carved metal with a
+ * highlight moving across it. This applies the same recipe every other surface
+ * in the game already gets, to the artwork the artist actually drew:
+ *
+ *  - **The key.** One gradient corner to corner — the same 315 degrees as
+ *    `--light-sweep`, and the same direction the reveal wipe travels — clipped
+ *    to the artwork's own alpha with `source-atop`, so a transparent surround
+ *    and a knocked-out letterform stay exactly as transparent as they were.
+ *  - **The rim and the lip.** The alpha, minus a copy of itself pushed a few
+ *    pixels down-right, is precisely the set of edges facing the light; the
+ *    opposite offset is precisely the set facing away. White on the first, near
+ *    black on the second, and a flat plate becomes an object with a thickness.
+ *    No edge detection, no artwork-specific numbers, nothing that stops working
+ *    when the mark is redrawn.
+ *  - **Grain**, at 4%, because §1 bans a mathematically smooth surface and the
+ *    largest one in the game should not be the exception.
+ *
+ * The specular sweep is not here: `stage.ts` already crosses both lockup halves
+ * with clipped additive copies on the impact beat, and it needs the *unlit*
+ * artwork to do it, so `setMark` keeps the raw texture for the sheens and the
+ * blooms and only swaps the plate itself.
+ *
+ * Returns `null` rather than throwing on a zero-sized source or a canvas that
+ * will not give up a context; every caller already has a raw-artwork fallback,
+ * and an unlit logo is a worse logo rather than a broken one.
+ */
+export function litBrandTexture(
+  source: BrandSource,
+  options: { key?: number; shade?: number; rim?: number; lip?: number; grain?: number } = {}
+): THREE.Texture | null {
+  const w = source.width;
+  const h = source.height;
+  if (!w || !h) return null;
+  const ctx = canvas(w, h);
+  if (!ctx) return null;
+
+  ctx.drawImage(source, 0, 0, w, h);
+
+  /**
+   * How wide the bevel is, as a fraction of the longest side.
+   *
+   * Proportional rather than absolute so the mark and the wordmark — 2048 and
+   * 3072 pixels across their masters, resampled to 1024 before they ever reach
+   * here — get an edge of the same *optical* weight, and so that a future
+   * redraw at another resolution needs no second number.
+   */
+  const edge = Math.max(1, Math.round(Math.max(w, h) * 0.007));
+
+  // --- the key ---------------------------------------------------------------
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  const key = ctx.createLinearGradient(0, 0, w, h);
+  key.addColorStop(0, `rgba(255, 255, 255, ${options.key ?? 0.22})`);
+  key.addColorStop(0.42, "rgba(255, 255, 255, 0)");
+  key.addColorStop(0.58, "rgba(0, 0, 0, 0)");
+  key.addColorStop(1, `rgba(8, 4, 18, ${options.shade ?? 0.3})`);
+  ctx.fillStyle = key;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+
+  // --- the rim and the lip ---------------------------------------------------
+  const bevel = (dx: number, dy: number, colour: string, alpha: number): void => {
+    if (alpha <= 0) return;
+    const cut = canvas(w, h);
+    if (!cut) return;
+    cut.drawImage(source, 0, 0, w, h);
+    // Everything the shifted copy also covers is interior; what survives is the
+    // band of edge facing (-dx, -dy).
+    cut.globalCompositeOperation = "destination-out";
+    cut.drawImage(source, dx, dy, w, h);
+    cut.globalCompositeOperation = "source-in";
+    cut.fillStyle = colour;
+    cut.fillRect(0, 0, w, h);
+    ctx.save();
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(cut.canvas, 0, 0);
+    ctx.restore();
+  };
+  bevel(edge, edge, "#ffffff", options.rim ?? 0.5);
+  bevel(-edge, -edge, "#050210", options.lip ?? 0.42);
+
+  // --- the dirt --------------------------------------------------------------
+  const grain = options.grain ?? 0.04;
+  if (grain > 0) {
+    const tile = canvas(64, 64);
+    if (tile) {
+      const noise = tile.createImageData(64, 64);
+      for (let i = 0; i < noise.data.length; i += 4) {
+        const v = 110 + Math.round(Math.random() * 90);
+        noise.data[i] = v;
+        noise.data[i + 1] = v;
+        noise.data[i + 2] = v;
+        noise.data[i + 3] = 255;
+      }
+      tile.putImageData(noise, 0, 0);
+      const pattern = ctx.createPattern(tile.canvas, "repeat");
+      if (pattern) {
+        ctx.save();
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.globalAlpha = grain;
+        ctx.fillStyle = pattern;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+      }
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(ctx.canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = 4;
+  texture.needsUpdate = true;
+  return own(texture);
+}
+
 // ---------------------------------------------------------------------------
 // the room
 // ---------------------------------------------------------------------------

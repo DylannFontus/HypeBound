@@ -1038,8 +1038,44 @@ export class BattleView {
     // start is the whole animation, and it lands 90ms behind the leaders.
     for (const object of this.boardObjects.values()) object.scale.setScalar(0.6);
 
-    const cards = this.container.parentElement?.querySelectorAll(".hand-card");
-    if (cards) stagger(cards, { step: 45, from: 90, max: 420 });
+    /**
+     * The opening hand is dealt **here**, and that is the correction.
+     *
+     * Writing `--enter-delay` was never the whole problem. The hand bar builds
+     * its cards on the first sync, which happens during the *mulligan* — so the
+     * six-card entrance had already played, in full, behind a panel at z-index
+     * 70 with a 12px backdrop blur over it, several seconds before the board was
+     * revealed. Measured: `hand-card-in` fired six times while the mulligan was
+     * on screen and not once after Confirm. Whatever delays this function wrote
+     * afterwards were written onto animations that had finished.
+     *
+     * So the entrance is restarted on the frame the curtain opens. `stagger`
+     * supplies the cascade the comment above has always described, `data-new`
+     * goes back on so `HandBar.layout` refreshes each card's origin at the deck,
+     * and the animation is re-armed by nulling `animation-name`, forcing exactly
+     * **one** reflow for the whole hand, and putting it back.
+     *
+     * Reaching into `.hand-card` from here is the seam this function has always
+     * used: the hand is a DOM strip outside the 3D scene and the curtain is the
+     * one moment the board and the hand have to be timed against each other.
+     */
+    const cards = [...(this.container.parentElement?.querySelectorAll<HTMLElement>(".hand-card") ?? [])];
+    if (cards.length > 0) {
+      stagger(cards, { step: 45, from: 90, max: 420 });
+      const flips = cards.map((card) => card.querySelector<HTMLElement>(".hand-card-flip"));
+      for (const [index, card] of cards.entries()) {
+        card.dataset["new"] = "";
+        card.style.animationName = "none";
+        const flip = flips[index];
+        if (flip) flip.style.animationName = "none";
+      }
+      void this.container.offsetWidth; // one forced reflow, deliberately
+      for (const [index, card] of cards.entries()) {
+        card.style.animationName = "";
+        const flip = flips[index];
+        if (flip) flip.style.animationName = "";
+      }
+    }
   }
 
   /** Cached per sync — layout calls this once per hand card. */
@@ -1133,6 +1169,44 @@ export class BattleView {
 
     // The hand is NOT part of the 3D scene — it lives in its own DOM strip
     // below the board (see handBar.ts), so the play area is never obscured.
+    // It does need to know where the two piles are, though.
+    this.publishPileOrigins();
+  }
+
+  /**
+   * Tell the DOM where the deck and the discard are, in viewport pixels.
+   *
+   * The hand bar is deliberately outside the 3D scene and therefore has no
+   * camera, but the two things a card in the hand travels between — the deck
+   * stack it is dealt from and the discard tray it leaves for — are objects on
+   * the mat. Four custom properties on the document root are the whole of the
+   * seam: they inherit, so the bar reads them off itself with one style
+   * resolution per layout instead of reaching across for a projection matrix,
+   * and a hand with no board (a test, the first frame) simply finds them absent
+   * and falls back to a plain rise.
+   *
+   * `discardPosition` does not exist on the board API and does not need to:
+   * each seat's discard sits on the run its opponent's deck sits on, so the
+   * discard's x is the *other* seat's deck x at this seat's own z. That is an
+   * identity of the furniture's layout rather than a guess — see
+   * `resourceFurniture` in board.ts, where both are placed from the same
+   * `RUN_X` pair with `deckX` and `discardX` swapped by side.
+   */
+  private publishPileOrigins(): void {
+    const root = document.documentElement;
+    const mine = this.board.deckPosition("player");
+    const theirs = this.board.deckPosition("enemy");
+    const deck = this.scene.project(mine.clone());
+    const discard = this.scene.project(new THREE.Vector3(theirs.x, mine.y, mine.z));
+    // `project` answers in canvas pixels; the hand bar positions in viewport
+    // pixels. On a full-bleed board these agree, and on anything else they do
+    // not — the offset is one rect read and it removes a class of bug that
+    // would only appear at a viewport nobody tests at.
+    const canvas = this.scene.renderer.domElement.getBoundingClientRect();
+    root.style.setProperty("--pile-deck-x", `${Math.round(canvas.left + deck.x)}px`);
+    root.style.setProperty("--pile-deck-y", `${Math.round(canvas.top + deck.y)}px`);
+    root.style.setProperty("--pile-discard-x", `${Math.round(canvas.left + discard.x)}px`);
+    root.style.setProperty("--pile-discard-y", `${Math.round(canvas.top + discard.y)}px`);
   }
 
   // -------------------------------------------------------------------------
@@ -2056,6 +2130,12 @@ export class BattleView {
     window.removeEventListener("keydown", this.onKeyDown);
     this.targeting.dispose();
     this.vfx.dispose();
+    // The pile positions are written on the document root and would otherwise
+    // outlive the board that meant anything by them, pointing a hand bar in the
+    // next match at where the last match's deck used to be.
+    for (const name of ["--pile-deck-x", "--pile-deck-y", "--pile-discard-x", "--pile-discard-y"]) {
+      document.documentElement.style.removeProperty(name);
+    }
     for (const object of this.boardObjects.values()) object.dispose();
     this.scene.dispose();
     void this.container;

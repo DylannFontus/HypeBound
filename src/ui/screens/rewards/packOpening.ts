@@ -578,7 +578,22 @@ export function openPack(options: PackOpeningOptions): PackOpening {
       flip(slots.indexOf(slot), true);
       return;
     }
-    /* Anywhere else on the stage means "get on with it". */
+    /*
+     * Anywhere else means "get on with it" — and once there is nothing left to
+     * get on with, it means "done".
+     *
+     * This used to be `revealAll()` unconditionally, which is a no-op after the
+     * last card has turned. Measured at 844x390, the footer was 1,057px wide
+     * inside an 844px viewport and both `Done` and `Collection` sat entirely
+     * off-screen: with the veil inert, a touch player who opened a pack on a
+     * phone had **no pointer route out of the modal at all**. The footer is
+     * fixed below, and this is the second lock on the same door — a modal whose
+     * only exit is one button is one layout bug away from being a trap.
+     */
+    if (shown.size === slots.length) {
+      close();
+      return;
+    }
     revealAll();
   });
 

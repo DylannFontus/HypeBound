@@ -52,7 +52,7 @@
  * pushing the composition down the screen at the four-minute mark.
  */
 
-import type { ContentIndex, DeckList, Seat } from "../../engine/types";
+import type { CardDef, ContentIndex, DeckList, Seat } from "../../engine/types";
 import type { Screen } from "../shell";
 import { audio } from "../../audio/audio";
 import { accessToken, currentAccount } from "../../auth/account";
@@ -75,6 +75,125 @@ export interface QueueCallbacks {
   onMatchFound: (match: { matchId: string; seat: Seat; opponentLeaderCardId: string }) => void;
   /** §9.3's honest offer: the player chose the AI rather than keep waiting. */
   onPlayAi: () => void;
+}
+
+/**
+ * Every plate this screen paints, as data, because sign-in has to paint them
+ * first.
+ *
+ * `leaderPortrait.ts` memoises a finished plate by everything that changes a
+ * pixel in it, which makes the *second* visit to a room a blit. It never made
+ * the first one cheap, and the first one is the only one anybody complains
+ * about: measured three times on a cold `#signin → #queue`, the navigation
+ * produced rAF deltas of 160ms and 173ms and CDP screencast gaps of 161ms and
+ * 196ms — **357ms of a 75Hz machine with no frame drawn at all** — while the
+ * same navigation repeated twice more maxed at 40ms and 53ms. No longtask
+ * entries fire in any of the three, so it is not script: it is raster and
+ * decode, happening inside the frame `nav-sibling-out` starts on. The carefully
+ * written transition this file's own comment describes has therefore never once
+ * been visible on the one entry that matters.
+ *
+ * Sign-in already stands in the same venue and paints the same leader, and it
+ * asked for both at slightly different numbers — aspect 0.60/softness 10 against
+ * 0.56/7 — so not one plate was reused. Aligning the two screens' crops is the
+ * wrong fix: they are different compositions and should be. The right one is
+ * that the *screen you are standing on* pays for the screen you are about to
+ * open, at a moment when nothing is moving. So the numbers live out here and
+ * `warmQueueRoom` runs them behind an idle callback on sign-in.
+ *
+ * Anything added to these three objects is warmed for free. Anything written
+ * inline in the constructor is not, which is the trap this replaces.
+ */
+const QUEUE_VENUE = {
+  /**
+   * Nine hundred, and stretched — because it is going to be soft anyway.
+   *
+   * This was 1400 CSS pixels at a 2× backing store: a 2800×1568 texture, drawn
+   * from a 3840×2160 PNG, handed to the compositor with `filter: blur(14px)` on
+   * it, inside the first frame of a 380ms transition. Every number here says the
+   * same thing in a different unit: a picture that will be blurred does not need
+   * resolution. The plate is a tenth of the pixels, the source comes off
+   * `scaledAsset`'s memoised mip instead of the 8.3-megapixel original, and the
+   * blur is *baked in* at plate scale rather than run over 1856×1026 on the way
+   * to the screen. The viewport stretches it 2.06×, which does the rest of the
+   * softening for nothing.
+   */
+  width: 900,
+  aspect: 0.56,
+  resolution: 1,
+  softness: 7,
+  // ...and a room with things in it. See `rig`: the top fifth of this screen
+  // measured sd 16.6 against the reference frame's 51.7, because a painted
+  // ceiling at heavy blur is a gradient.
+  rig: true,
+  bias: 0.06,
+  scrim: 0.22,
+  dim: 0.12,
+} as const;
+
+/** The crop, shared by all three copies of the figure so they are one picture. */
+const QUEUE_FIGURE = {
+  /**
+   * Taller, and the crop starts above the head rather than through it.
+   *
+   * At 1.42 the frame began at her chest and the missing `fadeTop` turned the
+   * start of the frame into a horizontal line across her — +64 luminance in a
+   * single pixel at 1600×900, +148 in two at 1280×720. The aspect is now tall
+   * enough for the whole figure and the bias small enough that the ramp lands in
+   * empty air above her.
+   */
+  aspect: 1.78,
+  bias: 0.03,
+  /**
+   * Light on her, not shade.
+   *
+   * The floor scrim exists so a *name* set under a portrait has something to
+   * stand on. Nothing is set under this one — the board carries every word — so
+   * at 0.3 it was purely a stop of exposure taken off the one thing on the
+   * screen that is supposed to be lit.
+   */
+  scrim: 0.16,
+  // Cut on all four sides. A figure standing in a room has no frame; a rectangle
+  // in the middle of a floor is a poster somebody left there.
+  fadeTop: 0.24,
+  fadeLeft: 0.26,
+  fadeRight: 0.26,
+  fadeBottom: 0.12,
+} as const;
+
+/**
+ * Far, near, and the one lying on the floor.
+ *
+ * The plinth is 348px across at 1600×900, so the sharp copy is drawn at a shade
+ * under two device pixels per CSS pixel, the soft one at a shade over a half,
+ * and the reflection at a fifth of the resolution because a reflection in a club
+ * floor is not a photograph.
+ */
+const QUEUE_LAYERS = {
+  far: { width: 300, resolution: 0.6, softness: 6, oval: 2.6 },
+  near: { width: 420, resolution: 1.62, softness: 0, oval: 0 },
+  reflect: { width: 260, resolution: 0.55, softness: 5, oval: 2.4 },
+} as const;
+
+/**
+ * Build the queue's four plates now, and throw the canvases away.
+ *
+ * The plates are what is wanted, not the elements: `paintVenue` and
+ * `paintLeaderPortrait` both cache the finished plate by argument key, so a
+ * canvas painted here and dropped on the floor leaves the queue's constructor
+ * with four blits to do instead of four rasterisations, two mip chains and a
+ * 4K decode. Costed on sign-in inside a `requestIdleCallback`, where the frame
+ * budget is the whole frame.
+ *
+ * Idempotent and cheap to call twice — the second call is the same cache hit the
+ * queue itself will get.
+ */
+export function warmQueueRoom(leader: CardDef | undefined, faction: string): void {
+  paintVenue(faction, { ...QUEUE_VENUE });
+  if (!leader) return;
+  for (const layer of Object.values(QUEUE_LAYERS)) {
+    paintLeaderPortrait(leader, { ...QUEUE_FIGURE, ...layer });
+  }
 }
 
 export function createQueueScreen(content: ContentIndex, deck: DeckList | null, callbacks: QueueCallbacks): Screen {
@@ -114,35 +233,62 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
       <section class="queue-call mat-panel">
         <div class="queue-call-rail" aria-hidden="true"></div>
 
+        <!--
+          The count well is on the board from the first frame, empty, in the
+          size and the place the number will land.
+
+          "Connecting…" was two words in the top-left corner of a 600×332 panel
+          with roughly 250px of blank purple under them — 60% of the object the
+          whole screen is built around, in the state every player sees on arrival
+          and stays in for as long as the Worker is cold. §5: empty states are
+          designed too, and this is not an empty state, it is an unfinished one.
+
+          A skeleton rather than a placeholder digit, because a digit would be a
+          lie: this screen's entire argument is that the number it prints is the
+          real one. What is drawn is the *shape* of the answer with a light
+          moving through it, in the exact geometry the figure will occupy, so
+          nothing moves when it arrives.
+        -->
         <div class="queue-readout">
           <div class="t-label queue-call-head"><span class="queue-pip" aria-hidden="true"></span>Casual queue</div>
           <div class="queue-state t-display" id="queue-state" role="status" aria-live="polite">Connecting…</div>
-          <div class="queue-detail" id="queue-detail"></div>
-          <div class="queue-count" id="queue-count" hidden>
+          <div class="queue-detail" id="queue-detail">Opening a line to the match server.</div>
+          <div class="queue-count" id="queue-count" data-state="pending">
             <span class="num queue-count-value" style="--digits:2" id="queue-count-value">1</span>
-            <span class="t-label" id="queue-count-label">in this queue</span>
+            <span class="t-label" id="queue-count-label">counting the queue</span>
           </div>
+          <div class="queue-rule" id="queue-rule"><span class="queue-rule-mark" aria-hidden="true">${icon("info")}</span><span>The rating band widens the longer you wait, so nobody waits forever.</span></div>
           <div class="queue-record t-label" id="queue-record" hidden></div>
         </div>
 
         <div class="queue-offer" id="queue-offer" hidden>
           <div class="hairline queue-offer-rule" aria-hidden="true"></div>
           <div class="t-label queue-offer-head">${icon("timer")} Four minutes, nobody here</div>
+          <!-- Two sentences in two elements: a phone in landscape keeps the first
+               and drops the second, rather than the whole paragraph. -->
           <p class="queue-offer-text">
-            You can keep waiting — if somebody joins, you will be matched with them —
-            or play the AI instead.
+            <span class="queue-offer-lead">You can keep waiting, or play the AI instead.</span>
+            <span class="queue-offer-tail">If somebody joins while the offer is up, you will be matched with them.</span>
           </p>
           <button class="queue-offer-btn mat-hero act" id="queue-play-ai" type="button">Play the AI instead</button>
         </div>
       </section>
 
-      <aside class="queue-note mat-panel">
+      <!--
+        Held back until there is a number for it to be about.
+
+        The footnote explains "the count", and at the moment a player arrives
+        there is no count — so the full-width essay was already on screen
+        explaining a figure that had not been printed yet. It comes in on its own
+        rise the first time the queue answers.
+      -->
+      <aside class="queue-note mat-panel" id="queue-note" hidden>
         <h3 class="t-label">${icon("eye")} What this number means</h3>
         <p>
-          The count is the real number of people in this queue, including you. This game is
-          new and usually that number is one. It is shown rather than hidden because a
-          spinner that never resolves and an empty queue look identical, and only one of
-          them is a bug.
+          <span class="queue-note-lead">The count is the real number of people in this queue, including you.</span>
+          <span class="queue-note-tail">This game is new and usually that number is one. It is shown rather than
+          hidden because a spinner that never resolves and an empty queue look identical, and
+          only one of them is a bug.</span>
         </p>
       </aside>
     </main>`;
@@ -153,6 +299,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
   const countEl = root.querySelector<HTMLElement>("#queue-count");
   const countValueEl = root.querySelector<HTMLElement>("#queue-count-value");
   const countLabelEl = root.querySelector<HTMLElement>("#queue-count-label");
+  const noteEl = root.querySelector<HTMLElement>("#queue-note");
   const light = root.querySelector<HTMLElement>(".queue-world");
 
   /**
@@ -175,41 +322,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
    */
   const roomHost = root.querySelector<HTMLElement>(".queue-room");
   if (roomHost) {
-    roomHost.appendChild(
-      paintVenue(leader?.faction ?? "default", {
-        /**
-         * Nine hundred, and stretched — because it is going to be soft anyway.
-         *
-         * This was 1400 CSS pixels at a 2× backing store: a 2800×1568 texture,
-         * drawn from a 3840×2160 PNG, handed to the compositor with
-         * `filter: blur(14px)` on it, inside the first frame of a 380ms
-         * transition. Measured on `#signin → #queue`, that frame ran 118–191ms
-         * with **no script in it at all** — pure raster — which is thirteen
-         * dropped frames on a machine that idles at 75fps, and it is why a
-         * carefully written descend has never once been visible.
-         *
-         * Every number below says the same thing in a different unit: a picture
-         * that will be blurred does not need resolution. The plate is a tenth of
-         * the pixels, the source comes off `scaledAsset`'s memoised mip instead
-         * of the 8.3-megapixel original, and the blur is *baked in* at plate
-         * scale rather than run over 1856×1026 on the way to the screen. The
-         * viewport stretches it 2.06×, which does the rest of the softening for
-         * nothing.
-         */
-        width: 900,
-        aspect: 0.56,
-        resolution: 1,
-        softness: 7,
-        // ...and a room with things in it. See `rig`: the top fifth of this
-        // screen measured sd 16.6 against the reference frame's 51.7, because a
-        // painted ceiling at heavy blur is a gradient.
-        rig: true,
-        bias: 0.06,
-        scrim: 0.22,
-        dim: 0.12,
-        className: "queue-room-art",
-      })
-    );
+    roomHost.appendChild(paintVenue(leader?.faction ?? "default", { ...QUEUE_VENUE, className: "queue-room-art" }));
   }
 
   /**
@@ -254,44 +367,8 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
       const far = layer === "queue-leader-far";
       leaderHost.appendChild(
         paintLeaderPortrait(leader, {
-          /**
-           * The plinth is 348px across at 1600×900, so the sharp copy is drawn
-           * at a shade under two device pixels per CSS pixel and the soft one at
-           * a shade over a half. It costs a blit — the mip and the plate are
-           * both memoised.
-           */
-          width: far ? 300 : 420,
-          resolution: far ? 0.6 : 1.62,
-          softness: far ? 6 : 0,
-          oval: far ? 2.6 : 0,
-          /**
-           * Taller, and the crop starts above the head rather than through it.
-           *
-           * At 1.42 the frame began at her chest and the missing `fadeTop`
-           * turned the start of the frame into a horizontal line across her —
-           * +64 luminance in a single pixel at 1600×900, +148 in two at
-           * 1280×720. The aspect is now tall enough for the whole figure and the
-           * bias small enough that the ramp lands in empty air above her.
-           */
-          aspect: 1.78,
-          bias: 0.03,
-          /**
-           * Light on her, not shade.
-           *
-           * The floor scrim exists so a *name* set under a portrait has
-           * something to stand on. Nothing is set under this one — the board
-           * carries every word — so at 0.3 it was purely a stop of exposure
-           * taken off the one thing on the screen that is supposed to be lit.
-           * She stands on a floor the room draws, with a cast and a reflection
-           * of her own, which is what a contact actually needs.
-           */
-          scrim: 0.16,
-          // Cut on all four sides. A figure standing in a room has no frame; a
-          // rectangle in the middle of a floor is a poster somebody left there.
-          fadeTop: 0.24,
-          fadeLeft: 0.26,
-          fadeRight: 0.26,
-          fadeBottom: 0.12,
+          ...QUEUE_FIGURE,
+          ...(far ? QUEUE_LAYERS.far : QUEUE_LAYERS.near),
           className: `queue-leader-art ${layer}`,
         })
       );
@@ -314,20 +391,7 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
      */
     const floorHost = root.querySelector<HTMLElement>(".queue-reflect-plane");
     floorHost?.appendChild(
-      paintLeaderPortrait(leader, {
-        width: 260,
-        resolution: 0.55,
-        softness: 5,
-        oval: 2.4,
-        aspect: 1.78,
-        bias: 0.03,
-        scrim: 0.16,
-        fadeTop: 0.24,
-        fadeLeft: 0.26,
-        fadeRight: 0.26,
-        fadeBottom: 0.12,
-        className: "queue-reflect-art",
-      })
+      paintLeaderPortrait(leader, { ...QUEUE_FIGURE, ...QUEUE_LAYERS.reflect, className: "queue-reflect-art" })
     );
 
     root.classList.add("has-leader");
@@ -340,8 +404,13 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
    * panel landed on the same frame. Only the two boards cascade: the venue, the
    * floor, the lamp and the figure are the place, and a place does not assemble
    * itself while somebody walks into it.
+   *
+   * 45ms and no lead-in, which is a budget rather than a taste: `screens.css`
+   * offsets the cascade again by half the incoming screen's own delay, and the
+   * pair has to land inside §3a's 260–420ms. It was 60ms from 60ms, and the
+   * footnote's last frame landed at 809ms.
    */
-  stagger(root.querySelectorAll(".queue-call, .queue-note"), { step: 60, from: 60 });
+  stagger(root.querySelectorAll(".queue-call, .queue-note"), { step: 45, from: 0 });
 
   const say = (state: string, detail = ""): void => {
     if (stateEl) stateEl.textContent = state;
@@ -360,12 +429,38 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
     if (!countEl || !countValueEl || !countLabelEl) return;
     countValueEl.textContent = num(waiting);
     countLabelEl.textContent = waiting === 1 ? "in this queue — just you" : "in this queue";
-    countEl.hidden = false;
+    countEl.dataset["state"] = "live";
+    /**
+     * ...and the footnote arrives with it, on the screen's own cascade.
+     *
+     * It explains the count, so it appears when the count does — and it appears
+     * with an entrance rather than popping, for free: an element coming back
+     * from `display: none` starts its declared animations from the beginning, so
+     * `nav-front-panel-rise` runs again here at the 45ms this panel already
+     * carries. One entrance, one owner, no second keyframe to keep in step.
+     */
+    noteEl?.removeAttribute("hidden");
+  };
+
+  /**
+   * The count well, when there is no queue to count.
+   *
+   * A skeleton that shimmers forever over a socket that closed is the interface
+   * lying in exactly the way the pip and the marquee were fixed for. The well
+   * stays — it is furniture, and the board does not resize — and it says so.
+   */
+  const countUnavailable = (): void => {
+    if (!countEl || !countValueEl || !countLabelEl) return;
+    if (countEl.dataset["state"] === "live") return;
+    countEl.dataset["state"] = "unknown";
+    countValueEl.textContent = "—";
+    countLabelEl.textContent = "no answer from the queue";
   };
 
   /** The light stops sweeping the moment there is nothing left to look for. */
   const settle = (state: "searching" | "found" | "stopped"): void => {
     light?.setAttribute("data-state", state);
+    if (state === "stopped") countUnavailable();
   };
 
   let lobby: LobbySocket | null = null;
@@ -493,16 +588,19 @@ export function createQueueScreen(content: ContentIndex, deck: DeckList | null, 
 }
 
 /**
- * The line under the number.
+ * The line under the state, which is the wait and nothing else.
  *
- * The count itself moved out of this string and onto the stage, so what is left
- * is the wait and the rule — and the rule is worth printing. §9.3 widens the
- * rating band as the wait grows, and saying so is more honest than a bar that
- * fills: it is the actual thing the server is doing while nothing appears to
- * happen.
+ * The count moved out of this string and onto the board, and so has the rule:
+ * §9.3 widens the rating band as the wait grows, which is worth printing and is
+ * worth printing *once*. It has a permanent row of its own now, because it is
+ * true before the socket opens as well as after it — and it is one of the two
+ * things standing in the 250px of blank purple the connecting state used to be.
  */
 function describe(waitedMs: number): string {
-  if (waitedMs < 1000) return "The queue widens the longer you wait.";
+  // The widening rule has its own permanent line on the board now, so this one
+  // says only what changes. Printing it in both places was the same fact twice
+  // in adjacent rows.
+  if (waitedMs < 1000) return "Just joined.";
   return `Waiting ${duration(waitedMs, { units: 2 })}.`;
 }
 

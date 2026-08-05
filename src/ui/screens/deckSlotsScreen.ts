@@ -27,10 +27,11 @@ import type { Screen } from "../shell";
 import { validateDeck } from "../../engine/deck";
 import { coverCard, currentSplit, deckRecord } from "../../game/decks";
 import { CURRENT_PALETTE, FACTION_COLOR } from "../cardRenderer/palette";
-import { deleteDeck, getProfile, setActiveDeck } from "../../save/profile";
+import { deleteDeck, getProfile, saveDeck, setActiveDeck } from "../../save/profile";
 import { audio } from "../../audio/audio";
 import { icon } from "../art/uiIcons";
 import { motionEnabled } from "../motion";
+import { decodeDeck } from "./deckBuilderScreen";
 import { esc, installKitStyles, portraitCanvas } from "./collectionKit";
 
 export interface DeckSlotsCallbacks {
@@ -109,7 +110,7 @@ export function createDeckSlotsScreen(content: ContentIndex, callbacks: DeckSlot
     }
 
     for (let index = decks.length; index < slots; index += 1) {
-      body.appendChild(stagger(socket(index, index === decks.length)));
+      body.appendChild(stagger(socket(index, index === decks.length, decks.length)));
     }
 
     if (decks.length >= slots) {
@@ -119,7 +120,73 @@ export function createDeckSlotsScreen(content: ContentIndex, callbacks: DeckSlot
       note.textContent = `All ${slots} slots are in use. Delete one to make room.`;
       body.appendChild(note);
     }
+
+    body.appendChild(rackFoot(profile, decks));
   };
+
+  /**
+   * The rack stands on a shelf, and the shelf has furniture on it.
+   *
+   * Measured at 1600×900 there was a 140px band of featureless near-black under
+   * the bottom row — the rack ended in mid-air with the atmosphere showing
+   * through, which is §1's flat fill and §2's missing midground in the same
+   * hundred and forty pixels. Two things fix it, and they are the same thing:
+   * a lit front edge under the last row so the sockets are standing on
+   * something, and a footer carrying the three facts a deck manager is asked for
+   * and had nowhere to put — how big the library behind these decks is, how the
+   * active one is actually doing, and the way in for a deck somebody sent you.
+   */
+  function rackFoot(profile: ReturnType<typeof getProfile>, decks: DeckList[]): HTMLElement {
+    const foot = document.createElement("div");
+    foot.className = "deck-rack-foot";
+
+    const owned = Object.values(profile.collection).reduce((sum, count) => sum + (count > 0 ? count : 0), 0);
+    const distinct = Object.values(profile.collection).filter((count) => count > 0).length;
+    const active = decks[profile.activeDeckIndex];
+    const record = active ? deckRecord(content, profile.history, active.name) : null;
+    const rate =
+      record === null || record.played === 0
+        ? "no matches yet"
+        : record.thin
+          ? `${record.played} played — too few to call`
+          : `${Math.round(record.winRate * 100)}% won over ${record.played}`;
+
+    const fact = (glyph: Parameters<typeof icon>[0], label: string, value: string): string =>
+      `<div class="deck-rack-fact">${icon(glyph, { size: 15 })}` +
+      `<span class="t-label">${esc(label)}</span>` +
+      `<b class="num">${esc(value)}</b></div>`;
+
+    foot.innerHTML =
+      fact("collection", "Cards owned", `${owned}`) +
+      `<span class="deck-rack-foot-sep" aria-hidden="true"></span>` +
+      fact("rarity", "Different cards", `${distinct}`) +
+      `<span class="deck-rack-foot-sep" aria-hidden="true"></span>` +
+      fact("achievement", "Active deck", rate);
+
+    const importBtn = document.createElement("button");
+    importBtn.className = "btn btn-ghost deck-rack-import";
+    importBtn.type = "button";
+    importBtn.id = "slots-import";
+    importBtn.innerHTML = `${icon("plus", { size: 14 })}<span>Import deck code</span>`;
+    importBtn.disabled = decks.length >= content.balance.deck.slots;
+    importBtn.title = importBtn.disabled ? "Every slot is in use." : "Paste a deck code into a free slot";
+    importBtn.addEventListener("click", () => {
+      const code = window.prompt("Paste a deck code:");
+      if (!code) return;
+      const imported = decodeDeck(code, content);
+      if (!imported) {
+        foot.classList.add("is-refused");
+        window.setTimeout(() => foot.classList.remove("is-refused"), 900);
+        audio.play("sfx.ui.back");
+        return;
+      }
+      saveDeck(imported);
+      audio.play("sfx.ui.click");
+      render();
+    });
+    foot.appendChild(importBtn);
+    return foot;
+  }
 
   /**
    * An empty slot, as a recessed socket with an engraved number.
@@ -129,10 +196,22 @@ export function createDeckSlotsScreen(content: ContentIndex, callbacks: DeckSlot
    * ways to do one thing, and the number is the point — it says how much room
    * is left without anybody having to count.
    */
-  function socket(index: number, live: boolean): HTMLElement {
+  function socket(index: number, live: boolean, from: number): HTMLElement {
     const button = document.createElement("button");
     button.className = `deck-socket${live ? " is-live" : ""}`;
     button.type = "button";
+    /**
+     * Each socket further from the live one is cut a little deeper.
+     *
+     * Eleven identical recesses squint down to a wall of grey rectangles — the
+     * repetition failure the recon named on the collection contact sheet,
+     * relocated. A rack does not look like that: the slot you are about to use
+     * is the shallow, lit one at the front and the empty ones behind it fall
+     * away. `--depth` runs 0 at the live socket to 1 at the last, and the
+     * stylesheet spends it on the shadow and on the numeral's weight, so the eye
+     * reads a sequence rather than a repeat.
+     */
+    button.style.setProperty("--depth", (Math.min(1, (index - from) / 7)).toFixed(3));
     button.dataset["socket"] = String(index);
     if (live) button.id = "slots-new";
     button.disabled = !live;

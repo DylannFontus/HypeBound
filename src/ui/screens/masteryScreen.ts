@@ -178,13 +178,31 @@ export function createMasteryScreen(content: ContentIndex, callbacks: MasteryCal
                 data-id="${esc(view.id)}" style="--row-accent:${esc(colour)}"
                 aria-label="${esc(view.name)}, rank ${view.rank} of ${TRACK_RANKS}">
           ${crestMark(view.factionId, 52, view.rank > 0 ? 1 : 0.45)}
+          ${
+            /*
+             * The gift badge is a corner pip on the crest, not a word in the
+             * title.
+             *
+             * Laid out inside `.d-tile-name` it stole the title's width, and at
+             * 1600×900 **five of the ten faction names were ellipsised** —
+             * "Viral Influence…", "Corporate Cre…", "Cosplay Cham…",
+             * "Touch-Grass O…", "Algorithm Synd…". Ellipsising your own faction
+             * names on the faction screen is the one thing this screen cannot
+             * do, and the data is fixed: those ten strings will never get
+             * shorter. It only looked fine at `--ui-scale: 1.4` because the grid
+             * drops to two columns there.
+             *
+             * On the crest it reads the way an unread pip reads on an avatar,
+             * it cannot collide with type, and the title gets the whole tile.
+             */
+            view.unclaimed > 0
+              ? `<span class="d-badge d-tile-pip">${icon("chest", 12)}<span class="num">${count(
+                  view.unclaimed
+                )}</span></span>`
+              : ""
+          }
           <span class="d-tile-name">
             <span>${esc(view.name)}</span>
-            ${
-              view.unclaimed > 0
-                ? `<span class="d-badge">${icon("chest", 12)}<span class="num">${count(view.unclaimed)}</span></span>`
-                : ""
-            }
           </span>
           <span class="d-tile-sub">${esc(subtitle)}</span>
           ${meter({
@@ -214,13 +232,15 @@ export function createMasteryScreen(content: ContentIndex, callbacks: MasteryCal
                 data-id="${esc(view.cardId)}" style="--row-accent:${esc(colour)}"
                 aria-label="${esc(view.name)}, ${view.ap} affinity">
           ${crestMark(view.factionId, 52, view.tier > 0 ? 1 : 0.45)}
+          ${
+            view.unclaimed > 0
+              ? `<span class="d-badge d-tile-pip">${icon("chest", 12)}<span class="num">${count(
+                  view.unclaimed
+                )}</span></span>`
+              : ""
+          }
           <span class="d-tile-name">
             <span>${esc(view.name)}</span>
-            ${
-              view.unclaimed > 0
-                ? `<span class="d-badge">${icon("chest", 12)}<span class="num">${count(view.unclaimed)}</span></span>`
-                : ""
-            }
           </span>
           <span class="d-tile-sub">${view.tierName ? esc(view.tierName) : "No tier yet"}</span>
           ${meter({

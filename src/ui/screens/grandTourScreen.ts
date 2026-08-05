@@ -29,7 +29,7 @@ import { legendaryChoices, loanerDeckFor, tourProgress } from "../../game/progre
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
-import { enter, icon } from "./data/kit";
+import { deferPaint, disposeBag, enter, icon } from "./data/kit";
 
 export interface GrandTourCallbacks {
   onBack: () => void;
@@ -57,6 +57,8 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
 
   /** The Legendary highlighted in the completion picker. */
   let chosenLegendary: string | null = null;
+  /* Every deferred paint queue, so a re-render does not leave one draining. */
+  const bag = disposeBag();
 
   const start = (factionId: FactionId, difficulty: AiDifficulty): void => {
     audio.play("sfx.ui.click");
@@ -64,6 +66,7 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
   };
 
   const render = (): void => {
+    bag.run();
     const progress = tourProgress(content, tourView());
     const owned = getProfile().collection;
     const choices = legendaryChoices(content, owned);
@@ -111,20 +114,46 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
                 : stop.unlocked
                   ? { mark: icon("check", 13), text: "Unlocked — deck in your collection", tone: "is-won" }
                   : { mark: icon("crosshair", 13), text: "Not yet won", tone: "is-locked" };
+              /*
+               * **The stop is the button.** It used to be a tile with a
+               * full-width `.btn-primary` pill sitting under it, and there are
+               * nine of them in a 3×3 grid — so the frame resolved, at a squint,
+               * into a lattice of identical fizzing magenta lozenges and nothing
+               * on the screen was the hero. In MTG Arena the mode tiles carry
+               * their own art and the play button is singular; in Hearthstone
+               * the illustrated plate *is* the control. The affordance is now the
+               * tile itself, lit along its Current-coloured edge, with an arrow
+               * where the pill was — and the arrow's ink is the leader's own
+               * Current rather than the product's accent, so ten stops are ten
+               * colours instead of ten copies of one.
+               */
+              const body = `
+                <span class="tour-stop-card d-art" data-leader="${esc(stop.leaderCardId)}"></span>
+                <span class="tour-stop-text">
+                  <span class="tour-stop-faction">${esc(stop.factionName)}</span>
+                  <span class="tour-stop-leader muted">${esc(leader?.name ?? stop.leaderCardId)}</span>
+                  <span class="tour-stop-state tour-none ${state.tone}">${state.mark}<span>${esc(
+                    state.text
+                  )}</span></span>
+                </span>`;
               return `
-                <li class="tour-stop ${stop.unlocked ? "won" : "locked"}" style="--c:${palette.key}">
-                  <div class="tour-stop-card" data-leader="${esc(stop.leaderCardId)}"></div>
-                  <div class="tour-stop-text">
-                    <div class="tour-stop-faction">${esc(stop.factionName)}</div>
-                    <div class="tour-stop-leader muted">${esc(leader?.name ?? stop.leaderCardId)}</div>
-                    <div class="tour-stop-state tour-none ${state.tone}">${state.mark}<span>${esc(
-                      state.text
-                    )}</span></div>
-                  </div>
+                <li class="tour-stop-slot d-enter">
                   ${
                     stop.unlocked
-                      ? `<div class="tour-stop-deck muted">${esc(stop.deckName)}</div>`
-                      : `<button class="btn btn-primary tour-play" data-faction="${esc(stop.factionId)}">Play the loaner</button>`
+                      ? `<div class="tour-stop won mat-panel" style="--c:${palette.key}">
+                           ${body}
+                           <span class="d-go is-done tour-stop-go" style="--go-ink:${palette.key}">
+                             ${icon("check", 14)} ${esc(stop.deckName)}
+                           </span>
+                         </div>`
+                      : `<button type="button" class="tour-stop locked mat-panel act tour-play"
+                                 data-faction="${esc(stop.factionId)}" style="--c:${palette.key}"
+                                 aria-label="Play the ${esc(stop.factionName)} loaner deck">
+                           ${body}
+                           <span class="d-go tour-stop-go" style="--go-ink:${palette.key}">
+                             Play the loaner ${icon("chevron-right", 15, "d-go-arrow")}
+                           </span>
+                         </button>`
                   }
                 </li>`;
             })
@@ -142,15 +171,35 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
         </div>
       </div>`;
 
-    // leader portraits, including the ones not yet won
-    for (const holder of root.querySelectorAll<HTMLElement>(".tour-stop-card")) {
-      const leader = content.leaders[holder.dataset["leader"] ?? ""];
-      if (leader) holder.appendChild(renderCardToCanvas(leader, 132, { premium: true }));
-    }
-    for (const holder of root.querySelectorAll<HTMLElement>(".tour-prize-card")) {
-      const card = content.cards[holder.dataset["card"] ?? ""];
-      if (card) holder.appendChild(renderCardToCanvas(card, 120, { premium: true }));
-    }
+    /**
+     * The ten leader cards, painted off the mount path.
+     *
+     * They used to be rendered inside the same synchronous block as the markup
+     * — ten `renderCardToCanvas` calls at 132px, plus up to three prize cards —
+     * and the measurement was unambiguous: **1,222ms of blocked main thread** on
+     * a lobby → tour navigation (727 + 202 + 187 + 106), p50 frame 108ms, p95
+     * 735ms, and the entrance cascade's first `animationstart` at t=1147ms. The
+     * descend transition played at about 9fps into a screen that had already
+     * finished animating by the time anything painted, which is §3a's "no
+     * transition drops frames" and §9's frame floor failing on the same frames.
+     *
+     * `deferPaint` puts one card on each frame after the first two, so the
+     * transition owns the first 400ms and the pictures land behind it. The
+     * socket they land in is `.d-art`'s recess, so an unpainted stop is a place
+     * a card is going rather than a hole.
+     */
+    bag.add(
+      deferPaint(root.querySelectorAll<HTMLElement>(".tour-stop-card"), (holder) => {
+        const leader = content.leaders[holder.dataset["leader"] ?? ""];
+        if (leader) holder.appendChild(renderCardToCanvas(leader, 132, { premium: true }));
+      })
+    );
+    bag.add(
+      deferPaint(root.querySelectorAll<HTMLElement>(".tour-prize-card"), (holder) => {
+        const card = content.cards[holder.dataset["card"] ?? ""];
+        if (card) holder.appendChild(renderCardToCanvas(card, 120, { premium: true }));
+      })
+    );
 
     root.querySelector("#tour-back")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");
@@ -192,6 +241,14 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
       chosenLegendary = null;
       render();
     });
+
+    /*
+     * The cascade. `enter` was imported and never called, so ten stops arrived
+     * on one frame as a slab — §3a names that the single biggest perceived-
+     * quality gap between a hobby menu and a shipped one. It also kicks the
+     * deferred art queue, which is the other half of the same fix.
+     */
+    enter(root, ".d-enter", 40);
   };
 
   /** The reward panel, shown only once every stop is done and nothing is paid. */
@@ -231,7 +288,12 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
             </div>`
           : ""
       }
-      <button class="btn btn-primary btn-lg" id="tour-claim" ${anyChoosable && !chosenLegendary ? "disabled" : ""}>
+      <!-- The one real hero on this screen, and it can be disabled — so it is
+           on .act, whose disabled branch changes fill, border and icon rather
+           than dropping the whole element to opacity 0.42. -->
+      <button class="mat-hero act r-chip tour-claim" id="tour-claim" ${
+        anyChoosable && !chosenLegendary ? "disabled" : ""
+      }>
         ${anyChoosable && !chosenLegendary ? "Choose a Legendary" : "Claim"}
       </button>
     </section>`;
@@ -281,6 +343,7 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
   return {
     root,
     dispose: () => {
+      bag.run();
       delete (window as unknown as { hypeboundTour?: unknown }).hypeboundTour;
     },
   };

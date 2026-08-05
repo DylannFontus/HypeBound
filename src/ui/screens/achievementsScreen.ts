@@ -53,14 +53,25 @@ import {
   describeReward,
   esc,
   flyReward,
+  patchRow,
   railHtml,
   rewardTileHtml,
+  riseIn,
   syncWallets,
   tokenHtml,
+  updateWallet,
   WASH,
   type CoinKind,
 } from "./rewards/rewardKit";
-import { achievementBadge, badgeTierName, type BadgeState } from "./rewards/achievementBadge";
+import { badgeTierName, type BadgeState } from "./rewards/achievementBadge";
+import {
+  artIsReady,
+  badgeSpec,
+  createPaintQueue,
+  paintRewardArt,
+  resolveArt,
+  type PaintQueue,
+} from "./rewards/rewardArt";
 import { installRewardsTheme } from "./rewards/rewardsTheme";
 
 export interface AchievementsCallbacks {
@@ -90,10 +101,29 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
   /** the last points total the player saw, so the header counts rather than jumps */
   let seenPoints: number | null = null;
 
-  const badgeImg = (points: number, state: BadgeState, label: string): string => {
-    const uri = achievementBadge(points, state);
-    if (!uri) return `<div class="ach-badge num" style="display:grid;place-items:center">${points}</div>`;
-    return `<img class="ach-badge" src="${uri}" alt="" title="${esc(label)}" loading="lazy" decoding="async">`;
+  /** Nothing is rasterised on the navigation frame — see `rewardArt.ts`. */
+  let art: PaintQueue | null = null;
+  let cascaded = false;
+
+  /**
+   * The badge, as a slot that is the right size before it holds anything.
+   *
+   * Nine struck bitmaps for the whole game, and every one of them used to be
+   * drawn inside `render()`: measured at 226ms of blocked main thread on
+   * arrival, which is most of a transition budget spent on pictures the player
+   * cannot see yet because the compositor is frozen. The wrapper reserves the
+   * space so the queue's delivery cannot shift a single row.
+   */
+  const badgeImg = (points: number, state: BadgeState, label: string, style = ""): string => {
+    const spec = badgeSpec(points, state);
+    const ready = artIsReady(spec) ? resolveArt(spec) : "";
+    const inner = ready
+      ? `<img src="${ready}" alt="" decoding="async" draggable="false">`
+      : `<span class="ach-badge-num num">${points}</span>`;
+    return (
+      `<span class="ach-badge"${ready ? "" : ` data-rw-art="${esc(spec)}"`}` +
+      ` title="${esc(label)}"${style ? ` style="${style}"` : ""}>${inner}</span>`
+    );
   };
 
   const row = (view: AchievementView): string => {
@@ -211,6 +241,88 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
       </li>`;
   };
 
+  /**
+   * Claiming patches the row it happened on, and nothing else.
+   *
+   * Points do not move on a claim — the screen says so in its own copy: "Points
+   * count the moment you do the thing; the Claim button only hands over the
+   * reward." So the only things that change are this row's state, the two
+   * wallet chips and the category tab's waiting badge, and a full `render()` to
+   * deliver three small facts is what threw the list's scroll position away and
+   * restarted every ambient sweep on the screen.
+   */
+  const bindClaim = (button: HTMLElement): void => {
+    button.addEventListener("click", (event) => {
+      const source = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      const id = button.dataset["id"] ?? "";
+      const rewards = achievementBoard(content).views.find((view) => view.def.id === id)?.def.rewards ?? [];
+      const grant = claimAchievement(content, id);
+      if (grant) {
+        audio.play("sfx.pack.rareReveal", { volume: 0.55, rate: 1.05 });
+        if (motionEnabled()) {
+          for (const [index, reward] of rewards.entries()) {
+            const coin = coinFor(reward);
+            if (coin) globalThis.setTimeout(() => flyReward(source, coin, root), index * 90);
+          }
+        }
+      }
+      const after = achievementBoard(content);
+      const view = after.views.find((entry) => entry.def.id === id);
+      const element = root.querySelector(`.ach-row[data-id="${CSS.escape(id)}"]`);
+      if (view && element) {
+        const replacement = patchRow(element, row(view));
+        if (replacement) {
+          const next = replacement.querySelector<HTMLElement>(".ach-claim");
+          if (next) bindClaim(next);
+          paintRewardArt(replacement, art ?? undefined);
+        }
+      }
+      settle(after);
+    });
+  };
+
+  const bindMilestoneClaim = (button: HTMLElement): void => {
+    button.addEventListener("click", (event) => {
+      const source = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      const points = Number(button.dataset["points"] ?? 0);
+      const reward = achievementBoard(content).milestones.find((view) => view.milestone.points === points)
+        ?.milestone.reward;
+      const grant = claimPointMilestone(content, points);
+      if (grant) {
+        audio.play("sfx.pack.rareReveal", { volume: 0.7, rate: 0.92 });
+        const coin = reward ? coinFor(reward) : null;
+        if (coin && motionEnabled()) flyReward(source, coin, root);
+      }
+      const after = achievementBoard(content);
+      const view = after.milestones.find((entry) => entry.milestone.points === points);
+      const element = root.querySelector(`.ach-milestone[data-points="${points}"]`);
+      if (view && element) {
+        const replacement = patchRow(element, milestoneRow(view));
+        if (replacement) {
+          const next = replacement.querySelector<HTMLElement>(".ach-claim-milestone");
+          if (next) bindMilestoneClaim(next);
+          paintRewardArt(replacement, art ?? undefined);
+        }
+      }
+      settle(after);
+    });
+  };
+
+  /** The three facts a claim changes outside its own row. */
+  const settle = (board: ReturnType<typeof achievementBoard>): void => {
+    const profile = getProfile();
+    updateWallet(root, { clout: profile.clout, shards: profile.shards });
+    for (const tabButton of root.querySelectorAll<HTMLElement>(".mastery-tab")) {
+      const categoryId = tabButton.dataset["tab"] ?? "";
+      const waiting = board.views.filter((view) => view.def.category === categoryId && view.claimable).length;
+      const badge = tabButton.querySelector<HTMLElement>(".rw-badge");
+      if (waiting > 0 && badge) badge.textContent = String(waiting);
+      else if (waiting > 0) tabButton.insertAdjacentHTML("beforeend", `<span class="rw-badge num">${waiting}</span>`);
+      else badge?.remove();
+    }
+    seenPoints = board.points;
+  };
+
   const render = (): void => {
     const profile = getProfile();
     const board = achievementBoard(content);
@@ -248,9 +360,11 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
       <main class="ach-body rw-ach-body">
         <section class="ach-summary rw-ach-summary mat-panel">
           <div class="ach-score">
-            ${badgeImg(board.points, board.points > 0 ? "unlocked" : "locked", "Your achievement points").replace(
-              'class="ach-badge"',
-              'class="ach-badge" style="width:86px;height:86px"',
+            ${badgeImg(
+              board.points,
+              board.points > 0 ? "unlocked" : "locked",
+              "Your achievement points",
+              "width:86px;height:86px",
             )}
             <span class="ach-score-value" id="ach-points">${formatNumber(seenPoints ?? board.points)}</span>
             <span class="rw-note rw-quiet">of <span class="num" style="min-width:0">${formatNumber(board.reachable)}</span> achievement points</span>
@@ -297,36 +411,20 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
       });
     }
     for (const button of root.querySelectorAll<HTMLElement>(".ach-claim")) {
-      button.addEventListener("click", (event) => {
-        const source = (event.currentTarget as HTMLElement).getBoundingClientRect();
-        const id = button.dataset["id"] ?? "";
-        const rewards = board.views.find((view) => view.def.id === id)?.def.rewards ?? [];
-        const grant = claimAchievement(content, id);
-        if (grant) {
-          audio.play("sfx.pack.rareReveal", { volume: 0.55, rate: 1.05 });
-          if (motionEnabled()) {
-            for (const [index, reward] of rewards.entries()) {
-              const coin = coinFor(reward);
-              if (coin) globalThis.setTimeout(() => flyReward(source, coin, root), index * 90);
-            }
-          }
-        }
-        render();
-      });
+      bindClaim(button);
     }
     for (const button of root.querySelectorAll<HTMLElement>(".ach-claim-milestone")) {
-      button.addEventListener("click", (event) => {
-        const source = (event.currentTarget as HTMLElement).getBoundingClientRect();
-        const points = Number(button.dataset["points"] ?? 0);
-        const reward = board.milestones.find((view) => view.milestone.points === points)?.milestone.reward;
-        const grant = claimPointMilestone(content, points);
-        if (grant) {
-          audio.play("sfx.pack.rareReveal", { volume: 0.7, rate: 0.92 });
-          const coin = reward ? coinFor(reward) : null;
-          if (coin && motionEnabled()) flyReward(source, coin, root);
-        }
-        render();
-      });
+      bindMilestoneClaim(button);
+    }
+
+    art?.stop();
+    art = createPaintQueue();
+    paintRewardArt(root, art);
+
+    if (!cascaded) {
+      cascaded = true;
+      riseIn(root.querySelectorAll(".ach-milestones > li"), { from: 220, step: 40, max: 560 });
+      riseIn(root.querySelectorAll(".ach-list > li"), { from: 300, step: 38, max: 680 });
     }
 
     /*
@@ -388,6 +486,7 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
   return {
     root,
     dispose: () => {
+      art?.stop();
       delete (window as unknown as { hypeboundAchievements?: unknown }).hypeboundAchievements;
     },
   };

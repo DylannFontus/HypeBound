@@ -347,15 +347,21 @@ export interface MeterOptions {
 export function meter(options: MeterOptions): string {
   const value = Math.max(0, Math.min(1, Number.isFinite(options.value) ? options.value : 0));
   const steps = options.steps ?? 0;
+  /*
+   * `--meter-hue` travels with the fill because an *empty* track is tinted by
+   * whatever will fill it — see the long note on `.d-meter` in `data.css`. A
+   * gradient cannot be `color-mix`ed, so the flat colour has to be passed too.
+   */
   const fill = options.colour
-    ? `--fill-meter:linear-gradient(var(--light-sweep), color-mix(in srgb, ${options.colour} 82%, #fff) 0%, ${options.colour} 58%, color-mix(in srgb, ${options.colour} 62%, #000) 100%);`
+    ? `--meter-hue:${options.colour};--fill-meter:linear-gradient(var(--light-sweep), color-mix(in srgb, ${options.colour} 82%, #fff) 0%, ${options.colour} 58%, color-mix(in srgb, ${options.colour} 62%, #000) 100%);`
     : "";
-  const width = options.animate && motionEnabled() ? 0 : value * 100;
+  /* Unitless: the fill is a `scaleX`, not a width. §3a bans the width. */
+  const scale = options.animate && motionEnabled() ? 0 : value;
   return `<span class="d-meter mat-well ${steps > 1 ? "" : "is-tickless"} ${options.className ?? ""}"
-                style="--meter-steps:${steps};--meter-value:${width.toFixed(2)}%;${fill}"
-                data-meter="${(value * 100).toFixed(2)}"
+                style="--meter-steps:${steps};--meter-scale:${scale.toFixed(4)};${fill}"
+                data-meter="${value.toFixed(4)}"
                 role="progressbar" aria-valuemin="0" aria-valuemax="100"
-                aria-valuenow="${Math.round(value * 100)}"><i class="well-fill"></i></span>`;
+                aria-valuenow="${Math.round(value * 100)}"><i><b class="well-fill"></b></i></span>`;
 }
 
 export interface EmptyOptions {
@@ -652,40 +658,14 @@ export function rankMark(
 /**
  * Resolve every pending recipe under `root`, off the frame that mounted it.
  *
- * Two frames of delay before the first drawing, deliberately: one for the
- * browser to paint the markup and one for the entrance animations to have
- * started, so a cold cache costs the cascade nothing. After that it works
- * through the queue in `SLICE_MS` bites, yielding between them, which keeps the
- * longest blocked frame at roughly one encode rather than at all of them.
+ * The drain lives in `deferPaint` below and so does the reasoning for its two
+ * gates — one mark per frame, and not until the transition has landed. This is
+ * only the recipe half: turn `data-art="crest|idols|1"` into a custom property
+ * holding a `data:` URI.
  */
-const SLICE_MS = 4;
-
-/**
- * And a hard cap on *how many* land per frame, which the time budget alone does
- * not give you.
- *
- * The budget measures the generator. It cannot measure what the browser does
- * afterwards: setting a `background-image` to a fresh `data:` URI makes the
- * engine base64-decode and PNG-decode the bitmap during the next style-and-paint
- * pass, and that work is attributed to the frame rather than to the loop that
- * queued it. Measured with the budget alone, twenty-five marks resolved in three
- * bites and the middle one produced a **252ms** long task — the generators
- * finished inside 4ms and the decodes did not.
- *
- * One per frame is where it settled. Two was already an order of magnitude
- * better than the unspread version and still left a 120–200ms frame in the
- * middle of the Mastery grid's arrival, which is exactly the window
- * `never-a-blank-frame` refuses to let the probe go unsampled through. At one,
- * a twenty-five-mark grid fills over twenty-five frames — four hundred
- * milliseconds of pictures landing one at a time behind a cascade that is still
- * playing, which is what "loading is part of the world" looks like, and no frame
- * carrying more than a single draw and a single decode.
- */
-const SLICE_ITEMS = 1;
-
-export function paintArt(root: ParentNode): void {
+export function paintArt(root: ParentNode): () => void {
   const queue = [...root.querySelectorAll<HTMLElement>("[data-art]")];
-  if (queue.length === 0) return;
+  if (queue.length === 0) return () => {};
 
   const apply = (node: HTMLElement): void => {
     const payload = node.dataset["art"];
@@ -704,22 +684,121 @@ export function paintArt(root: ParentNode): void {
     }
     if (url === "") return;
     node.style.setProperty(recipe.prop, `url('${url}')`);
-    node.classList.add("d-art-in");
   };
 
-  let index = 0;
+  return deferPaint(queue, apply);
+}
+
+/**
+ * Every expensive picture in the domain, painted where it does no harm.
+ *
+ * Every generator in `art.ts` ends in a synchronous rasterise-and-encode, and
+ * `renderCardToCanvas` is heavier still. Done inline, the whole set is produced
+ * *inside* the `innerHTML` assignment — on the one frame the screen is being
+ * mounted, which is the same frame the entrance cascade and the shell's descend
+ * are supposed to start on. Measured with a `PerformanceObserver` on `longtask`:
+ *
+ *     tour ......... 727 + 202 + 187 + 106 = 1,222ms, first animation at t=1147ms
+ *     mastery ...... 512ms
+ *     events ....... 385ms
+ *     news ......... 277ms
+ *     profile ...... 127ms
+ *
+ * A second of frozen compositor on arrival at the Grand Tour. The cascade was
+ * correct — the starts were spread across 453ms, confirmed by `animationstart` —
+ * and a player saw none of it, because nothing painted until it was over.
+ *
+ * Three gates, and the domain needed all three.
+ *
+ * **One item per frame.** A time budget alone is not enough, because it measures
+ * the generator and not what the browser does afterwards: setting a
+ * `background-image` to a fresh `data:` URI makes the engine base64-decode and
+ * PNG-decode the bitmap during the next style-and-paint pass, and that work is
+ * attributed to the frame rather than to the loop that queued it. Measured with
+ * a 4ms budget alone, twenty-five marks resolved in three bites and the middle
+ * one produced a **252ms** long task.
+ *
+ * **Not until the transition has landed.** Spreading the queue fixed the shape
+ * of the cost and not its placement: the first drawing still arrived on frame
+ * three, inside §3a's 260–420ms window, and a 135ms encode there is a dropped
+ * descend. `after` defaults to that window.
+ *
+ * **Only what is on screen.** Six of the Grand Tour's ten stops are visible at
+ * 1600×900, so four of its ten card renders are work for a scroll position
+ * nobody is at. An `IntersectionObserver` with 400px of margin paints the rest
+ * as the list arrives at them.
+ *
+ * Returns a teardown, because these screens re-render on every click and a queue
+ * still draining into a detached tree is wasted main thread at best.
+ */
+export function deferPaint<T extends HTMLElement>(
+  nodes: Iterable<T>,
+  paint: (node: T) => void,
+  options: { after?: number } = {}
+): () => void {
+  const all = [...nodes];
+  if (all.length === 0) return () => {};
+
+  const ready: T[] = [];
+  let cancelled = false;
+  let frame = 0;
+  let draining = false;
+
   const drain = (): void => {
-    const started = performance.now();
-    let done = 0;
-    while (index < queue.length) {
-      apply(queue[index]!);
-      index += 1;
-      done += 1;
-      if (done >= SLICE_ITEMS || performance.now() - started > SLICE_MS) break;
+    frame = 0;
+    if (cancelled) return;
+    const node = ready.shift();
+    if (node && node.isConnected) {
+      try {
+        paint(node);
+        node.classList.add("d-art-in");
+      } catch {
+        // A picture is decoration; a broken one leaves its socket empty rather
+        // than taking the screen it decorates down with it.
+      }
     }
-    if (index < queue.length) requestAnimationFrame(drain);
+    if (ready.length > 0) frame = requestAnimationFrame(drain);
+    else draining = false;
   };
-  requestAnimationFrame(() => requestAnimationFrame(drain));
+
+  const kick = (): void => {
+    if (cancelled || draining || ready.length === 0) return;
+    draining = true;
+    frame = requestAnimationFrame(drain);
+  };
+
+  const observer =
+    typeof IntersectionObserver === "function"
+      ? new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              observer?.unobserve(entry.target);
+              ready.push(entry.target as T);
+            }
+            if (started) kick();
+          },
+          { rootMargin: "400px" }
+        )
+      : null;
+
+  let started = false;
+  const begin = (): void => {
+    if (cancelled) return;
+    started = true;
+    if (!observer) ready.push(...all);
+    kick();
+  };
+
+  if (observer) for (const node of all) observer.observe(node);
+  const timer = setTimeout(() => requestAnimationFrame(begin), options.after ?? DUR.ui);
+
+  return () => {
+    cancelled = true;
+    clearTimeout(timer);
+    cancelAnimationFrame(frame);
+    observer?.disconnect();
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -732,12 +811,14 @@ export function paintArt(root: ParentNode): void {
  * Called after `innerHTML`, on the container. `stagger` is module D's and is a
  * no-op under reduced motion; the keyframe it feeds is in `data.css` §8.
  */
-export function enter(root: ParentNode, selector = ".d-enter", step = 38): void {
+export function enter(root: ParentNode, selector = ".d-enter", step = 38): () => void {
   stagger(root.querySelectorAll(selector), { step, max: DUR.setpiece });
   // Every screen in the domain already calls this after writing its markup, so
   // it is also the one place the deferred pictures can be kicked off without
-  // twenty-three screens each having to remember.
-  paintArt(root);
+  // twenty-three screens each having to remember. The teardown is returned for
+  // the screens that re-render often enough to care; most simply drop it, and a
+  // queue whose nodes are all detached costs nothing but its own observer.
+  return paintArt(root);
 }
 
 /**
@@ -755,7 +836,7 @@ export function countUp(root: ParentNode): void {
 
   if (!motionEnabled()) {
     for (const node of numbers) node.textContent = fmtNum(Number(node.dataset["count"] ?? 0));
-    for (const node of meters) node.style.setProperty("--meter-value", `${node.dataset["meter"] ?? 0}%`);
+    for (const node of meters) node.style.setProperty("--meter-scale", node.dataset["meter"] ?? "0");
     return;
   }
 
@@ -765,7 +846,7 @@ export function countUp(root: ParentNode): void {
       const target = Number(node.dataset["count"] ?? 0);
       tickerTo(node, Number.isFinite(target) ? target : 0, DUR.setpiece);
     }
-    for (const node of meters) node.style.setProperty("--meter-value", `${node.dataset["meter"] ?? 0}%`);
+    for (const node of meters) node.style.setProperty("--meter-scale", node.dataset["meter"] ?? "0");
   });
 }
 

@@ -511,10 +511,22 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
         <span class="replay-entry-body">
           <span class="replay-entry-deck">${esc(entry.deckName)}</span>
           <span class="replay-entry-meta">vs ${esc(opponent)} · ${quantify(entry.turns, "turn")}${obsession}</span>
-          <span class="replay-entry-meta">${esc(modeName(entry.mode))} · ${esc(logStamp(entry.playedAt))}${
-            replayable ? "" : " · not replayable"
-          }</span>
+          <span class="replay-entry-meta">${esc(modeName(entry.mode))} · ${esc(logStamp(entry.playedAt))}</span>
         </span>
+        ${
+          /*
+           * "Not replayable" is a *tag*, not the tail of a sentence.
+           *
+           * It used to be appended to the mode-and-date line, which is
+           * `text-overflow: ellipsis` on one line — so on 8 of 9 visible rows at
+           * 1600×900 it ellipsised to "not…" or "not re…", hiding the only
+           * qualifier on the row that changes what clicking it does. A tag in
+           * its own column cannot be truncated by the line beside it.
+           */
+          replayable
+            ? ""
+            : `<span class="replay-entry-tag">${icon("lock", 12)}<span>No replay</span></span>`
+        }
         <span class="replay-entry-result" aria-label="${entry.result}">${entry.result[0]!.toUpperCase()}</span>`;
       button.addEventListener("click", () => {
         audio.play("sfx.ui.click");

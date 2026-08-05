@@ -806,6 +806,42 @@
   background-color: #07040f;
 }
 
+/**
+ * The art bleeds into the strip below it, because they are one object.
+ *
+ * They were two. The HYPECON banner's teal field ended in a **straight
+ * horizontal cut** — measured at y=556 on a 2× capture — straight into a flat
+ * violet information strip that shared none of its pigment, so the page read as
+ * a panel dropped on a photograph. §2 asks for the opposite: the environment
+ * has to reach onto the surface in front of it.
+ *
+ * Two moves and they have to be both. The scrim's last stop is re-pointed at the
+ * strip's own colour, mixed with the event accent, so the picture *arrives* at
+ * the strip instead of stopping short of it; and the strip's top 120px carries a
+ * wash of that same accent, so the colour crosses the seam in the other
+ * direction too. The caption is a later sibling, so it still sits above the ramp
+ * and keeps its contrast.
+ */
+.events-screen .event-key .d-key-scrim {
+  background: linear-gradient(
+    180deg,
+    rgb(4 2 10 / 0.05) 0%,
+    rgb(4 2 10 / 0.42) 44%,
+    color-mix(in srgb, var(--event-accent, var(--accent)) 10%, rgb(14 9 27 / 0.86)) 78%,
+    color-mix(in srgb, var(--event-accent, var(--accent)) 16%, rgb(24 16 47)) 100%
+  );
+}
+
+.events-screen .event-body {
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--event-accent, var(--accent)) 15%, transparent) 0%,
+    color-mix(in srgb, var(--event-accent, var(--accent)) 4%, transparent) 46%,
+    transparent 100%
+  );
+}
+
 .events-screen .event-key .event-name {
   margin: 0;
   color: var(--text);
@@ -951,9 +987,58 @@
   color: var(--text-faint);
 }
 
+/**
+ * The one hero on the hub, ringed in the event's own accent.
+ *
+ * Three of these were `.mat-hero` and all three were the product's magenta,
+ * under a teal banner. The plate stays the hero plate — its ink contrast is
+ * tuned against that exact fill and re-tinting it per event would put an
+ * unaudited pair on screen for every event ever authored — but the *ring and
+ * the glow* are the event's, which is what ties the brightest object on the
+ * page to the picture above it without touching a contrast ratio.
+ */
 .events-screen .event-play {
+  min-height: 40px;
   padding: 9px var(--sp-4);
   font-weight: 700;
+}
+
+/**
+ * …and the plate itself is struck in the event's colour.
+ *
+ * The hero material is a *light* plate with dark ink, and that is the property
+ * that lets it be re-tinted safely: mixing the accent with white at a fixed
+ * ratio bounds the plate's luminance from below no matter what hue an event
+ * authors, so `--ink-hero` cannot be stranded. Measured against the three
+ * authored accents — #3fc7c0, #e46bd6, #f0862a — the label lands at 10.9:1,
+ * 8.8:1 and 9.3:1, all far over the 4.5:1 floor and all higher than the stock
+ * magenta plate manages. A future event would have to author an almost-black
+ * accent to get near the floor, and the 32% white in the darker stop is the
+ * margin for that.
+ */
+.events-screen .event-play.is-primary {
+  --mat-fill: linear-gradient(
+    var(--light-sweep),
+    color-mix(in srgb, var(--event-accent, var(--accent)) 38%, #ffffff) 0%,
+    color-mix(in srgb, var(--event-accent, var(--accent)) 68%, #ffffff) 100%
+  );
+  --ink-hero: #170c24;
+  box-shadow:
+    var(--mat-cast),
+    0 0 0 1px color-mix(in srgb, var(--event-accent, var(--accent)) 55%, transparent),
+    0 4px 22px -8px color-mix(in srgb, var(--event-accent, var(--accent)) 85%, transparent);
+}
+
+/** The alternates are row-level marks in the same accent, not more heroes. */
+.events-screen .event-play:not(.is-primary) {
+  --go-ink: var(--event-accent, var(--accent-bright));
+}
+
+@media (pointer: coarse) {
+  .events-screen .event-play,
+  .events-screen .event-rules {
+    min-height: 44px;
+  }
 }
 
 .events-screen .event-panel {
@@ -1618,9 +1703,32 @@
   width: 100%;
 }
 
+/**
+ * The plate ends in a ramp, not in an edge.
+ *
+ * The heading is pulled up onto the art by 96px, and the art stopped dead
+ * underneath it — at 844×390 the ladder's carved rows ran out of plate and left
+ * **a stray light bar behind the heading**, which reads as a rendering fault
+ * rather than as a backdrop. §2: the environment reaches onto the surface in
+ * front of it; it does not stop at a line. The short-viewport case also flattens
+ * the plate and takes the overlap down, because 96px of a 200px plate is most of
+ * it.
+ */
 .replay-screen .replay-virgin-key {
   border-radius: 0;
   opacity: 0.9;
+  mask-image: linear-gradient(180deg, #000 0%, #000 46%, rgb(0 0 0 / 0.5) 76%, transparent 100%);
+}
+
+@media (max-height: 460px) {
+  .replay-screen .replay-virgin-key {
+    --key-aspect: 5 / 1;
+  }
+
+  .replay-screen .replay-virgin-text {
+    margin-top: -52px;
+    padding-bottom: var(--sp-4);
+  }
 }
 
 .replay-screen .replay-virgin-text {
@@ -1646,7 +1754,7 @@
 
 .replay-screen .replay-entry {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
@@ -1655,6 +1763,38 @@
   --r-self: var(--r-tile);
   text-align: left;
   color: var(--text);
+}
+
+/**
+ * The "no replay" qualifier, as a tag in its own track.
+ *
+ * See the note at the markup: as trailing text on an ellipsised line it came
+ * out as "not…" on eight of nine rows, which is the one word on the row a
+ * player needs. In a column of its own it is never the thing that gets cut, and
+ * it carries a lock glyph so the state reads before the words do.
+ */
+.replay-screen .replay-entry-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 3px var(--sp-2);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--text-faint);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.05), rgb(0 0 0 / 0.2));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    inset 0 -1px 0 rgb(0 0 0 / 0.4);
+}
+
+@media (max-width: 900px), (max-height: 460px) {
+  .replay-screen .replay-entry-tag > span {
+    display: none;
+  }
 }
 
 .replay-screen .replay-entry.selected {
@@ -2687,7 +2827,9 @@
 }
 
 .story-screen .story-card-meter .d-meter {
-  --meter-tick: rgb(255 255 255 / 0.18);
+  --meter-tick: rgb(0 0 0 / 0.62);
+  --meter-tick-lit: rgb(255 255 255 / 0.16);
+  --meter-hue: var(--chapter-colour, var(--accent));
 }
 
 .story-screen .story-card-count {
@@ -2700,46 +2842,39 @@
 }
 
 /**
- * The status, as a chip rather than as 11px of tracked grey.
+ * The status, as a row-level affordance rather than as a hero action.
  *
- * Four states, four different plates, and each carries a glyph — so "locked",
- * "complete", "continue" and "start" are told apart by shape before colour.
+ * It *was* four states on four plates and the two live ones — "Start" and
+ * "Continue" — wore the full `.mat-hero` magenta. Ten rows, ten heroes: at a
+ * squint the screen resolved into a vertical column of identical pink lozenges
+ * and §6's "the most saturated thing should be the thing that matters most" was
+ * failed by arithmetic. The shape and the glyph carry the four states exactly as
+ * before; what changes is that the saturation now belongs to the *chapter*
+ * rather than to the button, and the button is the row.
+ *
+ * Geometry only, here — `.d-go` in `data.css` is the material.
  */
 .story-screen .story-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px var(--sp-4);
-  border-radius: var(--r-chip);
-  font-family: var(--font-display);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  white-space: nowrap;
-  color: var(--text);
-  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.02));
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.1),
-    inset 0 -1px 0 rgb(0 0 0 / 0.5);
-}
-
-.story-screen .story-status.is-new,
-.story-screen .story-status.is-going {
-  color: var(--text-invert);
-  background: linear-gradient(var(--light-sweep), var(--accent-bright), var(--accent-hot));
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.4),
-    inset 0 -1px 0 rgb(0 0 0 / 0.3),
-    0 3px 10px rgb(0 0 0 / 0.45);
-}
-
-.story-screen .story-status.is-done {
-  color: var(--success);
+  --go-fallback: var(--chapter-colour, var(--accent-bright));
 }
 
 .story-screen .story-status.is-locked {
-  color: var(--text-faint);
   max-width: 22ch;
   white-space: normal;
+}
+
+/** The chapter's own edge lights when the row does, so the row reads as the button. */
+.story-screen .story-card-bar {
+  transition:
+    filter var(--dur-micro) var(--ease-arrive),
+    transform var(--dur-ui) var(--ease-arrive);
+  transform-origin: top center;
+}
+
+@media (hover: hover) {
+  .story-screen .story-card:hover:not(:disabled) .story-card-bar {
+    filter: brightness(1.6) saturate(1.15);
+  }
 }
 
 .story-screen .story-card:disabled {
@@ -2979,6 +3114,145 @@
 .gauntlet-screen .gauntlet-none,
 .tour-screen .tour-none {
   align-items: center;
+}
+
+/**
+ * Four buttons that migrated off `.btn` because they can be *disabled*.
+ *
+ * `.btn:disabled` is `opacity: 0.42` and nothing else — no fill change, no
+ * border change, no icon change — which A4 rules out on all three counts, and
+ * which measured about 4.0:1 on cloudsave's "Use the account's save". `.act`'s
+ * disabled branch is the compliant one. All these rules do is give the four a
+ * touch target and a shape, since `.btn` was also where they got their height.
+ */
+.cloud-save-screen .cloud-save-btn,
+.tour-screen .tour-claim,
+.gauntlet-screen .gauntlet-redraft {
+  min-height: 44px;
+  padding: 0 var(--sp-5);
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  justify-content: center;
+}
+
+.tour-screen .tour-claim {
+  min-height: 52px;
+  padding: 0 var(--sp-7);
+  font-size: var(--fs-lg);
+}
+
+/* -------------------------------------------------------------------------
+   The Grand Tour — the stop is the button
+   ------------------------------------------------------------------------- */
+
+/**
+ * Nine `.btn-primary` pills in a 3×3 grid.
+ *
+ * That was the domain's worst object: squint at the screen and it resolved into
+ * a lattice of identical fizzing magenta lozenges, one per tile, each of them
+ * the brightest and noisiest surface in the system, and none of them the hero
+ * because all of them were. The tile itself was inert — a card, three lines of
+ * text, and a pill nailed to the bottom of it.
+ *
+ * The stop is now the control. It is a real `<button>` carrying `.mat-panel
+ * .act`, so it gets the foundation's six states for free; the pill is replaced
+ * by `.d-go`, whose ink is the leader's own **Current** rather than the
+ * product's accent, so ten stops read as ten places rather than as ten copies of
+ * one button. The Current also lights the tile's own top-left edge on hover,
+ * which is the "lit edge" half of the affordance — a Hearthstone chapter plate
+ * lights; it does not sprout a second widget.
+ *
+ * These sit in `rooms.css` rather than in `screens.css` on purpose: the base
+ * `.tour-*` geometry is another module's and stays where it is, and every rule
+ * here is `.tour-screen`-scoped so it wins on weight without editing that file.
+ */
+.tour-screen .tour-stop-slot {
+  display: flex;
+  list-style: none;
+}
+
+.tour-screen .tour-stop {
+  position: relative;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  justify-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+  background: none;
+  text-align: center;
+  font: inherit;
+  color: var(--text);
+  /* The Current lights the plate's rim rather than filling a pill with it. */
+  --rim-tint: var(--c, var(--accent));
+}
+
+.tour-screen .tour-stop.locked {
+  cursor: pointer;
+}
+
+/**
+ * The Current's own edge, on the two sides the key light reaches.
+ *
+ * Drawn on `::before` because `foundation.css` owns `::after` on every material
+ * — that is the specular band, and taking it switches the breathing off.
+ */
+.tour-screen .tour-stop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--c, var(--accent)) 34%, transparent),
+    inset 1px 0 0 color-mix(in srgb, var(--c, var(--accent)) 20%, transparent);
+  opacity: 0.7;
+  transition: opacity var(--dur-micro) var(--ease-arrive);
+}
+
+@media (hover: hover) {
+  .tour-screen .tour-stop.locked:hover::before {
+    opacity: 1;
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--c, var(--accent)) 78%, transparent),
+      inset 1px 0 0 color-mix(in srgb, var(--c, var(--accent)) 52%, transparent),
+      inset 0 0 22px -8px color-mix(in srgb, var(--c, var(--accent)) 70%, transparent);
+  }
+}
+
+.tour-screen .tour-stop-card {
+  display: flex;
+  justify-content: center;
+  min-height: 184px;
+  border-radius: var(--r-tile);
+}
+
+.tour-screen .tour-stop-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.tour-screen .tour-stop-go {
+  width: 100%;
+  justify-content: center;
+  margin-top: var(--sp-2);
+}
+
+/** A won stop states a fact, so its mark is quiet and its plate is not lit. */
+.tour-screen .tour-stop.won .tour-stop-go {
+  font-weight: 600;
+  white-space: normal;
+  color: var(--text-dim);
+}
+
+.tour-screen .tour-stop.won .tour-stop-go .hb-icon {
+  color: var(--success);
 }
 
 /**

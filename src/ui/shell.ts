@@ -288,11 +288,29 @@ interface NavTiming {
  * overlap, never sequential.
  *
  *   relation   out   delay    in   total   overlap
- *   descend    170      60   320     380       110
- *   ascend     170      20   320     340       150
- *   sibling    160      50   270     320       110
+ *   descend    170       0   320     320       170
+ *   ascend     170       0   320     320       170
+ *   sibling    160       0   270     270       160
  *   curtain    200     110   310     420        90
- *   replace    130      30   250     280       100
+ *   replace    130       0   250     250       130
+ *
+ * ## The entrance delays are zero now, and §2.0 of the stylesheet is why
+ *
+ * They were 20–60ms so that the screen being left had a beat to itself before
+ * the screen being asked for arrived — the "old leaves while new arrives,
+ * sharing 80–120ms" shape, with the sharing arranged by hand. The hold makes
+ * that arrangement structural instead: by the time anything is placed, the
+ * outgoing screen has already played the first 40% of its exit and has been
+ * sitting receded for however long the constructor took. A delay on top of
+ * that is not overlap, it is a gap — and it measured as one. On `lobby → play`,
+ * with the parent entering its exit already blurred and dimmed while the child
+ * was still pinned at zero by `--nav-delay`, the composited frame at t=253ms
+ * came in at **40%** of the reference mean and **18%** of its 95th percentile:
+ * darker than the defect that put the 0.12 floor in the stylesheet.
+ *
+ * So the exchange is now the whole of both halves and the overlap column is the
+ * outgoing animation in full. `curtain` keeps its delay, because there the
+ * reveal is scheduled against the panels rather than against the exit.
  *
  * The shape is the interesting part: the outgoing half is always the *shorter*
  * one. A screen that is leaving should leave briskly — §3's sharper ease-in for
@@ -334,11 +352,11 @@ const REDUCED_HOLD_MS = 60;
 
 const TIMING: Readonly<Record<NavRelation, NavTiming>> = {
   arrive: { out: 0, inDelay: 0, in: 300 },
-  descend: { out: 170, inDelay: 60, in: 320 },
-  ascend: { out: 170, inDelay: 20, in: 320 },
-  sibling: { out: 160, inDelay: 50, in: 270 },
+  descend: { out: 170, inDelay: 0, in: 320 },
+  ascend: { out: 170, inDelay: 0, in: 320 },
+  sibling: { out: 160, inDelay: 0, in: 270 },
   curtain: { out: 200, inDelay: 110, in: 310 },
-  replace: { out: 130, inDelay: 30, in: 250 },
+  replace: { out: 130, inDelay: 0, in: 250 },
 };
 
 /**
@@ -455,6 +473,16 @@ const CURTAIN = { close: 170, open: 210, lead: 110 } as const;
  * playing for the whole of the block underneath it.
  */
 const HEAVY_BUILD_MS = 60;
+
+/**
+ * And above this many elements, a screen gets one too — measured after the
+ * build, before it is placed.
+ *
+ * See the note at the call site. The number the stopwatch cannot see is the
+ * cost of the *first painted frame*, and the only thing available at the moment
+ * that matters is how large the tree about to be inserted is.
+ */
+const HEAVY_NODES = 300;
 
 /**
  * How long the reveal will wait for a frame worth revealing on.
@@ -972,7 +1000,7 @@ export class Shell {
        * between holding a second of black on the way into the Collection and
        * holding a second of the world.
        */
-      const veiled =
+      let veiled =
         outgoing !== null &&
         (plan.relation === "curtain" || this.isHeavy(id) || this.isHeavy(outgoing.id));
 
@@ -1008,17 +1036,27 @@ export class Shell {
       }
 
       /**
-       * Light the room first. The crossfade behind the UI is 900ms and the
-       * transition in front of it is 380 — starting the slower one first is
-       * what makes them land together, and it is the difference between
-       * "the background changed too" and "you walked into another room".
-       * It is a compositor opacity animation on two pre-painted layers, so it
-       * is also the one thing here that keeps running through a blocked thread.
+       * The cover goes up before anything else that can take the thread.
+       *
+       * It used to be raised after `enterRoom`, and that ordering cost it 96
+       * milliseconds: traced on `collection` back to `lobby`, the first rAF gap
+       * opened at t=2 and the curtain element was not appended until t=98 —
+       * inside the block it existed to cover. Lighting the room forces a reflow
+       * to restart the crossfade, which is exactly the kind of work a cover is
+       * supposed to be in front of rather than behind.
+       */
+      if (veiled && outgoing) this.raiseCurtain(plan, routeNode(id).room);
+
+      /**
+       * Light the room. The crossfade behind the UI is 900ms and the transition
+       * in front of it is 320 — starting the slower one first is what makes
+       * them land together, and it is the difference between "the background
+       * changed too" and "you walked into another room". It is a compositor
+       * opacity animation on two pre-painted layers, so it is also one of the
+       * two things here that keep running through a blocked thread.
        */
       const world = getAtmosphere();
       world?.enterRoom(routeNode(id).room);
-
-      if (veiled && outgoing) this.raiseCurtain(plan, routeNode(id).room);
 
       /**
        * Two frames, and now they are paid on **every** navigation.
@@ -1054,7 +1092,33 @@ export class Shell {
          * the lit, roomed, grained cover it already had.
          */
         if (this.curtain && plan.relation === "curtain") {
-          dressMatchCurtain(this.curtain, id, params);
+          /**
+           * ...and then wait for it to be *composited*, which is the whole of it.
+           *
+           * The ordering above was already right and the result was still a dead
+           * screen, because appending an element does not put it on the
+           * compositor — a style, layout and paint pass does, and the very next
+           * statement here disappears into a battle constructor for the better
+           * part of a second. Filmed with a CDP screencast at 1280×720 on a warm
+           * module cache: curtain closed by t=248ms, then **1041ms** in which the
+           * mean frame-to-frame delta was 0.00–0.05/255 and the largest single
+           * pixel change anywhere on screen was 3/255, and the billing — which
+           * had been in the DOM since t≈40ms — did not produce its first pixel
+           * until t=1316ms, the frame the factory let go of the thread. Its 620ms
+           * staged entrance and its 8s breathe then had 630ms of the hold left to
+           * run in. The card was assembled, correct and invisible.
+           *
+           * Two more frames costs ~32ms of a wait that is measured in seconds and
+           * buys every one of those seconds a lit, moving, named screen: the
+           * portraits and plates are on the compositor before the block starts,
+           * so their entrance and their idle keep playing straight through it,
+           * exactly as the curtain's own `translate3d` already did.
+           */
+          performance.mark("dress:start");
+          const drew = dressMatchCurtain(this.curtain, id, params);
+          performance.mark(`dress:end:${String(drew)}`);
+          if (drew) await twoFrames();
+          performance.mark("dress:composited");
         }
       }
 
@@ -1066,17 +1130,71 @@ export class Shell {
        */
       const startedBuild = now();
       const screen = await factory(params);
-      this.buildCost.set(id, now() - startedBuild);
+      const buildMs = now() - startedBuild;
+      this.buildCost.set(id, buildMs);
 
       /**
-       * One frame between the build and the move, and it is not politeness.
+       * ## The cover can be raised *after* the build, and on a first visit it
+       * has to be
        *
-       * See `nextFrame`. A constructor, `place()` and the browser's first paint
-       * of a whole new screen inside one task is a single window in which the
-       * page is unaccountable — 228ms on `lobby → missions`, 231ms on
-       * `collection → lobby` — and splitting it is worth one frame of latency.
+       * Traced on a real click through to Missions with a rAF probe and a
+       * long-task observer, first visit of the session:
+       *
+       *     t=149  the hold starts
+       *     t=296  the missions element enters the document
+       *     t=737  the first frame anybody saw of either animation
+       *
+       * The constructor is the 147ms in the middle. The **441ms** after it is
+       * the browser laying out and painting a screen with sixty animated
+       * children in it, and no amount of reordering inside this file makes that
+       * frame cheaper. It is also the window that fails `never-a-blank-frame`'s
+       * "never looks away from an uncovered navigation": over 200ms with
+       * nothing sampled and nothing covering it.
+       *
+       * `isHeavy` cannot help, because it is asked before the build and a first
+       * visit is exactly the navigation no measurement exists for. But the
+       * stopwatch that has just stopped *is* a measurement, and it predicts the
+       * paint that follows rather well — a constructor that built enough DOM to
+       * cost 147ms has built enough DOM to be expensive to draw. So a build
+       * that comes in over the threshold raises the cover here, before the
+       * element is placed, and the paint happens behind it.
+       *
+       * The cover is a cross-fade rather than a closing curtain, and the
+       * difference is deliberate: the panels never travelled, so nothing should
+       * pretend they did. What the player sees is a click, a parent receding,
+       * and then — only when the machine genuinely needed a moment — a lit
+       * surface coming up over it. On the second visit `isHeavy` knows, and the
+       * full curtain closes from the first frame instead.
        */
-      if (outgoing) await nextFrame();
+      /**
+       * How much of a screen there is, which is the other half of the predictor.
+       *
+       * `buildMs` alone was not enough and the counter-example is instructive:
+       * Missions constructs in well under the threshold on a warm module graph
+       * and then costs **392ms** to lay out and paint, because what it built was
+       * 350 elements carrying sixty entrance animations. A constructor's elapsed
+       * time measures how hard the *script* worked; the frame that follows is
+       * priced by how much DOM it was handed.
+       *
+       * 300 sits between the screens that measure fine — the lobby at 179, Play
+       * at 200, Mastery at 213 — and the ones that do not: Missions at 350, the
+       * Collection at 1,529. It is a prior for the first visit only; the line
+       * below records what the navigation actually cost, paint included, so from
+       * the second visit onward the answer is measured rather than guessed.
+       */
+      const nodes = screen.root.getElementsByTagName("*").length;
+      void nextFrame().then(() => {
+        const settled = now() - startedBuild;
+        if (settled > (this.buildCost.get(id) ?? 0)) this.buildCost.set(id, settled);
+      });
+
+      if (!veiled && outgoing !== null && (buildMs >= HEAVY_BUILD_MS || nodes >= HEAVY_NODES)) {
+        this.raiseCurtain(plan, routeNode(id).room, true);
+        veiled = true;
+        await twoFrames();
+      } else if (outgoing) {
+        await nextFrame();
+      }
 
       /**
        * Both halves, declared in one task, so they share a start frame.
@@ -1509,8 +1627,21 @@ export class Shell {
       if (animationEnded && released) complete();
     };
 
+    /**
+     * The hold's own ending is not the exit's ending, and conflating them
+     * deleted the outgoing screen.
+     *
+     * Declaring `<relation>-out` replaces `<relation>-hold` on the same
+     * element, which **cancels** the hold — and `animationcancel` was being
+     * read here as "the exit is over". Measured the first time this ran:
+     * `missions → lobby` produced a frame containing one screen, the arriving
+     * lobby, at `opacity: 0.000`, because the departing child had been removed
+     * before its exit had been given a single frame; the `-out` animation never
+     * started at all and the trace recorded no exchange. Filtering on the name
+     * is enough — every hold in §2.0 ends in `-hold` and no exit does.
+     */
     const onEnd = (event: AnimationEvent): void => {
-      if (event.target !== root) return;
+      if (event.target !== root || event.animationName.endsWith("-hold")) return;
       animationEnded = true;
       maybeComplete();
     };
@@ -1604,13 +1735,23 @@ export class Shell {
    * back to the house violet and the forge and the market hold on the same
    * colour, which is the one thing a per-route lighting model exists to stop.
    */
-  private raiseCurtain(plan: NavPlan, room: AtmosphereRoom): void {
+  private raiseCurtain(plan: NavPlan, room: AtmosphereRoom, late = false): void {
     this.dropCurtain();
     const curtain = document.createElement("div");
     curtain.className = "nav-curtain";
     curtain.setAttribute("aria-hidden", "true");
     curtain.dataset["phase"] = "close";
     curtain.dataset["veil"] = plan.relation === "curtain" ? "battle" : "menu";
+    /**
+     * A cover the build asked for, rather than one the route table predicted.
+     *
+     * `late` means the panels are already shut and the whole element fades up
+     * where it stands — see §2.8 of `transitions.css`. Sliding two halves
+     * together at this point would be a lie about when the button was pressed;
+     * the honest gesture for "this is taking a moment" is a light coming on,
+     * and the part at the other end is identical either way.
+     */
+    if (late) curtain.dataset["arm"] = "late";
     curtain.style.setProperty("--nav-dur", `${CURTAIN.close}ms`);
     curtain.style.setProperty("--room-key", ROOMS[room].key);
     curtain.innerHTML =

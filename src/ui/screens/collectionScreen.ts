@@ -186,7 +186,60 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
    * they can already read and click — which is what §3a means by loading being
    * part of the world rather than a cover over it.
    */
-  painter.hold(DUR.ui + 220);
+  painter.hold(DUR.ui + 160);
+
+  /**
+   * And the hold is extended for exactly as long as a veil is up.
+   *
+   * A fixed duration is a guess about how long the shell will take, and the two
+   * numbers are coupled in the worst possible direction: the veil parts on two
+   * consecutive frames under 34ms, a card is 45ms, so a painter that wakes up
+   * one frame early keeps the veil closed for another whole card — and the
+   * measured 110ms reveal timer then lands inside that card and slips again.
+   * That is how a 2,332ms blackout is built out of parts none of which is
+   * longer than 250ms.
+   *
+   * Reading `.nav-curtain` from here is deliberate and is the narrowest possible
+   * coupling: one class name, read-only, and if the shell ever stops drawing one
+   * this degrades to the fixed hold above. The four clear frames afterwards
+   * cover the reveal's own 210ms so the first card does not land on top of the
+   * panels opening.
+   */
+  (function holdWhileVeiled(): void {
+    if (typeof requestAnimationFrame !== "function") return;
+    const deadline = performance.now() + 2600;
+    let clear = 0;
+    let wasVeiled = false;
+    const tick = (): void => {
+      if (performance.now() > deadline) return;
+      if (document.querySelector(".nav-curtain") !== null) {
+        wasVeiled = true;
+        painter.hold(220);
+        clear = 0;
+        requestAnimationFrame(tick);
+        return;
+      }
+      clear += 1;
+      /**
+       * The cascade is replayed onto the reveal, if there was one.
+       *
+       * `shell.ts::rewindEntrance` takes the destination's own `nav-*`
+       * animations back to frame zero so the curtain opens on a screen arriving
+       * rather than a screen that has arrived — and it can only see animations
+       * named `nav-*`, which the tile cascade is deliberately not. So the grid's
+       * own 34ms diagonal wave, the single change §3a calls "the biggest
+       * perceived-quality gap between a hobby menu and a shipped one", ran
+       * underneath an opaque veil on every veiled entry and no player has seen
+       * it. Re-arming it on the frame the veil clears costs one class toggle per
+       * visible tile.
+       */
+      if (clear === 1 && wasVeiled && motionEnabled()) cascade(shownCells());
+      if (clear >= 4) return;
+      painter.hold(150);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  })();
 
   // ---- filter rail ---------------------------------------------------------
 
@@ -384,7 +437,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
    * who clicks a chip and stops sees the new cards land immediately after.
    */
   function refilter(): void {
-    painter.hold(200);
+    painter.hold(DUR.ui + 60);
     render();
   }
 
@@ -744,7 +797,10 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   function paint(entry: Cell): void {
     if (entry.canvas) return;
     if (trackWidth === 0) trackWidth = tileWidth(entry.root, 168);
+    const __t0 = performance.now();
     const canvas = renderCardToCanvas(entry.card, trackWidth, {});
+    const __w = window as unknown as { __cardMs?: number[] };
+    (__w.__cardMs ??= []).push(Math.round(performance.now() - __t0));
     entry.canvas = canvas;
     entry.slot.replaceWith(canvas);
   }

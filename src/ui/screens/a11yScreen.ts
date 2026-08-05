@@ -56,18 +56,29 @@ const MODE_LABEL: Record<ColorblindMode, string> = {
  * the one screen where leaving a gap unexplained does the most harm, because a
  * player who needs a control will keep looking for it.
  */
+/*
+ * Nothing in this table may print a specification reference.
+ *
+ * Three of these rows shipped "§11's 34 cues", "§14's Board Mirror" and "§13's
+ * zone model" as player copy, on the one screen whose whole subject is being
+ * plainly readable. No shipped game prints its own design-document section
+ * numbers, and `unspec` in the kit exists to strip them where they leak — but
+ * the right fix for authored copy is to write the sentence without one, because
+ * `unspec` substitutes "the design" and leaves prose that is a shade vaguer
+ * than what a player deserves here.
+ */
 export const DEFERRED_A11Y: ReadonlyMap<string, string> = new Map([
   [
-    "Eight of §11's 34 cues",
-    "the cues themselves are built and synthesised, so they need no audio files at all — but eight rows of §11's table describe events this build does not produce. Two are the 15-second turn rope, which the offline board does not run; two need the trigger queue to emit per-step events, which it does not; three need the network transport; and the pack-rarity escalation wants timbres tuned against art that does not exist. `DEFERRED_CUES` names each one",
+    "Eight of the 34 audio cues",
+    "the cues themselves are built and synthesised, so they need no audio files at all — but eight of them describe events this build does not produce. Two are the 15-second turn rope, which the offline board does not run; two need the trigger queue to report each step, which it does not; three need the network; and the pack-rarity escalation wants timbres tuned against art that does not exist yet. Every one of the eight is named in the build's own cue list",
   ],
   [
     "Screen-reader support",
-    "the board is a three.js canvas with no accessibility tree; §14's Board Mirror — a parallel DOM description of the same state — is the design's answer and is not built",
+    "the board is a single drawn canvas with no accessibility tree behind it. The answer is a Board Mirror — a parallel, readable description of the same board, kept in step with it — and that is designed and not yet built",
   ],
   [
     "Keyboard play on the battle board",
-    "§13's zone model, key map and interaction state machine are a mode of their own; keyboard navigation works across every menu screen, and the board is still pointer-only",
+    "moving between zones, picking a target and confirming with the keyboard is a whole input mode rather than a set of shortcuts. Keyboard navigation works across every menu screen; the board itself is still pointer-only",
   ],
   ["Controller support and remapping", "no gamepad handling exists yet, and a remap editor with nothing to remap would be a lie"],
   ["Subtitle size, background and sound captions for voice", "there are no voice lines recorded, so there is nothing to caption"],

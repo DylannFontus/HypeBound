@@ -64,6 +64,7 @@ import {
   artworkTexture,
   beamTexture,
   bloomOf,
+  litBrandTexture,
   bokehTexture,
   cityTexture,
   crowdTexture,
@@ -1167,7 +1168,19 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
   function setMark(source: BrandSource): void {
     if (markLive) return;
     const map = artworkTexture(source);
-    attach(mark, map);
+    /**
+     * The plate is lit; the sheens and the halos are not.
+     *
+     * `litBrandTexture` puts the house's 315 degree key, a rim, a lip and grain
+     * onto the artwork — see the long note there for what the mark photographed
+     * as without them. The sheen copies keep the *raw* map on purpose: they are
+     * additive, clipped to a travelling band, and their whole job is to add
+     * light, so handing them a texture that already has a dark bottom-right lip
+     * baked in would sweep a shadow across the mark instead of a highlight. The
+     * halos likewise blur the unlit artwork, because a halo is the light coming
+     * off the object rather than a picture of the object.
+     */
+    attach(mark, litBrandTexture(source) ?? map);
     for (const sheen of markSheens) attach(sheen, map);
     const tight = bloomOf(source, 0.012);
     const wide = bloomOf(source, 0.05);
@@ -1183,7 +1196,14 @@ export function createIntroStage(host: HTMLElement, options: StageOptions): Intr
   function setWordmark(source: BrandSource): void {
     if (wordLive) return;
     const map = artworkTexture(source);
-    attach(word, map);
+    /**
+     * Gentler than the mark, and for a reason a shared number would have got
+     * wrong. The mark is a solid plate a hand's width across, so it can carry a
+     * full bevel; the wordmark is letterforms, and a 0.7% rim on a letter's
+     * stroke is a proportionally much heavier edge. Half the key and two thirds
+     * of the bevel reads as the same carved material at the same light.
+     */
+    attach(word, litBrandTexture(source, { key: 0.14, shade: 0.2, rim: 0.34, lip: 0.28, grain: 0.03 }) ?? map);
     for (const sheen of wordSheens) attach(sheen, map);
     /**
      * The reflection is a *blurred* copy, flipped, with the fade baked in.

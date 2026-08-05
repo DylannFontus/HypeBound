@@ -15,8 +15,34 @@
 import type { CardDef, ContentIndex, MatchState, PlayerView } from "../../engine/types";
 import { checkPlayable } from "../../engine/intents";
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
+import { renderCardBackToCanvas } from "../cardRenderer/renderCardBack";
 import { CARD_H, CARD_W } from "../cardRenderer/palette";
 import { HOLD_MS, HOLD_TOLERANCE_PX } from "./gestures";
+import { cardBackStyleFor } from "./cardMesh";
+import { motionEnabled, stagger } from "../motion";
+
+/**
+ * The player's own back, as a data URI, built once for the whole session.
+ *
+ * Every card dealt into the hand turns over from its back, so every card needs
+ * one — and rendering a second 260px canvas per card would put the cost of the
+ * flip inside the frame the cascade is trying to keep smooth. It is the same
+ * picture on all of them (the back is a property of the account, not of the
+ * card), the drawing is `cardRenderer`'s so it is the same object the 3D board
+ * flips over, and a `background-image` costs the compositor nothing after the
+ * first decode.
+ */
+let backImageUrl: string | null = null;
+function cardBackImage(): string {
+  if (backImageUrl === null) {
+    try {
+      backImageUrl = renderCardBackToCanvas(cardBackStyleFor(0) ?? { color: "#b56cff", emblem: "diamond" }, 0.62).toDataURL();
+    } catch {
+      backImageUrl = "";
+    }
+  }
+  return backImageUrl;
+}
 
 export interface HandBarCallbacks {
   /** pointer moved while dragging a card; return true if it is over a drop zone */
@@ -118,16 +144,30 @@ export class HandBar {
     const seen = new Set(hand.map((c) => c.instanceId));
 
     // drop entries whose cards have left the hand
+    const leaving: HTMLElement[] = [];
     for (const entry of [...this.entries]) {
       if (!seen.has(entry.instanceId)) {
-        entry.element.classList.add("leaving");
-        const node = entry.element;
-        window.setTimeout(() => node.remove(), 220);
+        leaving.push(entry.element);
         this.entries = this.entries.filter((e) => e !== entry);
       }
     }
+    /**
+     * A card that leaves the hand goes *to* somewhere. `--exit-x/y` point at the
+     * discard tray on the mat; the keyframe carries it there, shrinking and
+     * turning face-down, instead of the old `translateY(-70px)` fade that sent
+     * every discard vertically off the top of the screen towards nothing at all.
+     *
+     * Aimed before the class goes on, so the keyframe has its destination on the
+     * frame it starts rather than one frame later.
+     */
+    this.aimAtPile(leaving, "discard", "--exit-x", "--exit-y");
+    for (const node of leaving) {
+      node.classList.add("leaving");
+      window.setTimeout(() => node.remove(), 520);
+    }
 
     // add new cards
+    const arriving: HTMLElement[] = [];
     for (const instance of hand) {
       if (this.entries.some((e) => e.instanceId === instance.instanceId)) continue;
       const card = this.content.cards[instance.cardId];
@@ -135,6 +175,28 @@ export class HandBar {
       const element = this.createCardElement(card, instance.instanceId);
       this.entries.push({ instanceId: instance.instanceId, cardId: instance.cardId, element, playable: false });
       this.root.appendChild(element);
+      arriving.push(element);
+    }
+
+    /**
+     * The cascade, on **every** deal rather than only on the opening hand.
+     *
+     * `battleView.playCurtain()` staggered the mulligan's seven cards and
+     * nothing staggered the ones drawn on turns two through twenty, so the most
+     * repeated arrival in the game was the one with no timing on it. Measured
+     * before: six `hand-card-in` events at an identical millisecond. The step is
+     * shorter than the curtain's 45ms because a two-card draw wants to read as
+     * one gesture, and `max` keeps a ten-card refill inside a set-piece.
+     *
+     * Written here and not in the view, so a card arriving from any cause — a
+     * draw, a Reaction returning, a shuffled copy — gets the same treatment.
+     */
+    if (arriving.length > 0) {
+      const opening = arriving.length === this.entries.length && arriving.length >= 4;
+      stagger(
+        arriving,
+        opening ? { step: 45, from: 90, max: 420 } : { step: 38, from: 0, max: 320 }
+      );
     }
 
     /**
@@ -165,6 +227,10 @@ export class HandBar {
     this.refreshPlayability();
     this.applyKeyboardFocus();
     this.layout();
+    // The fan has been re-pitched; whichever card the pointer is still over has
+    // new neighbours, and a card that left the hand may have left its shove on
+    // one of them.
+    this.spreadAround(this.entries.some((e) => e.instanceId === this.hovered) ? this.hovered : null);
   }
 
   /**
@@ -212,13 +278,41 @@ export class HandBar {
       { capture: true }
     );
 
+    /**
+     * The card is a two-sided object now, so it has an axis to turn about.
+     *
+     * `.hand-card` keeps the fan (its `--tilt`/`--lift` transform) and the
+     * entrance travel (the independent `translate`/`scale` properties, which
+     * compose with `transform` rather than replacing it). The inner wrapper owns
+     * the *turn*, because a `rotateY` on the same element as the fan rotation
+     * would have to restate the fan in every keyframe and would fight the hover.
+     *
+     * Face and back are the same object drawn by `cardRenderer`, exactly as the
+     * 3D board's flip is — the back was already authored beside the face for
+     * that reason and this is the second consumer of it.
+     */
+    const flip = document.createElement("div");
+    flip.className = "hand-card-flip";
+
     // renderCardToCanvas sets an inline width/height for standalone use; the
     // hand sizes its cards from the bar height in CSS, and inline styles would
     // win over the stylesheet, so clear them.
     const canvas = renderCardToCanvas(card, 260);
     canvas.style.width = "";
     canvas.style.height = "";
-    element.appendChild(canvas);
+    flip.appendChild(canvas);
+
+    const back = document.createElement("div");
+    back.className = "hand-card-back";
+    back.setAttribute("aria-hidden", "true");
+    const backSrc = cardBackImage();
+    if (backSrc) back.style.backgroundImage = `url("${backSrc}")`;
+    flip.appendChild(back);
+
+    element.appendChild(flip);
+
+    element.addEventListener("pointerenter", () => this.spreadAround(instanceId));
+    element.addEventListener("pointerleave", () => this.spreadAround(null));
 
     element.addEventListener("pointerdown", (event) => {
       if (event.button === 2) return;
@@ -249,6 +343,121 @@ export class HandBar {
       entry.element.classList.toggle("unplayable", !result.ok && yourTurn);
       const card = this.content.cards[entry.cardId];
       entry.element.title = card ? `${card.name} — ${card.text}` : "";
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Where the piles are, and how a card gets to and from one
+  // -------------------------------------------------------------------------
+
+  /**
+   * The deck and the discard, in viewport pixels, read off the document root.
+   *
+   * `BattleView` projects both piles every sync and writes them as custom
+   * properties, because it is the only thing that owns a camera and this strip
+   * is deliberately outside the 3D scene. Reading them back through
+   * `getComputedStyle` costs one style resolution per layout — the same layout
+   * that already reads `offsetWidth` — rather than one per card, and inherited
+   * custom properties mean the bar does not have to know which element the view
+   * chose to write on.
+   *
+   * `null` when the board has not projected yet (the very first sync, and every
+   * unit test), which is what makes the plain fade below a real fallback rather
+   * than a bug that only shows up without a GPU.
+   */
+  private pileOrigin(which: "deck" | "discard"): { x: number; y: number } | null {
+    const style = getComputedStyle(this.root);
+    const x = Number.parseFloat(style.getPropertyValue(`--pile-${which}-x`));
+    const y = Number.parseFloat(style.getPropertyValue(`--pile-${which}-y`));
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  }
+
+  /**
+   * Point one card's travel at a pile, as a delta from where it will rest.
+   *
+   * A delta rather than an absolute position because the keyframe has to end on
+   * the card's own fanned transform, and a card in the hand is placed by `left`
+   * plus a rotation about its bottom edge — so "fly here from there" is only
+   * expressible as an offset the animation unwinds to zero.
+   */
+  private aimAtPile(elements: HTMLElement[], which: "deck" | "discard", xVar: string, yVar: string): void {
+    if (elements.length === 0) return;
+    const pile = this.pileOrigin(which);
+    if (!pile) {
+      for (const element of elements) {
+        element.style.removeProperty(xVar);
+        element.style.removeProperty(yVar);
+      }
+      return;
+    }
+    /**
+     * `offset*` and not `getBoundingClientRect()`, and the difference is the
+     * whole measurement.
+     *
+     * A rect reports the box *after* transforms, and the card whose origin we
+     * are computing is mid-entrance — at t=0 the keyframe has it at 38% scale
+     * and off toward the deck, so a rect would hand back a box that is neither
+     * where the card will rest nor the size it will be, and the flight would aim
+     * from somewhere further away on every recomputation. `offsetLeft/Top` are
+     * layout positions inside `.hand-bar`, which is exactly where a card lands.
+     *
+     * Every read happens before every write, because the writes are custom
+     * properties and each one invalidates style — interleaved, seven cards would
+     * be seven forced layouts of the strip.
+     */
+    const bar = this.root.getBoundingClientRect();
+    const deltas: { element: HTMLElement; x: number; y: number }[] = [];
+    for (const element of elements) {
+      const w = element.offsetWidth;
+      const h = element.offsetHeight;
+      if (w === 0 && h === 0) continue;
+      deltas.push({
+        element,
+        x: Math.round(pile.x - (bar.left + element.offsetLeft + w / 2)),
+        y: Math.round(pile.y - (bar.top + element.offsetTop + h / 2)),
+      });
+    }
+    for (const delta of deltas) {
+      delta.element.style.setProperty(xVar, `${delta.x}px`);
+      delta.element.style.setProperty(yVar, `${delta.y}px`);
+    }
+  }
+
+  /**
+   * Push the cards either side of the read out of its way.
+   *
+   * §3a asks for neighbours that give way; measured before this, cards 2 and 4
+   * of seven held `matrix(0.995671, ∓0.0929499, …)` while card 3 was hovered —
+   * byte-identical to their resting transform. The hovered card simply grew over
+   * the top of them, so a 1.3× lift read as occlusion rather than as depth.
+   *
+   * Driven from here rather than from a CSS sibling rule because **DOM order is
+   * not visual order** in this bar: `layout()` places cards by `left` and
+   * `z-index` and deliberately never re-appends them (see `sync`), so
+   * `.hand-card:hover + .hand-card` would push whichever card happened to be
+   * inserted next, which after two turns is any card at all.
+   *
+   * The magnitude follows the fan's own direction — left of the read goes left,
+   * right goes right — and the second ring gets a third of it, which is what
+   * turns a shove into a spread.
+   */
+  private hovered: string | null = null;
+
+  private spreadAround(instanceId: string | null): void {
+    this.hovered = instanceId;
+    const centre = instanceId === null ? -1 : this.entries.findIndex((e) => e.instanceId === instanceId);
+    for (const [index, entry] of this.entries.entries()) {
+      const distance = centre < 0 ? 99 : index - centre;
+      const magnitude = Math.abs(distance) === 1 ? 1 : Math.abs(distance) === 2 ? 0.34 : 0;
+      if (magnitude === 0 || !motionEnabled()) {
+        entry.element.style.removeProperty("--spread-x");
+        entry.element.style.removeProperty("--spread-y");
+        continue;
+      }
+      const direction = distance < 0 ? -1 : 1;
+      entry.element.style.setProperty("--spread-x", `${Math.round(direction * 13 * magnitude)}px`);
+      entry.element.style.setProperty("--spread-y", `${Math.round(5 * magnitude)}px`);
     }
   }
 
@@ -322,6 +531,23 @@ export class HandBar {
       entry.element.style.setProperty("--tilt", `${t * 2 * maxTilt}deg`);
       entry.element.style.setProperty("--lift", `${-(1 - Math.abs(t) * 2) * arc}px`);
     });
+
+    /**
+     * ...and then point the ones still arriving back at the deck they came out
+     * of, now that they know where they are going to land.
+     *
+     * It runs inside `layout()` rather than once at creation for two reasons:
+     * the card has no rect until it has a `left`, and a resize mid-cascade would
+     * otherwise leave a card flying to a slot that has moved. `data-new` is
+     * cleared by `animationend`, so this touches at most the cards genuinely in
+     * the air and is a no-op for a settled hand.
+     */
+    this.aimAtPile(
+      this.entries.filter((e) => e.element.dataset["new"] !== undefined).map((e) => e.element),
+      "deck",
+      "--from-x",
+      "--from-y"
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -346,8 +572,30 @@ export class HandBar {
     const card = this.content.cards[this.cardIdOf(instanceId)];
     const ghost = document.createElement("div");
     ghost.className = "hand-drag-ghost";
+    /**
+     * The shadow is a sibling of the card rather than a `filter` on it, because
+     * it has to *separate*. A drop-shadow filter is welded to the object: it
+     * moves with the card and can only get softer, so lifting a card off the mat
+     * looked exactly like sliding it along the mat. This one is its own
+     * composited layer under the card, and `.lifted` grows and fades it in the
+     * same beat the card scales up — which is the whole read of picking
+     * something up.
+     */
+    const shadow = document.createElement("div");
+    shadow.className = "hand-drag-shadow";
+    shadow.setAttribute("aria-hidden", "true");
+    ghost.appendChild(shadow);
     if (card) {
-      const ghostCanvas = renderCardToCanvas(card, 200);
+      /**
+       * Rendered larger than the hover, not smaller than the rest.
+       *
+       * It was 200px against a resting card of 118×158 and a hovered one of
+       * 154×205, so the *carried* state — the one the player is actively holding
+       * — was the smallest of the three. Recon defect 19. The height is set in
+       * CSS from `--hand-hover-scale` so the two can never drift again; this
+       * number only has to be enough resolution for it.
+       */
+      const ghostCanvas = renderCardToCanvas(card, 320);
       ghostCanvas.style.width = "";
       ghostCanvas.style.height = "";
       ghost.appendChild(ghostCanvas);
@@ -355,8 +603,16 @@ export class HandBar {
     document.body.appendChild(ghost);
 
     element.classList.add("dragging");
+    // The card being carried is not in the fan any more, so nothing should be
+    // getting out of its way down there.
+    this.spreadAround(null);
     this.dragging = { instanceId, ghost, pointerId: event.pointerId };
+    this.ghostSwing = 0;
+    this.ghostAt = { x: event.clientX, y: event.clientY, t: performance.now() };
     this.moveGhost(event.clientX, event.clientY);
+    // One frame later, so the transition has a `from` to run out of: the card
+    // rises off the mat and its shadow drops away from it.
+    requestAnimationFrame(() => ghost.classList.add("lifted"));
 
     this.callbacks.onDragStart(instanceId);
 
@@ -433,9 +689,35 @@ export class HandBar {
     return this.entries.find((e) => e.instanceId === instanceId)?.cardId ?? "";
   }
 
+  /** Smoothed horizontal pointer speed, as a tilt in degrees. */
+  private ghostSwing = 0;
+  private ghostAt = { x: 0, y: 0, t: 0 };
+
+  /**
+   * Follow the pointer, and lag behind it.
+   *
+   * A card carried by a hand is not rigid: it trails the direction of travel and
+   * settles back to vertical when the hand stops. The ghost used to be a pure
+   * `translate`, which is the one thing that makes a dragged object read as a
+   * cursor decoration rather than as a held card. The swing is low-passed at
+   * 0.22 so a jittery mouse does not shake it, clamped to 15° so a fast flick
+   * cannot spin it, and it decays to zero on its own because a stationary
+   * pointer keeps feeding in a velocity of nought.
+   */
   private moveGhost(x: number, y: number): void {
     if (!this.dragging) return;
-    this.dragging.ghost.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+    const now = performance.now();
+    const dt = Math.max(8, now - this.ghostAt.t);
+    if (motionEnabled()) {
+      const speed = ((x - this.ghostAt.x) / dt) * 1000; // px per second
+      const target = Math.max(-15, Math.min(15, speed * 0.014));
+      this.ghostSwing += (target - this.ghostSwing) * 0.22;
+    } else {
+      this.ghostSwing = 0;
+    }
+    this.ghostAt = { x, y, t: now };
+    this.dragging.ghost.style.transform =
+      `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${this.ghostSwing.toFixed(2)}deg)`;
   }
 
   /**
@@ -448,6 +730,13 @@ export class HandBar {
     const drag = this.dragging;
     if (!drag || drag.ghost.style.visibility === "hidden") return null;
     const ghost = drag.ghost;
+    /**
+     * Let go of the swing before handing it over. The token that replaces this
+     * element is placed axis-aligned at the ghost's centre, and a 12° tilt in
+     * the outgoing half of a 90ms cross-fade is the one frame where the two are
+     * visibly different objects.
+     */
+    ghost.style.transform = ghost.style.transform.replace(/\s*rotate\([^)]*\)/, "");
     this.dragging = { ...drag, ghost: document.createElement("div") };
     return ghost;
   }

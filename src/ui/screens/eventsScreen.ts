@@ -139,18 +139,37 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
             <span class="event-currency-name">${esc(event.currency.name)}</span>
             <span class="event-earned">${count(view.earned)} earned in total</span>
           </div>
+          <!--
+            One hero, and it belongs to the event.
+
+            This was three co-equal .mat-hero pills — Practice match / Boss
+            fight / Puzzle run — under a teal HYPECON banner, in a magenta that
+            appears nowhere else in the event's palette. §6 allows one hero
+            accent per screen and this was three, sharing the row with a fourth
+            control; at a squint the brightest mass on the page was a hat-trick
+            of identical lozenges saying three different things of equal weight.
+
+            The event's *first* featured mode is the play button and it stays a
+            hero — the screen exists to be played — but it is ringed and lit in
+            the event's own accent, so the brightest object on the page is tied
+            to the banner above it. The alternates become row-level .d-go
+            marks in the same accent: still one tap, no longer three heroes.
+          -->
           <div class="event-actions">
-            <button type="button" class="mat-chip act r-chip" data-rules="${esc(event.id)}">
-              ${icon("info", 14)} Event rules
-            </button>
             ${event.featuredModes
-              .map(
-                (mode) =>
-                  `<button type="button" class="mat-hero act r-chip event-play" data-mode="${esc(mode)}">
-                     ${icon("play", 14)} ${esc(modeAction(mode))}
-                   </button>`
+              .map((mode, index) =>
+                index === 0
+                  ? `<button type="button" class="mat-hero act r-chip event-play is-primary" data-mode="${esc(mode)}">
+                       ${icon("play", 14)} ${esc(modeAction(mode))}
+                     </button>`
+                  : `<button type="button" class="d-go event-play" data-mode="${esc(mode)}">
+                       ${icon("play", 14)} ${esc(modeAction(mode))} ${icon("chevron-right", 15, "d-go-arrow")}
+                     </button>`
               )
               .join("")}
+            <button type="button" class="mat-chip act r-chip event-rules" data-rules="${esc(event.id)}">
+              ${icon("info", 14)} Event rules
+            </button>
           </div>
         </div>
       </article>
@@ -182,9 +201,18 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
                 mission.claimed
                   ? `<span class="event-claimed">${icon("check", 14)} Claimed</span>`
                   : mission.claimable
-                    ? `<button type="button" class="mat-hero act r-chip event-claim" data-claim="${esc(event.id)}|${esc(
+                    ? /*
+                       * A claim is a reward, and rewards are struck in gold
+                       * everywhere else in the product — `.d-badge`, the
+                       * mastery rungs, the pass. Four of these used to be
+                       * `.mat-hero`, which put four more magenta pills on a
+                       * screen that already had three.
+                       */
+                      `<button type="button" class="d-claim mat-chip act r-chip event-claim" data-claim="${esc(event.id)}|${esc(
                         mission.id
-                      )}">Claim ${currencyMark(view, 14)} <span class="num">${count(mission.reward)}</span></button>`
+                      )}">${icon("chest", 14)} Claim ${currencyMark(view, 14)} <span class="num">${count(
+                        mission.reward
+                      )}</span></button>`
                     : `<span class="event-progress num">${Math.round(mission.fraction * 100)}%</span>`
               }
             </div>
@@ -209,7 +237,8 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
             <span class="event-shop-cost">${currencyMark(view)}<span class="num">${count(
               row.entry.cost
             )}</span></span>
-            <button type="button" class="mat-hero act r-chip event-buy" data-buy="${esc(event.id)}|${esc(
+            <!-- One per shop row, five rows: a chip, not a hero. -->
+            <button type="button" class="mat-chip act r-chip event-buy" data-buy="${esc(event.id)}|${esc(
               row.entry.id
             )}" ${row.affordable && !row.soldOut ? "" : "disabled"}>Buy</button>
           </li>`

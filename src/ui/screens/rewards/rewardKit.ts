@@ -43,9 +43,9 @@
 import type { ContentIndex } from "../../../engine/types";
 import type { CardBackStyle, EmblemShape } from "../../cosmetics/emblem";
 import { cosmeticById } from "../../../game/cosmetics";
-import { renderCardBackToCanvas } from "../../cardRenderer/renderCardBack";
+import { artIsReady, artSpec, cardBackSpec, resolveArt, type ArtMotif } from "./rewardArt";
 import { icon, type IconId } from "../../art/uiIcons";
-import { DUR, EASE, cssEase, motionEnabled, scaledDuration, tickerTo } from "../../motion";
+import { DUR, EASE, cssEase, motionEnabled, scaledDuration, stagger, tickerTo } from "../../motion";
 import { num as formatNumber } from "../../format";
 
 /* -------------------------------------------------------------------------
@@ -168,6 +168,48 @@ export function syncWallets(root: ParentNode): void {
     slot.textContent = formatNumber(previous);
     tickerTo(slot, target, WALLET_TICK_MS);
   }
+}
+
+/**
+ * Push new balances into the chips that are already on screen, and count them.
+ *
+ * The companion to not re-rendering: a claim changes the wallet, and the wallet
+ * is the one thing on the screen that has to move when it does. `syncWallets`
+ * reads the value off the chip's own `data-value`, so a patched claim writes it
+ * here and gets the ratchet for nothing.
+ */
+export function updateWallet(root: ParentNode, values: Partial<Record<CoinKind, number>>): void {
+  for (const [kind, value] of Object.entries(values)) {
+    if (value === undefined) continue;
+    for (const chip of root.querySelectorAll<HTMLElement>(`[data-wallet="${kind}"]`)) {
+      chip.dataset["value"] = String(value);
+    }
+  }
+  syncWallets(root);
+}
+
+/**
+ * Replace one row with freshly-built markup, and leave the rest of the page
+ * exactly where it was.
+ *
+ * The recon's sixth defect and the review that followed it both landed on the
+ * same sentence: every claim path in this domain called `render()`, which does
+ * `root.innerHTML = …`. Measured on a mission claim, that threw the scroller
+ * from `scrollTop: 561` to `0` and restarted about fifty ambient specular
+ * sweeps within a millisecond of the click, so the whole page swept in lockstep
+ * at the exact moment the player's attention was on one row. A rebuild is also
+ * the reason nothing in this domain could ever animate *across* a state change.
+ *
+ * One row, one parse, one swap. Everything else on the screen — scroll, focus,
+ * every animation's phase — is untouched because it was never re-created.
+ */
+export function patchRow(row: Element, html: string): HTMLElement | null {
+  const holder = document.createElement("template");
+  holder.innerHTML = html.trim();
+  const replacement = holder.content.firstElementChild as HTMLElement | null;
+  if (!replacement) return null;
+  row.replaceWith(replacement);
+  return replacement;
 }
 
 /* -------------------------------------------------------------------------
@@ -390,8 +432,17 @@ export interface RewardVisual {
   ink: string;
   name: string;
   qty?: number;
-  /** a real picture of the thing, where one can be drawn */
-  art?: string;
+  /**
+   * A drawing request for the real object, where one can be drawn.
+   *
+   * A *spec string* rather than a `data:` URI, and that is the whole fix for
+   * the navigation stall: resolving a card back here rendered a 512×680 canvas
+   * and PNG-encoded it **inside the frame the player changed screens on** —
+   * five of them for one Hype Wave render. The spec travels through `innerHTML`
+   * as an attribute and `rewardArt::paintRewardArt` fills it in afterwards,
+   * from a queue that does not start until the descend has finished.
+   */
+  spec?: string;
   /** which wallet a claim of this should fly into, if any */
   coin?: CoinKind;
 }
@@ -412,16 +463,73 @@ const COSMETIC_ICON: Readonly<Record<string, IconId>> = Object.freeze({
   emote: "emote",
 });
 
-/** Guess a cosmetic's kind from its name, for the ones with no resolvable ref. */
-function guessCosmeticKind(name: string): IconId {
+/** And which *object* is drawn for it — see `rewardArt.ts` for the drawings. */
+const COSMETIC_MOTIF: Readonly<Record<string, ArtMotif>> = Object.freeze({
+  frame: "frame",
+  title: "title",
+  badge: "badge",
+  emote: "emote",
+});
+
+/**
+ * What a cosmetic with no resolvable ref is, guessed from its own name.
+ *
+ * Eight of the Hype Wave's rewards are promises the build cannot pay yet — a
+ * leader skin, a battlefield, a music pack, an alternate-art variant — and they
+ * stay on the track deliberately, so the pass shows what it will be rather than
+ * pretending it is shorter. What they may not do is all look the same. This is
+ * the map from the words in the data to the object drawn for them, and every
+ * one of those objects is a different silhouette.
+ */
+function guessCosmetic(name: string): { icon: IconId; motif: ArtMotif } {
   const lower = name.toLowerCase();
-  if (lower.includes("card back") || lower.includes("card-back") || lower.includes("tint")) return "deck";
-  if (lower.includes("frame")) return "profile";
-  if (lower.includes("title")) return "star-filled";
-  if (lower.includes("emote")) return "emote";
-  if (lower.includes("portrait") || lower.includes("skin") || lower.includes("avatar")) return "profile";
-  if (lower.includes("board") || lower.includes("mat")) return "collection";
-  return "sparkle";
+  if (lower.includes("card back") || lower.includes("card-back") || lower.includes("tint"))
+    return { icon: "deck", motif: "back" };
+  if (lower.includes("frame")) return { icon: "profile", motif: "frame" };
+  if (lower.includes("title")) return { icon: "star-filled", motif: "title" };
+  if (lower.includes("emote")) return { icon: "emote", motif: "emote" };
+  if (lower.includes("music") || lower.includes("audio")) return { icon: "volume", motif: "music" };
+  if (lower.includes("variant") || lower.includes("alternate")) return { icon: "rarity", motif: "variant" };
+  if (lower.includes("skin") || lower.includes("portrait") || lower.includes("avatar"))
+    return { icon: "profile", motif: "portrait" };
+  if (lower.includes("battlefield") || lower.includes("board") || lower.includes("mat"))
+    return { icon: "collection", motif: "venue" };
+  return { icon: "sparkle", motif: "medallion" };
+}
+
+/** Canvas cannot read a custom property, and the medallion is drawn on canvas. */
+const RARITY_HEX: Readonly<Record<string, string>> = Object.freeze({
+  common: "#b8b2cc",
+  rare: "#4d9fff",
+  epic: "#c168ff",
+  legendary: "#ffb43d",
+});
+
+/**
+ * The season's own palette, for the rewards it has not named an object for.
+ *
+ * A season declares a colour, an emblem and a ramp of card-back tints, and the
+ * cosmetic resolver already exposes all of it — `cardBack:season:<id>:<n>` is
+ * tint n. So the filler that pays out thirty-five times across fifty tiers is
+ * struck in the season's own metal and stepped through its own ramp by tier
+ * band, which is a rhythm the rail can be read by rather than one sparkle
+ * repeated forty-seven times.
+ */
+function seasonLivery(
+  content: ContentIndex | undefined,
+  seasonId: string | undefined,
+  band: number,
+): { colour: string; emblem: EmblemShape } {
+  if (!content || !seasonId) return { colour: "#b56cff", emblem: "diamond" };
+  const stepped = band > 0 ? cosmeticById(content, `cardBack:season:${seasonId}:${band + 1}`) : null;
+  const base = stepped ?? cosmeticById(content, `cardBack:season:${seasonId}`);
+  if (base?.kind !== "cardBack") return { colour: "#b56cff", emblem: "diamond" };
+  return { colour: base.color, emblem: base.emblem ?? "diamond" };
+}
+
+export interface DescribeOptions {
+  /** Which tier this reward pays out on, so a repeated filler can still vary. */
+  tier?: number;
 }
 
 /**
@@ -432,11 +540,17 @@ function guessCosmeticKind(name: string): IconId {
  * II", "Animated profile portrait" — three cosmetics you are being asked to
  * grind for, described in words, in a grey box. The reference games all show you
  * the object.
+ *
+ * A census of the rebuilt track found that had only half happened: 86 of its
+ * 107 tiles were still one of two identical glyphs, and the only four that drew
+ * a preview were the card backs — because a card back was the only cosmetic
+ * anything knew how to draw. Every branch below now names an object.
  */
 export function describeReward(
   reward: AnyReward,
   content?: ContentIndex,
   seasonId?: string,
+  options: DescribeOptions = {},
 ): RewardVisual {
   switch (reward.kind) {
     case "clout":
@@ -448,13 +562,26 @@ export function describeReward(
     case "rerollTokens":
       return { icon: "refresh", ink: "var(--accent-cool)", name: "Rerolls", qty: reward.amount };
     case "pack":
-      return { icon: "merch-drop", ink: "var(--accent-hot)", name: "Merch Drop", qty: 1 };
+      /*
+       * A Merch Drop *is* five cards in the house back, and that object is
+       * already drawn for the shop's hero and for every pack the player tears.
+       * Showing the icon of a box instead was the tile telling you the name of
+       * the thing next to a picture of a different thing.
+       */
+      return {
+        icon: "merch-drop",
+        ink: "var(--accent-hot)",
+        name: "Merch Drop",
+        qty: 1,
+        spec: cardBackSpec(HOUSE_BACK, 0.2),
+      };
     case "pick":
       return {
         icon: "rarity",
         ink: `var(--rarity-${reward.rarity})`,
         name: `Pick a ${reward.rarity}`,
         qty: reward.copies > 1 ? reward.copies : undefined,
+        spec: artSpec("pick", RARITY_HEX[reward.rarity] ?? "#b8b2cc"),
       };
     case "cosmetic": {
       const ref = reward.ref && seasonId ? reward.ref.replace("{season}", seasonId) : reward.ref;
@@ -464,13 +591,38 @@ export function describeReward(
           icon: "deck",
           ink: cosmetic.color,
           name: reward.name,
-          art: cardBackThumb({ color: cosmetic.color, emblem: cosmetic.emblem ?? "diamond" }),
+          spec: cardBackSpec({ color: cosmetic.color, emblem: cosmetic.emblem ?? "diamond" }),
         };
       }
       if (cosmetic) {
-        return { icon: COSMETIC_ICON[cosmetic.kind] ?? "sparkle", ink: cosmetic.color, name: reward.name };
+        return {
+          icon: COSMETIC_ICON[cosmetic.kind] ?? "sparkle",
+          ink: cosmetic.color,
+          name: reward.name,
+          spec: artSpec(
+            COSMETIC_MOTIF[cosmetic.kind] ?? "medallion",
+            cosmetic.color,
+            (cosmetic.emblem as EmblemShape | undefined) ?? "diamond",
+          ),
+        };
       }
-      return { icon: guessCosmeticKind(reward.name), ink: "var(--accent-bright)", name: reward.name };
+      /*
+       * No ref: a promise the build cannot pay yet. It still gets an object,
+       * struck in the season's metal, and the band steps the colour along the
+       * season's tint ramp every ten tiers so the filler is not one bitmap.
+       */
+      const band = Math.min(4, Math.max(0, Math.floor(((options.tier ?? 1) - 1) / 10)));
+      const guess = guessCosmetic(reward.name);
+      const livery = seasonLivery(content, seasonId, band);
+      return {
+        icon: guess.icon,
+        ink: livery.colour,
+        name: reward.name,
+        spec:
+          guess.motif === "back"
+            ? cardBackSpec({ color: livery.colour, emblem: livery.emblem })
+            : artSpec(guess.motif, livery.colour, livery.emblem, band),
+      };
     }
   }
 }
@@ -494,18 +646,33 @@ export interface TileOptions {
   className?: string;
 }
 
-/** One reward, drawn: a picture, then a tabular quantity, then its name. */
+/**
+ * One reward, drawn: a picture, then a tabular quantity, then its name.
+ *
+ * The picture layer is its own element rather than a child of the art plate,
+ * and that is load-bearing: the plate also holds the quantity chip, and the
+ * deferred painter replaces the *picture's* children when the drawing lands.
+ * Swapping the plate's own children would take the "×3" with it.
+ */
 export function rewardTileHtml(visual: RewardVisual, options: TileOptions = {}): string {
   const state = options.state ?? "none";
   const artSize = options.art ?? 46;
   const art = typeof artSize === "number" ? `${artSize}px` : artSize;
-  const picture = visual.art
-    ? `<img src="${visual.art}" alt="" loading="lazy" decoding="async">`
+  /*
+   * A spec that has been drawn before is inlined here and now — a claim
+   * re-renders the whole screen, and a tile whose picture arrived through the
+   * queue on every one of those renders would fade the entire track back in
+   * every time the player pressed Claim.
+   */
+  const ready = visual.spec && artIsReady(visual.spec) ? resolveArt(visual.spec) : "";
+  const picture = ready
+    ? `<img src="${ready}" alt="" decoding="async" draggable="false">`
     : icon(visual.icon);
   return (
     `<div class="rw-tile ${options.className ?? ""}"${state === "none" ? "" : ` data-state="${state}"`}` +
     `${options.title ? ` title="${esc(options.title)}"` : ""}>` +
-    `<div class="rw-tile-art" style="--tile-ink:${visual.ink};--tile-art:${art}">${picture}` +
+    `<div class="rw-tile-art" style="--tile-ink:${visual.ink};--tile-art:${art}">` +
+    `<span class="rw-art"${visual.spec && !ready ? ` data-rw-art="${esc(visual.spec)}"` : ""}>${picture}</span>` +
     (visual.qty !== undefined && visual.qty > 1
       ? `<span class="rw-tile-qty mat-chip num">${formatNumber(visual.qty)}</span>`
       : "") +
@@ -525,34 +692,26 @@ function tileCaption(visual: RewardVisual): string {
    card backs, as pictures
    ------------------------------------------------------------------------- */
 
-const backThumbs = new Map<string, string>();
-
 /**
  * A card back as a `data:` URI, rendered once per style and reused everywhere.
  *
- * The pass alone shows a card back on four tiers, the check-in track on one, the
+ * The pass alone shows a card back on five tiers, the check-in track on one, the
  * banner on its first-ten reward and the shop uses one as the pack — so a naive
  * "render a canvas per tile" is fifty 512×680 rasterisations for one screen.
  * Rendering the real object once and referencing the bitmap is the difference
  * between a preview that is worth having and a frame budget that is not.
  *
+ * The drawing and its cache moved into `rewardArt.ts`, which is where every
+ * other expensive reward picture lives, so that one queue decides what gets
+ * rasterised and when. This call **draws now** and is only for the two places
+ * that genuinely cannot wait — the pack the player has just torn open. Anything
+ * on a screen's first paint asks for `cardBackSpec` instead.
+ *
  * 0.32 of card space is 164×218, which is sharp at the 96px the biggest consumer
  * draws it at on a 2× display and costs about 18KB of texture.
  */
 export function cardBackThumb(style: CardBackStyle, scale = 0.32): string {
-  const key = `${style.color}|${style.emblem}|${scale}`;
-  const cached = backThumbs.get(key);
-  if (cached) return cached;
-  if (typeof document === "undefined") return "";
-  let uri = "";
-  try {
-    uri = renderCardBackToCanvas(style, scale).toDataURL("image/png");
-  } catch {
-    // A canvas that will not export is a missing preview, never a broken screen.
-    uri = "";
-  }
-  backThumbs.set(key, uri);
-  return uri;
+  return resolveArt(cardBackSpec(style, scale));
 }
 
 /** The house card back, for a pack that has no cosmetic of its own to wear. */
@@ -569,6 +728,47 @@ export function backButton(id: string, label = "Back"): string {
 
 /** A screen's translucent room wash — see the note at the top of the theme. */
 export const WASH = `<div class="rw-wash" aria-hidden="true"></div>`;
+
+/**
+ * Cascade a group's rows in, one level below where the shell can reach.
+ *
+ * `transitions.css` staggers a screen's top-level sections and stops there —
+ * measured, the shop cascaded five elements and the pass seven, after which the
+ * ten check-in tiles, nine mission cards, eight achievement rows and a hundred
+ * and seven pass tiles all arrived on one frame. §3a calls that the biggest
+ * perceived-quality gap between a hobby menu and a shipped one.
+ *
+ * `from` is the group's own entrance, so the rows follow their panel in rather
+ * than racing it. The class comes off once the wave has landed: a claim
+ * re-renders parts of the screen, and a list that re-cascades every time the
+ * player presses Claim is worse than one that never cascaded at all.
+ */
+export function riseIn(
+  nodes: Iterable<Element> | ArrayLike<Element>,
+  options: { step?: number; from?: number; max?: number; limit?: number } = {},
+): void {
+  /*
+   * The cascade reaches the first `limit` rows and no further, and that is a
+   * performance rule rather than a taste one. `stagger` already caps the *tail*
+   * of the delay, but every element carrying the class is another entry in
+   * `getAnimations({ subtree: true })` — which `shell.ts` walks to decide when
+   * a transition has finished, and which was profiled at 168ms on the fifty
+   * tier track. Sixteen is more than a viewport holds, so nothing a player can
+   * watch arrives without an entrance.
+   */
+  const elements = Array.from(nodes as Iterable<Element>).slice(0, options.limit ?? 16);
+  if (elements.length === 0) return;
+  const from = options.from ?? 120;
+  const max = options.max ?? 620;
+  stagger(elements, { step: options.step ?? 40, from, max });
+  for (const node of elements) node.classList.add("rw-rise");
+  globalThis.setTimeout(
+    () => {
+      for (const node of elements) node.classList.remove("rw-rise");
+    },
+    scaledDuration(max + 340),
+  );
+}
 
 /**
  * Set an element's transition to a token pair, for the few places that animate

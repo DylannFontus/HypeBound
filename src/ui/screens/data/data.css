@@ -136,19 +136,28 @@
  * At 1280×720 the news article was clipped through the middle of "all it does."
  * with no gradient and no affordance, which is the clearest possible signal that
  * nobody opened the build at the minimum supported size. The mask ramps over the
- * last 40px so text visibly continues; `--fade-off` is set to 1 by the kit when
- * the pane is scrolled to the end, so the last line is never dimmed while it is
- * also the last line.
+ * last 40px so text visibly continues, and only at the end that really does
+ * continue: `fadeOnScroll` in `kit.ts` writes `--fade-a` and `--fade-b` per edge.
+ *
+ * **The two variables mean "opaque here", and the mask has to read them that
+ * way round.** They were negated — `calc(1 - var(--fade-a))` — against a helper
+ * that already writes 1 for solid and 0 for fade, so every list in the domain
+ * did the exact opposite of what it was for: at `scrollTop: 0`, `--fade-a`
+ * resolved to 1 and the 0px stop to alpha *zero*, so the top row of a list that
+ * had nothing above it was the dimmest thing on screen, while the bottom edge
+ * stayed fully opaque and guillotined a line of text mid-word. Measured on
+ * `#news` with 282px of overflow, and visible on the Replay list where the top
+ * row is also the *selected* one. One negation, ten screens, exactly backwards.
  */
 .d-fade {
   --fade-a: 1;
   --fade-b: 1;
   mask-image: linear-gradient(
     180deg,
-    rgba(0, 0, 0, calc(1 - var(--fade-a))) 0,
+    rgba(0, 0, 0, var(--fade-a)) 0,
     #000 40px,
     #000 calc(100% - 40px),
-    rgba(0, 0, 0, calc(1 - var(--fade-b))) 100%
+    rgba(0, 0, 0, var(--fade-b)) 100%
   );
 }
 
@@ -508,35 +517,131 @@
  * that is added here is the rank tick marks, which are what turn "how far along"
  * into "how many more", and the width transition.
  */
+/**
+ * An empty track is a socket, not a hole.
+ *
+ * At rank 1 — which is where ten of these sit on a fresh account — the rail had
+ * no fill in it, and at 2× it resolved to a flat `#0a0a12` rounded rectangle
+ * with six faint dividers and nothing else: no lip, no rim, no grain, no hint of
+ * what the groove is for. §1 bans a flat fill on anything larger than an icon
+ * and §A1 says a well inverts the rim; a zero-progress meter was doing neither,
+ * ten times down the Story list and four more across the Events grid.
+ *
+ * Four changes, each measured against a 2× crop:
+ *
+ * **The gradient is vertical.** It was on the 315° rig axis, which is correct
+ * for a panel and wrong for a rail: a 135°-family gradient across a 260×14 box
+ * runs almost *horizontally*, so the lit stop lands on the left **end** instead
+ * of the top **edge** and the surface reads as uniform. `foundation.css` makes
+ * exactly this exception for `--fill-well` and states why; this is the same
+ * exception one surface deeper. 180° is square to the viewport, which carries no
+ * direction of light and so does not give the screen a second sun.
+ *
+ * **The groove is tinted by whatever will fill it.** `--fill-meter` is already
+ * the faction's colour on nine of these; bleeding a few percent of it into the
+ * empty track is what makes a rail at zero say *this is a mastery track waiting*
+ * rather than *this widget failed to render*.
+ *
+ * **It takes the chip grain rather than the well grain.** The well tile is
+ * `amount: 0.008` — deliberately almost nothing, because it is tuned for a large
+ * input whose own dither is already 8% of a very dark face. A 14px rail has no
+ * such dither and needs a real pass.
+ *
+ * **The rungs are carved rather than drawn in black.** A dark line alone is a
+ * scratch; a dark line with a lit line beside it is a groove, and it is the same
+ * `--hairline-dark` over `--hairline-lit` pairing every divider in the product
+ * already uses.
+ */
 .d-meter {
   position: relative;
   height: 10px;
   border-radius: var(--r-chip);
   --r-self: var(--r-chip);
   overflow: hidden;
-  /*
-   * The well, one step lighter than the material ships.
-   *
-   * `--fill-well` is tuned for a socket the size of an input on a panel. A 10px
-   * rail on a *tile* on a panel is two surfaces deeper and the stock recipe
-   * disappears into it — measured on the mastery grid, an empty rail was
-   * indistinguishable from the tile it sat in, so a track at rank 1 looked
-   * identical to a track with no rail at all. Same recipe, same 315° axis, one
-   * notch of lift so the groove is legible at 10px on the third surface down.
-   */
-  --fill-well: linear-gradient(var(--light-sweep), rgb(2 1 6 / 0.85) 0%, rgb(52 38 92 / 0.62) 100%);
-}
-
-.d-meter > i {
-  display: block;
-  height: 100%;
-  width: var(--meter-value, 0%);
-  border-radius: inherit;
-  transition: width var(--dur-meter, 760ms) var(--ease-arrive);
+  --fill-well:
+    linear-gradient(
+      180deg,
+      rgb(2 1 6 / 0.92) 0%,
+      rgb(13 8 26 / 0.86) 38%,
+      rgb(30 21 56 / 0.7) 78%,
+      rgb(52 38 92 / 0.6) 100%
+    );
+  --mat-grain: var(--tex-grain-chip, none);
+  --mat-grain-size: var(--tex-grain-chip-size, auto);
 }
 
 /**
- * The ticks. 90° — square to the viewport, and a divider rather than a light.
+ * The tint of the thing that has not arrived yet, painted under the fill.
+ *
+ * `color-mix` against `--meter-hue` rather than against `--fill-meter`, because
+ * the fill is a *gradient* and a gradient cannot be mixed. Screens that pass a
+ * colour to `meter()` set both.
+ */
+.d-meter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in srgb, var(--meter-hue, var(--accent)) 16%, transparent) 62%,
+    color-mix(in srgb, var(--meter-hue, var(--accent)) 26%, transparent) 100%
+  );
+  opacity: 0.5;
+}
+
+/**
+ * The fill scales; it does not resize.
+ *
+ * `width` was animated on every meter in the domain — ten of them at once on the
+ * Mastery grid — and §3a lists that among three non-negotiable nevers, because a
+ * width animation is a layout-and-paint on each frame where a transform is a
+ * compositor matrix. The reason it *was* a width is that a `scaleX` squashes the
+ * fill's own gradient along with the box, so the ramp on a 4%-full rail was a
+ * different ramp from the one on a full rail.
+ *
+ * The two-element form solves both: the outer box scales, and the inner one —
+ * which is the `.well-fill` object and carries the gradient — counter-scales by
+ * exactly the reciprocal, so it is always laid out at full track width and
+ * merely clipped. Every property that moves is a `transform`. The reciprocal is
+ * floored at 0.006 so a zero-value meter divides by something.
+ */
+.d-meter > i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  transform-origin: left center;
+  transform: scaleX(var(--meter-scale, 0));
+  transition: transform var(--dur-meter, 760ms) var(--ease-arrive);
+}
+
+.d-meter > i > b {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: left center;
+  transform: scaleX(calc(1 / max(var(--meter-scale, 0), 0.006)));
+  transition: transform var(--dur-meter, 760ms) var(--ease-arrive);
+}
+
+/** A leading glow at the fill edge, so the meter has a head rather than a cut. */
+.d-meter > i::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 10px;
+  transform-origin: right center;
+  transform: scaleX(calc(1 / max(var(--meter-scale, 0), 0.006)));
+  transition: transform var(--dur-meter, 760ms) var(--ease-arrive);
+  background: linear-gradient(90deg, rgb(255 255 255 / 0), rgb(255 255 255 / 0.55));
+  filter: blur(1px);
+}
+
+/**
+ * The ticks. 90° — square to the viewport, and a carved line rather than a light.
  * `--meter-steps` is the number of segments; a 20-rank track gets 19 lines.
  *
  * **One tick per tile, and the gradient must not divide again.** The first
@@ -553,26 +658,19 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: linear-gradient(90deg, var(--meter-tick, rgb(0 0 0 / 0.42)) 0 1.5px, transparent 1.5px);
+  background-image: linear-gradient(
+    90deg,
+    var(--meter-tick, rgb(0 0 0 / 0.55)) 0 1.5px,
+    var(--meter-tick-lit, rgb(255 255 255 / 0.11)) 1.5px 2.5px,
+    transparent 2.5px
+  );
   background-size: calc(100% / var(--meter-steps, 10)) 100%;
   background-repeat: repeat-x;
-  opacity: 0.75;
+  opacity: 0.85;
 }
 
 .d-meter.is-tickless::after {
   display: none;
-}
-
-/** A leading glow at the fill edge, so the meter has a head rather than a cut. */
-.d-meter > i::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 10px;
-  margin-inline-start: -10px;
-  background: linear-gradient(90deg, rgb(255 255 255 / 0), rgb(255 255 255 / 0.55));
-  filter: blur(1px);
 }
 
 /* -------------------------------------------------------------------------
@@ -697,6 +795,26 @@
   font-size: 0.95em;
 }
 
+/**
+ * …and where it goes when the title needs the whole tile.
+ *
+ * Placed in the crest's own grid cell, pinned to its top-right corner and
+ * nudged out over it, which is the notification-pip position every reference
+ * game uses for exactly this: a mark that belongs to the object rather than to
+ * the sentence. See the note at the mastery tile for the five ellipsised
+ * faction names that put it here.
+ */
+.d-tile > .d-tile-pip {
+  grid-row: 1;
+  grid-column: 1;
+  justify-self: end;
+  align-self: start;
+  z-index: 2;
+  transform: translate(7px, -7px);
+  padding: 1px 6px;
+  pointer-events: none;
+}
+
 /* -------------------------------------------------------------------------
    6. Numbers, tables, stat blocks
    ------------------------------------------------------------------------- */
@@ -752,6 +870,37 @@
 .d-stat.is-quiet > dd {
   font-size: var(--fs-lg);
   color: var(--text-dim);
+}
+
+/**
+ * A percentage never appears without the count behind it, and never without the
+ * convention that produced it.
+ *
+ * This domain printed three different win rates for the same thirty-two matches
+ * — 50% on Profile, 50% on Leaderboards, 67% on Statistics — and the Statistics
+ * curve's own footer printed a fourth reading two hundred pixels under the
+ * third. There is one definition now (`winRate` in `dashboard.ts`), and with
+ * eight draws in thirty-two *both* readings are defensible, so the definition
+ * cannot ship unlabelled: the qualifier rides the label and the denominator
+ * rides the figure.
+ */
+.d-stat-qual {
+  font-size: 0.85em;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--text-faint);
+  opacity: 0.85;
+}
+
+.d-stat-of {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
 }
 
 /**
@@ -927,6 +1076,125 @@ th.num {
 }
 
 /* -------------------------------------------------------------------------
+   7a. The row-level go — the tile is the button
+   ------------------------------------------------------------------------- */
+
+/**
+ * `.mat-hero` is *one hero action per screen*, and this domain had nine.
+ *
+ * The magenta pill had quietly been promoted from "the thing this screen is for"
+ * to "a control every row gets". Squint at the Grand Tour and the frame resolved
+ * into a **3×3 lattice of identical fizzing pink lozenges**; squint at Story and
+ * it was a vertical column of ten; the Events hub put three co-equal magenta
+ * CTAs — Practice match / Boss fight / Puzzle run — under a teal HYPECON banner
+ * they shared no pigment with. §6's value-structure test fails by arithmetic
+ * there: when nine things are the hero, nothing is. It was worse than a
+ * hierarchy problem, too — the hero plate is the brightest surface in the
+ * system, so it carries the loudest grain tile, and nine of them made the
+ * noisiest object on the screen also the most repeated one.
+ *
+ * In Hearthstone a chapter list is illustrated plates where the **row** is the
+ * button and exactly one gold CTA is on screen. In MTG Arena the mode tiles
+ * carry their own art and the play button is singular. So: the row is the
+ * button, and this is the mark on it that says so — an accent-inked label with
+ * an arrow that steps forward when the row lights, over the row's own material
+ * rather than over a plate of its own.
+ *
+ * `--go-ink` is the row's colour: the chapter's faction, the stop's Current, the
+ * event's accent. Nothing here is magenta unless the thing it belongs to is.
+ */
+.d-go {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 34px;
+  padding: 7px var(--sp-3) 7px var(--sp-4);
+  border-radius: var(--r-chip);
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  color: var(--go-ink, var(--accent-bright));
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.075) 0%, rgb(255 255 255 / 0.012) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5),
+    inset 0 0 0 1px color-mix(in srgb, var(--go-ink, var(--accent-bright)) 20%, transparent);
+  transition:
+    color var(--dur-micro) var(--ease-arrive),
+    box-shadow var(--dur-micro) var(--ease-arrive);
+}
+
+/** The arrow is the secondary motion: it steps forward when the row lights. */
+.d-go .d-go-arrow {
+  transition: transform var(--dur-ui) var(--ease-overshoot);
+}
+
+@media (hover: hover) {
+  :hover > .d-go .d-go-arrow,
+  :hover > * > .d-go .d-go-arrow,
+  .d-go:hover .d-go-arrow {
+    transform: translateX(3px);
+  }
+
+  :hover > .d-go,
+  :hover > * > .d-go,
+  .d-go:hover {
+    color: color-mix(in srgb, var(--go-ink, var(--accent-bright)) 80%, #fff);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.2),
+      inset 0 -1px 0 rgb(0 0 0 / 0.5),
+      inset 0 0 0 1px color-mix(in srgb, var(--go-ink, var(--accent-bright)) 46%, transparent),
+      0 0 14px -4px color-mix(in srgb, var(--go-ink, var(--accent-bright)) 60%, transparent);
+  }
+}
+
+/**
+ * Claiming is gold, everywhere, and it is not the hero.
+ *
+ * The reward language in this product is already struck in gold — `.d-badge`,
+ * the mastery rungs, the pass tiers — so a claim button that wears the magenta
+ * hero plate is both a fourth hero on the Events hub and the only gold thing on
+ * the screen that is not gold. This is `.mat-chip`'s geometry with `.d-badge`'s
+ * pigment: dark ink on struck brass, which measures 9.8:1 against the plate and
+ * cannot be confused with the play action beside it.
+ */
+.d-claim {
+  --mat-fill: linear-gradient(var(--light-sweep), var(--accent-gold) 0%, #d99a2b 100%);
+  --rim-a: 0.4;
+  --lip-a: 0.28;
+  --sheen-alpha: 0.1;
+  --sheen-hover: 0.22;
+  min-height: 34px;
+  padding: 7px var(--sp-4);
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: #2a1a02;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.2);
+}
+
+.d-claim :is(.num, .hb-icon, .d-token) {
+  color: inherit;
+}
+
+/** Done, and locked, are states rather than actions: no ring, no arrow. */
+.d-go.is-done {
+  color: var(--success);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45);
+}
+
+.d-go.is-locked {
+  color: var(--text-faint);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.03) 0%, rgb(0 0 0 / 0.16) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45);
+}
+
+/* -------------------------------------------------------------------------
    8. Entrances, and idle
    ------------------------------------------------------------------------- */
 
@@ -993,8 +1261,11 @@ th.num {
 :root[data-reduced-motion="true"] .d-enter,
 :root[data-reduced-motion="true"] .d-count-in,
 :root[data-reduced-motion="true"] .d-meter > i,
+:root[data-reduced-motion="true"] .d-meter > i > b,
+:root[data-reduced-motion="true"] .d-meter > i::after,
 :root[data-reduced-motion="true"] .d-crest,
 :root[data-reduced-motion="true"] .d-art-in,
+:root[data-reduced-motion="true"] .d-go .d-go-arrow,
 :root[data-reduced-motion="true"] .d-row::before {
   animation: none !important;
   transition: none !important;
@@ -1004,8 +1275,11 @@ th.num {
   .d-enter,
   .d-count-in,
   .d-meter > i,
+  .d-meter > i > b,
+  .d-meter > i::after,
   .d-crest,
   .d-art-in,
+  .d-go .d-go-arrow,
   .d-row::before {
     animation: none;
     transition: none;
@@ -1047,6 +1321,34 @@ th.num {
 
   .d-rank {
     --rank-size: 58px;
+  }
+}
+
+/**
+ * 44px, on the two viewports where a finger is the pointer.
+ *
+ * A sweep of the domain found twelve controls between 26px and 30px tall — the
+ * profile's cosmetic toggle at 144×29, three news filter chips, three inbox
+ * chips, two events chips, two doomscroll chips — against the 44px minimum the
+ * 844×390 phone-landscape target implies. They are the right size for a mouse
+ * and they are not optional on a phone, so the floor is applied where a phone
+ * is plausible rather than everywhere: `pointer: coarse` catches a real touch
+ * device and the short-viewport query catches the landscape-phone geometry the
+ * constraint names, including in a desktop capture at 844×390.
+ *
+ * `min-height` rather than padding, so the type does not move and a chip that
+ * is already tall enough is untouched.
+ */
+@media (pointer: coarse), (max-height: 460px) {
+  .d-chip,
+  .d-go,
+  .d-claim,
+  .d-badge {
+    min-height: 44px;
+  }
+
+  .d-badge.d-tile-pip {
+    min-height: 0;
   }
 }
 

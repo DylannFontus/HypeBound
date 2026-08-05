@@ -230,9 +230,9 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
     </table>
     </div>
     <p class="muted">
-      The first figure in each column is what a <strong>Practice</strong> run pays; the second is §8.3's
-      competitive row. Practice is ${percent(data.practice.scale)} of the table with packs excluded, which
-      is §8.4's rule, and Tickets are withheld because a Ticket buys a competitive entry and competitive
+      The first figure in each column is what a <strong>Practice</strong> run pays; the second is the
+      competitive payout. Practice is ${percent(data.practice.scale)} of that, with packs excluded, and
+      Tickets are withheld because a Ticket buys a competitive entry and competitive
       Gauntlet needs a server. Clout from Practice shares the same daily AI allowance every mode's
       per-match Clout spends against — ${aiDailyCap()} a day, of which
       <strong id="gauntlet-cap-left">${aiCloutRemaining(aiDailyCap())}</strong> is left.
@@ -240,7 +240,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
 
   const deferredList = (): string => `
     <section class="panel panel-chrome gauntlet-deferred">
-      <h2 class="profile-section-title">What §8 asks for and this build does not have</h2>
+      <h2 class="profile-section-title">What the full Gauntlet has that this build does not</h2>
       <ul class="patch-list">
         ${[...DEFERRED_GAUNTLET]
           .map(([name, reason]) => `<li data-deferred="${esc(name)}"><strong>${esc(name)}</strong> — ${esc(reason)}</li>`)
@@ -457,7 +457,9 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
         </p>
         <div class="row center">
           <button class="btn btn-primary" id="gauntlet-begin">Start the run</button>
-          <button class="btn btn-ghost" id="gauntlet-redraft"${canRedraft ? "" : " disabled"}>
+          <!-- Disable-able, so it takes the .act disabled skin rather than
+               .btn:disabled's blanket opacity 0.42. See A4. -->
+          <button class="mat-panel act r-chip gauntlet-redraft" id="gauntlet-redraft"${canRedraft ? "" : " disabled"}>
             ${canRedraft ? "Delete and Repost" : "Re-draft already used"}
           </button>
         </div>
