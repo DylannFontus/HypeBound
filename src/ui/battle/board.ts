@@ -137,12 +137,20 @@ export interface BoardHandles {
    *
    * `state` is what makes an illegal drop look illegal. Dragging over the rival's
    * row used to look exactly like dragging over your own.
+   *
+   * `at` overrides the row position with a world point, and exists for the
+   * refusal. A blocked drop has no slot — that is what blocked *means* — so
+   * placing it in a row put it at the row's centre, which on an empty row is the
+   * exact spot the carried card is covering. Filmed and differenced, the refusal
+   * changed nothing outside the card's own footprint. Under the pointer it has
+   * somewhere to be.
    */
   setDropTarget: (
     side: "player" | "enemy",
     index: number | null,
     count: number,
-    state?: DropState
+    state?: DropState,
+    at?: { x: number; z: number }
   ) => void;
   /**
    * The board's answer to "a card has been picked up", before the pointer has
@@ -2812,8 +2820,22 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
    * texture that carries its own darkening, and `dropPool` beside it doing the
    * light half.
    */
+  /**
+   * Big enough to be seen past the thing standing on it.
+   *
+   * At `1.34 × 1.2` the socket is 3.48 × 4.14 world units, which on a 1600×900
+   * frame measures about 125 × 140 px — and the card the player is carrying,
+   * rendered at `--hand-card-height × --hand-hover-scale × 1.08`, measures
+   * 170 × 235. So the socket was, in every capture, entirely underneath the
+   * object that summoned it: a 6× amplified difference of a dragging frame
+   * against a resting one showed the row's trough either side and a blank in the
+   * middle. `handBar` now brings the carried card down to token size over a
+   * legal slot, the way the reference does, and this grows to meet it, so the
+   * recess reads as a ring of light all round the card rather than as a rumour
+   * underneath it.
+   */
   const dropSocket = new THREE.Mesh(
-    new THREE.PlaneGeometry(BOARD.cardWidth * 1.34, BOARD.cardHeight * 1.2),
+    new THREE.PlaneGeometry(BOARD.cardWidth * 1.56, BOARD.cardHeight * 1.36),
     new THREE.MeshBasicMaterial({
       map: makeDropSocketTexture(false),
       transparent: true,
@@ -2931,14 +2953,15 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
     side: "player" | "enemy",
     index: number | null,
     count: number,
-    state: DropState = "valid"
+    state: DropState = "valid",
+    override?: { x: number; z: number }
   ): void {
     if (index === null) {
       dropTarget = null;
       return;
     }
     dropTarget = { side, index, count, state };
-    const at = rowPosition(side, index, Math.max(1, count));
+    const at = override ?? rowPosition(side, index, Math.max(1, count));
     dropSocket.position.set(at.x, 0.026, at.z);
     dropPool.position.set(at.x, 0.018, at.z);
     dropBand.position.set(0, 0.02, at.z);
@@ -3022,7 +3045,19 @@ export function createBoard(quality: { shadows: boolean; tier?: QualityTier }): 
     const breath = still || dropTarget?.state === "blocked" ? 0 : Math.sin(elapsed * 4.4);
     const socketTarget = dropTarget ? 0.9 + breath * 0.08 : 0;
     const bandTarget = dropTarget?.state === "valid" ? 0.18 + breath * 0.04 : 0;
-    const poolTarget = dropTarget ? (dropTarget.state === "valid" ? 0.42 : 0.3) + breath * 0.08 : 0;
+    /**
+     * The refusal's pool is as bright as the invitation's, and it used to be
+     * three quarters of it.
+     *
+     * The socket is drawn under the pointer, and under the pointer there is a
+     * card: filmed at 1600×900 the carried ghost covers roughly 170×320px, which
+     * is more than the socket's whole footprint. What is left to carry the
+     * refusal outside that box is the pool, which is three times the socket's
+     * width — and at 0.3 against a mat lit to L*≈72 it was not carrying it.
+     * Same amplitude as the invitation, opposite hue and a bar across the
+     * socket, so the two differ in shape as well as colour (§6).
+     */
+    const poolTarget = dropTarget ? 0.42 + breath * 0.08 : 0;
     socketMaterial.opacity += (socketTarget - socketMaterial.opacity) * 0.34;
     bandMaterial.opacity += (bandTarget - bandMaterial.opacity) * 0.34;
     poolMaterial.opacity += (poolTarget - poolMaterial.opacity) * 0.24;

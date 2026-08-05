@@ -81,7 +81,7 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
       </header>
 
       <main class="tour-body data-body">
-        <section class="panel panel-chrome tour-intro">
+        <section class="mat-panel r-panel d-enter tour-intro">
           <p class="tour-rule">
             Win one match with a faction's <strong>loaner deck</strong> and that deck is
             yours to keep — all thirty cards and its Leader, permanently.
@@ -162,7 +162,7 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
       </main>
 
       <div class="difficulty-backdrop" id="tour-difficulty" hidden>
-        <div class="difficulty-panel panel panel-chrome">
+        <div class="difficulty-panel mat-panel r-panel">
           <div class="t-label" id="tour-difficulty-eyebrow"></div>
           <h2 class="title">Pick an opponent</h2>
           <p class="muted" id="tour-difficulty-note"></p>
@@ -257,7 +257,7 @@ export function createGrandTourScreen(content: ContentIndex, callbacks: GrandTou
     choices: ReturnType<typeof legendaryChoices>,
     anyChoosable: boolean
   ): string => `
-    <section class="panel panel-chrome tour-reward">
+    <section class="mat-panel r-panel tour-reward">
       <div class="t-label">Tour complete</div>
       <h2 class="title">All ten, played and won</h2>
       <p class="tour-reward-line">

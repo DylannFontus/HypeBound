@@ -96,6 +96,14 @@ export class BattleView {
   private readonly boardObjects = new Map<string, CardObject>();
   /** while dragging a character over your row, the index the gap opens at */
   private makeRoomIndex: number | null = null;
+  /**
+   * The arena's last answer about the pointer, kept for `debugState`.
+   *
+   * Written on every `externalDragMove` and read by nothing in the game. It
+   * exists because the alternative — inferring the play zone from screenshots —
+   * is how the zone's own asymmetry survived two reviews.
+   */
+  private dropProbe: Record<string, unknown> | null = null;
   private readonly leaderObjects = new Map<"player" | "enemy", LeaderObject>();
   private leadersBuilt = false;
   private view: PlayerView | null = null;
@@ -1594,6 +1602,15 @@ export class BattleView {
      */
     const overCancelStrip = point !== null && point.z >= BOARD.cancelZ;
 
+    this.dropProbe = {
+      screen: { x: Math.round(clientX), y: Math.round(clientY) },
+      world: point ? { x: Number(point.x.toFixed(2)), z: Number(point.z.toFixed(2)) } : null,
+      overBoard,
+      overArena,
+      overCancelStrip,
+      needsSlot: drag.needsSlot,
+    };
+
     if (overBoard && drag.needsSlot) {
       // Work out which gap the pointer is nearest by comparing against the
       // midpoints between existing tokens, then let layout() open that gap.
@@ -1629,17 +1646,23 @@ export class BattleView {
       const row = enemySide ? "enemy" : "player";
       const count = (enemySide ? view.opponent.board : view.you.board).filter((c) => c !== null).length;
       /**
-       * One *past* the last token, not on top of it.
+       * The refusal is drawn **under the pointer**, not at a slot.
        *
-       * It used to be `count - 1`, which is the slot the last character is
-       * standing in — so on any row that was not empty the struck-through socket
-       * was drawn underneath an occupied card and could not be seen at all.
-       * Photographed while holding a character over the rival's far apron: the
-       * refusal existed in the scene graph and nowhere on the screen. Placing it
-       * in the gap the row would open leaves it on bare mat, which is the only
-       * place a socket can be read.
+       * It used to be placed in the target row — first at `count - 1`, which is
+       * where the last character is standing, then at `count`, one past it. Both
+       * are wrong for the same reason and the film says so: on an empty row the
+       * gap is dead centre, which is exactly where the carried card is, so the
+       * struck socket was drawn underneath the object that caused it and did not
+       * exist on screen at all. Measured with a 6× amplified difference against
+       * the resting frame, holding a character over ground it cannot occupy
+       * changed **nothing** outside the card's own footprint.
+       *
+       * A refusal is not about a slot anyway — there is no slot, that is the
+       * point of it. It belongs where the player is pointing, so the red pool
+       * (which is three times the socket's width) spills out around the cursor
+       * from underneath.
        */
-      this.board.setDropTarget(row, count, count + 1, "blocked");
+      this.board.setDropTarget(row, count, count + 1, "blocked", { x: point!.x, z: point!.z });
     } else {
       if (this.makeRoomIndex !== null) {
         this.makeRoomIndex = null;
@@ -1665,7 +1688,22 @@ export class BattleView {
       : drag.legalTargets.length > 0
         ? drag.hoverTarget !== null
         : overBoard;
-    this.callbacks.onDropFeedback?.(overArena || overBoard ? (accepted ? "valid" : "blocked") : "neutral");
+    /**
+     * The cancel strip is neutral on the card too, and it was not.
+     *
+     * The board learned this a wave ago — `overCancelStrip` is excluded from the
+     * refusal above, because `pointerdown` on a hand card starts the gesture with
+     * the pointer still inside that band and drawing a struck socket there is the
+     * game refusing a gesture the player has only just begun. The ghost never got
+     * the same treatment, and it is the object the player is actually looking at.
+     * Filmed on the frame after pickup: pointer at world z = 8.63, `overBoard`
+     * false, `overArena` true, and the carried card already wearing
+     * `.drop-blocked` — greyed to 72% brightness with a red ring, 300ms into a
+     * drag that had not gone anywhere yet. Releasing here puts the card back,
+     * which is not a refusal; it is the default.
+     */
+    const feedback = !overBoard && overCancelStrip ? "neutral" : accepted ? "valid" : "blocked";
+    this.callbacks.onDropFeedback?.(overArena || overBoard ? feedback : "neutral");
 
     /**
      * And the ground directly under the card answers too.
@@ -2023,6 +2061,16 @@ export class BattleView {
             legalTargets: this.externalDrag.legalTargets.length,
           }
         : null,
+      /**
+       * What the arena decided about the last pointer position, and why.
+       *
+       * Without this a script can see the *result* of a drag — a class on the
+       * ghost, a difference in a screenshot — and never the reason, which is how
+       * the play zone spent two waves being asymmetric about x without anybody
+       * being able to name it. Every term in the decision is here, in world
+       * units, so a walk across the arena prints a map rather than a verdict.
+       */
+      dropProbe: this.dropProbe,
       /**
        * World x of each friendly token, for verifying row layout and gaps, plus
        * its screen anchor so automation can point at a board card whether or not

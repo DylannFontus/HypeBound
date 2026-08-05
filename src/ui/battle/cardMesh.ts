@@ -183,7 +183,18 @@ export function setPlayerCardBack(style: CardBackStyle | null): void {
  */
 const backFor = (seat: number): CardBackStyle | null => (seat === 0 ? playerCardBack : null);
 
-/** Read the back a seat is dealing. Exported so a browser check can see it. */
+/**
+ * Read the back a seat is dealing.
+ *
+ * Exported so a browser check can see it — but **not** by importing this file.
+ * A script that does `await import("/src/ui/battle/cardMesh.ts")` against a dev
+ * server which has served any HMR update gets a *second instance* of this
+ * module, because the running app holds it as `cardMesh.ts?t=<stamp>` and a
+ * different URL is a different module with its own `playerCardBack`. That
+ * mistake cost two waves and produced a feature-failure report on a working
+ * feature. `battleScreen.ts` publishes `window.hypeboundCardBack()` through its
+ * own import; read that.
+ */
 export const cardBackStyleFor = (seat: number): CardBackStyle | null => backFor(seat);
 
 /**

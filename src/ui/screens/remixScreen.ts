@@ -63,7 +63,7 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
       </header>
 
       <div class="remix-body data-body">
-        <section class="panel d-pad d-enter remix-current" id="remix-current">
+        <section class="mat-panel r-panel d-pad d-enter remix-current" id="remix-current">
           <div class="d-key remix-key" ${key} style="--key-aspect:6.6/1" aria-hidden="true">
             <div class="d-key-scrim"></div>
           </div>
@@ -84,7 +84,7 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
           </div>
         </section>
 
-        <section class="panel d-pad d-enter remix-quest" id="remix-quest">
+        <section class="mat-panel r-panel d-pad d-enter remix-quest" id="remix-quest">
           <div class="t-label">Weekly Remix quest</div>
           <p class="remix-quest-line">
             Win ${quantify(quest.required, "Remix match", "Remix matches")} —
@@ -100,7 +100,7 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
           </p>
         </section>
 
-        <section class="panel d-pad d-enter remix-rotation">
+        <section class="mat-panel r-panel d-pad d-enter remix-rotation">
           <div class="t-label">The launch rotation — ${playable.length} of ${rotation.length} playable</div>
           <div class="remix-rows" id="remix-rows">
           ${rotation
@@ -154,7 +154,7 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
           </div>
         </section>
 
-        <section class="panel d-pad d-enter remix-locked">
+        <section class="mat-panel r-panel d-pad d-enter remix-locked">
           <div class="t-label">Not in this build</div>
           ${[...DEFERRED_REMIX.entries()]
             .map(
@@ -168,7 +168,16 @@ export function createRemixScreen(callbacks: RemixCallbacks): Screen {
       </div>
     `;
 
-    enter(root, ".panel", 40);
+    /**
+     * `.d-enter`, not `.panel`.
+     *
+     * The selector used to be `.panel`, which was the legacy surface class these
+     * four sections carried; migrating them to `.mat-panel` would have left this
+     * call matching nothing and the cascade silently gone. It is the default
+     * selector now — the same class that carries the keyframe — so the two can
+     * no longer drift apart.
+     */
+    enter(root, ".d-enter", 40);
     bag.run();
     bag.add(rovingList(root.querySelector<HTMLElement>("#remix-rows"), ".remix-row"));
     root.querySelector("#remix-back")?.addEventListener("click", () => callbacks.onBack());

@@ -181,6 +181,32 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   const painter = lazyPaint(grid ?? root, "520px 0px");
 
   /**
+   * When the painter is next allowed to rasterise, remembered on this side.
+   *
+   * `lazyPaint.hold` is write-only — it takes a duration and keeps its own
+   * deadline — and the cell *builder* needs to read the same clock, because the
+   * two queues were colliding. Measured at 1600×900, warm, with a probe on every
+   * animation frame: `lobby → collection` produced a **208ms** window with no
+   * rendered frame in it, and then **273ms** on the retake, both starting at
+   * about t=410ms. No single long task in that window was over 97ms; it was
+   * three of them back to back with the browser never getting a chance to draw
+   * between them, which is what happens when a chunked build, a card
+   * rasterisation and the outgoing screen's teardown all come off their
+   * respective idle callbacks inside one frame's slack.
+   *
+   * So `scheduleFill` reads this and stands aside while the painter is holding,
+   * which is exactly the window the entrance occupies. Two queues that both mean
+   * "when the page has nothing better to do" have to agree about what counts as
+   * something better.
+   */
+  let holdUntil = 0;
+  const holdPainter = (ms: number): void => {
+    const clock = typeof performance === "object" ? performance.now() : Date.now();
+    holdUntil = Math.max(holdUntil, clock + ms);
+    painter.hold(ms);
+  };
+
+  /**
    * Nothing is rasterised until the screen has arrived *and been revealed*.
    *
    * Measured on the real navigation, lobby → collection at 1280×720: the
@@ -198,7 +224,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
    * they can already read and click — which is what §3a means by loading being
    * part of the world rather than a cover over it.
    */
-  painter.hold(DUR.ui + 160);
+  holdPainter(DUR.ui + 160);
 
   /**
    * And the hold is extended for exactly as long as a veil is up.
@@ -226,7 +252,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       if (performance.now() > deadline) return;
       if (document.querySelector(".nav-curtain") !== null) {
         wasVeiled = true;
-        painter.hold(220);
+        holdPainter(220);
         clear = 0;
         requestAnimationFrame(tick);
         return;
@@ -247,7 +273,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
        */
       if (clear === 1 && wasVeiled && motionEnabled()) cascade(shownCells());
       if (clear >= 4) return;
-      painter.hold(150);
+      holdPainter(150);
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -449,7 +475,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
    * who clicks a chip and stops sees the new cards land immediately after.
    */
   function refilter(): void {
-    painter.hold(DUR.ui + 60);
+    holdPainter(DUR.ui + 60);
     render();
   }
 
@@ -510,7 +536,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     if (searchClear) searchClear.hidden = filters.search.length === 0;
     syncFilterCount();
     // nothing is rasterised while the query is still moving; see `hold`
-    painter.hold(200);
+    holdPainter(200);
     runFilter();
   });
 
@@ -1091,6 +1117,23 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     if (fillHandle !== 0) return;
     const run = (): void => {
       fillHandle = 0;
+      /**
+       * Stand aside while the painter is holding.
+       *
+       * The hold is the entrance, and the entrance is the one window in this
+       * screen's life where a chunk of DOM is worth *less* than a frame. Without
+       * this, the 260ms idle timeout below fires straight into the tail of the
+       * transition, lands in the same frame's slack as a 45ms card raster and
+       * the outgoing screen's teardown, and the browser draws nothing for two
+       * hundred milliseconds — measured twice, at 208ms and 273ms, and it is the
+       * only thing left that `tests/never-a-blank-frame.ts` could still catch on
+       * this leg.
+       */
+      const clock = typeof performance === "object" ? performance.now() : Date.now();
+      if (clock < holdUntil) {
+        scheduleFill();
+        return;
+      }
       filling = true;
       try {
         render();
@@ -1098,15 +1141,31 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
         filling = false;
       }
     };
+    /**
+     * A frame **and then** an idle slot, rather than an idle slot.
+     *
+     * `requestIdleCallback` means "when nothing else wants the thread", which is
+     * true in the slack at the end of a frame the browser has already committed
+     * to — so two consecutive fill passes can happen either side of a single
+     * rendered frame, or, with a rAF-scheduled card raster between them, either
+     * side of none at all. Asking for an animation frame first is what makes the
+     * gap between two passes a *drawn* frame rather than an idle moment, and it
+     * costs nothing: everything this queue builds is below the fold by
+     * construction.
+     */
     const idle = (
       globalThis as { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number }
     ).requestIdleCallback;
+    const queue = (): void => {
+      fillHandle = typeof idle === "function" ? idle(run, { timeout: 400 }) : window.setTimeout(run, 48);
+    };
     fillHandle =
-      typeof idle === "function"
-        ? idle(run, { timeout: 260 })
-        : typeof requestAnimationFrame === "function"
-          ? requestAnimationFrame(run)
-          : window.setTimeout(run, 32);
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame(() => {
+            fillHandle = 0;
+            queue();
+          })
+        : window.setTimeout(run, 32);
   }
 
   function render(): void {

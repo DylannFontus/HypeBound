@@ -55,9 +55,19 @@ const readBack = async (label) => {
   await page.waitForSelector(".battle-screen", { timeout: 20000 });
   const seen = [];
   for (let i = 0; i < 24; i++) {
-    seen.push(await page.evaluate(async () => {
-      const { cardBackStyleFor } = await import("/src/ui/battle/cardMesh.ts");
-      const s = cardBackStyleFor(0);
+    /**
+     * Through the battle screen's handle, not through a fresh `import()`.
+     *
+     * This script's original readout was the defect it was written to find. A
+     * dev server that has served an HMR update holds `cardMesh.ts` in its graph
+     * as `cardMesh.ts?t=<stamp>`; importing the bare path from here is a
+     * different URL and therefore a *second instance* of the module, whose
+     * `playerCardBack` has never been written. Twenty-four samples of `null`
+     * over three seconds on two separate routes, from a board that was dealing
+     * the right back the whole time.
+     */
+    seen.push(await page.evaluate(() => {
+      const s = window.hypeboundCardBack?.() ?? null;
       return s ? s.emblem : null;
     }));
     await page.waitForTimeout(120);

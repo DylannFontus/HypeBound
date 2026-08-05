@@ -393,6 +393,81 @@ export function createStarterScreen(content: ContentIndex, callbacks: StarterCal
   paintDetailSafely();
   stagger(root.querySelectorAll(".starter-option"), { step: 34, from: 120 });
 
+  /**
+   * The rail's two ramps, lit only while there is something under them.
+   *
+   * The list is a scroller — eleven plates never fit a 720px window, and at 160%
+   * they do not fit a 900px one either — and a scroller that simply stops at a
+   * hard horizontal edge is §7's guillotine. A permanent gradient is the wrong
+   * answer in the other direction: a ramp still burning when the player has
+   * reached the last plate says there is more when there is not, on the one
+   * screen where "is that all of them?" is the actual question.
+   *
+   * So both ends are driven from the scroll position. The 2px slack absorbs
+   * fractional device pixels, which otherwise leave the bottom ramp at a tenth
+   * of its opacity forever on a display that does not land on whole numbers.
+   * Written as custom properties rather than classes because a class toggle on a
+   * screen root registers a whole-subtree invalidation in Blink, which cost this
+   * project 23–42ms per navigation once already.
+   */
+  const listWrap = root.querySelector<HTMLElement>(".starter-list-wrap");
+  const list = root.querySelector<HTMLElement>("#starter-list");
+  const detailBody = root.querySelector<HTMLElement>(".starter-detail-body");
+  /**
+   * …and the stage tightens before the Start button can go below the fold.
+   *
+   * Everything in the right-hand column is set in `rem` — the crest, the name,
+   * the title, the tagline, three facts and a 62px button — so at 160% it wants
+   * 579px inside 508 on a 720p window. The column scrolls now rather than being
+   * razored, which is a repair, but a *scrolling* primary action on the first
+   * screen an account ever sees is only a better kind of wrong: the button that
+   * grants the deck was 47px below the panel's bottom edge.
+   *
+   * Dense is the same column with its gutters taken in — nothing removed, the
+   * tagline clamped to the two lines that were already all any of them use.
+   * Measured, it gives back 74px, which is enough at every step the a11y screen
+   * offers on the smallest window the bar names.
+   *
+   * The hysteresis is what stops it oscillating. Turning dense on changes the
+   * content height, so a rule that reads "overflowing → dense" and "not
+   * overflowing → not dense" flips between the two states forever. It only
+   * comes back off once there is more slack than dense mode was worth.
+   */
+  const syncDensity = (): void => {
+    if (!detailBody) return;
+    const dense = detailBody.dataset["dense"] === "true";
+    const slack = detailBody.clientHeight - detailBody.scrollHeight;
+    if (!dense && slack < 0) detailBody.dataset["dense"] = "true";
+    else if (dense && slack > 90) delete detailBody.dataset["dense"];
+  };
+  const syncFades = (): void => {
+    if (!listWrap || !list) return;
+    const room = list.scrollHeight - list.clientHeight;
+    listWrap.style.setProperty("--fade-top", list.scrollTop > 2 ? "1" : "0");
+    listWrap.style.setProperty("--fade-bottom", room - list.scrollTop > 2 ? "1" : "0");
+  };
+  list?.addEventListener("scroll", syncFades, { passive: true });
+  /**
+   * A resize observer rather than one call, because the first call happens while
+   * the tree is detached and every number it reads is zero. It also covers the
+   * two things that actually change whether this list overflows: the window, and
+   * the interface scale.
+   */
+  /* The density check is on the observer only, never on the scroll handler: it
+     reads `scrollHeight`, and a forced layout on every scroll frame is how a
+     fade that costs nothing becomes a list that stutters. */
+  const listResize =
+    typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => {
+          syncDensity();
+          syncFades();
+        });
+  if (list) listResize?.observe(list);
+  if (detailBody) listResize?.observe(detailBody);
+  syncDensity();
+  syncFades();
+
   /** Automation hook, the same shape the other screens expose. */
   (window as unknown as { hypeboundStarter?: unknown }).hypeboundStarter = {
     options: () => decks.map((deck) => deck.factionId),
@@ -407,6 +482,8 @@ export function createStarterScreen(content: ContentIndex, callbacks: StarterCal
     dispose: () => {
       stopArtWatch();
       stopAssetWatch();
+      listResize?.disconnect();
+      list?.removeEventListener("scroll", syncFades);
       delete (window as unknown as { hypeboundStarter?: unknown }).hypeboundStarter;
     },
   };

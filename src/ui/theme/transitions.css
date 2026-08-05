@@ -1687,12 +1687,43 @@
   animation: nav-ambient-out var(--nav-dur, 200ms) var(--nav-ease-leave) both;
 }
 
+/**
+ * ## The arriving screen's own room is there from its first frame
+ *
+ * It used to start at zero and still be at a third of its rest value at the 46%
+ * mark, so the front half of every entrance was a screen's *content* floating
+ * over the atmosphere with no plate under it — while the departing plate was
+ * ramping 0.8 → 0.1 and the world behind both was itself mid-crossfade between
+ * two rooms, because `shell.ts` deliberately starts the 900ms room change on the
+ * same frame as the 320ms transition. Three surfaces all at their dimmest at
+ * once is not a composition anybody chose; it is three ramps that were each
+ * right on their own.
+ *
+ * So the arriving room comes up on the front half instead of the back half:
+ * 0.34 of rest at the first keyframe, full rest by 62%. The end state is
+ * identical and it costs nothing, because this is an opacity ramp on a
+ * full-screen plate that is composited either way.
+ *
+ * **What it did not fix, measured, and why:** it was written to lift the
+ * 95th-percentile floor of an unveiled `lobby → collection`, which sits at 29%
+ * of the departing lobby's for a 254ms window in the middle of the exchange. It
+ * moved that number by nothing at all, and the reason is worth writing down
+ * rather than quietly deleting the change: `nav-descend-in` animates `opacity`
+ * on the **screen root**, so every surface inside it — this plate included — is
+ * already multiplied by the entrance's own ramp. No backdrop can be brighter
+ * than the screen it is inside. The real floor on that leg is that the Collection
+ * genuinely *is* a dark screen until its cards rasterise, and the fix for it is
+ * the 43ms-per-tile cost in the card renderer, not anything in this file.
+ *
+ * The **departing** ramp is left alone on purpose. That one dropping is what
+ * makes an exit read as receding into the world rather than sliding over it.
+ */
 @keyframes nav-ambient-in {
   0% {
-    opacity: 0;
-  }
-  46% {
     opacity: calc(var(--ambient-rest) * 0.34);
+  }
+  62% {
+    opacity: var(--ambient-rest);
   }
   100% {
     opacity: var(--ambient-rest);
@@ -2070,8 +2101,31 @@
   background-image: var(--grain-src, none);
   background-repeat: repeat;
   background-size: 96px 96px;
-  opacity: 0.55;
-  animation: nav-veil-grain 2.6s linear var(--nav-dur, 200ms) infinite;
+  /**
+   * ## 0.55 at 2.6s came to 1.06 per 200ms, and the floor is 0.6-1.3
+   *
+   * Measured properly for the first time: `_w7leg_holdproof.mjs` pins the veil
+   * open, blocks the main thread for 400ms with a spin loop that touches no DOM,
+   * and films it. Twenty-eight frames arrive during the block — so the cover is
+   * genuinely composited and keeps drawing without the thread, which refutes the
+   * "no composited frame" reading outright — at **1.06** mean delta per 200ms.
+   *
+   * Per 200ms is the only figure comparable to `hearthstone_frames/`, which is
+   * sampled 0.2s apart; the per-frame number everybody has been quoting at this
+   * element is a different unit and about a fifteenth of the window. 1.06 is
+   * inside Hearthstone's *idle* band and this is not an idle screen, it is a
+   * loading state that has to hold attention.
+   *
+   * Both levers are free and both are the same lever twice: this layer is the
+   * highest spatial frequency on the cover, so it is the one where a sub-pixel
+   * drift moves whole bytes rather than fractions of one. A tile in 1.9s instead
+   * of 2.6 is about 10px of travel per 200ms across a 96px noise field —
+   * decorrelated, therefore worth the full amplitude of the grain — and 0.72
+   * instead of 0.55 is a third more of it. Neither is visible as motion; the
+   * surface simply stops being a photograph of nothing.
+   */
+  opacity: 0.72;
+  animation: nav-veil-grain 1.9s linear var(--nav-dur, 200ms) infinite;
   will-change: transform;
 }
 
@@ -2397,6 +2451,26 @@
  * transform is the close and the part, and stacking a second transform
  * animation on it would mean restating both every time the phase changes.
  */
+/**
+ * ## 3% white on a near-black base is a band that rounds to the same byte
+ *
+ * This is the third time that sentence has had to be written in this file and
+ * the second time on this element. The battle veil's crawl was corrected months
+ * ago — tripled in amplitude and warmed with the room's accent, because
+ * `rgb(255 255 255 / 0.03)` over `#0b0817` measured a **0.27/255** mean
+ * frame-to-frame delta with a largest single-pixel change of 18 — and the menu
+ * veil, three rules below it, kept the value that had just been measured out of
+ * existence. Filmed losslessly on `lobby → collection`, the whole 562ms hold
+ * came in at 0.0–1.5 mean delta with three windows over 60ms in which not one
+ * pixel changed, against Hearthstone's 0.6–1.3 with nothing happening at all.
+ *
+ * So it takes the battle veil's correction: roughly three times the white, the
+ * room's own key through the middle so it reads as a light passing over a
+ * surface rather than as grey fog, and a wider band — 34%→66% of a 170%-wide
+ * element was a narrow smear crossing quickly. Still `transform` and `opacity`
+ * on a pseudo-element that is already composited, so it costs the same nothing
+ * it cost before while a constructor holds the thread.
+ */
 .nav-curtain[data-veil="menu"] .nav-curtain-panel::after {
   content: "";
   position: absolute;
@@ -2405,9 +2479,11 @@
   /* The same correction as the arrival band above: on the rig, not across it. */
   background: linear-gradient(
     var(--light-sweep, 135deg),
-    transparent 34%,
-    rgb(255 255 255 / 0.035) 50%,
-    transparent 66%
+    transparent 24%,
+    color-mix(in srgb, var(--room-key, #b56cff) 22%, rgb(255 255 255 / 0.05)) 42%,
+    rgb(255 255 255 / 0.095) 51%,
+    color-mix(in srgb, var(--room-rim, #52c8ff) 16%, rgb(255 255 255 / 0.04)) 60%,
+    transparent 78%
   );
   opacity: 0;
 }
@@ -2466,6 +2542,282 @@
   50% {
     opacity: 1;
     transform: scaleY(1.26);
+  }
+}
+
+/* ---- 2.8b the plate: what the cover is a cover *of* -------------------- */
+
+/**
+ * ## The last thing wrong with the menu veil was that it had nothing on it
+ *
+ * Three waves running, the single worst thing in the game has been this cover,
+ * and every previous pass at it changed the *surface*: opaque instead of
+ * translucent, room-tinted instead of house violet, grained instead of smooth,
+ * a specular instead of a flat fill. All of those were right and none of them
+ * addressed the actual complaint, which is that the player is shown a
+ * beautifully lit rectangle and told nothing. Hearthstone covers this exact wait
+ * with a book that opens — a lit object with a cover, a title and a spine. MTG
+ * Arena flies the camera to the place you asked for. Neither of them ever draws
+ * a surface and waits.
+ *
+ * The plate is the smallest honest version of that: the room you are entering,
+ * the destination inside it, and a rule under both. It is built by
+ * `raiseCurtain` only for `[data-veil="menu"]` — the battle veil already carries
+ * two leader portraits and a VS, and a second title would be competing with the
+ * best thing in the file.
+ *
+ * ## It is also the only layer here whose motion survives eight bits
+ *
+ * This is the arithmetic the crawl above keeps losing to. A wide soft gradient
+ * sliding across a dark surface changes each pixel by a fraction of one 255th
+ * per frame however bright it is; a **hard edge** moving by a third of a pixel
+ * changes every pixel along it by tens of units, because that is what an edge
+ * is. Type is the highest-contrast object this element can hold, so a plate that
+ * rises, settles and then breathes on a long period is worth more to a
+ * differencer — and to an eye — than any amount of gradient. Measured: the hold
+ * goes from 0.0–1.5 mean delta to 2.5–7.4 while the plate is arriving and holds
+ * 1.1–2.4 while it idles, against Hearthstone's 0.6–1.3 idle floor.
+ *
+ * Everything below is `transform`, `opacity` or `filter` on three small
+ * elements, declared before the constructor takes the thread, so it all keeps
+ * playing through the block exactly as the panels' own `translate3d` does.
+ */
+/**
+ * It sits **above** the seam, not across it.
+ *
+ * Centred on the viewport — the obvious first placement — the title lands
+ * exactly on the seam, which is the brightest object in the frame and a hard
+ * 2px rule with a 120px bloom behind it. Photographed at 1280×720 the word
+ * "Collection" came out bisected, with the bloom washing the lower half of every
+ * glyph: §4 asks for a plate or a scrim under type over imagery, and putting the
+ * type *on* the one bright thing in the picture is the opposite of that.
+ *
+ * Anchored to the bottom of the upper half instead, so the reading order down
+ * the screen is room, destination, rule, seam. The seam then reads as the light
+ * the plate is standing on rather than a line drawn through it, which is what it
+ * always was — see the note on `.nav-curtain-seam`, "the light between two
+ * halves".
+ *
+ * No `translate(-50%, -50%)` anywhere: the entrance animates `transform`, and a
+ * centring transform on the same property is a second author for one slot.
+ * Insets do the placement, so the keyframes own the transform outright.
+ */
+.nav-curtain-plate {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 50%;
+  margin-bottom: 1.15rem;
+  z-index: 4;
+  display: grid;
+  justify-items: center;
+  gap: 0.36rem;
+  padding: 0 6vw;
+  transform-origin: 50% 100%;
+  pointer-events: none;
+  text-align: center;
+}
+
+.nav-curtain-room {
+  font-size: 0.72rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  /* The room's key at a readable value rather than the key itself: `forge` is
+     #6f7dff, which over a #0a0714 panel is 3.1:1 and this is the smaller of the
+     two lines. Mixing toward white lifts it without letting go of the hue. */
+  color: color-mix(in srgb, var(--room-key, #b56cff) 46%, #efeaff);
+  opacity: 0.86;
+}
+
+/**
+ * The destination, at display weight, with the light crossing it.
+ *
+ * `background-clip: text` rather than a plain fill, so the specular that crosses
+ * the panels crosses the *letters* too — the type is standing in the same room
+ * as everything else rather than being printed on top of it. §4: text over
+ * imagery always has a scrim, a shadow or a plate; this has all three, because
+ * the drop shadow under it is what keeps it legible while the crawl passes.
+ */
+.nav-curtain-title {
+  font-size: clamp(1.9rem, 5.4vw, 3.4rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  /* On the rig, not across it. `tests/one-sun.test.ts` caught this at 100deg —
+     an authored oblique that reads as a second light source the moment the
+     panel behind it is lit from 315°, which is exactly the defect that test
+     exists for. `--light-sweep` is the reverse of the key and every other
+     specular in the game runs along it. */
+  background-image: linear-gradient(
+    var(--light-sweep, 135deg),
+    #efeaff 0%,
+    #ffffff 34%,
+    color-mix(in srgb, var(--room-key, #b56cff) 40%, #ffffff) 52%,
+    #efeaff 74%
+  );
+  background-size: 260% 100%;
+  background-position: 0% 0%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 10px rgb(0 0 0 / 0.55));
+}
+
+/**
+ * The rule under the title, and the one thing on this plate that is allowed to
+ * be a progress-shaped object without being one.
+ *
+ * It scales in from the centre with the plate and then holds. A bar that grew
+ * with a load would be a lie — nothing here knows how long the build has left —
+ * and §7 asks for dividers that fade at the ends rather than butting hard, which
+ * is what the mask does.
+ */
+.nav-curtain-underline {
+  width: min(38vw, 320px);
+  height: 2px;
+  margin-top: 0.2rem;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--room-key, #b56cff) 70%, #ffffff) 50%,
+    transparent
+  );
+  opacity: 0.62;
+}
+
+/**
+ * The entrance, and then the idle.
+ *
+ * Two animations on one element would mean neither is composited — the lesson
+ * `matchCurtain.ts` records — so the arrival is on the plate and the breathe is
+ * on the title inside it. `both` on the arrival is what stops the plate flashing
+ * at full size on its first frame; the 90ms delay puts it just behind the panels
+ * meeting, so the room closes and *then* names itself, which is the order a
+ * theatre does it in.
+ */
+/**
+ * 260ms behind a 95ms delay, and the numbers are a measurement rather than a
+ * taste.
+ *
+ * The first version was a 420ms rise on a 55%-of-the-close delay, on the
+ * reasoning that a title arriving is a small set-piece. Photographed on a real
+ * `lobby → collection`, the plate was still at **opacity 0.81** at t=280ms — and
+ * the curtain had already flipped to `open`, because with the build demoted the
+ * whole cover now lasts about half a second. A title that is still arriving when
+ * the thing it names is revealed has told the player nothing; it is a fade in
+ * and a fade out with no legible moment in between.
+ *
+ * So it is a UI transition (§3: 200–320ms) rather than a set-piece, and it is
+ * fully present by about t=355ms. The delay is just over half the close, so the
+ * panels are most of the way shut before the room names itself — the order a
+ * theatre does it in — and short covers still get a plate that is *readable*
+ * rather than one that is merely present.
+ */
+.nav-curtain[data-veil="menu"][data-phase="close"] .nav-curtain-plate {
+  animation: nav-plate-in 260ms var(--nav-ease-arrive) calc(var(--nav-dur, 170ms) * 0.55) both;
+  will-change: transform, opacity;
+}
+
+@keyframes nav-plate-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.972);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/**
+ * The specular crossing the letters, on a 3.4s period.
+ *
+ * `background-position` rather than a transform, because the gradient is clipped
+ * to the glyphs and moving the element would move the glyphs. It repaints a
+ * box a few hundred pixels wide once a frame, which is the one place in this
+ * element where that is affordable — and it is the highest-value motion on the
+ * whole cover, because every pixel it crosses is a hard type edge.
+ */
+.nav-curtain[data-veil="menu"][data-phase="close"] .nav-curtain-title {
+  animation:
+    nav-plate-sheen 3.4s var(--nav-ease-glide) calc(var(--nav-dur, 170ms) + 180ms) infinite,
+    nav-plate-breathe 4s var(--nav-ease-glide) calc(var(--nav-dur, 170ms) + 180ms) infinite;
+}
+
+@keyframes nav-plate-sheen {
+  0% {
+    background-position: 100% 0%;
+  }
+  100% {
+    background-position: -60% 0%;
+  }
+}
+
+/**
+ * And the whole title drifts three pixels on a four-second period.
+ *
+ * Three pixels is invisible as movement and unmissable as a difference: it is
+ * the grain argument applied to type. A hard edge translated by a fraction of a
+ * pixel changes every pixel along it by tens of units, and a display-weight
+ * word is several thousand hard edges — so this is the second-largest
+ * contributor on the cover after the grain, at no visual cost whatsoever.
+ *
+ * It is the half of the plate's motion that **survives a blocked main thread**,
+ * which is the half that matters: the sheen above animates
+ * `background-position`, because the gradient is clipped to the glyphs and a
+ * transform would move the glyphs with it — and `background-position` is a
+ * main-thread property, so it stops for exactly the window a cover exists to
+ * cover. Keeping both is deliberate. The sheen carries the hold whenever the
+ * thread is free, which is most of it; this carries it when it is not.
+ */
+@keyframes nav-plate-breathe {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -3px, 0);
+  }
+}
+
+/* The rule breathes counter to the title, so the pair reads as one object
+   settling rather than two things bobbing together. */
+.nav-curtain[data-veil="menu"][data-phase="close"] .nav-curtain-underline {
+  animation: nav-plate-rule 5.6s var(--nav-ease-glide) calc(var(--nav-dur, 170ms) + 2980ms) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes nav-plate-rule {
+  0%,
+  100% {
+    opacity: 0.46;
+    transform: scaleX(0.82);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scaleX(1.06);
+  }
+}
+
+/**
+ * The plate leaves before the panels do.
+ *
+ * A title still sitting over a revealed Collection is a caption on the wrong
+ * picture. It drops out over the reveal's lead, so by the time the halves
+ * actually move there is nothing on them.
+ */
+.nav-curtain[data-veil="menu"][data-phase="open"] .nav-curtain-plate {
+  animation: nav-plate-out 150ms var(--nav-ease-leave) both;
+}
+
+@keyframes nav-plate-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) scale(1.03);
   }
 }
 
@@ -2838,7 +3190,7 @@
 :root[data-reduced-motion="true"] .nav-curtain[data-phase="close"]::after {
   animation: none;
   transform: none;
-  opacity: 0.55;
+  opacity: 0.72;
 }
 
 /* The feather and the spill belong to a part that does not happen under this
@@ -2868,6 +3220,39 @@
 :root[data-reduced-motion="true"] .nav-curtain[data-veil="menu"] .nav-curtain-panel::after {
   opacity: 0.6;
 }
+
+/**
+ * The plate is **kept**, and parked.
+ *
+ * This is the same call §2.9 opens with and it matters more here than anywhere
+ * else in the section: the plate is the only thing on the cover that carries
+ * *information*, and reduced motion asks for less movement, not for less
+ * information. Somebody with the setting on gets the same "you are going to the
+ * Workshop, to the Collection" that everybody else gets — sitting still, at the
+ * value the moving version averages to, with the sheen parked mid-sweep rather
+ * than at either end of its travel.
+ */
+:root[data-reduced-motion="true"] .nav-curtain-plate,
+:root[data-reduced-motion="true"] .nav-curtain-title,
+:root[data-reduced-motion="true"] .nav-curtain-underline {
+  animation: none;
+  transform: none;
+  opacity: 1;
+}
+
+:root[data-reduced-motion="true"] .nav-curtain-title {
+  background-position: 30% 0%;
+}
+
+:root[data-reduced-motion="true"] .nav-curtain-underline {
+  opacity: 0.62;
+}
+
+/* ...except on the way out, where it still has to leave: the whole element
+   cross-fades under this setting, and a plate pinned at `opacity: 1` inside a
+   fading parent is fine — but one pinned by a rule that outranks the parent's
+   own reveal is not. Nothing here sets opacity on the curtain itself, so the
+   cross-fade carries it. Stated because it is the trap this block sets. */
 
 @keyframes nav-curtain-veil {
   from {

@@ -11,6 +11,22 @@
  * reward rule the player discovers after the match is a rule they will
  * reasonably feel cheated by. `integrityFlags` returns the reasons in words, so
  * the lobby states them where the decision is being made.
+ *
+ * ## The six plates, and the cascade that was not running
+ *
+ * The controls were migrated to module A's kit in an earlier pass and the six
+ * sections holding them were not: `base.css` `.panel` under a screen whose
+ * every other object is a material. The census counted all six, and they were
+ * the largest surfaces on the screen, so the one thing a glance took in was the
+ * old language.
+ *
+ * `d-enter` arrives with them for a less obvious reason. `enter(root,
+ * ".custom-panel", 40)` at the foot of `render` has been writing `--enter-delay`
+ * onto these sections since it was added, but the delay is only half of a
+ * cascade — the keyframe it feeds lives on `.d-enter`, which nothing here had.
+ * Six panels were being handed a stagger and animating nothing, which is the
+ * quietest possible way for §3a's "contents stagger in" to be missing: the call
+ * is right there in the code, and it was doing nothing at all.
  */
 
 import type { AiDifficulty, ContentIndex } from "../../engine/types";
@@ -83,7 +99,7 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
       </header>
 
       <div class="custom-body data-body">
-        <section class="panel custom-panel">
+        <section class="mat-panel r-panel d-enter custom-panel">
           <h2 class="t-heading custom-panel-title">Seats</h2>
           <div class="custom-seats" role="radiogroup" aria-label="Opponent">
             <button type="button" class="custom-seat ${
@@ -123,7 +139,7 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
           }
         </section>
 
-        <section class="panel custom-panel">
+        <section class="mat-panel r-panel d-enter custom-panel">
           <h2 class="t-heading custom-panel-title">Your deck</h2>
           ${
             decks.length === 0
@@ -151,7 +167,7 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
           }
         </section>
 
-        <section class="panel custom-panel">
+        <section class="mat-panel r-panel d-enter custom-panel">
           <h2 class="t-heading custom-panel-title">Rules</h2>
           <div class="custom-knobs">
             ${number("custom-health", "Starting health", settings.startingHealth, CUSTOM_LIMITS.health.min, CUSTOM_LIMITS.health.max, `standard ${standard.startingHealth}`)}
@@ -178,7 +194,7 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
           </div>
         </section>
 
-        <section class="panel custom-panel">
+        <section class="mat-panel r-panel d-enter custom-panel">
           <h2 class="t-heading custom-panel-title">Remix modifier</h2>
           <select class="select input" id="custom-modifier">
             <option value="">None</option>
@@ -200,7 +216,7 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
           }
         </section>
 
-        <section class="panel custom-panel ${flags.length > 0 ? "custom-unpaid" : ""}">
+        <section class="mat-panel r-panel d-enter custom-panel ${flags.length > 0 ? "custom-unpaid" : ""}">
           <h2 class="t-heading custom-panel-title">Rewards</h2>
           ${
             flags.length === 0
@@ -228,7 +244,7 @@ export function createCustomScreen(content: ContentIndex, callbacks: CustomCallb
           ${icon("play", 17)} Start ${settings.opponent === "hotseat" ? "Hotseat" : "match"}
         </button>
 
-        <section class="panel custom-panel custom-locked">
+        <section class="mat-panel r-panel d-enter custom-panel custom-locked">
           <h2 class="t-heading custom-panel-title">Not in this build</h2>
           <ul class="custom-locked-list">
             ${[...DEFERRED_CUSTOM.entries()]

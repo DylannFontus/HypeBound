@@ -117,6 +117,19 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
       </header>
 
       <main class="shop-body rw-shop-body">
+        <!--
+          The disclosure column is wrapped, and the wrapper is the whole point.
+
+          The rw-shop-left column is itself the scroller, so a ramp drawn on it
+          scrolls away with the paragraph it is fading. At 1280x720 and
+          100% the last thing on screen was "…and it is yours, not a rolling
+          average." sliced through its own x-height by the bottom of the window,
+          with no fade, no bottom edge and — because the odds table is nine rows
+          of rules a player is entitled to read before spending — no sign that
+          the sentence continued at all. The wrapper does not move, so the ramp
+          does not either.
+        -->
+        <div class="shop-left-wrap">
         <div class="rw-shop-left">
           ${
             headliner
@@ -164,6 +177,7 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
             </button>
           </section>
         </div>
+        </div>
 
         <section class="rw-shop-hero mat-panel">
           <div class="rw-stack-tight">
@@ -172,7 +186,28 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
             <p class="rw-note">Bought with Clout, which is earned by playing. Never with money.</p>
           </div>
 
+          <!--
+            The alcove: the two planes the pack was missing.
+
+            AAA-BAR section 2 asks for four resolvable depth planes and this
+            screen had two — the panel, and a 190px object floating in it. The
+            contact shadow rewardsTheme already draws was landing on nothing,
+            which is why it read as a drop shadow rather than as contact: an
+            ellipse of black on an empty field is a smudge, and the same ellipse
+            on a lit floor is a pack standing on a shelf.
+
+            So there is a back wall with a pool of light on it, a floor the wall
+            meets along a lit join, and a second pool on the floor where the
+            pack stands. All three are one element's children so the whole
+            alcove can be dimmed at once for high contrast, and every one of
+            them is lit from 315 degrees like the rest of the game.
+          -->
           <div class="rw-shop-pack">
+            <div class="shop-alcove" aria-hidden="true">
+              <span class="shop-alcove-wall"></span>
+              <span class="shop-alcove-floor"></span>
+              <span class="shop-alcove-pool"></span>
+            </div>
             <div class="rw-pack-still" aria-hidden="true">
               <span class="rw-art" data-rw-art="${esc(cardBackSpec(HOUSE_BACK, 0.55))}"></span>
             </div>
@@ -228,7 +263,87 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
       riseIn(root.querySelectorAll(".rw-shop-left > section, .rw-shop-hero > *"), { from: 180, step: 45 });
     }
 
+    bindLeftFades();
+    bindAlcove();
     syncWallets(root);
+  };
+
+  /**
+   * Tell the alcove where the pack's base is.
+   *
+   * The floor line has to meet the object standing on it, and the pack is
+   * centred inside a row whose height moves with the interface scale while the
+   * pack's own height is capped by `36vh` — so the gap between the pack's base
+   * and the row's bottom edge is 14px on one window and 69px on another.
+   * Measured, not guessed: a percentage in the stylesheet was right at 1280×720
+   * and drew the join across the middle of the card back at 1600×900.
+   *
+   * A `ResizeObserver` on both boxes rather than a one-off read, because the
+   * first read happens while the screen is still detached and returns zeroes,
+   * and because the two things that move this number — the window and the text
+   * scale — are exactly the two things nobody dispatches an event for.
+   */
+  let unbindAlcove: () => void = () => {};
+  const bindAlcove = (): void => {
+    unbindAlcove();
+    const alcove = root.querySelector<HTMLElement>(".shop-alcove");
+    const row = root.querySelector<HTMLElement>(".rw-shop-pack");
+    const pack = root.querySelector<HTMLElement>(".rw-pack-still");
+    if (!alcove || !row || !pack) return;
+    const sync = (): void => {
+      const base = row.getBoundingClientRect().bottom - pack.getBoundingClientRect().bottom;
+      if (base <= 0) return;
+      alcove.style.setProperty("--pack-base", `${Math.round(base)}px`);
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
+    observer?.observe(row);
+    observer?.observe(pack);
+    sync();
+    unbindAlcove = () => {
+      observer?.disconnect();
+      unbindAlcove = () => {};
+    };
+  };
+
+  /**
+   * Light the disclosure column's two ramps from its own scroll position.
+   *
+   * A gradient that is always on is a lie in the other direction — it says
+   * there is more to read when the player has reached the end of the pity rule,
+   * on the one screen in the game where "have I seen all the terms?" is the
+   * question the whole column exists to answer. So both ends follow the
+   * scroller, and the 2px of slack is there because a fractional device pixel
+   * otherwise leaves the bottom ramp burning at a tenth of its opacity forever.
+   *
+   * Re-bound on every `render()` because `render()` replaces the whole subtree
+   * — the listener would otherwise be attached to a node that no longer exists,
+   * which is the quiet way a scroll-driven effect stops after the first pack is
+   * opened.
+   */
+  let unbindLeft: () => void = () => {};
+  const bindLeftFades = (): void => {
+    unbindLeft();
+    const wrap = root.querySelector<HTMLElement>(".shop-left-wrap");
+    const column = root.querySelector<HTMLElement>(".rw-shop-left");
+    if (!wrap || !column) return;
+    const sync = (): void => {
+      const room = column.scrollHeight - column.clientHeight;
+      wrap.style.setProperty("--fade-top", column.scrollTop > 2 ? "1" : "0");
+      wrap.style.setProperty("--fade-bottom", room - column.scrollTop > 2 ? "1" : "0");
+    };
+    column.addEventListener("scroll", sync, { passive: true });
+    /* A resize observer as well as a scroll listener, because the first call
+       happens while the tree is detached and reads zeroes, and because the two
+       things that decide whether this column overflows at all are the window
+       and the interface scale. */
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
+    observer?.observe(column);
+    sync();
+    unbindLeft = () => {
+      column.removeEventListener("scroll", sync);
+      observer?.disconnect();
+      unbindLeft = () => {};
+    };
   };
 
   /**
@@ -314,6 +429,8 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
     dispose: () => {
       opening?.close();
       art?.stop();
+      unbindLeft();
+      unbindAlcove();
       unsubscribe();
       delete (window as unknown as { hypeboundShop?: unknown }).hypeboundShop;
     },

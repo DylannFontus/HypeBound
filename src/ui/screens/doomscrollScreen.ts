@@ -141,7 +141,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     const panel = document.createElement("div");
     panel.className = "doom-setup";
     panel.innerHTML = `
-      <div class="panel panel-chrome doom-setup-panel">
+      <div class="mat-panel r-panel d-enter doom-setup-panel">
         <div class="t-label">Descend</div>
         <h2 class="title">Pick who is posting</h2>
         <p class="muted">
@@ -176,7 +176,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
          * with the one they have reached lit, so the map is a picture of the run
          * rather than a sentence about it.
          */ ""}
-      <section class="panel panel-chrome doom-record">
+      <section class="mat-panel r-panel d-enter doom-record">
         <div class="doom-record-head">
           <div>
             <div class="t-label">The descent</div>
@@ -199,7 +199,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
               const cleared = i < save.bestActsCleared;
               const next = i === save.bestActsCleared;
               return `
-                <li class="mat-panel r-tile doom-act ${cleared ? "is-cleared" : ""} ${next ? "is-next" : ""}">
+                <li class="mat-panel r-tile d-enter doom-act ${cleared ? "is-cleared" : ""} ${next ? "is-next" : ""}">
                   <span class="doom-act-no num">${count(i + 1)}</span>
                   <span class="doom-act-text">
                     <span class="doom-act-name">${escape(act.name)}</span>
@@ -221,7 +221,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       </section>`;
     body.replaceChildren(panel);
     countUp(panel);
-    enter(panel, ".doom-act, .doom-record", 40);
+    enter(panel, ".doom-setup-panel, .doom-record, .doom-act", 40);
 
     const seedInput = panel.querySelector<HTMLInputElement>("#doom-seed")!;
     seedInput.value = String(Math.floor(Math.random() * 0x7fffffff));
@@ -286,7 +286,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
 
   function renderSidebar(active: RunState): HTMLElement {
     const aside = document.createElement("aside");
-    aside.className = "doom-side panel panel-chrome";
+    aside.className = "doom-side mat-panel r-panel";
 
     const healthPercent = Math.max(0, Math.round((active.health / Math.max(1, active.maxHealth)) * 100));
     const leader = content.leaders[active.leaderCardId];
@@ -301,8 +301,23 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       </div>
       <div class="doom-side-stats">
         <span title="Run-Clout, converted at the end of the run">${icon("clout", 14)} <span class="num">${count(active.clout)}</span></span>
-        <span title="Cards in the run deck">▥ ${active.deck.length}</span>
-        <span title="Battles won">⚔ ${active.battlesWon}</span>
+        ${/*
+            * The last two typed glyphs on this screen.
+            *
+            * The note above this rail records eight code points being replaced
+            * with drawn icons and these two were missed, which is the failure
+            * mode of a hand-checked sweep: `▥` and `⚔` render in whatever font
+            * the OS happens to have, at a weight nobody chose, and become tofu
+            * on a device that lacks them — while sitting inside the same row as
+            * a `uiIcons` Clout mark at 1.75px stroke. Both counts are `.num`
+            * for the same reason the Clout one already was.
+            */ ""}
+        <span title="Cards in the run deck">${icon("deck", 14)} <span class="num">${count(
+          active.deck.length
+        )}</span></span>
+        <span title="Battles won">${icon("attack", 14)} <span class="num">${count(
+          active.battlesWon
+        )}</span></span>
       </div>`;
     aside.appendChild(head);
 
@@ -492,7 +507,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
   function renderMap(active: RunState): HTMLElement {
     const act = actOf(data, active);
     const wrap = document.createElement("div");
-    wrap.className = "doom-map-wrap panel panel-chrome";
+    wrap.className = "doom-map-wrap mat-panel r-panel";
 
     const heading = document.createElement("div");
     heading.className = "doom-map-head";
@@ -593,7 +608,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     const battle = battleFor(data, content, active);
     if (!battle) return null;
     const panel = document.createElement("div");
-    panel.className = "panel panel-chrome doom-brief";
+    panel.className = "mat-panel r-panel doom-brief";
     panel.innerHTML = `
       <div class="t-label">${battle.kind === "boss" ? "Main Event" : battle.kind === "elite" ? "Elite" : "Battle"}</div>
       <h2 class="title">${escape(battle.title)}</h2>
@@ -657,7 +672,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     promptHost.removeAttribute("hidden");
 
     const panel = document.createElement("div");
-    panel.className = "panel panel-chrome doom-prompt-panel";
+    panel.className = "mat-panel r-panel doom-prompt-panel";
     const actions = document.createElement("div");
     actions.className = "row center doom-prompt-actions";
 
@@ -835,7 +850,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     const missedFinale = summary.cleared && !summary.reachedFinale && summary.fragmentsNeeded > 0;
 
     const panel = document.createElement("div");
-    panel.className = "panel panel-chrome doom-summary";
+    panel.className = "mat-panel r-panel doom-summary";
     panel.innerHTML = `
       <div class="t-label">${
         summary.reachedFinale ? "You put it back together" : summary.cleared ? "You reached the bottom" : "The feed won"

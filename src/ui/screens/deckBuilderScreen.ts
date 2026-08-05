@@ -236,6 +236,27 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
   const sidePanel = root.querySelector<HTMLElement>(".builder-side");
 
   const painter = lazyPaint(poolHost ?? root, "600px 0px");
+
+  /**
+   * Nothing is rasterised until the screen has arrived — the Collection's rule,
+   * applied to the screen that needed it more.
+   *
+   * The Collection has held its painter across the transition since wave 3 and
+   * this one never did, which is why the two most similar routes in the game
+   * measured completely differently. On `lobby → deckbuilder` at 1280×720, warm,
+   * the pool element entered the document at **t=70ms** — the constructor is not
+   * the problem and never was — and the shell's veil then stayed up until
+   * t=530ms, because it parts on two consecutive frames under 34ms and a pool
+   * card is about 43ms, so the queue it was covering was the thing preventing it
+   * from opening. Cold that ran to **t=1,720ms**. A cover that is held shut by
+   * the work it is covering is a cover with no exit condition.
+   *
+   * `DUR.ui + 160` is the Collection's number, for the Collection's reason: the
+   * transition's own 260ms, the frames the shell needs to see calm, and the
+   * cascade's tail. The pool cells draw their own sleeves, so the window is a
+   * rack filling rather than a hole.
+   */
+  painter.hold(DUR.ui + 160);
   const unbindPoolFades = poolWrap && poolHost ? bindScrollFades(poolWrap, poolHost) : () => {};
   const unbindSideFades = sideWrap && sideScroll ? bindScrollFades(sideWrap, sideScroll) : () => {};
 
@@ -457,6 +478,58 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     return entry;
   }
 
+  /**
+   * How many pool cells one pass may *construct*, and why there is a limit now.
+   *
+   * This is the Collection's `CELLS_PER_PASS`, arrived at from the other end. A
+   * pool cell is a button, a sleeve, a badge, an optional corner control and a
+   * `draggable()` — five listeners and a pointer state machine each — and
+   * `renderPool` built one for every legal card in a leader's pool in a single
+   * synchronous pass, on mount and again on every add, every remove, every
+   * import and every leader change. Measured at 1280×720 on a first visit, that
+   * pass was inside a **382ms** long task and the leg drew 12 animation frames
+   * in its first 1.6 seconds; warm it was 122 + 101 + 140 + 112ms of blocked
+   * thread across the transition it was supposed to be playing.
+   *
+   * Forty-eight covers the fold plus a row of lead at every supported viewport,
+   * including 844×390. The rest arrive in idle chunks behind the entrance, and
+   * the ordering survives the chunking for the same reason it does in the
+   * Collection: `at` counts the card's position in the pool rather than the
+   * cell's index in the DOM, so a later pass inserts a missing tile before
+   * whichever cell now holds its index instead of appending it to the end.
+   *
+   * Only *construction* is budgeted. A cell that already exists is reconciled
+   * on every pass exactly as before, so adding a card still updates every badge
+   * in the pool in one go — which is the behaviour the deck builder is about.
+   */
+  const CELLS_PER_PASS = 48;
+  let fillHandle = 0;
+
+  /**
+   * Ask for the rest of the pool when the page has nothing better to do.
+   *
+   * An idle callback rather than a frame, and that is the point: while the
+   * transition is still running there *is* something better to do. The timeout
+   * is the promise that a page which never goes idle still fills, and the rAF
+   * fallback is for engines without the callback at all.
+   */
+  function scheduleFill(): void {
+    if (fillHandle !== 0) return;
+    const run = (): void => {
+      fillHandle = 0;
+      renderPool();
+    };
+    const idle = (
+      globalThis as { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number }
+    ).requestIdleCallback;
+    fillHandle =
+      typeof idle === "function"
+        ? idle(run, { timeout: 260 })
+        : typeof requestAnimationFrame === "function"
+          ? requestAnimationFrame(run)
+          : window.setTimeout(run, 32);
+  }
+
   function renderPool(): void {
     if (!poolHost) return;
     const leader = content.leaders[deck.leaderCardId] as LeaderCardDef | undefined;
@@ -471,6 +544,8 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     const profileNow = getProfile();
     let at = 0;
     let shown = 0;
+    let budget = CELLS_PER_PASS;
+    let starved = false;
 
     for (const card of poolOrder) {
       const visible =
@@ -478,6 +553,16 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       let cell = poolCells.get(card.id);
       if (!cell) {
         if (!visible) continue;
+        if (budget <= 0) {
+          // Its place is held all the same: `at` is the card's position in the
+          // pool, not the cell's index in the DOM, so the next pass inserts this
+          // tile where it belongs rather than on the end.
+          starved = true;
+          at += 1;
+          shown += 1;
+          continue;
+        }
+        budget -= 1;
         cell = buildPoolCell(card);
         poolCells.set(card.id, cell);
       }
@@ -507,6 +592,7 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       shown += 1;
     }
 
+    if (starved) scheduleFill();
     if (poolCount) poolCount.textContent = search ? `${shown} of ${poolOrder.length}` : "";
   }
 
@@ -721,6 +807,18 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
   let curveBars: CurveBar[] = [];
   let curveNote: HTMLElement | null = null;
   let curveBarsHost: HTMLElement | null = null;
+  /**
+   * The last histogram, kept so the chart can be laid out again without the deck
+   * being touched.
+   *
+   * `renderStats` runs while the screen is still detached — that is what removed
+   * the navigation stall — so the first layout pass is made against a plot area
+   * of zero and a label of zero. Every number below is a guess until the tree is
+   * in the document. Keeping the buckets lets `layoutCurve` run a second time
+   * for free the moment real dimensions exist, and again whenever the interface
+   * scale or the window changes underneath it.
+   */
+  let curveBuckets: number[] = new Array(8).fill(0) as number[];
 
   /**
    * The chart frame, built once.
@@ -816,15 +914,77 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       const at = Math.min(card.cost, 7);
       buckets[at] = (buckets[at] ?? 0) + 1;
     }
+    curveBuckets = buckets;
+    layoutCurve();
+
+    if (curveNote) {
+      const need = deckNeeds(content, deck);
+      curveNote.textContent =
+        need.worstBucket !== null
+          ? `Thinnest at ${need.worstBucket === 7 ? "7+" : need.worstBucket} Hype — ${
+              need.curve[need.worstBucket] ?? 0
+            } short of the target curve.`
+          : "The curve is where it wants to be.";
+      /* The compact form ellipsises this line, so the whole sentence has to
+         survive somewhere the pointer and the screen reader can still reach. */
+      curveNote.title = curveNote.textContent;
+    }
+  }
+
+  /**
+   * The chart stands down when the panel cannot afford it.
+   *
+   * The side panel is a fixed three-row grid — header, scroller, pinned footer —
+   * and the header and footer are made of `rem`, so turning the interface scale
+   * up takes the difference out of the middle. Measured at 1280×720 with a legal
+   * thirty-card deck:
+   *
+   *              header   scroller   footer   curve   rows visible
+   *     100%        122        378      114     122      about eight
+   *     140%        180        275      158     142            three
+   *     160%        199        248      161     178            *none*
+   *
+   * At 160% the scroller was 248px holding a 178px chart, so the deck list — the
+   * object the screen exists to edit — was its own sticky header and nothing
+   * else. "20 rows · 30 cards" over an empty box reads as a bug, not as a scroll
+   * position, and it is the state a player who needs large text lands in.
+   *
+   * Compacting is a fair trade because a histogram is a reference and the list
+   * is the tool. Nothing is deleted: the plot loses a quarter of its height, and
+   * the caption moves onto the title's own line where it ellipsises with its
+   * full text on the element. 178px becomes about 109. The header and the footer
+   * are the other two thirds of the swing and they belong to `collectionKit.ts`.
+   */
+  function syncCurveDensity(): void {
+    if (!curveHost) return;
+    const room = sideWrap?.clientHeight ?? 0;
+    /* 330 rather than a round number: the scroller is 378px at 100% on the
+       smallest window the bar names, and the chart should never compact on a
+       layout where it was already comfortable. */
+    const compact = room > 0 && room < 330;
+    if ((curveHost.dataset["compact"] === "true") === compact) return;
+    if (compact) curveHost.dataset["compact"] = "true";
+    else delete curveHost.dataset["compact"];
+  }
+
+  /**
+   * Place the eight columns, their target lids and their value chips.
+   *
+   * Separate from `renderStats` because it depends on nothing but the histogram
+   * and the size of the box — so it can be run again on mount, on resize and
+   * when the player moves the interface scale, none of which change the deck.
+   */
+  function layoutCurve(): void {
+    if (curveBars.length === 0) return;
 
     /**
      * Bars show what the curve *is*; the ghost line and the note say where it is
      * furthest from what it should be, which is the question somebody looking at
      * a histogram is actually asking.
      */
-    const need = deckNeeds(content, deck);
     const targetPeak = Math.max(...Object.values(TARGET_CURVE));
-    const peak = Math.max(targetPeak, ...buckets);
+    const peak = Math.max(targetPeak, ...curveBuckets);
+    const worstBucket = deckNeeds(content, deck).worstBucket;
 
     /**
      * One layout read for the whole chart, and then nothing but transforms.
@@ -855,14 +1015,43 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     /** An empty column still draws a rail, so the axis reads as continuous. */
     const EMPTY_RAIL = 2;
 
+    /**
+     * The value chip stays inside the plot, and this is the number that keeps it
+     * there.
+     *
+     * The chip is pinned to the bottom of its column and pushed up by the height
+     * of the fill, which put the tallest column's chip *above the chart* — and
+     * the chart's own title is the next thing above the chart. Measured on a
+     * thirty-card deck at 1280×720, the peak chip's box crossed the "HYPE CURVE"
+     * eyebrow by 5px at 100%, 12px at 140% and 17px at 160%: a dark plate with a
+     * number on it sitting on the word CURVE, at *every* scale the game ships,
+     * including the default. The frame only reserves 14 static pixels of
+     * headroom and the chip is set in `rem`, so the gap closes as the type grows
+     * and nothing about the box changes to notice.
+     *
+     * Clamping the rise to `track - chipHeight` is the fix, and it is also the
+     * better chart: when a column is tall enough to hold its own number, the
+     * number sits on the column — which is what a value label does in every
+     * charting library worth the name — and when it is not, it floats just above
+     * as before. Nothing can leave the frame, at any scale, for any deck.
+     *
+     * `offsetHeight` is 0 while the tree is detached, so a rem-derived estimate
+     * stands in until `layoutCurve` is called again with the chart in the
+     * document. 1.5 is the chip's line box: `--fs-micro` type with 1px of
+     * padding either side of it.
+     */
+    const rootPx = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const chipH = curveBars[0]?.count.offsetHeight || Math.round(Math.max(11, rootPx * 0.7) * 1.5);
+    const ceiling = Math.max(0, track - chipH);
+
     for (const [cost, bar] of curveBars.entries()) {
-      const count = buckets[cost] ?? 0;
+      const count = curveBuckets[cost] ?? 0;
       const filled = count === 0 ? EMPTY_RAIL : Math.max(3, (count / peak) * track);
       bar.fill.style.transform = `scaleY(${(filled / track).toFixed(4)})`;
-      bar.count.style.transform = `translate(-50%, ${-Math.round(filled + 3)}px)`;
+      bar.count.style.transform = `translate(-50%, ${-Math.round(Math.min(filled + 3, ceiling))}px)`;
       bar.root.classList.toggle("is-zero", count === 0);
       bar.root.classList.toggle("is-empty", count === 0);
-      bar.root.classList.toggle("is-thin", cost === need.worstBucket);
+      bar.root.classList.toggle("is-thin", cost === worstBucket);
       /*
        * A zero prints twice otherwise: once as the count label and once as the
        * axis tick 20px below it, with nothing in between, so the chart appeared
@@ -877,15 +1066,6 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
       bar.root.title = `${cost === 7 ? "7+" : cost} Hype — ${count} card${count === 1 ? "" : "s"}${
         target ? `, target ${target}` : ""
       }`;
-    }
-
-    if (curveNote) {
-      curveNote.textContent =
-        need.worstBucket !== null
-          ? `Thinnest at ${need.worstBucket === 7 ? "7+" : need.worstBucket} Hype — ${
-              need.curve[need.worstBucket] ?? 0
-            } short of the target curve.`
-          : "The curve is where it wants to be.";
     }
   }
 
@@ -1428,6 +1608,35 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     : () => {};
   renderAll();
 
+  /**
+   * The chart is laid out a second time as soon as it has a real box.
+   *
+   * Every dimension `layoutCurve` reads is zero while the screen is detached, so
+   * the first pass is a set of assumptions: a 62px plot and a chip height
+   * derived from the root font size. Both are close, neither is the truth, and
+   * the one that matters — where the peak's value chip stops rising — is the one
+   * that decides whether the chart writes on its own title.
+   *
+   * A `ResizeObserver` rather than a `requestAnimationFrame`, because the same
+   * callback then covers the window changing size and the accessibility screen
+   * changing the interface scale, which is exactly when a chart sized in pixels
+   * and labelled in `rem` goes wrong. It cannot loop: the pass writes only
+   * transforms, and a transform does not resize the box being observed.
+   */
+  const curveResize =
+    typeof ResizeObserver === "undefined" || !curveHost
+      ? null
+      : new ResizeObserver(() => {
+          syncCurveDensity();
+          layoutCurve();
+        });
+  if (curveBarsHost) curveResize?.observe(curveBarsHost);
+  /* The density question is about the *scroller*, not about the chart: the chart
+     is whatever height its own contents add up to, and the scroller is what has
+     run out. Observing both is safe because compacting changes the scroller's
+     scroll height and never its client height, so this cannot feed itself. */
+  if (sideWrap) curveResize?.observe(sideWrap);
+
   /** Automation hook, the same shape the other screens expose. */
   (window as unknown as { hypeboundBuilder?: unknown }).hypeboundBuilder = {
     deck: () => structuredClone(deck),
@@ -1441,9 +1650,23 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
     root,
     dispose: () => {
       painter.stop();
+      /**
+       * The chunked pool's own callback, cancelled rather than left to fire into
+       * a disposed screen. `renderPool` would find its host detached and do very
+       * little, but "very little" on a route the player has already left is
+       * still a frame of a route they are on.
+       */
+      if (fillHandle !== 0) {
+        const host = globalThis as { cancelIdleCallback?: (handle: number) => void };
+        if (typeof host.cancelIdleCallback === "function") host.cancelIdleCallback(fillHandle);
+        else if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(fillHandle);
+        window.clearTimeout(fillHandle);
+        fillHandle = 0;
+      }
       unbindPoolFades();
       unbindSideFades();
       unbindRetile();
+      curveResize?.disconnect();
       for (const cell of poolCells.values()) cell.stopDrag();
       for (const row of rows.values()) row.stopDrag();
       for (const timer of leavingRows.values()) window.clearTimeout(timer);

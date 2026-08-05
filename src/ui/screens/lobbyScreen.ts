@@ -321,7 +321,26 @@ export function createLobbyScreen(content: ContentIndex, callbacks: LobbyCallbac
               <span class="record-label t-label">Losses</span>
             </div>
             <div class="record-stat">
-              <span class="record-figure"><span class="record-value num" style="--digits:3" data-value="${winRate}">0</span><span class="record-suffix">%</span></span>
+              <!--
+                The reservation is on the *figure*, not on the number, and that
+                is the whole difference between "100%" and "10⊘".
+
+                The .num role's --digits reserves character cells inside the
+                value and centres the ink, which is right for a bare figure and
+                wrong the moment a unit is welded to its right edge: at three
+                reserved cells the suffix's optical kern had a whole cell of
+                slack to eat while the value read "0", and none at all while it
+                read "100". Measured at 4x on the widest value the slot can hold,
+                the per-cent sign overlapped the final zero's ink by 2.5px at
+                100%, 3.4px at 140% and 3.9px at 160% — at every interface scale
+                the game ships, including the default.
+
+                So the number is sized by its own digits and the pair is centred
+                inside a fixed box. The box never changes width, which is what
+                the reservation was for; the ink recentres once per digit
+                gained, which is what a counter does.
+              -->
+              <span class="record-figure record-figure-unit"><span class="record-value num" data-value="${winRate}">0</span><span class="record-suffix">%</span></span>
               <span class="record-label t-label">Win rate</span>
             </div>
           </div>
@@ -503,6 +522,36 @@ export function createLobbyScreen(content: ContentIndex, callbacks: LobbyCallbac
   document.addEventListener("keydown", onEscape);
 
   /**
+   * The rail's own two ramps, lit only while there is something under them.
+   *
+   * As a column the rail is a scroller, and at 160% on a 720p window its three
+   * panels do not fit: measured, the news summary lost 59px of its 156 to a
+   * hard horizontal edge with no fade and nothing to say the sentence carried
+   * on. The stylesheet draws the ramps as a mask whose stops collapse onto the
+   * element's own edges at zero, so writing 0 here is not "a faint gradient" but
+   * no gradient at all — which matters on the last panel, where a ramp still
+   * burning says there is more to read when there is not.
+   *
+   * Custom properties rather than a class, for the reason the shell's own
+   * cascade note gives: a class toggle on a screen subtree registered a
+   * whole-subtree invalidation in Blink and cost this project 23–42ms per
+   * navigation.
+   */
+  const railScroll = (): void => {
+    if (!rail) return;
+    const room = rail.scrollHeight - rail.clientHeight;
+    rail.style.setProperty("--fade-top", rail.scrollTop > 2 ? "1" : "0");
+    rail.style.setProperty("--fade-bottom", room - rail.scrollTop > 2 ? "1" : "0");
+  };
+  rail?.addEventListener("scroll", railScroll, { passive: true });
+  /* An observer as well, because the first read happens on a detached tree and
+     because the window and the interface scale are what decide whether this
+     column overflows in the first place. */
+  const railResize = typeof ResizeObserver === "undefined" || !rail ? null : new ResizeObserver(railScroll);
+  if (rail) railResize?.observe(rail);
+  railScroll();
+
+  /**
    * The portrait breathes, and its shadow stays planted.
    *
    * The old float welded a `drop-shadow` to the card's own transform, so the
@@ -520,6 +569,10 @@ export function createLobbyScreen(content: ContentIndex, callbacks: LobbyCallbac
 
   return {
     root,
-    dispose: () => document.removeEventListener("keydown", onEscape),
+    dispose: () => {
+      document.removeEventListener("keydown", onEscape);
+      rail?.removeEventListener("scroll", railScroll);
+      railResize?.disconnect();
+    },
   };
 }

@@ -111,6 +111,19 @@ export type AtmosphereRoom =
   | "stage";
 
 export interface RoomLight {
+  /**
+   * What this room is called, for the one surface that has to name it.
+   *
+   * The world behind the UI has been ten lighting setups with no names since it
+   * was built, which was fine while nothing ever had to say where you were
+   * going. The menu veil does: it is the only screen in the game that is drawn
+   * *instead* of a destination rather than as one, and a cover that carries the
+   * destination's identity is the difference between Hearthstone's book opening
+   * and a progress bar. Naming the room rather than the route is deliberate —
+   * the Collection and the Deck Builder are two doors into the same workshop,
+   * and saying so is what makes ten rooms read as one building.
+   */
+  name: string;
   /** The key. The strongest colour in the room, sitting at `keyAt`. */
   key: string;
   /** The fill, thrown from the opposite side. Always cooler or duller than the key. */
@@ -141,25 +154,25 @@ export interface RoomLight {
  */
 export const ROOMS: Readonly<Record<AtmosphereRoom, RoomLight>> = {
   /** The lobby. The loudest room in the game, and the one that sets the tone. */
-  hub: { key: "#b56cff", fill: "#ff5fa2", rim: "#52c8ff", keyAt: ["18%", "4%"], intensity: 1 },
+  hub: { name: "The Lobby", key: "#b56cff", fill: "#ff5fa2", rim: "#52c8ff", keyAt: ["18%", "4%"], intensity: 1 },
   /** Mode select: the same building, one step cooler, because you are choosing. */
-  play: { key: "#8f6cff", fill: "#52c8ff", rim: "#b56cff", keyAt: ["22%", "6%"], intensity: 0.92 },
+  play: { name: "The Door", key: "#8f6cff", fill: "#52c8ff", rim: "#b56cff", keyAt: ["22%", "6%"], intensity: 0.92 },
   /** Collection, decks, gallery. A workshop — deliberately quiet behind card art. */
-  forge: { key: "#6f7dff", fill: "#3fa9d8", rim: "#8b5cf6", keyAt: ["14%", "2%"], intensity: 0.72 },
+  forge: { name: "The Workshop", key: "#6f7dff", fill: "#3fa9d8", rim: "#8b5cf6", keyAt: ["14%", "2%"], intensity: 0.72 },
   /** Merch Drops, banners, the Hype Wave. The one gold-lit room. */
-  market: { key: "#ffcc66", fill: "#ff5fa2", rim: "#b56cff", keyAt: ["20%", "4%"], intensity: 0.88 },
+  market: { name: "The Market", key: "#ffcc66", fill: "#ff5fa2", rim: "#b56cff", keyAt: ["20%", "4%"], intensity: 0.88 },
   /** Profile, stats, leaderboards, replays. Archival: steel, low saturation. */
-  record: { key: "#7d92c8", fill: "#5f6fa8", rim: "#4fa8d8", keyAt: ["16%", "4%"], intensity: 0.6 },
+  record: { name: "The Archive", key: "#7d92c8", fill: "#5f6fa8", rim: "#4fa8d8", keyAt: ["16%", "4%"], intensity: 0.6 },
   /** News, inbox, events. Broadcast cyan. */
-  signal: { key: "#52c8ff", fill: "#4fe3d0", rim: "#8b5cf6", keyAt: ["24%", "2%"], intensity: 0.8 },
+  signal: { name: "The Feed", key: "#52c8ff", fill: "#4fe3d0", rim: "#8b5cf6", keyAt: ["24%", "2%"], intensity: 0.8 },
   /** Settings and the policy hub. Almost unlit — you have stepped out of the game. */
-  system: { key: "#7a7396", fill: "#5d6b8a", rim: "#8f8aa8", keyAt: ["18%", "6%"], intensity: 0.42 },
+  system: { name: "Back Office", key: "#7a7396", fill: "#5d6b8a", rim: "#8f8aa8", keyAt: ["18%", "6%"], intensity: 0.42 },
   /** Behind the board. Hot, and the only room where the rim is warm. */
-  arena: { key: "#ff5fa2", fill: "#b56cff", rim: "#ff6b2c", keyAt: ["20%", "0%"], intensity: 1 },
+  arena: { name: "The Floor", key: "#ff5fa2", fill: "#b56cff", rim: "#ff6b2c", keyAt: ["20%", "0%"], intensity: 1 },
   /** The Doomscroll and the Gauntlet. Sickly, unstable, wrong on purpose. */
-  descent: { key: "#4fe3d0", fill: "#56c264", rim: "#a855f7", keyAt: ["12%", "2%"], intensity: 0.78 },
+  descent: { name: "The Descent", key: "#4fe3d0", fill: "#56c264", rim: "#a855f7", keyAt: ["12%", "2%"], intensity: 0.78 },
   /** Story chapters. Theatrical amber over a bruise. */
-  stage: { key: "#ffb347", fill: "#8b3a62", rim: "#a855f7", keyAt: ["26%", "4%"], intensity: 0.86 },
+  stage: { name: "The Stage", key: "#ffb347", fill: "#8b3a62", rim: "#a855f7", keyAt: ["26%", "4%"], intensity: 0.86 },
 };
 
 export const DEFAULT_ROOM: AtmosphereRoom = "hub";

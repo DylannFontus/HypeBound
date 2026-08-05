@@ -117,26 +117,33 @@ export interface RouteNode {
   order: number;
   /** Which of `atmosphere.ts`'s ten rooms this destination is lit by. */
   room: AtmosphereRoom;
+  /**
+   * What to call this place on a cover, when the id is not the answer.
+   *
+   * Only the veil reads it, and only where `titleCase(id)` would be wrong or
+   * ugly — `deckbuilder` is not "Deckbuilder" and `uikit` is not "Uikit". Every
+   * other route derives its own, so adding a screen still requires nothing here.
+   */
+  title?: string;
   /** A live match. Entering or leaving one is always the curtain. */
   battle?: boolean;
   /**
    * A prior, not a fact: this screen is expected to take long enough to build
    * that the wait wants covering.
    *
-   * It is only the opening guess. `Shell.isHeavy` times every factory it calls
-   * and the measurement replaces this flag the moment there is one, in both
-   * directions — a route marked heavy here that turns out to build in a frame
-   * stops being veiled, and a route nobody classified that turns out to cost
-   * 900ms starts being veiled on the second visit. A table maintained by hand
-   * across forty-nine screens and fifteen builders will always be a little
-   * wrong; a stopwatch is never wrong about the screen it just built.
+   * It is only the opening guess, and it is the guess for **the first visit**,
+   * which is the one no measurement exists for yet. `collection`, `gallery`,
+   * `deckbuilder` and `uikit` are here because they were each once measured over
+   * half a second, and being wrong about them on the first navigation of a
+   * session is exactly the failure this whole file is about.
    *
-   * What the flag still buys is the *first* visit, which is the one no
-   * measurement exists for yet. `collection`, `gallery`, `deckbuilder` and
-   * `uikit` are here because they have each been measured over half a second
-   * (the collection: 245 card canvases, ~900ms), and being wrong about them on
-   * the first navigation of a session is exactly the failure this whole file is
-   * about.
+   * From the second visit the stopwatch outranks it, in both directions — see
+   * `Shell.isHeavy`, which is where the rule and the measurements behind it are
+   * written down. A route marked heavy here that turns out to build *and* tear
+   * down inside a frame stops being veiled; a route nobody classified that turns
+   * out to cost 900ms starts being veiled. A table maintained by hand across
+   * forty-nine screens and fifteen builders will always be a little wrong; a
+   * stopwatch is never wrong about the screen it just built.
    */
   heavy?: boolean;
 }
@@ -192,7 +199,7 @@ export const ROUTES: Readonly<Record<string, RouteNode>> = {
    * photographed on, and the one screen in the game whose entire job is to
    * demonstrate that the motion system works.
    */
-  uikit: { parent: "lobby", order: 19, room: "forge", heavy: true },
+  uikit: { parent: "lobby", order: 19, room: "forge", heavy: true, title: "Foundation" },
 
   // --- mode select's children ---
   tour: { parent: "play", order: 0, room: "play" },
@@ -204,7 +211,7 @@ export const ROUTES: Readonly<Record<string, RouteNode>> = {
   queue: { parent: "play", order: 6, room: "arena" },
 
   // --- one level further down ---
-  deckbuilder: { parent: "decks", order: 0, room: "forge", heavy: true },
+  deckbuilder: { parent: "decks", order: 0, room: "forge", heavy: true, title: "Deck Builder" },
   banner: { parent: "shop", order: 0, room: "market" },
   patchnotes: { parent: "news", order: 0, room: "signal" },
   stats: { parent: "profile", order: 0, room: "record" },
@@ -267,6 +274,35 @@ const UNKNOWN_ROUTE: RouteNode = { parent: "lobby", order: 99, room: "hub", heav
  */
 function routeNode(id: string): RouteNode {
   return ROUTES[id] ?? UNKNOWN_ROUTE;
+}
+
+/**
+ * What to call a route on a cover when the table has not said.
+ *
+ * Forty-nine route ids are already words a human chose — `collection`,
+ * `missions`, `leaderboards` — so the default is those words with a capital on
+ * the front and hyphens opened out. The half-dozen that read badly that way
+ * carry a `title` in `ROUTES` instead. A screen added next month needs neither.
+ */
+function routeTitle(id: string): string {
+  return id
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/**
+ * Route ids and room names are both ours, and both go through here anyway.
+ *
+ * This string is written with `innerHTML`, and the rule about `innerHTML` is
+ * that it does not matter how trustworthy today's inputs are — it matters what
+ * the next person puts in the table. Four characters and the question never has
+ * to be asked again.
+ */
+function escapeText(value: string): string {
+  return value.replace(/[&<>"]/g, (char) =>
+    char === "&" ? "&amp;" : char === "<" ? "&lt;" : char === ">" ? "&gt;" : "&quot;"
+  );
 }
 
 /** Distance from the hub. Guarded against a table that accidentally loops. */
@@ -912,6 +948,19 @@ export class Shell {
    */
   private readonly buildCost = new Map<string, number>();
   /**
+   * How long each route's `dispose()` actually took, the last time one ran.
+   *
+   * The other half of the stopwatch, and the reason `isHeavy` can be allowed to
+   * demote again. The note there records why demotion was withdrawn: the
+   * Collection's constructor was virtualised, came in under the bar, cleared its
+   * flag — and *leaving* it still tore 245 canvases down in a 216ms block that
+   * nothing covered. That was a correct objection to an incomplete measurement,
+   * not to measurement. A factory's elapsed time is not the cost of a route;
+   * build **and** teardown together are much closer to it, and both are numbers
+   * this file already stands next to.
+   */
+  private readonly teardownCost = new Map<string, number>();
+  /**
    * Teardowns that have been earned but not yet paid.
    *
    * A screen's `dispose()` is exactly as synchronous as its constructor — the
@@ -922,7 +971,7 @@ export class Shell {
    * navigation, whichever comes first: both are moments where the thread is
    * allowed to be busy.
    */
-  private readonly pendingDisposals: Array<() => void> = [];
+  private readonly pendingDisposals: Array<{ id: string; run: () => void }> = [];
   private disposalTimer = 0;
 
   constructor(host: HTMLElement) {
@@ -1110,7 +1159,7 @@ export class Shell {
        * to restart the crossfade, which is exactly the kind of work a cover is
        * supposed to be in front of rather than behind.
        */
-      if (veiled && outgoing) this.raiseCurtain(plan, routeNode(id).room);
+      if (veiled && outgoing) this.raiseCurtain(plan, id);
 
       /**
        * Light the room. The crossfade behind the UI is 900ms and the transition
@@ -1283,7 +1332,7 @@ export class Shell {
       });
 
       if (!veiled && outgoing !== null && buildMs >= HEAVY_BUILD_MS) {
-        this.raiseCurtain(plan, routeNode(id).room, true);
+        this.raiseCurtain(plan, id, true);
         veiled = true;
         await twoFrames();
       } else if (outgoing) {
@@ -1517,23 +1566,40 @@ export class Shell {
   /**
    * Will this route make the player wait?
    *
-   * The table's `heavy` is a floor and the stopwatch can only raise it. That
-   * is a correction, and the measurement behind it is worth keeping.
+   * ## The flag is a prior again, and this time there is enough measurement to
+   * clear it
    *
-   * This used to let a measurement *demote* a flagged route, on the reasoning
-   * that a hand-maintained list across forty-nine routes is wrong in both
-   * directions. What actually happened is that the collection's constructor got
-   * virtualised and came in under `HEAVY_BUILD_MS` — so the stopwatch cleared
-   * the flag — while **leaving** it still blocked the thread for 231ms building
-   * the lobby and another 216ms tearing 245 canvases down. `collection → lobby`
-   * then ran with no cover at all, which is the exact failure the "veil either
-   * endpoint" rule below was added to fix, reintroduced by the demotion path.
+   * The history is worth keeping because both previous positions were right
+   * about something. Demotion was allowed, and it broke `collection → lobby`:
+   * the Collection's constructor was virtualised, came in under the bar, cleared
+   * its own flag — and *leaving* it still tore 245 canvases down in a 216ms
+   * block with nothing over it. So demotion was withdrawn and the flag became a
+   * floor. That fixed the hole and left a worse one: a permanent, unconditional
+   * cover on the three most-travelled routes in the menu tree, which is the
+   * defect this pass exists to remove and which no amount of making the screens
+   * faster could ever have shifted.
    *
-   * The honest reading is that a factory's own elapsed time is not the cost of
-   * a route: teardown, layout and paint are all on the same thread and none of
-   * them are inside the stopwatch. Promotion is still safe — a route nobody
-   * classified that turns out to cost 900ms starts being veiled on the second
-   * visit — because that direction cannot make a cover disappear.
+   * The real fault was never the direction of the correction, it was that the
+   * stopwatch was measuring one third of a route. `buildCost` now carries the
+   * factory **and** the first painted frame (see the `nextFrame` fold in
+   * `handleHash`), and `teardownCost` carries the `dispose()` — so the two of
+   * them together are the whole of what a route costs the thread on the way in
+   * and on the way out. A flag may be cleared only when *both* have a sample and
+   * both are under the bar; a route that has been entered but never left is
+   * still an unknown, and an unknown that the table called expensive stays
+   * covered.
+   *
+   * Measured at 1280×720 on this machine, warm, with `_w7leg_phase.mjs`:
+   *
+   *     collection    element in the document at t=109ms   dispose 41ms
+   *     deckbuilder   element in the document at t= 68ms   dispose 12ms
+   *
+   * against a `HEAVY_BUILD_MS` of 220. Both were being veiled on every visit by
+   * a flag, and the veil was costing them 400ms each — the veil was the wait.
+   *
+   * Promotion is unchanged and needs no ceremony: a route nobody classified that
+   * turns out to cost 900ms starts being veiled on its second visit, because
+   * that direction cannot make a cover disappear.
    *
    * This deliberately answers for a route rather than for a direction, and is
    * asked about both endpoints. Leaving a heavy screen and entering one cost
@@ -1542,9 +1608,14 @@ export class Shell {
    * destination left Back out of the collection completely uncovered.
    */
   private isHeavy(id: string): boolean {
-    if (routeNode(id).heavy === true) return true;
-    const measured = this.buildCost.get(id);
-    return measured !== undefined && measured >= HEAVY_BUILD_MS;
+    const build = this.buildCost.get(id);
+    const teardown = this.teardownCost.get(id);
+    if (build !== undefined && build >= HEAVY_BUILD_MS) return true;
+    if (teardown !== undefined && teardown >= HEAVY_BUILD_MS) return true;
+    if (routeNode(id).heavy !== true) return false;
+    // The flag stands until the route has been both entered and left at least
+    // once. Half a measurement is not a measurement.
+    return build === undefined || teardown === undefined;
   }
 
   /**
@@ -1621,8 +1692,8 @@ export class Shell {
    * allowed to leak: `flushDisposals` runs on settle, on the backstop, and at
    * the top of the next navigation, and it is idempotent.
    */
-  private queueDisposal(run: () => void): void {
-    this.pendingDisposals.push(run);
+  private queueDisposal(id: string, run: () => void): void {
+    this.pendingDisposals.push({ id, run });
     window.clearTimeout(this.disposalTimer);
     this.disposalTimer = window.setTimeout(() => this.flushDisposals(), 1200);
   }
@@ -1654,17 +1725,31 @@ export class Shell {
     else window.setTimeout(() => this.flushDisposals(), 120);
   }
 
+  /**
+   * Pay the queue, and time each entry.
+   *
+   * The stopwatch is the whole reason this loop is not two lines. `isHeavy` used
+   * to be forbidden from demoting a flagged route because the only measurement
+   * it had was the factory's, and a factory is half of what a route costs — the
+   * Collection's teardown of 245 canvases was the other half and was invisible
+   * to it. It is not invisible here: `dispose()` runs on this line, and the
+   * clock either side of it is the missing number.
+   */
   private flushDisposals(): void {
     window.clearTimeout(this.disposalTimer);
     this.disposalTimer = 0;
     while (this.pendingDisposals.length > 0) {
-      const run = this.pendingDisposals.shift();
+      const entry = this.pendingDisposals.shift();
+      if (!entry) continue;
+      const started = now();
       try {
-        run?.();
+        entry.run();
       } catch (error) {
         // One badly-behaved screen must not be able to wedge the router on its
         // way out, and a teardown that throws has already stopped being drawn.
         console.error("Screen dispose threw on the way out:", error);
+      } finally {
+        this.teardownCost.set(entry.id, now() - started);
       }
     }
   }
@@ -1719,7 +1804,7 @@ export class Shell {
       // Out of the document now — that is what stops it being drawn — and torn
       // down once the arriving screen has stopped moving. See `queueDisposal`.
       root.remove();
-      this.queueDisposal(() => entry.screen.dispose?.());
+      this.queueDisposal(entry.id, () => entry.screen.dispose?.());
     };
 
     const maybeComplete = (): void => {
@@ -1833,14 +1918,40 @@ export class Shell {
    * destination's own light. Without it the `color-mix` in the stylesheet falls
    * back to the house violet and the forge and the market hold on the same
    * colour, which is the one thing a per-route lighting model exists to stop.
+   *
+   * ## And the menu veil now says where you are going
+   *
+   * The last thing wrong with it was not its colour, it was that it had nothing
+   * on it. Two gradients, a grain tile and a bright horizontal rule is a
+   * *surface*; a place you are being taken to is a **room**, and the difference
+   * is whether anything in the frame tells you what you are waiting for. Filmed
+   * losslessly on `lobby → collection`, the whole 562ms hold ran with a mean
+   * frame-to-frame delta of 0.0–1.5/255 and three windows over 60ms in which
+   * literally nothing changed — against Hearthstone's idle floor of 0.6–1.3 with
+   * nothing happening at all.
+   *
+   * So the cover carries a plate: the room's name over the destination's, in the
+   * room's own key, with an entrance and a specular that crosses the type. Text
+   * is the highest-contrast thing this element can hold, which makes it both the
+   * thing that answers "where am I going" and — because a sub-pixel drift of a
+   * hard edge moves whole bytes rather than fractions of one — the only layer
+   * here whose motion survives being written to eight bits. §3a: loading is part
+   * of the world, and §4: text over imagery always gets a plate.
+   *
+   * `aria-hidden` on the element and no `role`: the plate is decoration for the
+   * eye during a wait that the router is already announcing by changing the
+   * document. A screen reader must not be told "Collection" twice, once by a
+   * cover and once by the screen.
    */
-  private raiseCurtain(plan: NavPlan, room: AtmosphereRoom, late = false): void {
+  private raiseCurtain(plan: NavPlan, id: string, late = false): void {
     this.dropCurtain();
+    const node = routeNode(id);
     const curtain = document.createElement("div");
     curtain.className = "nav-curtain";
     curtain.setAttribute("aria-hidden", "true");
     curtain.dataset["phase"] = "close";
-    curtain.dataset["veil"] = plan.relation === "curtain" ? "battle" : "menu";
+    const menu = plan.relation !== "curtain";
+    curtain.dataset["veil"] = menu ? "menu" : "battle";
     /**
      * A cover the build asked for, rather than one the route table predicted.
      *
@@ -1852,11 +1963,24 @@ export class Shell {
      */
     if (late) curtain.dataset["arm"] = "late";
     curtain.style.setProperty("--nav-dur", `${CURTAIN.close}ms`);
-    curtain.style.setProperty("--room-key", ROOMS[room].key);
+    curtain.style.setProperty("--room-key", ROOMS[node.room].key);
+    curtain.style.setProperty("--room-rim", ROOMS[node.room].rim);
     curtain.innerHTML =
       '<div class="nav-curtain-panel is-top"></div>' +
       '<div class="nav-curtain-panel is-bottom"></div>' +
-      '<div class="nav-curtain-seam"></div>';
+      '<div class="nav-curtain-seam"></div>' +
+      /**
+       * The battle veil is deliberately excluded. `matchCurtain.ts` puts two lit
+       * leader portraits and a VS on those panels, and a second plate naming the
+       * route would be competing with the best thing in the file.
+       */
+      (menu
+        ? '<div class="nav-curtain-plate">' +
+          `<span class="nav-curtain-room t-label">${escapeText(ROOMS[node.room].name)}</span>` +
+          `<span class="nav-curtain-title t-display">${escapeText(node.title ?? routeTitle(id))}</span>` +
+          '<span class="nav-curtain-underline"></span>' +
+          "</div>"
+        : "");
     this.host.appendChild(curtain);
     this.curtain = curtain;
   }

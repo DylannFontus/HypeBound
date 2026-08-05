@@ -39,7 +39,7 @@ import { audio } from "../../audio/audio";
 import { getSettings, updateSettings } from "../../save/settings";
 import { emoteWheel, wearing } from "../../save/profile";
 import { cosmeticById } from "../../game/cosmetics";
-import { setPlayerCardBack } from "../battle/cardMesh";
+import { cardBackStyleFor, setPlayerCardBack } from "../battle/cardMesh";
 import { getAiProfile } from "../../ai/profiles";
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
@@ -311,6 +311,34 @@ export class BattleScreen {
       : null;
     const back = (deckBack?.kind === "cardBack" ? deckBack : null) ?? wearing(this.content, "cardBack");
     setPlayerCardBack(back && back.emblem ? { color: back.color, emblem: back.emblem } : null);
+
+    /**
+     * And a readout of what the board *actually* holds, taken from this file's
+     * own import of `cardMesh`.
+     *
+     * `verify:decks` step 12 has reported "could not read the board's card back"
+     * for two waves, and reproduced on both entry routes, with every input
+     * verifiably correct: `activeDeckIndex 0`, `cardBackId
+     * "cardBack:award:gauntlet"`, `cosmeticById` resolving it to
+     * `{color:"#e0b45c", emblem:"bracket"}`, and the call three lines above this
+     * one demonstrably running with those values. The feature was never broken.
+     * The *measurement* was: every one of those scripts read the value with
+     *
+     *     const { cardBackStyleFor } = await import("/src/ui/battle/cardMesh.ts");
+     *
+     * and a Vite dev server that has served an HMR update holds that module in
+     * its graph as `/src/ui/battle/cardMesh.ts?t=1785953576506`. A bare specifier
+     * is a *different URL*, so the browser instantiates a second copy of the
+     * module with its own module-scope `playerCardBack`, still at its initial
+     * `null`. Measured directly: the app's instance reported id `ovpwxdg16y` and
+     * the probe's `zey294vx04`, and a marker written through the probe's copy
+     * survived a whole match untouched.
+     *
+     * The eighth instrument in this project to return a confident wrong answer,
+     * so it gets closed the way the others were: a handle onto the live value,
+     * reachable without importing anything. Scripts read `hypeboundCardBack()`.
+     */
+    (window as unknown as { hypeboundCardBack?: unknown }).hypeboundCardBack = () => cardBackStyleFor(0);
 
     const quality = getSettings().quality;
     this.view = new BattleView(
@@ -1415,8 +1443,23 @@ export class BattleScreen {
     return new Promise((resolve) => {
       const overlay = this.mountOverlay("confirm-overlay");
       const panel = document.createElement("div");
-      panel.className = "panel panel-chrome confirm-panel";
-      panel.innerHTML = `<h3 class="title">${title}</h3><p class="muted">${body}</p>`;
+      /**
+       * The two questions the game stops for, on the material everything else
+       * is on.
+       *
+       * This is the End Turn confirm and, through the same method, the concede
+       * confirm — the only two modals a player sees mid-match, and both were
+       * still `base.css`'s `.panel`: a flat glass fill, one 1px border and one
+       * inset highlight, floating over a board built entirely out of
+       * `foundation.css` materials. `battle.css` had already been written as if
+       * this were a material — the rule above it sets `--cast-lift: 3.2` on
+       * `.confirm-panel`, which is a knob only a `mat-*` surface reads — so the
+       * panel was quietly ignoring the one thing its own stylesheet asked it
+       * for. `r-panel` rather than a literal, because a modal is a panel and
+       * `.panel`'s `--radius-lg` was a different number from the material's 18.
+       */
+      panel.className = "mat-panel r-panel confirm-panel";
+      panel.innerHTML = `<h3 class="t-heading">${title}</h3><p class="t-body">${body}</p>`;
 
       const actions = document.createElement("div");
       actions.className = "row center";

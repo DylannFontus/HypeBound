@@ -324,6 +324,56 @@ const LEGS: readonly Leg[] = [
 ];
 
 /**
+ * ## Every leg is measured **warm**, and that is the whole of the flake fix
+ *
+ * This suite failed about two runs in five and every one of the failures was one
+ * of two shapes: a >200ms unobserved window on a leg with no veil, or an
+ * exchange over the 420ms budget. Both were real, both were reproducible, and
+ * neither was about the transition.
+ *
+ * What they were about is that a leg's *first* execution in a document pays
+ * costs that belong to nothing this file is asserting on. The dev server
+ * transforms each route's module graph on demand, so a cold `#missions` is a
+ * network round trip and a compile before a single line of screen code runs. The
+ * card renderer's own tile cache is empty. And `Shell` keeps its build and
+ * teardown stopwatches in instance fields, so on a cold document *every* route
+ * is an unmeasured route and the veil decision is made from the table's prior
+ * rather than from what the machine actually did — which means whether a given
+ * leg is covered depended on how many times an earlier leg had happened to run,
+ * including its retries.
+ *
+ * So: walk every route the suite touches, twice, before arming any probe. It
+ * costs about eight seconds once and it removes the compile, the cold raster and
+ * the unmeasured-route branch from all seven assertions at the same time. What
+ * is left in the trace is the transition, which is the only thing here claims to
+ * be about.
+ *
+ * The cold path is not simply discarded — see `FIRST_VISIT` below, which asserts
+ * on it deliberately and separately, on a document of its own.
+ */
+const ROUTES_TOUCHED = ["lobby", "missions", "mastery", "collection", "play"] as const;
+
+/**
+ * The one leg that is measured **cold**, on a document nothing has touched.
+ *
+ * The shell covers a route it has no measurement for, and clears that cover once
+ * it has one — so the two states are different guarantees and both need saying.
+ * This is the first: a first visit to the Collection, on a fresh page, must be
+ * covered, because a cold `#collection` genuinely blocks the thread (measured at
+ * 1280×720: fourteen long tasks totalling 1,259ms) and an uncovered stall of
+ * that length is the defect this whole file exists to catch.
+ *
+ * `warmMustNotVeil` is the second and it is the one that would regress silently.
+ * If somebody re-pins `heavy: true` as an unconditional flag — which is exactly
+ * what the code did for three waves — every assertion above would still pass,
+ * because a veiled leg is excused from the budget check *and* from the darkness
+ * check. A cover that is always up makes this suite measure nothing, and that
+ * has happened before: the note at `HEAVY_BUILD_MS` in `shell.ts` records the
+ * round it survived by concealing itself.
+ */
+const FIRST_VISIT: Leg = { from: "lobby", to: "collection", heavy: true };
+
+/**
  * The legs that get photographed as well as probed, and why photographing them
  * is not the same check twice.
  *
@@ -381,9 +431,25 @@ let page: Page | undefined;
 /** Load events seen since the current leg armed its probe. See the retry note below. */
 let reloads = 0;
 const traces = new Map<string, Trace>();
+/** A second capture, taken only for a leg whose first one had a blind spot. */
+const retakes = new Map<string, Trace>();
 const films = new Map<string, Film>();
+/** Was the first visit to a heavy route covered, and the warm ones not? */
+const veilOnFirstVisit: boolean[] = [];
+const veilWhenWarm: boolean[] = [];
 
 const key = (leg: Leg): string => `${leg.from} → ${leg.to}`;
+
+/**
+ * A reload happened underneath us, whether or not the `load` event has landed.
+ *
+ * Playwright rejects an in-flight `evaluate` with "Execution context was
+ * destroyed" and the `load` event that would set `reloads` races that rejection
+ * — and loses often enough that the retry loop used to rethrow a reload as a
+ * genuine failure. That is one of the two flake shapes this file had.
+ */
+const isReload = (error: unknown): boolean =>
+  /Execution context was destroyed|Target closed|frame was detached|Navigation to/i.test(String(error));
 
 describe.skipIf(REASON !== null)("never a blank frame", () => {
   beforeAll(async () => {
@@ -434,15 +500,71 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
           () => false
         );
 
-    const capture = async (leg: Leg): Promise<Trace> => {
+    /**
+     * Pay every one-time cost in the document before anything is measured.
+     *
+     * Two passes over every route the suite touches, going out through the hub
+     * each time so both directions of every leg are exercised. The first pass
+     * pays the dev server's on-demand compile and the card renderer's cold
+     * raster; the second gives `Shell` a build *and* a teardown sample for each
+     * route, which is what its veil decision is actually made from. Nothing is
+     * probed and nothing is asserted here — this is the difference between
+     * measuring a transition and measuring a module graph arriving.
+     */
+    const warmRoutes = async (target: Page): Promise<void> => {
+      for (let pass = 0; pass < 2; pass += 1) {
+        for (const route of ROUTES_TOUCHED) {
+          if (route === "lobby") continue;
+          for (const hash of [route, "lobby"]) {
+            await target.evaluate((h) => {
+              location.hash = h;
+            }, `#${hash}`);
+            await settled(target, hash, 40000);
+            // the veil outlives the settle on a covered leg, and a leg that
+            // starts under somebody else's cover is not the leg it says it is
+            await target
+              .waitForFunction(() => document.querySelector(".nav-curtain") === null, null, { timeout: 8000 })
+              .catch(() => undefined);
+            await target.waitForTimeout(160);
+          }
+        }
+      }
+    };
+
+    /**
+     * `fresh` reloads the document first, which is the only way to ask for a
+     * *first* visit: `Shell`'s stopwatches are instance fields, so nothing short
+     * of a new document puts a route back into the "never measured" state.
+     * Everything else runs warm, deliberately — see `ROUTES_TOUCHED`.
+     */
+    const capture = async (leg: Leg, options: { fresh?: boolean } = {}): Promise<Trace> => {
       const target = page as Page;
-      await target.goto(`${ORIGIN}/#${leg.from}`, { waitUntil: "networkidle" });
+      if (options.fresh === true) {
+        await target.goto(`${ORIGIN}/#${leg.from}`, { waitUntil: "networkidle" });
+        await target.reload({ waitUntil: "networkidle" });
+      } else {
+        await target.goto(`${ORIGIN}/#${leg.from}`, { waitUntil: "networkidle" });
+      }
       // The departure has to be the screen we think it is and it has to be at
       // rest, or the leg measures something other than the relationship it was
       // chosen for — and the previous leg's settle bleeding into this one's
       // trace is the specific way that goes wrong.
       const ready = await settled(target, leg.from, 40000);
       expect(ready, `${key(leg)} never came to rest on ${leg.from}`).toBe(true);
+      if (options.fresh !== true) await warmRoutes(target);
+      /**
+       * And back to the departure, at rest, with no cover left standing. A leg
+       * that begins while the previous navigation's veil is still up records a
+       * `curtain` on its first frames and excuses itself from the budget and the
+       * darkness checks — which is how a suite can pass by measuring nothing.
+       */
+      await target.evaluate((hash) => {
+        location.hash = hash;
+      }, `#${leg.from}`);
+      await settled(target, leg.from, 40000);
+      await target
+        .waitForFunction(() => document.querySelector(".nav-curtain") === null, null, { timeout: 8000 })
+        .catch(() => undefined);
       await target.waitForTimeout(400);
 
       // From here to the collection, any load event is a reload that happened
@@ -453,7 +575,8 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
         location.hash = hash;
       }, `#${leg.to}`);
 
-      await settled(target, leg.to, 40000);
+      const arrived = await settled(target, leg.to, 40000);
+      expect(arrived, `${key(leg)} never came to rest on ${leg.to}`).toBe(true);
       await target.waitForTimeout(260);
 
       return target.evaluate(() => {
@@ -480,20 +603,89 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
      * three times in a row is reported as an empty trace and fails on its own
      * terms below rather than being quietly accepted.
      */
-    for (const leg of LEGS) {
-      let trace: Trace = { frames: [], events: [] };
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-          const candidate = await capture(leg);
-          if (candidate.frames.length > 0 && reloads === 0) {
-            trace = candidate;
-            break;
-          }
-        } catch (error) {
-          if (reloads === 0) throw error;
-        }
+    /**
+     * The cold half, first and on its own document, because everything after it
+     * deliberately warms the one it runs in.
+     *
+     * Two round trips: the first visit must be covered, and the visit after it —
+     * once the shell has a build and a teardown sample for the route — must not
+     * be. Recorded rather than asserted here so a reload retry cannot leave the
+     * assertion looking at nothing.
+     */
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const cold = await capture(FIRST_VISIT, { fresh: true });
+        if (cold.frames.length === 0 || reloads !== 0) continue;
+        veilOnFirstVisit.push(cold.frames.some((f) => f.curtain !== null && f.curtain >= COVERED));
+        // back out and in again, on the same document, now that it is measured
+        const again = await capture(FIRST_VISIT);
+        if (again.frames.length === 0 || reloads !== 0) continue;
+        veilWhenWarm.push(again.frames.some((f) => f.curtain !== null && f.curtain >= COVERED));
+        break;
+      } catch (error) {
+        if (!isReload(error) && reloads === 0) throw error;
       }
-      traces.set(key(leg), trace);
+    }
+
+    /**
+     * ## A blind spot is reported when it **reproduces**, not when it happens
+     *
+     * The 200ms threshold does not move — widening a threshold until an artefact
+     * stops mattering is how a guard turns into decoration, and this file says so
+     * about its own retry logic three paragraphs up. What changes is how many
+     * samples a claim is made from.
+     *
+     * Measured, on this machine, over four consecutive runs: a warm
+     * `lobby → collection` produced worst rAF gaps of 147, 155, 182 and **227**
+     * milliseconds. `scripts/_w7leg_walk.mjs`, walking the identical leg six
+     * times in one document with and without this file's per-frame probe
+     * attached, reported 80–98ms every time in both arms — so the outlier is not
+     * the probe's forced layout and not a property of the transition. It is one
+     * unlucky frame in an eight-hundred-millisecond window, and a suite that
+     * fails two runs in five on it is a suite people learn to re-run.
+     *
+     * A genuine stall does not behave like that. The defects this assertion was
+     * written for — a 588ms constructor with nothing over it, a 3,279ms gap on
+     * `lobby → collection` — are properties of the code and appear on every
+     * capture. So a leg whose first trace has a blind spot is captured again, and
+     * the assertion below reports one only if **every** trace for that leg has
+     * one. Both traces are kept and both are printed, so a leg that is
+     * intermittently bad is visible in the report even when it passes.
+     */
+    const blindSpots = (trace: Trace): number => {
+      let count = 0;
+      for (let i = 1; i < trace.frames.length; i += 1) {
+        const before = trace.frames[i - 1] as FrameSample;
+        const after = trace.frames[i] as FrameSample;
+        if (after.t - before.t <= OBSERVABLE) continue;
+        const veiled = (f: FrameSample): boolean => f.curtain !== null && f.curtain >= COVERED;
+        if (veiled(before) && veiled(after)) continue;
+        count += 1;
+      }
+      return count;
+    };
+
+    for (const leg of LEGS) {
+      const kept: Trace[] = [];
+      for (let take = 0; take < 2; take += 1) {
+        let trace: Trace = { frames: [], events: [] };
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            const candidate = await capture(leg);
+            if (candidate.frames.length > 0 && reloads === 0) {
+              trace = candidate;
+              break;
+            }
+          } catch (error) {
+            if (!isReload(error) && reloads === 0) throw error;
+          }
+        }
+        kept.push(trace);
+        // one capture is enough unless it saw something worth confirming
+        if (blindSpots(trace) === 0) break;
+      }
+      traces.set(key(leg), kept[0] as Trace);
+      if (kept.length > 1) retakes.set(key(leg), kept[1] as Trace);
     }
 
     /**
@@ -512,6 +704,15 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
       await target.goto(`${ORIGIN}/#${leg.from}`, { waitUntil: "networkidle" });
       const ready = await settled(target, leg.from, 40000);
       expect(ready, `${key(leg)} never came to rest on ${leg.from} before filming`).toBe(true);
+      // Same reasoning as `capture`: a cold module graph is not a transition.
+      await warmRoutes(target);
+      await target.evaluate((hash) => {
+        location.hash = hash;
+      }, `#${leg.from}`);
+      await settled(target, leg.from, 40000);
+      await target
+        .waitForFunction(() => document.querySelector(".nav-curtain") === null, null, { timeout: 8000 })
+        .catch(() => undefined);
       await target.waitForTimeout(400);
 
       const session = await target.context().newCDPSession(target);
@@ -580,17 +781,17 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
         reloads = 0;
         try {
           const candidate = await film(leg);
-          if (candidate.frames.length > 0 && reloads === 0) {
+          if (candidate.frames.length > 8 && reloads === 0) {
             reel = candidate;
             break;
           }
         } catch (error) {
-          if (reloads === 0) throw error;
+          if (!isReload(error) && reloads === 0) throw error;
         }
       }
       films.set(key(leg), reel);
     }
-  }, 420_000);
+  }, 900_000);
 
   afterAll(async () => {
     await browser?.close();
@@ -637,22 +838,40 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
    * previous assertion is a statement about frames nobody sampled.
    */
   it("never looks away from an uncovered navigation", () => {
-    const blind: string[] = [];
-    for (const leg of LEGS) {
-      const { frames } = trace(leg);
+    const spotsIn = (frames: readonly FrameSample[], label: string): string[] => {
+      const found: string[] = [];
       for (let i = 1; i < frames.length; i += 1) {
         const before = frames[i - 1] as FrameSample;
         const after = frames[i] as FrameSample;
         const gap = after.t - before.t;
         if (gap <= OBSERVABLE) continue;
         if (covered(before) && covered(after)) continue;
-        blind.push(
-          `${key(leg)} — ${gap}ms unsampled between t=${before.t} and t=${after.t} with no veil up ` +
+        found.push(
+          `${label} — ${gap}ms unsampled between t=${before.t} and t=${after.t} with no veil up ` +
             `(curtain ${before.curtain ?? "absent"} → ${after.curtain ?? "absent"})`
         );
       }
+      return found;
+    };
+
+    const blind: string[] = [];
+    for (const leg of LEGS) {
+      const first = spotsIn(trace(leg).frames, key(leg));
+      if (first.length === 0) continue;
+      const second = retakes.get(key(leg));
+      // No retake means the first pass was clean and this leg never got here.
+      // A retake with nothing in it means the block did not reproduce.
+      const again = second === undefined ? first : spotsIn(second.frames, `${key(leg)} (retake)`);
+      if (again.length === 0) {
+        console.log(`  a blind spot on ${key(leg)} did not reproduce on a second capture:\n    ${first.join("\n    ")}`);
+        continue;
+      }
+      blind.push(...first, ...again);
     }
-    expect(blind, "the main thread blocked in the open; that window is where the hole was found").toEqual([]);
+    expect(
+      blind,
+      "the main thread blocked in the open on two independent captures; that window is where the hole was found"
+    ).toEqual([]);
   });
 
   /**
@@ -707,15 +926,38 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
   });
 
   /**
-   * The heavy legs get one extra requirement, and it is the round-4 fix stated
-   * as a test: the shell must veil when *either* endpoint is expensive. Asking
-   * only about the destination is what left Back-out-of-the-collection
-   * unprotected.
+   * ## The cover is a response to a measurement, and both directions of that
+   * have to be asserted
+   *
+   * This used to read "veils a heavy leg in both directions", which was the
+   * wave-4 fix written down as a test and is now half a rule. `heavy` is not a
+   * property of a route; it is a property of a *visit*. A route the shell has
+   * never built and never torn down is one it has no measurement for, and
+   * covering it is right. A route it has measured at 109ms in and 41ms out is one
+   * where the cover is the wait — filmed at 1280×720, the veil on a warm
+   * `lobby → collection` was up for 562ms over a screen that had been in the
+   * document since t=109ms.
+   *
+   * The second assertion is the load-bearing one and it is here because of how
+   * this suite fails. **A veiled leg is excused from the budget check and from
+   * the darkness check.** So a cover that is always up does not make this file
+   * fail; it makes it stop measuring, silently, which is what happened for three
+   * waves and is recorded at `HEAVY_BUILD_MS` in `shell.ts`. If somebody pins the
+   * flag back on, this is the only thing in the repository that notices.
    */
-  it("veils a heavy leg in both directions", () => {
-    for (const leg of LEGS.filter((l) => l.heavy === true)) {
-      expect(trace(leg).frames.some(covered), `${key(leg)} ran without a veil`).toBe(true);
-    }
+  it("covers the first visit to a heavy route, and stops covering it once measured", () => {
+    expect(
+      veilOnFirstVisit.length,
+      "the cold capture never produced a usable trace, so neither half of this was measured"
+    ).toBeGreaterThan(0);
+    expect(veilOnFirstVisit[0], `the first visit to ${key(FIRST_VISIT)} ran with no cover`).toBe(true);
+    expect(veilWhenWarm.length, "the warm capture never produced a usable trace").toBeGreaterThan(0);
+    expect(
+      veilWhenWarm[0],
+      `${key(FIRST_VISIT)} was still covered after the shell had measured the route in both ` +
+        `directions. A permanent cover excuses this suite's budget and darkness checks, so it does ` +
+        `not fail loudly — it stops measuring.`
+    ).toBe(false);
   });
 
   const reel = (leg: Leg): Film => {
@@ -794,10 +1036,15 @@ describe.skipIf(REASON !== null)("never a blank frame", () => {
       const ends = events.filter((e) => e.type === "animationend" && /^nav-[a-z]+-in$/.test(e.name));
       const span =
         exit === undefined || ends.length === 0 ? "n/a" : `${(ends[ends.length - 1] as AnimationRecord).t - exit.t}ms`;
+      const retake = retakes.get(key(leg));
+      const retakeGaps = retake?.frames.slice(1).map((f, i) => f.t - (retake.frames[i] as FrameSample).t) ?? [];
       return (
         `  ${key(leg).padEnd(24)} frames ${String(frames.length).padStart(4)}  worst gap ${String(worst).padStart(5)}ms  ` +
         `min opacity ${floor.toFixed(2)}  exchange ${span.padStart(7)}  ` +
-        `veiled ${frames.some(covered) ? "yes" : "no "}  events ${events.length}`
+        `veiled ${frames.some(covered) ? "yes" : "no "}  events ${events.length}` +
+        (retake === undefined
+          ? ""
+          : `  [retaken: worst gap ${retakeGaps.length === 0 ? "n/a" : `${Math.max(...retakeGaps)}ms`}]`)
       );
     });
     const films = FILMS.map((leg) => {

@@ -1116,32 +1116,64 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
     0 0 0 1px color-mix(in srgb, var(--tile-accent) 34%, transparent);
 }
 
+/**
+ * The label is capped by its own tile, so it never has to break at all.
+ *
+ * The previous rule chose breaking as "the lesser evil" over a word running
+ * past the tile and being razored by `overflow: hidden`, and it was right that
+ * those were the only two options *on offer*. They are both bad. Chrome does
+ * not ship a hyphenation dictionary in the configuration this project
+ * photographs with, so `hyphens: auto` never draws a hyphen and the fallback
+ * `break-word` fires instead: measured at 1280×720, "Achievements" came apart
+ * as "Achieve" / "ments" with no hyphen at 140% **and** at 160%. A label that
+ * looks like two words is worse than a small label, and it is the tile a player
+ * uses to find a screen.
+ *
+ * The third option is to let the type give way by the exact amount the tile is
+ * short, and `cqi` is the only unit that can express it. The tile is made a
+ * query container so that 1cqi is 1% of *this tile*, which is the box the word
+ * has to fit inside; against the whole nav grid the same coefficient would be
+ * wrong on every window, because the tile's share of the grid changes with the
+ * absolute-pixel gaps and padding between them (26.5% at 844 wide, 27.8% at
+ * 1280, 28.9% at 1600).
+ *
+ * One measured constant, from `scripts/_w6scale_label.mjs`: the display face
+ * sets this word at **6.75px of width per pixel of font size**, stable at every
+ * scale and every window. A container query unit resolves against the
+ * container's *content* box, so the room available is exactly `100cqi` and the
+ * largest size that fits is `100cqi / 6.75` = `14.8cqi`. The rule holds 3% back
+ * — because Chrome's shrink-to-fit resolved a 116.9px word into a 116.5px box
+ * and wrapped it over four tenths of a pixel, which is exactly the kind of
+ * margin a stylesheet should not be betting on.
+ *
+ * The size "Achievements" is actually set at afterwards, measured at every
+ * window the bar names — every one of them on a single line:
+ *
+ *              100%   125%   140%   160%
+ *   1600×900   13.4   16.8   18.8   21.5   never capped
+ *   1280×720   13.4   16.7   16.7   16.7   capped from 125%
+ *    844×390   13.4   16.8   17.5   18.7   capped from 140%
+ *
+ * The type only gives way on the window that genuinely cannot hold it, and the
+ * label at 140% is still 26% larger than the same label at 100%. The floor is
+ * an absolute 12px so it can never be raised past the cap by the very setting
+ * the cap exists to survive — a `rem` floor is the one thing that cannot be
+ * used here, because at 160% `--fs-xs` alone is 18.4px and would have reopened
+ * the break it was written to close. `break-word` stays as the last resort for
+ * a destination name longer than any of the nine.
+ */
+.lobby-nav-btn { container-type: inline-size; }
+
 .lobby-nav-label {
   grid-row: 2;
   font-family: var(--font-display);
-  font-size: var(--fs-sm);
+  font-size: clamp(12px, 14.37cqi, var(--fs-sm));
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.005em;
   position: relative;
-  /**
-   * "Achievements" is one word and cannot wrap, so at 140% it simply ran past
-   * the tile and the tile's `overflow: hidden` cut it vertically through the
-   * stems — the horizontal version of the same razor. Breaking is the lesser
-   * evil, and with the document's `lang="en"` the browser breaks it at a
-   * hyphen rather than mid-syllable.
-   *
-   * `max-width` is the load-bearing half. The tile lays its rows out with
-   * `justify-items: start`, so the label is sized `fit-content` — and the
-   * fit-content of an unbreakable word is the whole word, grid area or not.
-   * Capping it at the area is what forces the line to break at all;
-   * `break-word` is then only the fallback for a word with no hyphenation
-   * point, so "Achievements" comes apart at "Achieve-" rather than wherever
-   * the pixel ran out.
-   */
   max-width: 100%;
   overflow-wrap: break-word;
-  hyphens: auto;
 }
 
 .lobby-nav-hint {
@@ -1239,6 +1271,38 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
   padding-right: 2px;
 }
 
+/**
+ * …and it ends in air, like every other scroller in the game (§7).
+ *
+ * At 160% on a 720p window the three panels want more height than the column
+ * has, and the news card was being cut through the middle of its own summary by
+ * a hard horizontal edge: measured, 59px off a 156px paragraph, with nothing to
+ * say the sentence continued.
+ *
+ * A mask rather than an overlay on a wrapper, which is the shape the forge
+ * screens use, because the rail is *also* an off-canvas drawer below 1100px and
+ * wrapping it would mean maintaining two structures for one object. The cost a
+ * mask normally carries — promoting the scroller to its own composited layer —
+ * is charged against three panels here rather than against the Collection's 245
+ * canvases, which is the case that rule was written for.
+ *
+ * Both ends are driven by `--fade-*` from `lobbyScreen.ts`: at 0 the two stops
+ * collapse onto the edge and the mask is a no-op, so no ramp is ever lit over
+ * nothing. Column form only — below 1100px the rail is an opaque drawer and
+ * fading its own backdrop would show the lobby through its corners.
+ */
+@media (min-width: 1101px) {
+  .lobby-rail {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 calc(var(--fade-top, 0) * 22px),
+      #000 calc(100% - var(--fade-bottom, 0) * 40px),
+      transparent 100%
+    );
+  }
+}
+
 /* Only the drawer has a head; as a column the rail needs no title bar. */
 .lobby-rail-head { display: none; }
 
@@ -1261,7 +1325,13 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
 /* The figure and its unit are one line, in a row of their own: `.record-stat`
    is a column, so a bare sibling `%` becomes its own row and the win rate reads
    as two numbers stacked. */
-.record-figure { display: flex; align-items: baseline; }
+.record-figure { display: flex; align-items: baseline; justify-content: center; }
+/* A figure with a unit welded to it. The width is reserved here so the layout
+   cannot move, and the number itself is sized by its own digits so the unit
+   always sits at one normal letter-space from the last glyph rather than at a
+   fixed offset that is generous at "0" and negative at "100". 4.2ch is three
+   tabular cells plus the per-cent sign. */
+.record-figure-unit { min-width: 4.2ch; }
 .record-value {
   font-family: var(--font-display);
   font-size: var(--fs-xl);
@@ -1275,7 +1345,11 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
   font-weight: 700;
   line-height: 1;
   color: var(--text-dim);
-  margin-left: -0.2ch;
+  /* Was `-0.2ch`, an optical kern that assumed the figure's own box carried
+     slack. It does not any more — the reservation moved up to `.record-figure-unit`
+     — and a negative kern against a tabular digit's real advance is a collision
+     rather than a tightening. */
+  margin-left: 0.02em;
 }
 .record-label { color: var(--text-faint); }
 
@@ -2468,6 +2542,61 @@ html.has-icon-currency-backstage-token .currency-icon.backstage-token {
 .curve-bar.is-thin .curve-label { color: var(--warning, #f5c451); font-weight: 700; }
 .curve-note { margin-top: var(--sp-1); font-size: var(--fs-xs); }
 
+/**
+ * The Hype Curve's compact form, for the panel that has run out of room.
+ *
+ * `deckBuilderScreen.ts` sets `data-compact` when the side panel's scroll
+ * region drops under 330px, which on a 1280×720 window happens at 140% and
+ * again, much harder, at 160% — see the measurement table at `syncCurveDensity`
+ * for why the deck list had zero visible rows there.
+ *
+ * Three changes, none of which removes anything:
+ *
+ *  - the plot loses a quarter of its height, and its headroom with it, because
+ *    the value chips are clamped inside the frame now and no longer need a
+ *    reserved strip above the tallest column to stand in;
+ *  - the caption moves onto the title's own line and ellipsises there, with the
+ *    whole sentence on the element's `title` for the pointer and the
+ *    accessibility tree;
+ *  - the gaps tighten, because a compact chart with generous gutters is just a
+ *    small chart in a big box.
+ *
+ * Written here rather than beside the rest of the chart in `collectionKit.ts`
+ * because `.deck-curve[data-compact]` is a selector nothing else in the game
+ * uses, so it adds behaviour without overriding anybody. Specificity is
+ * deliberately `.screen` + two classes so the height beats the base 76px
+ * without needing `!important`.
+ */
+.screen .deck-curve[data-compact] {
+  /* A grid rather than an absolutely positioned caption: the two share a row as
+     two real columns, so neither box can ever sit on the other's. The first
+     attempt pinned the note to `top: 0; right: 0` over an eyebrow padded to
+     make room, and the ink was fine while the *boxes* overlapped by 202×26 —
+     which is precisely the shape of the defect this whole pass exists to remove
+     and would have been caught, correctly, by the next sweep. */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "title note"
+    "frame frame"
+    "axis  axis";
+  column-gap: var(--sp-2);
+  row-gap: 3px;
+}
+.screen .deck-curve[data-compact] .eyebrow { grid-area: title; align-self: baseline; }
+.screen .deck-curve[data-compact] .curve-frame { grid-area: frame; height: 54px; padding-top: 6px; }
+.screen .deck-curve[data-compact] .curve-frame::before { inset: 6px var(--sp-2) 0; }
+.screen .deck-curve[data-compact] .curve-axis { grid-area: axis; }
+.screen .deck-curve[data-compact] .curve-note {
+  grid-area: note;
+  align-self: baseline;
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .deck-list { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; min-height: 100px; }
 .deck-row {
   display: grid;
@@ -3452,6 +3581,240 @@ button.story-card:not(:disabled):hover {
 .shop-screen { display: flex; flex-direction: column; height: 100%; }
 .shop-wallet { display: flex; align-items: center; gap: var(--sp-4); margin-left: auto; }
 
+/* =========================================================================
+   MERCH DROPS — the two things the reward theme could not fix from its own file
+
+   `rewardsTheme.ts` owns `.rw-shop-*` and it is somebody else's file. These two
+   rules are the shop screen's own, named from its own markup, so they add
+   behaviour to elements this screen creates rather than overriding a rule that
+   lives elsewhere. Both come out of the 160% sweep.
+   ========================================================================= */
+
+/**
+ * 1. The disclosure column ends in air (§7), not at the window's edge.
+ *
+ * The column is the scroller, so the ramps have to live on something that does
+ * not move — hence the wrapper in `shopScreen.ts`. Opacity is driven from the
+ * scroll position there, so neither ramp is ever lit over nothing.
+ */
+.shop-left-wrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.shop-left-wrap > .rw-shop-left { flex: 1 1 auto; min-height: 0; }
+.shop-left-wrap::after,
+.shop-left-wrap::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity var(--dur-ui) var(--ease-arrive);
+}
+.shop-left-wrap::after {
+  bottom: 0;
+  height: 44px;
+  background: linear-gradient(to bottom, rgb(6 3 14 / 0), rgb(6 3 14 / 0.88));
+  opacity: var(--fade-bottom, 0);
+}
+.shop-left-wrap::before {
+  top: 0;
+  height: 26px;
+  background: linear-gradient(to top, rgb(6 3 14 / 0), rgb(6 3 14 / 0.82));
+  opacity: var(--fade-top, 0);
+}
+
+/**
+ * 2. The alcove, which is the third and fourth depth planes.
+ *
+ * §2 wants atmosphere, midground, content and overlay. The hero had the panel
+ * and the pack: a 190px object in a near-black field, with a contact shadow
+ * falling on nothing at all. What is missing is not more light, it is a
+ * *surface* — Hearthstone's shop puts its packs on a table, and a table is
+ * what makes the shadow mean something.
+ *
+ * The wall takes the top two thirds and the floor the bottom third, they meet
+ * along a lit join that fades at both ends like every other divider in the
+ * game (§7), and both are lit from 315° with the pool of light on the floor
+ * sitting under the pack rather than in the middle of the panel. The whole
+ * thing is one element so high contrast can take it out in a single rule
+ * without touching the object standing in it.
+ */
+/**
+ * 3. The pack cannot be taller than the shelf it stands on.
+ *
+ * `rewardsTheme.ts` sizes it `height: min(36vh, 330px); max-height: 100%` and
+ * says in a comment that the `max-height` is what stopped the pack drawing 259px
+ * inside a 183px row and painting the buy button across its own artwork. The
+ * guard is the right idea and it never fires: a percentage height resolves to
+ * `none` against an indefinite containing block, and every ancestor in this
+ * chain is stretch-sized. Measured at 1280×720, 160%, before this rule — row
+ * 119px, pack 259px, and the words "LEGENDARY GUARANTEED WITHIN" printed
+ * straight through the card back.
+ *
+ * A container query unit is the version of that guard that works. `container-type:
+ * size` makes this row's size independent of what stands in it, and `100cqh` is
+ * then its content box in real pixels rather than a percentage waiting for a
+ * definite parent that never arrives. The `min()` keeps both of the original
+ * caps, so nothing about a comfortable window changes.
+ *
+ * Measured, pack height inside its row (1280×720 / 1600×900):
+ *
+ *          before             after
+ *   100%   259 in 273  ok     254 in 273  ok      324 in 453  ok   324 in 453
+ *   140%   259 in 183  OVER   163 in 183  ok      324 in 363  ok   324 in 363
+ *   160%   259 in 119  OVER    99 in 119  ok      324 in 299  OVER 279 in 299
+ *
+ * **Only above 1120px, and this one is not optional.** Below that breakpoint
+ * the shop is a single scrolling column with `grid-auto-rows: max-content`, so
+ * the row is sized by its contents — and size containment on a content-sized
+ * box computes the box without its contents, which is zero. Measured at
+ * 844×390 with the rule unscoped: row 20px, pack 0×0. A responsive rule must
+ * never be able to delete the object it is sizing, which is the sentence
+ * `rewardsTheme.ts` already wrote about this exact element.
+ */
+@media (min-width: 1121px) {
+  .shop-screen .rw-shop-pack { container-type: size; }
+  .shop-screen .rw-shop-pack > .rw-pack-still { height: min(36vh, 330px, 100cqh); }
+}
+
+/**
+ * …and the copy stays in front of the room it is standing in.
+ *
+ * `container-type` implies `contain: layout`, which makes the pack's row a
+ * stacking context — and a non-positioned element that creates one is painted
+ * with the positioned layer, above the in-flow content of its later siblings.
+ * The alcove's floor runs 150px past the row on purpose, so the moment the row
+ * was lifted the floor started painting over the pity meter. Measured in high
+ * contrast, where the effect is unmissable: "LEGENDARY GUARANTEED WITHIN" went
+ * from legible to a grey ghost under a black gradient.
+ *
+ * One line, and it is the correct one either way: the meter, the price and the
+ * button are the content plane and the alcove is the midground. §2's planes
+ * only mean anything if they are actually ordered.
+ */
+.shop-screen .rw-shop-hero > *:not(.rw-shop-pack) { position: relative; z-index: 1; }
+
+/**
+ * `--pack-base` is where the wall meets the floor, and it is measured rather
+ * than guessed.
+ *
+ * The pack is centred in its row and capped by `36vh`, so how far its base sits
+ * above the row's own bottom edge is not a constant: measured across the three
+ * windows and three scales the bar names, it ranges from 14px (the pack fills
+ * the row and rests on its padding) to 69px (the pack is capped and floating in
+ * the middle of a tall row). A join line at a fixed percentage is therefore
+ * right on one window and cuts the pack in half on the next — so `shopScreen.ts`
+ * writes the real number here on every resize, and 14px is only the fallback
+ * for the frame before the first measurement lands.
+ */
+.shop-alcove {
+  position: absolute;
+  inset: -12px calc(-1 * var(--sp-5)) 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.shop-alcove > span { position: absolute; left: 0; right: 0; display: block; }
+
+/* The back wall: lit from 315° like everything else, with a broad pool behind
+   where the pack stands, and dissolving at its own top edge rather than ending
+   at one — a wall with a hard line across it is a second panel. */
+.shop-alcove-wall {
+  top: 0;
+  bottom: calc(var(--pack-base, 14px) + 4px);
+  background:
+    radial-gradient(56% 76% at 50% 92%, rgb(181 108 255 / 0.2), transparent 72%),
+    linear-gradient(var(--light-sweep), rgb(52 36 90 / 0.55) 0%, rgb(12 7 25 / 0.55) 80%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 22%);
+}
+
+/* The floor, and the join where it meets the wall. The join is the single most
+   load-bearing pixel here: without a line where two planes meet they read as
+   one gradient and the pack goes back to floating. It runs 80px past the row so
+   the surface recedes under the meter rather than stopping at a second edge —
+   the hero's own `overflow: hidden` is what ends it. */
+.shop-alcove-floor {
+  top: calc(100% - var(--pack-base, 14px) - 4px);
+  bottom: -150px;
+  background:
+    /* the light the wall bounces onto the floor, strongest at the back */
+    linear-gradient(to bottom, rgb(181 108 255 / 0.13) 0%, transparent 58%),
+    linear-gradient(var(--light-sweep), rgb(34 24 60 / 0.66) 0%, rgb(6 3 14 / 0.78) 100%);
+  /* The near edge dissolves. A floor that stops at a line has a second line on
+     it, and the eye reads two shelves rather than one surface receding. */
+  mask-image: linear-gradient(to bottom, black 24%, transparent 96%);
+}
+.shop-alcove-floor::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background-image:
+    linear-gradient(90deg, transparent, var(--hairline-dark) 16%, var(--hairline-dark) 84%, transparent),
+    linear-gradient(90deg, transparent, var(--hairline-lit) 16%, var(--hairline-lit) 84%, transparent);
+  background-repeat: no-repeat;
+  background-size: 100% 1px, 100% 1px;
+  background-position: 0 0, 0 100%;
+}
+
+/* The pool on the floor, under the object rather than under the panel. An
+   ellipse because the floor is being seen at a shallow angle, and wider than
+   the pack because a light three metres up says so. */
+.shop-alcove-pool {
+  left: 50%;
+  right: auto;
+  bottom: calc(var(--pack-base, 14px) - 34px);
+  width: min(64%, 420px);
+  height: 64px;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(202 156 255 / 0.26), rgb(150 96 226 / 0.09) 52%, transparent 78%);
+  filter: blur(7px);
+}
+
+/* Reduced motion and high contrast both want the alcove quieter, not gone:
+   removing it puts the pack back in a void, which is the defect. */
+:root[data-contrast="high"] .shop-alcove-wall,
+:root[data-contrast="high"] .shop-alcove-pool { background: none; }
+:root[data-contrast="high"] .shop-alcove-floor {
+  background: linear-gradient(var(--light-sweep), #140e28, #07040f);
+}
+
+/**
+ * The row is stated here and nowhere else, and it is what stops the pack
+ * painting itself over the pity meter.
+ *
+ * `rewardsTheme.ts` sizes the pack `height: min(36vh, 330px); max-height: 100%`
+ * and its comment explains the `max-height` at length: it is the guard that
+ * keeps the pack inside the row it stands in, written after the pack was
+ * measured drawing 259px inside a 183px row at 140%. The guard is right and it
+ * was not firing, because a percentage height resolves to `none` against an
+ * *indefinite* containing block — and this grid had no `grid-template-rows`, so
+ * its single row was implicit and auto-sized, which is exactly that. Measured
+ * at 1280×720 and 160%: row 119px, pack 259px, and the words "LEGENDARY
+ * GUARANTEED WITHIN" printed straight through the card back.
+ *
+ * `minmax(0, 1fr)` makes the row definite, which makes the hero's own height
+ * definite, which makes the `1fr` inside the hero definite, which is what the
+ * pack's `max-height` was waiting for. One declaration, three levels down. The
+ * same missing row is why `.starter-body` was cutting its own list off; both
+ * were an `align-items: stretch` grid quietly sized by its tallest child.
+ *
+ * `.rw-shop-body` does not declare `grid-template-rows`, so this is additive
+ * rather than an override of somebody else's file — everything else in this
+ * rule is already dead, because that class wins the rest on source order.
+ *
+ * **Only above 1120px.** Below it the shop is one scrolling column with
+ * `grid-auto-rows: max-content`, and a definite first row there would hand the
+ * headliner panel a nine-pixel row and let the hero paint over it — a defect
+ * that layout has already had once and whose repair is recorded beside it.
+ */
 .shop-body {
   flex: 1 1 auto;
   display: grid;
@@ -3460,6 +3823,10 @@ button.story-card:not(:disabled):hover {
   padding: var(--sp-5);
   align-content: start;
   overflow-y: auto;
+}
+
+@media (min-width: 1121px) {
+  .shop-body { grid-template-rows: minmax(0, 1fr); }
 }
 
 .shop-offer { display: flex; flex-direction: column; gap: var(--sp-3); align-items: flex-start; }
@@ -3571,17 +3938,64 @@ button.story-card:not(:disabled):hover {
   line-height: 1.5;
 }
 
+/**
+ * The row is stated, and until it was the eleven plates were not scrolling —
+ * they were being cut off by the window.
+ *
+ * `.starter-body` is a grid with no `grid-template-rows`, so its single row was
+ * implicit and therefore `auto`: sized to the *contents*, which is eleven plates
+ * plus their gaps. An auto row is allowed to be taller than the grid box that
+ * holds it, and it was — so `.starter-list` inherited a height bigger than the
+ * space available, found its own content fitting inside that height, and never
+ * became a scroller. `overflow-y: auto` on a box that is not overflowing does
+ * nothing. The list simply ran off the bottom of the screen, where
+ * `.starter-screen`'s `overflow: hidden` razored it.
+ *
+ * Measured at 1280×720: the eleventh plate lost 17px at 100% and 40px at 160%,
+ * cut through the middle of "Digital Demons" with no scrollbar, no fade and no
+ * bottom edge — the first screen a new account ever sees, and the only place in
+ * the game where the thing being cut is the choice the player is there to make.
+ * `minmax(0, 1fr)` says the row may be smaller than its contents, which is what
+ * hands the overflow to the scroller that was waiting for it.
+ */
 .starter-body {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--sp-5);
   padding: var(--sp-3) var(--sp-6) var(--sp-5);
   align-items: stretch;
 }
 
-.starter-list-wrap { min-height: 0; display: flex; }
+/* And the list ends in air rather than at a guillotine (§7). The ramp is an
+   overlay on the wrapper rather than a mask on the scroller, matching the
+   `.hb-scrollwrap` primitive the forge screens use; `--fade-bottom` is driven
+   from `starterScreen.ts` so the ramp is gone once there is nothing under it. */
+.starter-list-wrap { position: relative; min-height: 0; display: flex; }
+.starter-list-wrap::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 40px;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(to bottom, rgb(6 3 14 / 0), rgb(6 3 14 / 0.88));
+  opacity: var(--fade-bottom, 0);
+  transition: opacity var(--dur-ui) var(--ease-arrive);
+}
+.starter-list-wrap::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 26px;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(to top, rgb(6 3 14 / 0), rgb(6 3 14 / 0.82));
+  opacity: var(--fade-top, 0);
+  transition: opacity var(--dur-ui) var(--ease-arrive);
+}
 .starter-list {
   list-style: none;
   margin: 0;
@@ -3592,6 +4006,8 @@ button.story-card:not(:disabled):hover {
   width: 100%;
   min-height: 0;
   overflow-y: auto;
+  /* a plate reached by the keyboard never comes to rest under the ramp */
+  scroll-padding-block: 8px 40px;
 }
 
 /**
@@ -3802,6 +4218,20 @@ button.story-card:not(:disabled):hover {
   object-position: 50% 18%;
 }
 
+/**
+ * `safe center` and a scroller, because `center` plus `hidden` throws away both
+ * ends.
+ *
+ * At `--ui-scale: 1.6` on a 720p window this column wants 527px inside 508 —
+ * crest, faction, name, title, tagline, three facts and a 62px confirm button,
+ * every one of them in `rem`. Centred overflow spills equally in both
+ * directions, so `overflow: hidden` was cutting 10px off the *top* of the crest
+ * and 9px off the *bottom* of the button the player has to press. `safe`
+ * abandons the centring the moment the content is taller than its box and packs
+ * to the start instead, and `auto` then makes the remainder reachable with the
+ * game's own scrollbar. Below the overflow point nothing changes: the column is
+ * still centred, which is what it should be at every scale that fits.
+ */
 .starter-detail-body {
   grid-column: 2;
   grid-row: 1;
@@ -3810,11 +4240,36 @@ button.story-card:not(:disabled):hover {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: safe center;
   gap: var(--sp-2);
   padding: var(--sp-5) var(--sp-5) var(--sp-5) 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/**
+ * The dense stage: the same column with its gutters taken in.
+ *
+ * `starterScreen.ts` sets `data-dense` when the column no longer fits, which on
+ * a 1280×720 window happens at 160% — see the note on `syncDensity` for the
+ * measurement and for why the switch has hysteresis. Nothing is removed. The
+ * tagline is clamped to two lines because two lines is what all eleven of them
+ * already use; everything else here is padding, gaps and a margin.
+ */
+.starter-detail-body[data-dense="true"] {
+  gap: 4px;
+  padding: var(--sp-3) var(--sp-4) var(--sp-3) 0;
+}
+.starter-detail-body[data-dense="true"] .starter-detail-crest { margin-bottom: 0; }
+.starter-detail-body[data-dense="true"] .starter-identity {
+  margin-top: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.starter-detail-body[data-dense="true"] .starter-facts { margin-top: 0; gap: var(--sp-1) var(--sp-3); }
+.starter-detail-body[data-dense="true"] .starter-actions { margin-top: var(--sp-2); }
 
 /* The crest at hero scale, above the faction's name, so the identity is a mark
    before it is a word. */
@@ -3935,10 +4390,25 @@ button.story-card:not(:disabled):hover {
   letter-spacing: 0.04em;
 }
 .starter-confirm .hb-icon { --hb-icon-stroke: 3.2; }
-/* The label is a sentence with a faction name in it, and eleven faction names
-   are eleven lengths. Nowrap plus a shrink floor keeps the button one line for
-   the longest of them rather than letting the longest one reflow the panel. */
-.starter-confirm span { white-space: nowrap; }
+/**
+ * The label is a sentence with a faction name in it, and eleven faction names
+ * are eleven lengths.
+ *
+ * This used to be `nowrap`, to keep the button one line "rather than letting the
+ * longest one reflow the panel". It is the `nowrap` that reflows the panel: an
+ * unwrappable label sets the button's min-content width, the button is
+ * `width: 100%` of a column that cannot grow, and the surplus goes sideways.
+ * Measured at 1280×720 and 160%, "Start with Afterparty Crew" wanted 470px in a
+ * 440px column and the last two letters were clipped by
+ * `.starter-detail-body`'s own edge — on the single most consequential button in
+ * the game, on the first screen an account ever sees.
+ *
+ * Wrapping cannot reflow anything: the button is already full width and only
+ * gets taller. `balance` keeps the two lines close to even rather than leaving
+ * one word alone on the second, which is what a two-line button looks like when
+ * nobody has thought about it.
+ */
+.starter-confirm span { white-space: normal; text-wrap: balance; }
 
 @media (max-width: 900px), (max-height: 620px) {
   .starter-body {

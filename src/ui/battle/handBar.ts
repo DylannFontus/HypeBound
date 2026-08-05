@@ -22,7 +22,7 @@ import { cardBackStyleFor } from "./cardMesh";
 import { motionEnabled, stagger } from "../motion";
 
 /**
- * The player's own back, as a data URI, built once for the whole session.
+ * The player's own back, as a data URI, built once **per back**.
  *
  * Every card dealt into the hand turns over from its back, so every card needs
  * one — and rendering a second 260px canvas per card would put the cost of the
@@ -31,17 +31,32 @@ import { motionEnabled, stagger } from "../motion";
  * card), the drawing is `cardRenderer`'s so it is the same object the 3D board
  * flips over, and a `background-image` costs the compositor nothing after the
  * first decode.
+ *
+ * ## The cache is keyed now, and it was not
+ *
+ * `backImageUrl` was a module-level `string | null` filled on first use and
+ * never looked at again. A module lives as long as the tab, and the deck's card
+ * back is chosen per deck — so the *second* match of a session showed the first
+ * match's back on every card in hand, for the whole match, while the 3D board
+ * beside it (which caches by `colour:emblem`, see `getCardBackTexture`) showed
+ * the right one. Two objects that are meant to be the same object flipped over,
+ * disagreeing. Keying by the style costs one string compare per deal and makes
+ * the two caches behave the same way.
  */
-let backImageUrl: string | null = null;
+const backImages = new Map<string, string>();
 function cardBackImage(): string {
-  if (backImageUrl === null) {
-    try {
-      backImageUrl = renderCardBackToCanvas(cardBackStyleFor(0) ?? { color: "#b56cff", emblem: "diamond" }, 0.62).toDataURL();
-    } catch {
-      backImageUrl = "";
-    }
+  const style = cardBackStyleFor(0) ?? { color: "#b56cff", emblem: "diamond" as const };
+  const key = `${style.color}:${style.emblem}`;
+  const cached = backImages.get(key);
+  if (cached !== undefined) return cached;
+  let url = "";
+  try {
+    url = renderCardBackToCanvas(style, 0.62).toDataURL();
+  } catch {
+    url = "";
   }
-  return backImageUrl;
+  backImages.set(key, url);
+  return url;
 }
 
 export interface HandBarCallbacks {
@@ -78,7 +93,15 @@ export class HandBar {
   private entries: HandEntry[] = [];
   private view: PlayerView | null = null;
   private proxy: (() => MatchState) | null = null;
-  private dragging: { instanceId: string; ghost: HTMLElement; pointerId: number } | null = null;
+  private dragging: {
+    instanceId: string;
+    ghost: HTMLElement;
+    pointerId: number;
+    /** Does this card take a place in the row? Only those shrink — see below. */
+    needsSlot: boolean;
+    /** The canvas inside the ghost, whose `scale` is the carried card's size. */
+    face: HTMLElement | null;
+  } | null = null;
 
   constructor(
     container: HTMLElement,
@@ -580,6 +603,7 @@ export class HandBar {
 
   private beginDrag(instanceId: string, element: HTMLElement, event: PointerEvent): void {
     const card = this.content.cards[this.cardIdOf(instanceId)];
+    let face: HTMLElement | null = null;
     const ghost = document.createElement("div");
     ghost.className = "hand-drag-ghost";
     /**
@@ -609,6 +633,7 @@ export class HandBar {
       ghostCanvas.style.width = "";
       ghostCanvas.style.height = "";
       ghost.appendChild(ghostCanvas);
+      face = ghostCanvas;
     }
     document.body.appendChild(ghost);
 
@@ -616,7 +641,19 @@ export class HandBar {
     // The card being carried is not in the fan any more, so nothing should be
     // getting out of its way down there.
     this.spreadAround(null);
-    this.dragging = { instanceId, ghost, pointerId: event.pointerId };
+    /**
+     * Whether this card takes a place in the row, asked once at pickup.
+     *
+     * `checkPlayable` is not free and the answer cannot change mid-gesture — the
+     * card in your hand does not become a spell halfway across the mat — so
+     * asking it on every pointer move would be sixty rule evaluations a second
+     * for a constant.
+     */
+    const proxy = this.proxy;
+    const view = this.view;
+    const needsSlot =
+      proxy && view ? checkPlayable(proxy(), this.content, view.seat, instanceId).needsSlot === true : false;
+    this.dragging = { instanceId, ghost, pointerId: event.pointerId, needsSlot, face };
     this.ghostSwing = 0;
     this.ghostAt = { x: event.clientX, y: event.clientY, t: performance.now() };
     this.moveGhost(event.clientX, event.clientY);
@@ -768,10 +805,46 @@ export class HandBar {
    * the floor forty pixels below it.
    */
   setDragValidity(state: "valid" | "blocked" | "neutral"): void {
-    const ghost = this.dragging?.ghost;
-    if (!ghost) return;
-    ghost.classList.toggle("drop-valid", state === "valid");
-    ghost.classList.toggle("drop-blocked", state === "blocked");
+    const drag = this.dragging;
+    if (!drag) return;
+    drag.ghost.classList.toggle("drop-valid", state === "valid");
+    drag.ghost.classList.toggle("drop-blocked", state === "blocked");
+
+    /**
+     * Over a legal slot, the carried card comes down to the size of the thing it
+     * is about to become — and that is what finally lets the board be seen.
+     *
+     * Filmed at 1600×900 with a CDP screencast (`_w6_dragfilm.mjs`), the arena
+     * *did* answer a drag: the row cut a trough along its whole length, a pool
+     * lit under the landing place and the socket was drawn in it. Two waves
+     * still reported "nothing lights", and the frames say why. The ghost is
+     * rendered at `--hand-card-height * --hand-hover-scale * 1.08` — measured,
+     * 170×235 px — and the socket that marks the landing place is 3.48×4.14
+     * world units, about 125×140 px on the same frame. The feedback was
+     * *entirely underneath the card that caused it*: a 6× amplified difference
+     * showed the trough either side and nothing in the middle, because there was
+     * a card in the middle.
+     *
+     * The reference solves this by making the carried card *become* the minion
+     * as it crosses onto the board — it shrinks to token size and the board
+     * opens around it. Same idea here, done with the one property the ghost is
+     * not already using: `transform` is the pointer follow plus the swing, sixty
+     * times a second, so the size goes on `scale`, which the stylesheet already
+     * animates on this element (`.hand-drag-ghost.lifted canvas`) and which the
+     * compositor handles on its own.
+     *
+     * Only cards that take a place in the row. A spell answers with its targets
+     * and an equipment with the character it goes on; shrinking either would be
+     * the hand miming a landing that is not going to happen.
+     *
+     * It survives reduced motion, deliberately — an inline `scale` outranks the
+     * `:root[data-reduced-motion]` rule that pins this element at 1, so the card
+     * still gets out of the way, it just does it on the frame rather than over
+     * 110ms. Uncovering the board's answer is the functional half of §3's rule;
+     * the easing is the decorative half.
+     */
+    const shrink = state === "valid" && drag.needsSlot;
+    if (drag.face) drag.face.style.scale = shrink ? "0.66" : "";
   }
 
   isDragging(): boolean {

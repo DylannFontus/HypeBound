@@ -268,7 +268,7 @@ export function createPatchNotesScreen(content: ContentIndex, callbacks: PatchNo
       </header>
 
       <main class="patch-body data-body data-wide">
-        <section class="panel panel-chrome patch-versions">
+        <section class="mat-panel r-panel d-enter patch-versions">
           <div class="t-label">Releases</div>
           <ul class="patch-version-list">
             ${views
@@ -348,7 +348,7 @@ export function createPatchNotesScreen(content: ContentIndex, callbacks: PatchNo
           }
         </section>
 
-        <section class="panel panel-chrome patch-release" id="patch-release">
+        <section class="mat-panel r-panel d-enter patch-release" id="patch-release">
           ${article}
         </section>
       </main>`;

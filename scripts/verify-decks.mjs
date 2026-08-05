@@ -594,10 +594,20 @@ else {
   await page.waitForSelector(".battle-screen", { timeout: 20000 });
   await page.waitForTimeout(2500);
 
-  const onBoard = await page.evaluate(async () => {
-    const { cardBackStyleFor } = await import("/src/ui/battle/cardMesh.ts");
-    return cardBackStyleFor(0);
-  });
+  /**
+   * Read through the battle screen's handle, never by importing `cardMesh`.
+   *
+   * This check reported "could not read the board's card back" for two waves
+   * against a board that was dealing exactly the right one. It used to do
+   * `await import("/src/ui/battle/cardMesh.ts")`, and a Vite dev server that has
+   * served an HMR update holds that module as `cardMesh.ts?t=<stamp>` — a
+   * different URL, therefore a second instance of the module, with its own
+   * module-scope `playerCardBack` still at `null`. The app set the back on its
+   * copy and this read the other one. `hypeboundCardBack()` is published by
+   * `battleScreen.ts` from the same import the game itself uses, so there is
+   * only ever one answer.
+   */
+  const onBoard = await page.evaluate(() => window.hypeboundCardBack?.() ?? null);
   const expected = await page.evaluate(async (id) => {
     const { cosmeticById } = await import("/src/game/cosmetics/index.ts");
     const { getContent } = await import("/src/engine/content.ts");
