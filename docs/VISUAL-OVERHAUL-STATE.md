@@ -47,9 +47,17 @@ Recon baseline was **4.2/10 average, 146 defects, 38 critical**.
 | Battle board | 4 | **7/5** | rectangle gone, arena furnished |
 | Rewards | **3** | **7/7** | pack opening now exists |
 | Cinematics | none | **7/4** | both sequences built |
-| Collection | 5 | *pending* | builder re-run after a limit |
-| Data screens | 4.5 | *pending* | 23 routes |
-| Battle motion | 4 | *pending* | card-play hole, turn banners |
+| Collection | 5 | **7/4** | search block was 2,499.6ms per keystroke |
+| Battle motion | 4 | **8/5** | hand re-deals itself 28× per AI turn |
+| Data screens | 4.5 | **never judged** | its critic died in all three limit windows |
+
+Wave 2 produced six verdicts across five tracks — the cinematics were judged
+twice (7/4 both times) and **the data screens never once**. Treat 4.5 as their
+current score, because nothing has confirmed otherwise.
+
+Nothing has reached 9. The average across judged domains is about 7.3, from a
+4.2 baseline, with no domain below where it started and one critic explicitly
+confirming zero regressions against 21 audited defects.
 
 ## The one thing worth fixing first
 
@@ -114,6 +122,22 @@ node scripts/ab.mjs --reveal name --pick A                          # who won
 `hearthstone_frames/` holds 204 frames of real gameplay at 1920×1080. Gitignored,
 on disk, and the comparison the bar is written against. Open it rather than
 describing Hearthstone from memory.
+
+## What wave 3 must own
+
+1. **The shell.** `src/ui/shell.ts` and `transitions.css` belonged to no track in
+   either wave, which is why the stall survived both. It suppresses motion marks
+   in at least three domains at once, so it is the highest-leverage item left.
+2. **A wiring pass.** Parallel file ownership severs wires that cross between
+   owners; `tests/no-orphan-ui.test.ts` now watches for it, and its symbol half
+   currently lists seven unadopted `uiIcons.ts` exports.
+3. **The data screens**, which were built but never reviewed.
+4. **Carry-forwards**, the largest being: the hand replaying its entrance 28
+   times per AI turn (`handBar.sync()` re-appends every node, restarting the
+   CSS entrance, and `hand-card-in`'s bare `from` transform wipes the fan's
+   rotation); a 459ms main-thread block in the mulligan curtain; and the pass
+   screen's LIST toggle, which lays out 7,304px wide and puts its own way back
+   off-screen.
 
 ## Still untouched
 
