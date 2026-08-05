@@ -236,19 +236,87 @@ describe("the seam between module B's arithmetic and module A's stylesheet", () 
   });
 
   /**
-   * Four materials, four tiles, no sharing. The shared recipe's own
-   * `var(--mat-grain, var(--tex-grain-mid, none))` fallback does not count here,
-   * because it is written with a comma rather than a colon — only a material
-   * actually claiming a tile matches.
+   * Four material ranks, four tiles, no sharing *between ranks*.
+   *
+   * The rule this guards is that amplitudes stay perceptually equal: each tile
+   * is authored against one face, so a rank wearing a tile cut for a different
+   * face renders at the wrong contrast — 1.75% on the hero against 22.0% on the
+   * well is the failure it exists to catch. That is a statement about **ranks**,
+   * and counting raw claims is not the same statement. A *state* — `:disabled`,
+   * and whatever joins it — legitimately re-points the grain when it re-points
+   * the fill, because the tile has to follow the face it is now sitting on.
+   * `.act:disabled` drops its plate to within a few levels of `--fill-panel`, so
+   * it takes the panel's tile; keeping `.mat-hero`'s there instead would render
+   * it at four times the intended contrast and make the dead button the noisiest
+   * object on the card. Counting five claims and calling that a double-claim
+   * would have forced exactly that defect back in.
+   *
+   * So the assertion is on the ranks, and a state may reuse a rank's grain
+   * provided it (a) reads as a state rather than a material and (b) says in a
+   * comment why, in the block that does it. A state inventing a fifth tile is
+   * still a failure, because that tile is authored against no face at all.
+   *
+   * The shared recipe's own `var(--mat-grain, var(--tex-grain-mid, none))`
+   * fallback does not count here, because it is written with a comma rather than
+   * a colon — only a selector actually claiming a tile matches.
    */
-  it("gives each material its own rank's grain and no other's", () => {
+  it("gives each material rank its own grain, and lets only a documented state reuse one", () => {
     const css = foundationCss();
     if (css === null) return;
-    const claimed = [...css.matchAll(/--mat-grain: var\((--tex-grain-[a-z]+),/g)].map((m) => m[1]);
-    expect(new Set(claimed)).toEqual(
+
+    /** Every `--mat-grain` claim, with the selector and block that made it. */
+    const claims = [...css.matchAll(/--mat-grain: var\((--tex-grain-[a-z]+),/g)].map((match) => {
+      const at = match.index ?? 0;
+      const braceAt = css.lastIndexOf("{", at);
+      // The selector runs from the end of whatever precedes it — the previous
+      // rule, or the comment documenting this one — to that brace.
+      const start = Math.max(css.lastIndexOf("}", braceAt) + 1, css.lastIndexOf("*/", braceAt) + 2, 0);
+      return {
+        grain: match[1],
+        selector: css.slice(start, braceAt).replace(/\s+/g, " ").trim(),
+        /** What the block says between its opening brace and this claim. */
+        preamble: css.slice(braceAt, at),
+      };
+    });
+    expect(claims.length, "foundation.css must claim a grain somewhere").toBeGreaterThan(0);
+
+    // A state is recognised by its own selector, and is asked the state
+    // questions; everything else claiming a grain must be one of the four ranks.
+    const RANKS = [".mat-hero", ".mat-panel", ".mat-chip", ".mat-well"] as const;
+    const rankOf = (selector: string): string | undefined =>
+      RANKS.find((rank) => new RegExp(`(^|[\\s,])\\${rank}(?![\\w-])`).test(selector));
+    const isState = (selector: string): boolean =>
+      /:disabled|:hover|:active|:focus|:checked|\[aria-disabled|\[data-state=|\[disabled\]/.test(selector);
+
+    const states = claims.filter((claim) => isState(claim.selector));
+    const ranked = claims.filter((claim) => !isState(claim.selector));
+
+    // One rank, one grain — the invariant the amplitudes rest on.
+    const byRank = new Map<string, string[]>();
+    for (const claim of ranked) {
+      const rank = rankOf(claim.selector);
+      expect(rank, `${claim.selector} claims a grain but is neither a material rank nor a state`).toBeDefined();
+      byRank.set(rank ?? claim.selector, [...(byRank.get(rank ?? claim.selector) ?? []), claim.grain]);
+    }
+    for (const rank of RANKS) {
+      expect(byRank.get(rank) ?? [], `${rank} must claim exactly one grain`).toHaveLength(1);
+    }
+
+    // Four ranks, four distinct tiles: no rank may wear another's.
+    const owned = RANKS.map((rank) => (byRank.get(rank) ?? [])[0]);
+    expect(new Set(owned), "each rank owns a different grain").toEqual(
       new Set(["--tex-grain-hero", "--tex-grain-mid", "--tex-grain-chip", "--tex-grain-well"])
     );
-    expect(claimed.length, "no rank may be claimed twice").toBe(4);
+
+    // A state may borrow, but only a tile some rank is already wearing, and only
+    // where the block it borrows in says why.
+    for (const claim of states) {
+      expect(owned, `${claim.selector} claims ${claim.grain}, which no material rank uses`).toContain(claim.grain);
+      expect(
+        /\/\*/.test(claim.preamble),
+        `${claim.selector} reuses ${claim.grain} without saying why in the block that does it`
+      ).toBe(true);
+    }
   });
 
   /**

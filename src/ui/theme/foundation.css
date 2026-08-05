@@ -1545,12 +1545,6 @@
      `border-color` here would flatten the four sides back to one. */
   --rim-a: 0.028;
   --lip-a: 0.38;
-  /* And the grain has to come down with the fill, for the same reason the rim
-     and the lip do. A disabled hero keeps `.mat-hero`'s tile unless this says
-     otherwise, and that tile is authored for a face of 148 — dropped onto this
-     one at 35 it renders at four times the intended contrast and the dead
-     button becomes the noisiest object on the card. The disabled fill sits
-     within a few levels of `--fill-panel`, so it takes the panel's grain. */
   --mat-grain: var(--tex-grain-mid, none);
   --mat-grain-size: var(--tex-grain-mid-size, auto);
   color: var(--text-dim);
