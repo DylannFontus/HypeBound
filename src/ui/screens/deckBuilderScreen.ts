@@ -832,7 +832,17 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
      * resolves against the *label's* own box, not the column's, so the label has
      * to be told where to go in real units.
      */
-    const track = curveBarsHost?.clientHeight ?? 62;
+    /*
+     * `||`, not `??`, and the difference is the whole curve.
+     *
+     * `shell.ts` now builds a screen while its tree is still detached — that is
+     * what removed the navigation stall — and a detached element's
+     * `clientHeight` is `0`, not `undefined`. `??` only catches null and
+     * undefined, so the fallback never fired: `track` was 0, every bar was
+     * scaled to nothing, and the Hype Curve drew an empty axis on every visit.
+     * Nothing threw, and the panel looked like a deck with no cards in it.
+     */
+    const track = curveBarsHost?.clientHeight || 62;
     /** An empty column still draws a rail, so the axis reads as continuous. */
     const EMPTY_RAIL = 2;
 
