@@ -1142,6 +1142,38 @@
   animation-timing-function: var(--nav-ease-leave);
 }
 
+/**
+ * ## The blur is set, not animated, and that is the third round of this fix
+ *
+ * `filter` was in the keyframes here and in `nav-descend-out`, interpolating
+ * from `blur(0) brightness(1)` to the recede over the whole exit. A filter does
+ * not promote: every frame of it is a fresh rasterisation of a full-screen
+ * layer on the main thread, which is the one thread the hold exists to survive
+ * without. So the animation that was supposed to keep playing through a
+ * constructor was the only one in the file that could not.
+ *
+ * Both halves of a descend now carry the *same* static filter — the hold's, not
+ * the recede's — declared on the rule rather than on a keyframe. One paint, no
+ * step between `-hold` and `-out` (the value is identical, so the browser has
+ * nothing to re-rasterise when the attribute changes), and the exit is left as
+ * pure `transform` and `opacity`, which is what `nav-ascend-out` and
+ * `nav-sibling-out` have always been.
+ *
+ * The brightness half goes further: it is gone from the exit entirely. It used
+ * to ramp to `--nav-recede-dim` (0.6) while the opacity ramp was independently
+ * falling to 0.12, so the two multiplied — the measured 79% collapse in image
+ * structure that §2.1 has been chasing since round one. Holding the parent at
+ * 0.92 and letting opacity alone carry the departure keeps a lit surface on the
+ * glass for the whole exchange, and by the end of it the child is on top
+ * anyway. `--nav-recede-dim` and `--nav-recede-blur` survive as the roots of
+ * the two `--nav-hold-*` derivations, which is also what keeps the low tier's
+ * `blur: 0` override working; no keyframe reads either of them directly now.
+ */
+.screen[data-nav="descend-hold"],
+.screen[data-nav="descend-out"] {
+  filter: blur(var(--nav-hold-blur)) brightness(var(--nav-hold-dim));
+}
+
 .screen[data-nav="descend-hold"] {
   animation-name: nav-descend-hold;
 }
@@ -1162,12 +1194,10 @@
   from {
     opacity: 1;
     transform: scale(1) translate3d(0, 0, 0);
-    filter: blur(0) brightness(1);
   }
   to {
     opacity: var(--nav-hold-opacity);
     transform: scale(var(--nav-hold-scale)) translate3d(0, var(--nav-hold-lift), 0);
-    filter: blur(var(--nav-hold-blur)) brightness(var(--nav-hold-dim));
   }
 }
 
@@ -1213,17 +1243,25 @@
 
 /* Entering a match: the push begins on the press, under a curtain that has not
    closed yet. Barely any dim — the two frames this is visible for are the two
-   frames the player is looking at the button they just hit. */
+   frames the player is looking at the button they just hit.
+
+   Static filter, for the reason above the descend pair: the curtain's whole
+   claim is that it keeps playing while a battle constructor holds the thread,
+   and a screen re-rasterising a full-screen blur underneath it is the one thing
+   that can take that away. */
+.screen[data-nav="curtain-hold"],
+.screen[data-nav="curtain-out"] {
+  filter: blur(calc(var(--nav-curtain-blur) * 0.22)) brightness(0.88);
+}
+
 @keyframes nav-curtain-hold {
   from {
     opacity: 1;
     transform: scale(1);
-    filter: blur(0) brightness(1);
   }
   to {
     opacity: 0.96;
     transform: scale(1.018);
-    filter: blur(calc(var(--nav-curtain-blur) * 0.22)) brightness(0.88);
   }
 }
 
@@ -1332,7 +1370,6 @@
   from {
     opacity: var(--nav-hold-opacity);
     transform: scale(var(--nav-hold-scale)) translate3d(0, var(--nav-hold-lift), 0);
-    filter: blur(var(--nav-hold-blur)) brightness(var(--nav-hold-dim));
   }
   30% {
     opacity: 0.74;
@@ -1343,7 +1380,6 @@
   to {
     opacity: var(--nav-exit-floor);
     transform: scale(var(--nav-recede-scale)) translate3d(0, calc(var(--nav-recede-lift) * -1), 0);
-    filter: blur(var(--nav-recede-blur)) brightness(var(--nav-recede-dim));
   }
 }
 
@@ -1435,18 +1471,35 @@
  * side. Clearing 72% of the recede by the 38% keyframe means the screen the
  * player pressed Back to reach is sharp before the one they left has finished
  * going, and the transform still lands on exactly the descend's start state.
+ *
+ * ## It returns from where the descend now leaves it, which is nearer
+ *
+ * The descend's exit stopped animating its filter (see the note above
+ * `nav-descend-hold`) and holds the parent at the *hold* values for the whole
+ * of it, so this can no longer come back from `blur(7px) brightness(0.6)` — the
+ * parent was never taken that far. Starting at 3.85px is also the only
+ * animated filter left on either half of the pair, and half the radius is
+ * roughly half the rasterisation: `blur()` is separable and priced by radius,
+ * and this one is on the screen the player is about to look at. It is cleared
+ * by 30% rather than 38% for the same reason — the window it costs anything in
+ * is now under a hundred milliseconds.
  */
 @keyframes nav-ascend-in {
   from {
     opacity: 0.3;
     transform: scale(var(--nav-recede-scale)) translate3d(0, calc(var(--nav-recede-lift) * -1), 0);
-    filter: blur(var(--nav-recede-blur)) brightness(var(--nav-recede-dim));
+    filter: blur(var(--nav-hold-blur)) brightness(var(--nav-hold-dim));
+  }
+  30% {
+    opacity: 0.76;
+    transform: scale(calc(1 - (1 - var(--nav-recede-scale)) * 0.3))
+      translate3d(0, calc(var(--nav-recede-lift) * -0.3), 0);
+    filter: blur(0) brightness(1);
   }
   38% {
     opacity: 0.8;
     transform: scale(calc(1 - (1 - var(--nav-recede-scale)) * 0.28))
       translate3d(0, calc(var(--nav-recede-lift) * -0.28), 0);
-    filter: blur(calc(var(--nav-recede-blur) * 0.28)) brightness(calc(1 - (1 - var(--nav-recede-dim)) * 0.22));
   }
   to {
     opacity: 1;
@@ -1504,12 +1557,10 @@
   from {
     opacity: 0.96;
     transform: scale(1.018);
-    filter: blur(calc(var(--nav-curtain-blur) * 0.22)) brightness(0.88);
   }
   to {
     opacity: var(--nav-exit-floor);
     transform: scale(1.07);
-    filter: blur(var(--nav-curtain-blur)) brightness(0.28);
   }
 }
 
@@ -1822,38 +1873,49 @@
  * asked for. `backwards` fills only the delay and hands the element back to its
  * own styles the moment the animation is done.
  */
-.screen[data-nav] > * > *:nth-child(1) { --cascade-i: 0; }
-.screen[data-nav] > * > *:nth-child(2) { --cascade-i: 1; }
-.screen[data-nav] > * > *:nth-child(3) { --cascade-i: 2; }
-.screen[data-nav] > * > *:nth-child(4) { --cascade-i: 3; }
-.screen[data-nav] > * > *:nth-child(5) { --cascade-i: 4; }
-.screen[data-nav] > * > *:nth-child(6) { --cascade-i: 5; }
-.screen[data-nav] > * > *:nth-child(7) { --cascade-i: 6; }
-.screen[data-nav] > * > *:nth-child(8) { --cascade-i: 7; }
-
-.screen[data-nav] > :is(header, nav) > * {
-  --cascade-base: 0;
-}
-
-.screen[data-nav] > :is(main, section, footer, [class*="-body"], [class*="-sheet"]) > * {
-  --cascade-base: 4;
-}
-
-/* Any structural container with another one before it. `~` matches every
-   following sibling, so a third container matches this too — and matches it at
-   the same base, which is the one collision this scheme tolerates. Three sibling
-   body containers on one screen does not happen in the forty-nine; two does. */
-.screen[data-nav]
-  > :is(main, section, footer, [class*="-body"], [class*="-sheet"])
-  ~ :is(main, section, footer, [class*="-body"], [class*="-sheet"])
-  > * {
-  --cascade-base: 11;
-}
-
-.screen[data-nav$="-in"] > :is(header, nav, main, section, footer, [class*="-body"], [class*="-sheet"]) > *:nth-child(-n + 7),
-.screen[data-nav="arrive"] > :is(header, nav, main, section, footer, [class*="-body"], [class*="-sheet"]) > *:nth-child(-n + 7) {
+/**
+ * ## The stylesheet stopped guessing which children these are, and it bought
+ * back a fifth of every navigation
+ *
+ * The three rules that used to live here were written as
+ * `.screen[data-nav] > * > *:nth-child(N)` and
+ * `.screen[data-nav] > :is(…, [class*="-body"], [class*="-sheet"]) > *`, and
+ * both shapes are invalidation disasters in Blink.
+ *
+ * A rule whose rightmost compound is a bare `*` under an attribute ancestor
+ * registers a **whole-subtree** descendant invalidation set for that attribute.
+ * A `[class*=…]` selector registers the same thing for the `class` attribute —
+ * and not just here: for every `class` mutation on any element in the game,
+ * because the invalidation set is looked up by attribute name.
+ *
+ * Measured at 1600×900 with a forced layout after each mutation, on a settled
+ * screen with nothing else changing:
+ *
+ *     lobby (179 nodes)        write `data-nav`  23ms   add an unused class 12ms
+ *     missions (356 nodes)                       34ms                        6ms
+ *     collection (1529 nodes)                    42ms                       22ms
+ *
+ * Twelve to forty-two milliseconds to set one attribute, and it lands exactly
+ * where it hurts most: `seal()` adds a class and `beginExit()` writes
+ * `data-nav`, both on the frame the hash changes, which is the whole of the
+ * long task every leg was paying before its first composited frame.
+ *
+ * So the shell names them instead. `markCascade()` walks the screen's own
+ * children once, *before the element is in the document* — where an
+ * invalidation costs nothing because there is nothing to invalidate — and
+ * writes `data-cascade` on each structural container and `data-rise` plus a
+ * resolved `--cascade-i` on the items inside it. Every selector below is then
+ * keyed on an attribute that never changes again, and the wildcards and the
+ * substring match are gone.
+ *
+ * The base is folded into `--cascade-i` at the same time, so `--cascade-base`
+ * no longer exists: head items are 0–7, the first body container 4–11, any
+ * container after it 11–18, exactly as the three rules above produced.
+ */
+.screen[data-nav$="-in"] > [data-cascade] > [data-rise],
+.screen[data-nav="arrive"] > [data-cascade] > [data-rise] {
   animation: nav-child-rise calc(var(--nav-dur, 300ms) * 0.62) var(--nav-ease-arrive)
-    calc(var(--nav-delay, 0ms) + (var(--cascade-base, 0) + var(--cascade-i, 0)) * 30ms) backwards;
+    calc(var(--nav-delay, 0ms) + var(--cascade-i, 0) * 30ms) backwards;
 }
 
 /**
@@ -1872,7 +1934,7 @@
  *
  * The cascade stays everywhere it earns its keep: arriving somewhere new.
  */
-.screen[data-nav="ascend-in"] > :is(header, nav, main, section, footer, [class*="-body"], [class*="-sheet"]) > *:nth-child(-n + 7) {
+.screen[data-nav="ascend-in"] > [data-cascade] > [data-rise] {
   animation: none;
 }
 
@@ -2660,6 +2722,23 @@
  * pointer-events or visibility change that the non-reduced path does not
  * already have.
  */
+/**
+ * The recede's blur is a *declaration* now rather than a keyframe, so this
+ * setting has to say so out loud.
+ *
+ * §2.0 moved `filter` out of `nav-descend-hold`, `nav-descend-out` and the two
+ * curtain exits and onto the rules that name them, because an animated filter
+ * cannot be composited and the whole point of the hold is that it survives a
+ * blocked thread. The side effect is that swapping `animation-name` below no
+ * longer takes the blur with it — which would leave somebody who has asked for
+ * less movement looking at a 3.9px blur they did not have before. One rule,
+ * ahead of all of them, because "the transforms and the blurs go" is the
+ * sentence this section opens with.
+ */
+:root[data-reduced-motion="true"] .screen[data-nav] {
+  filter: none;
+}
+
 :root[data-reduced-motion="true"] .screen[data-nav$="-in"],
 :root[data-reduced-motion="true"] .screen[data-nav="arrive"] {
   animation-name: nav-fade-in;
@@ -2712,14 +2791,8 @@
 /* Scoped to the entrance window and to exactly the elements the cascade rule
    claims, so a screen's own animation on one of its panels is left alone
    everywhere else — this setting is not a licence to switch off a progress bar. */
-:root[data-reduced-motion="true"]
-  .screen[data-nav$="-in"]
-  > :is(header, nav, main, section, footer, [class*="-body"], [class*="-sheet"])
-  > *:nth-child(-n + 7),
-:root[data-reduced-motion="true"]
-  .screen[data-nav="arrive"]
-  > :is(header, nav, main, section, footer, [class*="-body"], [class*="-sheet"])
-  > *:nth-child(-n + 7) {
+:root[data-reduced-motion="true"] .screen[data-nav$="-in"] > [data-cascade] > [data-rise],
+:root[data-reduced-motion="true"] .screen[data-nav="arrive"] > [data-cascade] > [data-rise] {
   animation: none;
 }
 

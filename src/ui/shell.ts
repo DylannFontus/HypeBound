@@ -255,7 +255,17 @@ export const ROUTES: Readonly<Record<string, RouteNode>> = {
  */
 const UNKNOWN_ROUTE: RouteNode = { parent: "lobby", order: 99, room: "hub", heavy: true };
 
-export function routeNode(id: string): RouteNode {
+/**
+ * Not exported, and `tests/no-orphan-ui.test.ts` is why.
+ *
+ * This and `planNavigation` are both called all over this file and nowhere
+ * else in the repository, which is exactly the shape that test names: an export
+ * is a promise that something outside is using it, and an unkept one is
+ * indistinguishable from a feature that was built and never plugged in. They
+ * are internal helpers; the module's actual contract is `Shell`, `ROUTES` and
+ * the two types.
+ */
+function routeNode(id: string): RouteNode {
   return ROUTES[id] ?? UNKNOWN_ROUTE;
 }
 
@@ -443,46 +453,38 @@ const CURTAIN = { close: 170, open: 210, lead: 110 } as const;
  * 220 rather than a round number because it is the bottom of §3a's own
  * 260–420ms band with a frame's slack: a pause shorter than the shortest
  * legitimate transition is not a pause the player can name.
+ *
+ * ## It went to 60, it made things worse, and it is back
+ *
+ * The argument for 60 was sound and its premise had expired. A CSS animation's
+ * clock does run in real time, so a 170ms exit declared in front of a 116ms
+ * block used to be an exit nobody saw — but §2.0's hold and the `twoFrames()`
+ * above the build fixed *that*, by giving the exit a composited frame before
+ * the thread disappears. What lowering the bar afterwards did was hand a cover
+ * to every navigation in the game, and the cover is the worst surface in it:
+ * filmed at 1600×900, an ordinary `lobby → play` under the late veil put a
+ * frame on the glass at 47% of the reference mean and **24%** of its 95th
+ * percentile, against 77% and 55% for the same leg with no veil at all. The
+ * thing drawn to prevent a dark frame was the dark frame.
+ *
+ * It is also self-concealing, which is why it survived a round: with every leg
+ * veiled, `tests/never-a-blank-frame.test.ts` skips its pixel check on all of
+ * them — "a veil is allowed to be dark" — and the suite's one honest failure is
+ * the assertion that notices it has nothing left to measure.
+ *
+ * Measured on this machine, warm, at 1600×900 (`scripts/_w3nav_cost.mjs`):
+ *
+ *     play        200 nodes   0 long tasks   118 rAF frames in 1.6s
+ *     mastery     213 nodes   0 long tasks   118
+ *     settings    159 nodes   0 long tasks   120
+ *     missions    356 nodes   one 57ms task  113
+ *     collection 1529 nodes   16 tasks       65
+ *
+ * Four of those five want no cover at all, and the fifth is flagged `heavy` in
+ * the route table. So the threshold goes back to a length a player can name,
+ * and the node-count prior below it goes entirely.
  */
-/**
- * Above this, a build gets the curtain. Measured, not guessed.
- *
- * This was 220ms, on the reasoning that a frozen screen only stops reading as a
- * beat once it is quite long. That is true of a *frozen* screen and false of a
- * frozen transition, which is what actually happens: a CSS animation's clock
- * runs in real time, so declaring one and then blocking for 116ms does not
- * delay it — it consumes it. Four separate reviews caught the result and one
- * caught it exactly, on `#collection → #lobby`: `nav-ascend-out` firing
- * `animationstart` and `animationend` *in the same millisecond*, then one
- * half-dismantled dark frame, then a cut to a settled lobby. The 320ms ascend
- * had already elapsed inside the block.
- *
- * Attributed long tasks on this machine (75.2fps at rest, worst gap 13.5ms):
- *
- *     #lobby -> #play        116ms   under the old threshold, so unveiled
- *     #lobby -> #settings     78ms + 97 + 80 + 74 + 50
- *     #lobby -> #collection  489ms   over it, so this one was already covered
- *
- * So the two legs a player uses most were the two the veil declined to protect.
- * 60ms is about four frames — the point at which a 260-420ms transition loses a
- * visible fraction of itself. Below that a hitch is a hitch; above it, the whole
- * move is gone and the player sees a cut.
- *
- * The curtain is the right tool and already works: it is a `translate3d` on the
- * compositor, so once it has been given one frame by `twoFrames()` it keeps
- * playing for the whole of the block underneath it.
- */
-const HEAVY_BUILD_MS = 60;
-
-/**
- * And above this many elements, a screen gets one too — measured after the
- * build, before it is placed.
- *
- * See the note at the call site. The number the stopwatch cannot see is the
- * cost of the *first painted frame*, and the only thing available at the moment
- * that matters is how large the tree about to be inserted is.
- */
-const HEAVY_NODES = 300;
+const HEAVY_BUILD_MS = 220;
 
 /**
  * How long the reveal will wait for a frame worth revealing on.
@@ -561,7 +563,7 @@ function travelFor(relation: NavRelation, direction: -1 | 0 | 1): TravelKind {
  * relative depth decides, so going somewhere deeper always descends and going
  * somewhere shallower always ascends, whatever branch it is on.
  */
-export function planNavigation(from: string | null, to: string): NavPlan {
+function planNavigation(from: string | null, to: string): NavPlan {
   const { relation, direction } = relationBetween(from, to);
   const reduced = reducedMotion();
   const timing = reduced ? REDUCED_TIMING : scaleTiming(TIMING[relation]);
@@ -805,6 +807,81 @@ function syncRange(el: HTMLInputElement): void {
   el.style.setProperty("--slider-fill", `${(Math.min(1, Math.max(0, fraction)) * 100).toFixed(2)}%`);
 }
 
+/**
+ * How many children of a container carry the cascade, and how many carry the
+ * de-sync index.
+ *
+ * Seven rise (§2.7's band starts at 30ms and seven of them keeps the tail
+ * inside the settle); eight get `--cascade-i`, because `foundation.css` reads
+ * the same number as the phase offset for its idle sheen and an eighth plate
+ * sweeping in step with the first is exactly what that offset exists to stop.
+ */
+const CASCADE_RISERS = 7;
+const CASCADE_INDEXED = 8;
+
+/**
+ * Which of a screen's own children the entrance cascade belongs to, decided
+ * here rather than by a selector.
+ *
+ * §2.7 of `transitions.css` used to work this out in CSS, with
+ * `> :is(header, nav, main, section, footer, [class*="-body"], [class*="-sheet"]) > *:nth-child(-n+7)`
+ * and eight `> * > *:nth-child(N)` rules to number them. Both shapes force
+ * Blink to register a *whole-subtree* invalidation set — the first against the
+ * `class` attribute, because a substring match cannot be indexed by class name;
+ * the second against `data-nav`, because a bare `*` as the rightmost compound
+ * cannot be indexed at all. The consequence was that writing one attribute on a
+ * screen root cost 23ms on the lobby, 34ms on Missions and 42ms on the
+ * Collection, and adding *any* class — even one that matches nothing — cost 12
+ * to 22ms. `seal()` adds a class and `beginExit()` writes `data-nav`, on the
+ * frame the hash changes, which is where every measured leg's first long task
+ * was coming from.
+ *
+ * Doing it in script is not a workaround for a slow browser; it is the correct
+ * division. The shell is the only thing that knows a screen has just been built
+ * and is not yet in the document — and an attribute written on a detached tree
+ * invalidates nothing, because there is nothing to invalidate. One pass over
+ * about five children and forty grandchildren, at mount, replaces a
+ * per-mutation cost paid for the life of the screen.
+ *
+ * The container test is the stylesheet's, transcribed: the semantic sectioning
+ * elements, plus anything named `*-body` or `*-sheet`, which is how the forty
+ * screens that use a `<div>` wrapper spell one. `#uikit`'s `.kit-sheet` is the
+ * reason the second half exists — see the note this replaces.
+ */
+function markCascade(root: HTMLElement): void {
+  let bodies = 0;
+  for (const child of Array.from(root.children)) {
+    if (!(child instanceof HTMLElement)) continue;
+    const tag = child.tagName;
+    const head = tag === "HEADER" || tag === "NAV";
+    const name = child.className;
+    const body =
+      tag === "MAIN" ||
+      tag === "SECTION" ||
+      tag === "FOOTER" ||
+      name.includes("-body") ||
+      name.includes("-sheet");
+    if (!head && !body) continue;
+    /**
+     * Head at 0, the first body container at 4, everything after it at 11 —
+     * the three `--cascade-base` values, resolved here and added straight into
+     * the index. A cascade that restarts inside each container while its base
+     * does not move with it puts a header's third item and a body's first item
+     * on the same frame, which is the collision §2.7 documents.
+     */
+    const base = head ? 0 : bodies++ === 0 ? 4 : 11;
+    child.dataset["cascade"] = head ? "head" : "body";
+    let index = 0;
+    for (const item of Array.from(child.children)) {
+      if (index >= CASCADE_INDEXED) break;
+      if (!(item instanceof HTMLElement)) continue;
+      item.style.setProperty("--cascade-i", String(base + index));
+      if (index < CASCADE_RISERS) item.dataset["rise"] = "";
+      index += 1;
+    }
+  }
+}
+
 /** Every range under `root`, including `root` itself if it is one. */
 function syncRangesIn(root: ParentNode | HTMLElement): void {
   if (root instanceof HTMLInputElement && root.type === "range") {
@@ -955,18 +1032,6 @@ export class Shell {
     const plan = planNavigation(outgoing?.id ?? null, id);
     try {
       /**
-       * Pay for the last navigation's teardown before this one starts moving.
-       *
-       * There is at most a screen or two in here and they are already detached,
-       * so this costs nothing visible; what it buys is the guarantee that a
-       * queued `dispose()` can never land in the middle of the transition about
-       * to be started. This is the moment in the whole cycle where the thread is
-       * *allowed* to block: nothing is animating and the outgoing screen is
-       * still fully painted.
-       */
-      this.flushDisposals();
-
-      /**
        * Anything whose wait cannot be hidden gets covered instead.
        *
        * Two cases, one mechanism, **two surfaces**. A battle is covered because
@@ -1076,6 +1141,29 @@ export class Shell {
       if (outgoing) {
         await twoFrames();
         /**
+         * ## And the last navigation's teardown is paid **here**, not at the top
+         *
+         * This used to be the first statement in the `try`, on the reasoning
+         * that the top of a navigation is "the moment in the whole cycle where
+         * the thread is *allowed* to block: nothing is animating and the
+         * outgoing screen is still fully painted". That sentence was written
+         * before §2.0's hold existed and it stopped being true the day it did.
+         * Something *is* animating from the frame the hash changes — the hold
+         * is declared four statements above this one — so a queued `dispose()`
+         * at the top of the handler is a block sitting between the animation
+         * being declared and its first composited frame, which is the precise
+         * shape of the defect this whole file is about. On `lobby → play` the
+         * pre-paint task measured 56ms and the first pixel did not move for
+         * 119ms.
+         *
+         * Two frames later the hold is on the compositor and will keep playing
+         * whatever happens underneath it, which is the same guarantee the
+         * curtain has always had — so this is now genuinely the moment the
+         * thread may block, and it still lands before the factory, which is the
+         * only ordering guarantee `queueDisposal` ever needed.
+         */
+        this.flushDisposals();
+        /**
          * And *then* put the match on it.
          *
          * The order is the whole of it. `dressMatchCurtain` downsamples two 4K
@@ -1120,6 +1208,11 @@ export class Shell {
           if (drew) await twoFrames();
           performance.mark("dress:composited");
         }
+      } else {
+        // The first screen of the session has nothing to leave and therefore no
+        // hold to protect, but the invariant is the same: a queued teardown is
+        // always paid before the next factory runs.
+        this.flushDisposals();
       }
 
       /**
@@ -1167,28 +1260,29 @@ export class Shell {
        * full curtain closes from the first frame instead.
        */
       /**
-       * How much of a screen there is, which is the other half of the predictor.
+       * ## There was a node-count prior here as well, and it has been withdrawn
        *
-       * `buildMs` alone was not enough and the counter-example is instructive:
-       * Missions constructs in well under the threshold on a warm module graph
-       * and then costs **392ms** to lay out and paint, because what it built was
-       * 350 elements carrying sixty entrance animations. A constructor's elapsed
-       * time measures how hard the *script* worked; the frame that follows is
-       * priced by how much DOM it was handed.
+       * It read "over 300 elements, cover it", on the strength of a measurement
+       * that Missions cost 392ms to lay out and paint behind a cheap
+       * constructor. That was true when it was taken and is not true now:
+       * Missions builds 356 elements, produces one 57ms task and then draws 113
+       * frames in the following 1.6 seconds — a screen that is doing fine and
+       * was being blacked out for the crime of having a lot of small children in
+       * it. A prior that fires on four of the five most-travelled routes has
+       * stopped predicting anything and started being the default.
        *
-       * 300 sits between the screens that measure fine — the lobby at 179, Play
-       * at 200, Mastery at 213 — and the ones that do not: Missions at 350, the
-       * Collection at 1,529. It is a prior for the first visit only; the line
-       * below records what the navigation actually cost, paint included, so from
-       * the second visit onward the answer is measured rather than guessed.
+       * What is left is the honest predictor and the honest correction: the
+       * table's `heavy` flag for the first visit, and the line below, which
+       * folds the *painted* cost of this navigation back into `buildCost` one
+       * frame later so the second visit is judged on what actually happened
+       * rather than on how many `<span>`s were involved.
        */
-      const nodes = screen.root.getElementsByTagName("*").length;
       void nextFrame().then(() => {
         const settled = now() - startedBuild;
         if (settled > (this.buildCost.get(id) ?? 0)) this.buildCost.set(id, settled);
       });
 
-      if (!veiled && outgoing !== null && (buildMs >= HEAVY_BUILD_MS || nodes >= HEAVY_NODES)) {
+      if (!veiled && outgoing !== null && buildMs >= HEAVY_BUILD_MS) {
         this.raiseCurtain(plan, routeNode(id).room, true);
         veiled = true;
         await twoFrames();
@@ -1252,6 +1346,11 @@ export class Shell {
     root.style.setProperty("--nav-dur", `${plan.inMs}ms`);
     root.style.setProperty("--nav-delay", `${plan.inDelayMs}ms`);
     if (plan.relation === "sibling") root.style.setProperty("--nav-dir", String(plan.direction));
+    /**
+     * Named while it is still detached, which is the whole of why this is
+     * cheap. See `markCascade`.
+     */
+    markCascade(root);
     root.dataset["nav"] = plan.relation === "arrive" ? "arrive" : `${plan.relation}-in`;
 
     /**

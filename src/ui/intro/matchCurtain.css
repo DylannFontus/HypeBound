@@ -53,8 +53,22 @@
   z-index: 1;
 }
 
+/**
+ * The away half stops at the *bottom panel's* top edge, not at its own.
+ *
+ * The two panels are 52% tall each so that they overlap by 4% of the viewport
+ * and no rounding error can open a one-pixel line at the seam — and the bottom
+ * one comes second in the document, so it paints over that overlap. Anchoring
+ * the away side at `bottom: 0` therefore put the last 4vh of it underneath an
+ * opaque rectangle: filmed at 1600×900, the rival's name read "DJ Last Call"
+ * with its lower half sliced off along a perfectly straight horizontal line, on
+ * the one card in the game whose whole job is to tell you who you are playing.
+ *
+ * The home side needs no such correction. It is the panel doing the covering.
+ */
 .match-side.is-away {
-  bottom: 0;
+  bottom: 4vh;
+  height: calc(100% - 4vh);
 }
 
 .match-side.is-home {
@@ -90,6 +104,20 @@
  * now all of it, and two points of margin is what stops a rounding error at an
  * awkward viewport height from putting the head under the clip.
  */
+/**
+ * A wrapper that does nothing but breathe.
+ *
+ * `inset: 0` inside `.match-side`, so it changes no geometry and every rule
+ * below still positions the canvas itself against the same box it always did.
+ * The only thing it owns is the idle, and it owns it so that the *entrance* can
+ * have the compositor to itself — see the note at `match-breathe-away`.
+ */
+.match-figure {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 .match-portrait {
   position: absolute;
   width: min(34vw, 50vh);
@@ -168,10 +196,24 @@
     0 6px 22px rgb(4 2 12 / 0.75);
 }
 
+/**
+ * The secondary line gets the primary line's shadow, and most of its alpha.
+ *
+ * 70% of a near-white over a *dark* portrait is a perfectly good secondary
+ * rank. Over a bright one it is not: filmed at 844×390, "Neon Idols Starter"
+ * sat across the lit side of DJ Kilowatt's hair and disappeared. The rank has
+ * to come from size and weight, which it already does — this line is 11–14px
+ * against a 20–40px name — rather than from an alpha that only works when the
+ * art behind it happens to be dark. S4: type over imagery gets a plate, a
+ * scrim or a shadow, and the shadow here is now the same two-stop one the name
+ * carries.
+ */
 .match-detail {
   font-size: clamp(11px, 1.5vh, 14px);
-  color: rgb(226 216 255 / 0.7);
-  text-shadow: 0 2px 10px rgb(4 2 12 / 0.8);
+  color: rgb(226 216 255 / 0.88);
+  text-shadow:
+    0 1px 0 rgb(0 0 0 / 0.5),
+    0 3px 12px rgb(4 2 12 / 0.9);
 }
 
 /* ---- the mode plate on the seam ----------------------------------------- */
@@ -235,39 +277,71 @@
 /* ---- entrances ----------------------------------------------------------- */
 
 /**
- * The card assembles behind the closed panels over 640ms, staggered, and then
- * holds for however long the constructor takes.
+ * The card assembles behind the closed panels, staggered, and then holds for
+ * however long the constructor takes.
  *
- * The delays are deliberately longer than they would be on a screen: the
- * curtain's own close is 170ms and nothing here may start until that has landed,
- * or the billing arrives on a surface that is still moving. §3's 30–60ms
- * cascade, applied to four elements instead of seven tiles.
+ * ## Nothing here starts at zero, and that is not a taste decision
+ *
+ * Every one of these keyframes used to open on `opacity: 0`, with delays of
+ * 40–340ms in front of them so that nothing began until the 170ms close had
+ * landed. Both halves of that are right about a page that is *awake*, and
+ * together they made the card invisible for the whole of the wait it exists to
+ * fill.
+ *
+ * The mechanism is worth stating exactly, because it is the same one three
+ * other files in this project have been caught by from different angles.
+ * `shell.ts` dresses the curtain and then spends two frames getting it
+ * composited before it calls the battle factory — and a composited animation
+ * survives the block that follows, which is the whole design. But **an element
+ * at `opacity: 0` is not painted at all**, so those two frames recorded no
+ * content for the portraits, the plates or the mode chip: with
+ * `animation-fill-mode: both` and a delay still running, the backwards fill
+ * held every one of them at zero. The compositor was handed an animation and no
+ * pixels to run it on. Then the main thread disappeared into the constructor
+ * for five seconds, and nothing could be painted until it came back.
+ *
+ * Filmed at 1600×900 on a warm entry, before this change: the plates faded up
+ * at t≈939ms (type is cheap and one paint got through), and the two leader
+ * portraits — the best-looking thing in the game, correctly drawn, sitting in
+ * the DOM the whole time — first reached the glass at **t≈5.2s of a 5.4s
+ * hold**, about two hundred milliseconds before the mulligan replaced them.
+ *
+ * So each element opens at a low but *paintable* opacity, and the delays come
+ * down to something the close can still lead. The two frames the shell spends
+ * now capture a real layer for each of them, the compositor owns the rest, and
+ * the assembly plays through the block exactly as authored.
  */
 .nav-curtain[data-billing="live"] .match-portrait {
-  animation: match-portrait-in 620ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 40ms both;
+  animation: match-portrait-in 620ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 0ms both;
 }
 
 .nav-curtain[data-billing="live"] .is-home .match-portrait {
   animation-name: match-portrait-in-home;
-  animation-delay: 130ms;
+  animation-delay: 90ms;
 }
 
 .nav-curtain[data-billing="live"] .match-plate {
-  animation: match-plate-in 480ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 260ms both;
+  animation: match-plate-in 480ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 170ms both;
 }
 
 .nav-curtain[data-billing="live"] .is-home .match-plate {
   animation-name: match-plate-in-home;
-  animation-delay: 340ms;
+  animation-delay: 250ms;
 }
 
 .nav-curtain[data-billing="live"] .match-vs {
-  animation: match-vs-in 520ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 200ms both;
+  animation: match-vs-in 520ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 130ms both;
 }
 
+/**
+ * 0.16 rather than 0. Under a 4% rise and a 3% scale nobody can name the
+ * difference between a fade from nothing and a fade from a sixth — the travel
+ * is what the eye reads as arrival — and it is the difference between a layer
+ * the compositor can carry through a blocked thread and one it cannot.
+ */
 @keyframes match-portrait-in {
   from {
-    opacity: 0;
+    opacity: 0.16;
     transform: translate3d(0, 4%, 0) scale(1.03);
   }
   to {
@@ -278,7 +352,7 @@
 
 @keyframes match-portrait-in-home {
   from {
-    opacity: 0;
+    opacity: 0.16;
     transform: translate3d(0, -4%, 0) scale(1.03);
   }
   to {
@@ -292,7 +366,7 @@
    now, so they arrive from it. */
 @keyframes match-plate-in {
   from {
-    opacity: 0;
+    opacity: 0.12;
     transform: translate3d(0, 30%, 0);
   }
   to {
@@ -303,7 +377,7 @@
 
 @keyframes match-plate-in-home {
   from {
-    opacity: 0;
+    opacity: 0.12;
     transform: translate3d(0, -30%, 0);
   }
   to {
@@ -314,7 +388,7 @@
 
 @keyframes match-vs-in {
   from {
-    opacity: 0;
+    opacity: 0.12;
     transform: translate3d(-50%, -50%, 0) scaleX(0.82);
   }
   to {
@@ -334,16 +408,34 @@
  * pulse with the seam. Two composited transforms and two opacities: it costs
  * nothing while a constructor holds the thread, which is the only time it runs.
  */
-.nav-curtain[data-billing="live"][data-phase="close"] .is-away .match-portrait {
-  animation:
-    match-portrait-in 620ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 40ms both,
-    match-breathe-away 8s var(--nav-ease-glide, cubic-bezier(0.65, 0, 0.35, 1)) 700ms infinite;
+/**
+ * ## On the wrapper, because two animations on one element is none on the
+ * compositor
+ *
+ * These used to be declared as the second half of a two-animation shorthand on
+ * `.match-portrait` itself, alongside the entrance. Blink refuses to run an
+ * animation on the compositor when another animation on the same element
+ * claims the same property — and it refuses for *both*, not just the second —
+ * so the entrance was silently demoted to the main thread, which is the one
+ * thread guaranteed to be inside a battle constructor for the whole of this
+ * card's life. Filmed at 1600×900: the portraits opened at their first keyframe
+ * and then crept, reaching roughly 40% by t=1.8s and full strength only when
+ * the build let go of the thread at t≈5.1s.
+ *
+ * One animation per element and both composite. `transform-origin` puts the
+ * swell against the seam, which is where it was when the two animations shared
+ * the canvas's own box.
+ */
+.nav-curtain[data-billing="live"][data-phase="close"] .match-figure.is-away {
+  animation: match-breathe-away 8s var(--nav-ease-glide, cubic-bezier(0.65, 0, 0.35, 1)) 700ms infinite;
+  transform-origin: 50% 100%;
+  will-change: transform;
 }
 
-.nav-curtain[data-billing="live"][data-phase="close"] .is-home .match-portrait {
-  animation:
-    match-portrait-in-home 620ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 130ms both,
-    match-breathe-home 8s var(--nav-ease-glide, cubic-bezier(0.65, 0, 0.35, 1)) 4.7s infinite;
+.nav-curtain[data-billing="live"][data-phase="close"] .match-figure.is-home {
+  animation: match-breathe-home 8s var(--nav-ease-glide, cubic-bezier(0.65, 0, 0.35, 1)) 4.7s infinite;
+  transform-origin: 50% 0%;
+  will-change: transform;
 }
 
 /*

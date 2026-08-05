@@ -143,7 +143,24 @@ function sideElement(side: MatchSide, role: "away" | "home"): HTMLElement {
     resolution: 1,
     className: "match-portrait",
   });
-  wrap.appendChild(plate);
+  /**
+   * The breathe lives on a wrapper, and the extra element is load-bearing.
+   *
+   * The entrance and the idle both animate `opacity` and `transform`, and Blink
+   * will not run *either* on the compositor while two animations on one element
+   * claim the same property — it drops both back to the main thread, which is
+   * the one thread that is guaranteed to be inside a battle constructor for the
+   * whole of this card's life. Filmed with them stacked: the portraits opened
+   * at their first keyframe and then crept, reaching about 40% by t=1.8s and
+   * full strength only when the build let go.
+   *
+   * One animation each, on two elements, and both are composited: the figure
+   * arrives while the thread is gone, and goes on breathing after it.
+   */
+  const figure = document.createElement("div");
+  figure.className = `match-figure is-${role}`;
+  figure.appendChild(plate);
+  wrap.appendChild(figure);
 
   const plateBox = document.createElement("div");
   plateBox.className = "match-plate";
@@ -226,77 +243,36 @@ export function dressMatchCurtain(curtain: HTMLElement, routeId: string, params:
     curtain.dataset["billing"] = "still";
     return true;
   }
-  armBilling(curtain);
+  /**
+   * ## Armed here, synchronously, and the deferral it replaces was the defect
+   *
+   * This used to call `armBilling`, which waited for two consecutive on-time
+   * frames before setting the attribute — on the reasoning that a CSS
+   * animation's clock runs in real time, so an entrance declared in front of a
+   * 737ms constructor is an entrance nobody sees.
+   *
+   * That is true of an animation the *main thread* has to drive and false of
+   * this one, which is the same distinction `shell.ts` §2.0 turns on. Every
+   * keyframe below is `opacity` and `transform` on an element the compositor
+   * owns the moment an animation is running on it, so once the layer has been
+   * rasterised the entrance plays through a blocked thread exactly as the
+   * curtain's own `translate3d` always has. What it cannot survive is not being
+   * *declared*: `animation-fill-mode: both` holds the backwards fill — opacity
+   * 0 — for as long as the attribute is missing, and during a battle build the
+   * page has no calm frames at all, so the wait for two of them was a wait for
+   * the constructor to finish.
+   *
+   * Filmed at 1600×900, cold, before this change: the panels closed at t=170ms
+   * and the card was **not on screen at all** until t≈3.4s of a 5.4-second hold,
+   * at which point it faded up over the last two seconds and the portraits
+   * barely arrived before the mulligan did. The handsomest thing in the game,
+   * drawn correctly, into a frame nobody was shown.
+   *
+   * The two frames the entrance needs to be composited on are the caller's:
+   * `shell.ts` follows a `true` return with `await twoFrames()` for exactly this
+   * reason, and the note there says so.
+   */
+  curtain.dataset["billing"] = "live";
   return true;
 }
 
-/**
- * How long the entrance will wait for a frame worth arriving on, measured from
- * the first frame anybody actually saw.
- *
- * From the first *observed* frame rather than from the call, and that is the
- * whole trick. A wall-clock deadline set here is consumed by the very block it
- * exists to survive — the 737ms task this is dressed in front of would expire
- * it before a single frame had been drawn, and the entrance would arm on the
- * frame with the most raster still outstanding, which is precisely the failure.
- */
-const BILLING_PATIENCE_MS = 900;
-
-/** A frame the page could afford to draw. The same 34ms `shell.ts` uses. */
-const CALM_FRAME_MS = 34;
-
-/**
- * Start the card assembling on a frame that can carry it.
- *
- * ## What was measured
- *
- * Warm entry, CDP screencast: at t=1423 the frame held the two names and no
- * portraits (mean 27.7, sd 16.3); at t=1451 it held both portraits at full
- * strength (mean 39.6, sd 37.1). A twenty-eight millisecond step, on a card
- * whose entrance is authored as a 640ms stagger. Cold entry did the same thing
- * with the names arriving about 140ms before their faces.
- *
- * The entrances were not missing. They were *spent*: `dressMatchCurtain` is
- * called two frames after the curtain is raised and the battle constructor
- * takes the thread immediately afterwards for 737ms warm and 3,175ms cold. A
- * CSS animation's clock runs in real time, so the 620ms portrait fade elapsed
- * entirely inside the block, and the first frame drawn afterwards showed a
- * finished animation over a canvas the compositor had only just rasterised.
- * The type arrived first because type is cheap to raster and a downsampled 4K
- * painting is not.
- *
- * So the DOM is built now — that part genuinely does want to happen before the
- * block, so the raster is already queued — and the *entrance* is armed on the
- * first two on-time frames after it. Two rather than one for the reason
- * `shell.ts` gives at `quietFrame`: the first frame after a long task is the
- * gap between two expensive ones, and a card that starts assembling into a
- * dropped frame has not assembled in front of anybody.
- */
-function armBilling(curtain: HTMLElement): void {
-  if (typeof requestAnimationFrame !== "function") {
-    curtain.dataset["billing"] = "live";
-    return;
-  }
-  const clock = (): number =>
-    typeof performance === "object" && typeof performance.now === "function" ? performance.now() : Date.now();
-  let previous = clock();
-  let deadline = Infinity;
-  let seen = 0;
-  let calm = 0;
-  const step = (): void => {
-    // Abandoned: the player left, or the shell dropped the veil under us.
-    if (!curtain.isConnected || curtain.dataset["billing"] !== undefined) return;
-    const stamp = clock();
-    const delta = stamp - previous;
-    previous = stamp;
-    seen += 1;
-    if (seen === 1) deadline = stamp + BILLING_PATIENCE_MS;
-    calm = delta <= CALM_FRAME_MS ? calm + 1 : 0;
-    if (calm >= 2 || stamp >= deadline) {
-      curtain.dataset["billing"] = "live";
-      return;
-    }
-    requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}

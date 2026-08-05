@@ -1034,13 +1034,84 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     });
   }
 
+  /**
+   * How many tiles a single reconcile may *construct*, and why there is a limit
+   * at all now.
+   *
+   * A cell is six elements, a canvas placeholder and five listeners, and 245 of
+   * them is 1,529 nodes handed to the browser in one insertion. The script is
+   * not the expensive half — building all of them measures about 90ms — but the
+   * style, layout and paint of the tree that follows is, and it lands inside the
+   * navigation: measured at 1600×900, warm, `lobby → collection` produced eight
+   * long tasks totalling ~860ms and drew **27** animation frames in the second
+   * and a half after the click, against 118 for Play and 113 for Missions.
+   *
+   * Only about twenty-one tiles are ever on screen. The painter has known that
+   * for a while — it is why a card's *bitmap* is drawn near the fold and never
+   * before — but the cell itself was still built for every card in the game
+   * before the screen was allowed to exist. Sixty covers the fold plus a row of
+   * lead at every supported viewport, including 844×390, and the rest arrive in
+   * idle chunks behind the entrance, into shelves whose counts are already
+   * right because the count comes from the card list rather than from how many
+   * cells happen to exist.
+   *
+   * The ordering survives the chunking for free: passes go through the shelves
+   * in card order, a cell that is not built yet still advances the position it
+   * would have occupied, and `shelf.grid.children[at]` then answers `undefined`
+   * — which is the append path. A later pass inserts the missing tile before
+   * whichever cell now holds its index. Nothing has to remember where it got to.
+   */
+  const CELLS_PER_PASS = 60;
+  let fillHandle = 0;
+  let filling = false;
+
+  /**
+   * Ask for the rest of the grid when the page has nothing better to do.
+   *
+   * An idle callback rather than a frame, and that is the point: while the
+   * transition is still running there *is* something better to do, so the queue
+   * waits — which is exactly the pacing `lazyPaint` already uses for the
+   * bitmaps, applied one level up to the cells that hold them. The timeout is
+   * the promise that a page which never goes idle still fills, and the rAF
+   * fallback is for engines without the callback at all.
+   */
+  function scheduleFill(): void {
+    if (fillHandle !== 0) return;
+    const run = (): void => {
+      fillHandle = 0;
+      filling = true;
+      try {
+        render();
+      } finally {
+        filling = false;
+      }
+    };
+    const idle = (
+      globalThis as { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number }
+    ).requestIdleCallback;
+    fillHandle =
+      typeof idle === "function"
+        ? idle(run, { timeout: 260 })
+        : typeof requestAnimationFrame === "function"
+          ? requestAnimationFrame(run)
+          : window.setTimeout(run, 32);
+  }
+
   function render(): void {
     if (!grid) return;
     const acct = account();
     const arriving: HTMLElement[] = [];
     const tail: HTMLElement[] = [];
     let visible = 0;
-    const before = motionEnabled() ? measureShown() : null;
+    let budget = CELLS_PER_PASS;
+    let starved = false;
+    /**
+     * A fill pass is not a filter change, so it does not FLIP. `measureShown`
+     * is a layout flush over every painted tile and the tiles it would be
+     * measuring have not moved — the pass only *adds* cells further down the
+     * same shelves.
+     */
+    const before = motionEnabled() && !filling ? measureShown() : null;
     // one read for the whole pass; the leavers are positioned against it
     const frame = before && gridWrap ? gridWrap.getBoundingClientRect() : null;
     const spots = new Map<Cell, Spot>();
@@ -1051,24 +1122,33 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       for (const card of shelf.cards) {
         const show = matches(card, acct);
         let cell = cells.get(card.id);
-        if (!cell) {
-          if (!show) continue;
-          cell = buildCell(card);
-          cells.set(card.id, cell);
-        }
 
         if (!show) {
-          if (cell.shown) {
+          if (cell?.shown === true) {
             depart(cell, spots.get(cell), frame);
             cell.shown = false;
           }
           continue;
         }
+
+        visible += 1;
+        if (!cell) {
+          if (budget <= 0) {
+            // Its place is held all the same: `at` is the card's position on the
+            // shelf, not the cell's index in the DOM, so the next pass inserts
+            // this tile where it belongs rather than on the end.
+            starved = true;
+            at += 1;
+            continue;
+          }
+          budget -= 1;
+          cell = buildCell(card);
+          cells.set(card.id, cell);
+        }
         // a tile that came back while it was still falling away belongs to the
         // grid again, at full opacity, in flow
         land(cell.root);
 
-        visible += 1;
         const owned = acct.collection[card.id] ?? 0;
         const maxCopies =
           card.rarity === "legendary" ? content.balance.deck.maxCopiesLegendary : content.balance.deck.maxCopies;
@@ -1125,8 +1205,14 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       shelf.count.textContent = at === 1 ? "1 card" : `${at} cards`;
     }
 
-    if (arriving.length > 0) cascade(arriving);
+    /**
+     * A fill pass adds tiles below the fold and must not restage the wave: the
+     * cascade is what the player watches the grid arrive on, and replaying it
+     * every 60 cards would be four entrances for one navigation.
+     */
+    if (arriving.length > 0 && !filling) cascade(arriving);
     if (before) flip(before, new Set(arriving));
+    if (starved) scheduleFill();
 
     // the grid's single tab stop has to be a tile that is actually on it
     if (!roving || roving.hidden || !roving.isConnected) setRoving(shownCells()[0] ?? null);
@@ -1639,6 +1725,21 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       unbindRailFades();
       unbindRetile();
       painter.stop();
+      /**
+       * The grid may still be filling itself in. Cancelling by handle covers
+       * both schedulers, because `requestIdleCallback` and
+       * `requestAnimationFrame` hand out ids from the same space as far as this
+       * is concerned: whichever one armed it, `filling` is checked again inside
+       * `render`, and a pass that runs against a disposed screen would rebuild
+       * cells into a detached tree and leak the listeners on them.
+       */
+      if (fillHandle !== 0) {
+        const cancelIdle = (globalThis as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
+        if (typeof cancelIdle === "function") cancelIdle(fillHandle);
+        if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(fillHandle);
+        window.clearTimeout(fillHandle);
+        fillHandle = 0;
+      }
       window.removeEventListener("keydown", onOverlayKey);
       window.clearTimeout(closing);
       window.clearTimeout(enteringTimer);

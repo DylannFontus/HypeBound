@@ -59,18 +59,26 @@ Nothing has reached 9. The average across judged domains is about 7.3, from a
 4.2 baseline, with no domain below where it started and one critic explicitly
 confirming zero regressions against 21 audited defects.
 
-## The one thing worth fixing first
+## The one thing worth fixing first — done, wave 3
 
-**The shell blocks the main thread for exactly the window each transition
-occupies**, so three separate domains lose motion marks for one cause. Four
-independent instruments agree. `docs/recon/navigation-stall.md` has the
-attribution and a four-part fix.
+**The shell blocked the main thread for exactly the window each transition
+occupied.** `docs/recon/navigation-stall.md` has the original attribution and
+a postscript recording what the fix turned out to be.
 
-**No wave-2 track owned `src/ui/shell.ts` or `transitions.css`** — that is why it
-survived two waves. Wave 3 must give the shell an explicit owner.
+`HEAVY_BUILD_MS` is **220 again** and the node-count prior is gone. Lowering it
+to 60 was the wrong axis: it handed a cover to four of the five most-travelled
+legs, and the cover measured *darker* than the transition it was hiding (47% of
+the reference mean and 24% of its 95th percentile on `lobby → play`, against
+80%/55% for the same leg uncovered). It also concealed itself, because
+`never-a-blank-frame` skips its pixel check on a veiled leg.
 
-Already done toward it: `HEAVY_BUILD_MS` lowered 220 → 60 so the compositor
-curtain covers the legs players actually use.
+What actually fixed it: the entrance cascade's selectors were forcing Blink into
+whole-subtree invalidation on every attribute *and every class* change on a
+screen root — 23ms on the lobby, 42ms on the Collection, and 12–22ms for a class
+that matches nothing anywhere in the app. `shell.ts::markCascade` now names the
+containers and risers on the detached tree at mount, `transitions.css` §2.7 keys
+off those attributes, and the queued teardown moved from the top of `handleHash`
+to *after* the hold has been composited.
 
 ## Guard tests — run these before believing anything
 
@@ -80,12 +88,15 @@ npx vitest run tests/one-sun.test.ts tests/material-contrast.test.ts \
   tests/never-a-blank-frame.test.ts tests/texture-light-rig.test.ts
 ```
 
-Known failing, deliberately left for the domain that owns the file:
+As of the wave-3 shell pass: `one-sun`, `card-light`, `material-contrast`,
+`camera-truth` and **`never-a-blank-frame` (10/10)** all pass.
 
-- `one-sun` — five oblique gradients in `screens.css` (~171, 172, 3349, 3601, 6287)
-- `card-light` — one private gradient in `renderCard.ts`
-- `never-a-blank-frame` — `lobby → missions` still blocks in the open
+Still failing, and still nobody's:
+
 - `texture-light-rig` — a grain rank claimed twice
+- `no-orphan-ui` — 40 exported functions with no caller outside their own file,
+  spread across `art/`, `cardRenderer/`, `battle/` and `screens/`. Two were in
+  `shell.ts` and are now module-private; the rest are the wiring pass.
 
 ## Measurement is the hard part — five instruments have lied so far
 
@@ -125,9 +136,12 @@ describing Hearthstone from memory.
 
 ## What wave 3 must own
 
-1. **The shell.** `src/ui/shell.ts` and `transitions.css` belonged to no track in
-   either wave, which is why the stall survived both. It suppresses motion marks
-   in at least three domains at once, so it is the highest-leverage item left.
+1. ~~**The shell.**~~ Done. `src/ui/shell.ts`, `transitions.css`,
+   `intro/matchCurtain.*` and the Collection's cell build. Instruments left
+   behind: `scripts/_w3nav_probe.mjs` (five measurements on one navigation),
+   `_w3nav_cost.mjs` (per-route build cost), `_w3nav_curtain.mjs` (does the
+   cover move, and does it cover), `_w3nav_split.mjs` (what an attribute write
+   costs), `_w3nav_a11y.mjs`, `_w3nav_sweep.mjs`, `_w3nav_film.mjs`.
 2. **A wiring pass.** Parallel file ownership severs wires that cross between
    owners; `tests/no-orphan-ui.test.ts` now watches for it, and its symbol half
    currently lists seven unadopted `uiIcons.ts` exports.
