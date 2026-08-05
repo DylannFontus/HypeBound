@@ -170,7 +170,10 @@ async function main() {
   // ---- mode select --------------------------------------------------------
   await step("06-mode-select", async () => {
     await page.goto(`${BASE}/#play`, { waitUntil: "networkidle" });
-    await page.waitForSelector(".mode-grid .mode-card", { timeout: 10000 });
+    // `.mode-grid` was replaced by `.play-body` (a hero slot, a features row and
+    // a tail list) when the front door was rebuilt; the tiles are still
+    // `.mode-card`. See `scripts/verify-story.mjs:105`, which is still stale.
+    await page.waitForSelector(".play-body .mode-card", { timeout: 10000 });
     await page.waitForTimeout(400);
   });
 

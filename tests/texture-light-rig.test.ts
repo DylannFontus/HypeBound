@@ -272,10 +272,19 @@ describe("the seam between module B's arithmetic and module A's stylesheet", () 
       // rule, or the comment documenting this one — to that brace.
       const start = Math.max(css.lastIndexOf("}", braceAt) + 1, css.lastIndexOf("*/", braceAt) + 2, 0);
       return {
-        grain: match[1],
+        // The pattern cannot match without group 1; `String` is what says so to
+        // the compiler without an assertion.
+        grain: String(match[1]),
         selector: css.slice(start, braceAt).replace(/\s+/g, " ").trim(),
-        /** What the block says between its opening brace and this claim. */
-        preamble: css.slice(braceAt, at),
+        /**
+         * What stands immediately above the claim — from the end of the
+         * previous declaration, or the block's own brace if it is the first.
+         * Deliberately not the whole block: a rule that happens to carry a
+         * comment about its border would otherwise count as an explanation of
+         * its grain, and this has to be an argument somebody made about *this*
+         * line.
+         */
+        preamble: css.slice(Math.max(braceAt + 1, css.lastIndexOf(";", at) + 1), at),
       };
     });
     expect(claims.length, "foundation.css must claim a grain somewhere").toBeGreaterThan(0);
