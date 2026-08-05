@@ -300,7 +300,10 @@ describe("stagger", () => {
   it("keeps a big grid's cascade inside a set-piece AND still visible", () => {
     const probes = Array.from({ length: 200 }, () => staggerProbe());
     stagger(probes.map((probe) => probe.node));
-    const ms = (i: number) => Number.parseInt(probes[i]!.delay(), 10);
+    // `delay()` reads a custom property, which is `string | undefined` — an
+    // element that was never given one is a real possibility and exactly the
+    // failure this test is looking for, so it must not be asserted away.
+    const ms = (i: number) => Number.parseInt(probes[i]!.delay() ?? "", 10);
 
     expect(probes[0]!.delay()).toBe("0ms");
 
