@@ -113,8 +113,15 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
         <div class="filter-rail-foot" id="filter-rail-foot"></div>
       </aside>
 
+      <div class="filter-scrim" id="filter-scrim" hidden></div>
+
       <div class="collection-main">
         <div class="collection-toolbar">
+          <button class="btn btn-ghost filter-disclose" id="col-filter-open" type="button"
+                  aria-expanded="false" aria-controls="filter-rail">
+            ${icon("filter", { size: 15 })}<span>Filters</span>
+            <span class="filter-active-count mat-chip chip-static num" id="filter-count-compact" hidden>0</span>
+          </button>
           <div class="search-field">
             ${icon("search", { size: 17 })}
             <input class="search-input" id="col-search" type="search" autocomplete="off"
@@ -142,33 +149,44 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   const searchClear = root.querySelector<HTMLElement>("#col-clear");
   const searchCount = root.querySelector<HTMLElement>("#col-count");
   const filterCount = root.querySelector<HTMLElement>("#filter-count");
+  const filterCountCompact = root.querySelector<HTMLElement>("#filter-count-compact");
+  const filterOpen = root.querySelector<HTMLElement>("#col-filter-open");
+  const filterScrim = root.querySelector<HTMLElement>("#filter-scrim");
   const ownedOut = root.querySelector<HTMLElement>("#col-owned");
   const shardsOut = root.querySelector<HTMLElement>("#col-shards");
 
   /**
    * How far past the fold a card is drawn before it is needed.
    *
-   * It was 500px, which on a 900px window is two extra rows: thirty-five cards
-   * rasterised on mount when twenty-one are visible, and a card costs about
-   * 35ms. Profiled, the navigation into this screen spends 2.2 seconds inside
-   * the renderer's `fillRect`, so every row not drawn is a quarter of a second
-   * of blocked main thread the player does not pay for. 320px is still a full
-   * row of lead, which is enough for the drain to stay ahead of a scroll.
+   * Two rows of lead. It was 320px — one row — on the reasoning that every row
+   * not drawn is a quarter of a second of blocked main thread, and that was the
+   * right instinct pointed at the wrong control: the cost of a row is paid by
+   * *when* it is drawn, not by whether it is queued. The painter now orders its
+   * queue by distance from the fold and paints lead at a quarter of the pace it
+   * paints content, so the margin can be generous again — which is what stops a
+   * wheel scroll landing on a row of empty sleeves.
    */
-  const painter = lazyPaint(grid ?? root, "320px 0px");
+  const painter = lazyPaint(grid ?? root, "520px 0px");
 
   /**
-   * Nothing is rasterised until the screen has finished arriving.
+   * Nothing is rasterised until the screen has arrived *and been revealed*.
    *
-   * Measured on the real navigation, lobby → collection: the transition, the
-   * atmosphere's own frame and thirty-five card rasterisations were all
-   * competing for the same main thread, so the descend ran at a handful of
-   * frames a second *and* the grid still took the better part of three seconds
-   * to fill. Sequencing them costs nothing and fixes both — the transition gets
-   * a clear 380ms, and the cards then land in one fast wave instead of trickling
-   * in behind a stuttering animation.
+   * Measured on the real navigation, lobby → collection at 1280×720: the
+   * curtain sat at full opacity for 2,332ms, of which about 250ms was the
+   * atmosphere changing rooms and essentially all of the rest was card
+   * rasterisation — because `shell.ts` parts the veil on two consecutive frames
+   * that came in under 34ms and the grid never gave it two. A card is about
+   * 45ms, so a painter that starts before the reveal guarantees the reveal
+   * cannot happen.
+   *
+   * So the hold covers the whole exchange: the transition's own 260ms, plus the
+   * frames the shell needs to see calm, plus the entrance cascade's tail. The
+   * sleeves are drawn (see `.card-slot` in the kit), so what the player sees in
+   * that window is a rack whose cards are being slid in, arriving on the screen
+   * they can already read and click — which is what §3a means by loading being
+   * part of the world rather than a cover over it.
    */
-  painter.hold(DUR.ui + 120);
+  painter.hold(DUR.ui + 220);
 
   // ---- filter rail ---------------------------------------------------------
 
@@ -233,7 +251,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
         audio.play("sfx.ui.hover");
         syncCount();
         syncFilterCount();
-        render();
+        refilter();
       });
       chips.appendChild(chip);
     }
@@ -284,11 +302,43 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   }
 
   function syncFilterCount(): void {
-    if (!filterCount) return;
     const count = activeFilterCount();
-    filterCount.textContent = String(count);
-    filterCount.hidden = count === 0;
+    for (const out of [filterCount, filterCountCompact]) {
+      if (!out) continue;
+      out.textContent = String(count);
+      out.hidden = count === 0;
+    }
   }
+
+  /**
+   * Below the breakpoint the rail is a sheet, and it is the *same* rail.
+   *
+   * Measured at 844×390 the whole filter system — six groups, fifty-four chips —
+   * was `display: none` with no replacement control, so the only way to narrow a
+   * 245-card collection on a phone in landscape was the search box. §9 makes
+   * "every screen still has to work on a phone in landscape" a hard constraint
+   * that overrides aesthetics, and a screen missing its primary control is not
+   * the screen working.
+   *
+   * Nothing is rebuilt: the rail is the element it always was, moved off-canvas
+   * by a transform at narrow widths and slid back on. A second, compact
+   * implementation of fifty-four chips is two implementations to keep in step,
+   * and the one nobody looks at is the one that rots.
+   */
+  let railOpen = false;
+  function setRail(open: boolean): void {
+    railOpen = open;
+    root.classList.toggle("rail-open", open);
+    filterOpen?.setAttribute("aria-expanded", String(open));
+    if (filterScrim) filterScrim.hidden = !open;
+    if (open) railScroll?.querySelector<HTMLElement>(".filter-head")?.focus({ preventScroll: true });
+    else if (railOpen === false) filterOpen?.focus({ preventScroll: true });
+  }
+  filterOpen?.addEventListener("click", () => {
+    audio.play("sfx.ui.click");
+    setRail(!railOpen);
+  });
+  filterScrim?.addEventListener("click", () => setRail(false));
 
   /**
    * Clear lives in a rail footer that does not scroll.
@@ -317,6 +367,24 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     }
     syncFilterCount();
     renderOwnershipTabs();
+    refilter();
+  }
+
+  /**
+   * Every filter change gets the same beat of quiet the search box gets.
+   *
+   * Measured: one click on a Current chip produced a **688ms** long task and
+   * six frames in a second. The reconcile is not what costs that — it is the
+   * fifty tiles the new result brings up into the viewport, each of them a 45ms
+   * rasterisation, all queued on the same frame as the reflow. The search box
+   * already held the painter for exactly this reason and the chips did not, so
+   * the two halves of the same filter behaved completely differently. Two
+   * hundred milliseconds is long enough for the FLIP to finish moving the
+   * survivors before anything competes with it, and short enough that a player
+   * who clicks a chip and stops sees the new cards land immediately after.
+   */
+  function refilter(): void {
+    painter.hold(200);
     render();
   }
 
@@ -354,7 +422,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
         audio.play("sfx.ui.click");
         renderOwnershipTabs();
         syncFilterCount();
-        render();
+        refilter();
       });
       ownershipHost.appendChild(tab);
     }
@@ -387,7 +455,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     searchClear.hidden = true;
     searchInput?.focus();
     syncFilterCount();
-    render();
+    refilter();
   });
 
   // ---- grid ----------------------------------------------------------------
@@ -568,6 +636,20 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
      */
     const slot = document.createElement("div");
     slot.className = "card-slot";
+    /**
+     * The sleeve is the card's own sleeve, not a grey rectangle.
+     *
+     * Two attributes and no elements: the Current's key colour, so a shelf of
+     * unpainted tiles already has the value and hue structure the painted grid
+     * will have, and the Hype cost, drawn by the stylesheet as the same gem the
+     * card and the shelf header carry. Measured before this, a wheel scroll
+     * showed 4 of 25 tiles painted at +200ms and the other twenty-one as
+     * identical holes; the information a player is actually scanning for at that
+     * moment — what it costs and what Current it is — is two numbers that need
+     * no rasterisation at all.
+     */
+    slot.dataset["cost"] = String(card.cost);
+    cell.style.setProperty("--tile-key", CURRENT_PALETTE[card.current].key);
     cell.appendChild(slot);
 
     const count = document.createElement("div");
@@ -771,7 +853,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
    * two hundred cards costs the same as one that reshuffles twenty.
    */
   const FLIP_MAX = 64;
-  type Spot = { cell: Cell; left: number; top: number };
+  type Spot = { cell: Cell; left: number; top: number; width: number; height: number };
 
   /**
    * Only the painted tiles are measured, and that is the whole optimisation.
@@ -789,9 +871,78 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     for (const cell of cells.values()) {
       if (!cell.shown || !cell.canvas) continue;
       const box = cell.root.getBoundingClientRect();
-      spots.push({ cell, left: box.left, top: box.top });
+      spots.push({ cell, left: box.left, top: box.top, width: box.width, height: box.height });
     }
     return spots;
+  }
+
+  /**
+   * The cards a filter removes leave, rather than being deleted.
+   *
+   * §3a: "everything that appears has an entrance; everything that leaves has an
+   * exit." The survivors already FLIP to their new places, which made the
+   * asymmetry worse rather than better — a hundred and eighty tiles blinked out
+   * of existence on the same frame that the remaining sixty slid smoothly
+   * across, so the one motion the eye could follow was the one that was not
+   * telling it anything.
+   *
+   * The leaving tile is moved out of the shelf immediately, so the reflow behind
+   * it is exactly the reflow it would have had, and re-parented into a layer
+   * pinned over the scroller at the box it was last measured in. It then falls
+   * away on `--ease-leave`. Only tiles on screen leave visibly, and only a
+   * screenful of those: clearing a filter that hides two hundred cards costs the
+   * same as one that hides twenty, and the hundred and eighty below the fold are
+   * simply gone, which is what they were anyway.
+   */
+  const LEAVE_MAX = 28;
+  let leaveLayer: HTMLElement | null = null;
+  const leaving = new Map<HTMLElement, number>();
+
+  function layer(): HTMLElement | null {
+    if (!gridWrap) return null;
+    if (!leaveLayer) {
+      leaveLayer = document.createElement("div");
+      leaveLayer.className = "col-leave-layer";
+      leaveLayer.setAttribute("aria-hidden", "true");
+      gridWrap.appendChild(leaveLayer);
+    }
+    return leaveLayer;
+  }
+
+  /** Take a tile out of a leave in progress, whichever way it ended. */
+  function land(node: HTMLElement): void {
+    const timer = leaving.get(node);
+    if (timer === undefined) return;
+    window.clearTimeout(timer);
+    leaving.delete(node);
+    node.classList.remove("is-leaving");
+    node.style.position = "";
+    node.style.left = "";
+    node.style.top = "";
+    node.style.width = "";
+    node.style.height = "";
+    node.remove();
+  }
+
+  function depart(cell: Cell, spot: Spot | undefined, frame: DOMRect | null): void {
+    const node = cell.root;
+    node.remove();
+    if (!spot || !frame || !motionEnabled() || leaving.size >= LEAVE_MAX) return;
+    // above or below the scroller: there is nobody to show the exit to
+    if (spot.top + spot.height < frame.top - 40 || spot.top > frame.bottom + 40) return;
+    const host = layer();
+    if (!host) return;
+    node.style.position = "absolute";
+    node.style.left = `${Math.round(spot.left - frame.left)}px`;
+    node.style.top = `${Math.round(spot.top - frame.top)}px`;
+    node.style.width = `${Math.round(spot.width)}px`;
+    node.style.height = `${Math.round(spot.height)}px`;
+    node.classList.add("is-leaving");
+    host.appendChild(node);
+    leaving.set(
+      node,
+      window.setTimeout(() => land(node), DUR.micro + 120)
+    );
   }
 
   function flip(before: Spot[], arrived: Set<HTMLElement>): void {
@@ -834,6 +985,10 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     const tail: HTMLElement[] = [];
     let visible = 0;
     const before = motionEnabled() ? measureShown() : null;
+    // one read for the whole pass; the leavers are positioned against it
+    const frame = before && gridWrap ? gridWrap.getBoundingClientRect() : null;
+    const spots = new Map<Cell, Spot>();
+    for (const spot of before ?? []) spots.set(spot.cell, spot);
 
     for (const shelf of shelves.values()) {
       let at = 0;
@@ -848,11 +1003,14 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
 
         if (!show) {
           if (cell.shown) {
-            cell.root.remove();
+            depart(cell, spots.get(cell), frame);
             cell.shown = false;
           }
           continue;
         }
+        // a tile that came back while it was still falling away belongs to the
+        // grid again, at full opacity, in flow
+        land(cell.root);
 
         visible += 1;
         const owned = acct.collection[card.id] ?? 0;
@@ -1027,6 +1185,13 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   }
 
   const onOverlayKey = (event: KeyboardEvent): void => {
+    // the sheet is the shallower layer, so it is the one Escape reaches first
+    if (railOpen && (!detail || detail.hidden)) {
+      if (event.key !== "Escape") return;
+      setRail(false);
+      event.preventDefault();
+      return;
+    }
     if (!detail || detail.hidden || !openCard) return;
     if (event.key === "Escape") closeDetail();
     else if (event.key === "ArrowLeft") step(-1);
@@ -1420,6 +1585,9 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       painter.stop();
       window.removeEventListener("keydown", onOverlayKey);
       window.clearTimeout(closing);
+      window.clearTimeout(enteringTimer);
+      for (const timer of leaving.values()) window.clearTimeout(timer);
+      leaving.clear();
       delete (window as unknown as { hypeboundCollection?: unknown }).hypeboundCollection;
     },
   };

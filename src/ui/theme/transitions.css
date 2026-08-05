@@ -122,6 +122,25 @@
    * before it is removed is a ghost rather than a hole.
    */
   --nav-exit-floor: 0.12;
+
+  /**
+   * Where a departing screen stops *while the destination is still being built*
+   * — see §2.0. Derived from the recede rather than chosen, so the hold is
+   * literally the first stretch of the exit and the two cannot drift apart.
+   *
+   * 0.72 of the geometry and 0.28 of the dim. The parent is unambiguously
+   * behind something — blurred 5px, 2% smaller, lifted — and it is still *lit*,
+   * which is the whole distinction: a screen may be pushed away for as long as
+   * a constructor takes, and it may not be drained while it is the only thing
+   * on the glass.
+   */
+  --nav-hold-opacity: 0.82;
+  --nav-hold-scale: calc(1 - (1 - var(--nav-recede-scale)) * 0.72);
+  --nav-hold-lift: calc(var(--nav-recede-lift) * -0.72);
+  --nav-hold-blur: calc(var(--nav-recede-blur) * 0.72);
+  --nav-hold-dim: calc(1 - (1 - var(--nav-recede-dim)) * 0.28);
+  --nav-hold-fall: calc(var(--nav-rise) * 0.22);
+  --nav-hold-slide: calc(var(--nav-slide) * var(--nav-dir) * -0.26);
 }
 
 /**
@@ -1060,8 +1079,145 @@
  * screen is never given `pointer-events: none`, at any point, by any rule in
  * this file.
  */
-.screen[data-nav$="-out"] {
+.screen[data-nav$="-out"],
+.screen[data-nav$="-hold"] {
   pointer-events: none;
+}
+
+/* ---- 2.0 the hold: the frame the click actually lands on ---------------- */
+
+/**
+ * ## The exit was written, and on a real click nobody ever saw it
+ *
+ * Filmed with a CDP screencast, clicking a nav tile rather than setting the
+ * hash from a script: `lobby → mastery` produced 583ms of a **pixel-identical**
+ * lobby (mean 41.6, sd 41.7, unchanged frame to frame) and then a cut — the
+ * next composited frame, 71ms later, was already the settled destination.
+ * `lobby → inbox` 562ms, `lobby → missions` 457ms with a 245ms window that
+ * produced no composited frame at all, `lobby → play` 405ms. The parent's
+ * recede — 0.932 scale, 7px of blur, 0.6 brightness, all of it described above
+ * in detail — had never once been on screen.
+ *
+ * The cause is an ordering, not a keyframe. `shell.ts` built the destination
+ * *before* declaring either animation, precisely so that nothing would be
+ * mid-flight while a constructor held the thread; and a CSS animation's clock
+ * runs in real time, so the 170ms exit declared at the end of a 240ms block was
+ * then rendered for the first time already finished. The screen the player is
+ * leaving was frozen for the whole of the wait and the transition happened in
+ * the two frames after it.
+ *
+ * ## So the exit is in two stages, and the click gets the first one
+ *
+ * `data-nav="<relation>-hold"` is declared on the frame the hash changes,
+ * before anything is built. It plays the first ~40% of the exit — the part that
+ * is pure geometry — and *stops there*, filled, for however long the build
+ * takes. `transform`, `opacity` and `filter` all composite, so it keeps playing
+ * through a blocked main thread, which is the same property the curtain has
+ * always relied on. Then `<relation>-out` picks up from exactly the state the
+ * hold ended in and runs the rest against the arriving screen.
+ *
+ * Two things fall out of that and both are load-bearing:
+ *
+ *  - **The parent is genuinely behind something before there is anything in
+ *    front of it.** The double exposure this file has been fighting for three
+ *    rounds — nine nav tiles legible at full brightness through the Missions
+ *    panels at the moment of maximum overlap — was a consequence of a 7px blur
+ *    starting at the same instant as the child. It now has the whole build to
+ *    arrive in.
+ *  - **The held state is lit.** Every `-out` keyframe ends near black by design,
+ *    because by then the child covers it. A *hold* is the opposite situation:
+ *    it is the only thing on the glass. So the hold takes the scale, the lift
+ *    and the blur and leaves the brightness almost alone, which is the same
+ *    argument §2.1 makes for not front-loading the dim, applied to a stop
+ *    rather than to a curve.
+ */
+.screen[data-nav$="-hold"] {
+  animation-timing-function: var(--nav-ease-leave);
+}
+
+.screen[data-nav="descend-hold"] {
+  animation-name: nav-descend-hold;
+}
+.screen[data-nav="ascend-hold"] {
+  animation-name: nav-ascend-hold;
+}
+.screen[data-nav="sibling-hold"] {
+  animation-name: nav-sibling-hold;
+}
+.screen[data-nav="replace-hold"] {
+  animation-name: nav-replace-hold;
+}
+.screen[data-nav="curtain-hold"] {
+  animation-name: nav-curtain-hold;
+}
+
+@keyframes nav-descend-hold {
+  from {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+    filter: blur(0) brightness(1);
+  }
+  to {
+    opacity: var(--nav-hold-opacity);
+    transform: scale(var(--nav-hold-scale)) translate3d(0, var(--nav-hold-lift), 0);
+    filter: blur(var(--nav-hold-blur)) brightness(var(--nav-hold-dim));
+  }
+}
+
+/**
+ * The ascend holds *brighter* than the descend, and the asymmetry is the same
+ * one §2.1 documents from the other side: on an ascend the departing child is
+ * painted on top of a parent that does not exist yet, so during the build it is
+ * not merely the nearest thing on screen, it is the only thing on screen. A
+ * hold at the descend's 0.82 would be a dim frame with nothing behind it.
+ */
+@keyframes nav-ascend-hold {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0.88;
+    transform: translate3d(0, var(--nav-hold-fall), 0) scale(0.9966);
+  }
+}
+
+@keyframes nav-sibling-hold {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0.9;
+    transform: translate3d(var(--nav-hold-slide), 0, 0) scale(0.996);
+  }
+}
+
+@keyframes nav-replace-hold {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.92;
+    transform: scale(1.004);
+  }
+}
+
+/* Entering a match: the push begins on the press, under a curtain that has not
+   closed yet. Barely any dim — the two frames this is visible for are the two
+   frames the player is looking at the button they just hit. */
+@keyframes nav-curtain-hold {
+  from {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0) brightness(1);
+  }
+  to {
+    opacity: 0.96;
+    transform: scale(1.018);
+    filter: blur(calc(var(--nav-curtain-blur) * 0.22)) brightness(0.88);
+  }
 }
 
 /**
@@ -1155,22 +1311,26 @@
  * blur moves image structure around, brightness removes it. The parent stays lit
  * until the child is genuinely covering it, and then goes.
  */
+/*
+ * ## And it starts where the hold stopped, not at rest
+ *
+ * §2.0 plays the first 40% of this on the frame the click lands, before the
+ * destination is built, and fills there. So the keyframe that used to sit at
+ * 40% is now this animation's `from`, and the two opacity stops are remapped
+ * into what is left of the ramp (55% → 25%, 82% → 70% of the remaining 60%).
+ * The end state is untouched: the descend still lands on exactly the value the
+ * ascend comes back from, which is the only thing the round trip depends on.
+ */
 @keyframes nav-descend-out {
   from {
-    opacity: 1;
-    transform: scale(1) translate3d(0, 0, 0);
-    filter: blur(0) brightness(1);
+    opacity: var(--nav-hold-opacity);
+    transform: scale(var(--nav-hold-scale)) translate3d(0, var(--nav-hold-lift), 0);
+    filter: blur(var(--nav-hold-blur)) brightness(var(--nav-hold-dim));
   }
-  40% {
-    opacity: 0.8;
-    transform: scale(calc(1 - (1 - var(--nav-recede-scale)) * 0.72))
-      translate3d(0, calc(var(--nav-recede-lift) * -0.72), 0);
-    filter: blur(calc(var(--nav-recede-blur) * 0.72)) brightness(calc(1 - (1 - var(--nav-recede-dim)) * 0.28));
-  }
-  55% {
+  25% {
     opacity: 0.66;
   }
-  82% {
+  70% {
     opacity: 0.42;
   }
   to {
@@ -1243,10 +1403,10 @@
  */
 @keyframes nav-ascend-out {
   from {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.88;
+    transform: translate3d(0, var(--nav-hold-fall), 0) scale(0.9966);
   }
-  55% {
+  46% {
     opacity: 0.42;
     transform: translate3d(0, calc(var(--nav-rise) * 0.55), 0) scale(0.9915);
   }
@@ -1302,8 +1462,8 @@
 
 @keyframes nav-sibling-out {
   from {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+    transform: translate3d(var(--nav-hold-slide), 0, 0) scale(0.996);
   }
   to {
     opacity: var(--nav-exit-floor);
@@ -1335,9 +1495,9 @@
 /** Not a recede — a push *through*. The camera goes where you are going. */
 @keyframes nav-curtain-screen-out {
   from {
-    opacity: 1;
-    transform: scale(1);
-    filter: blur(0) brightness(1);
+    opacity: 0.96;
+    transform: scale(1.018);
+    filter: blur(calc(var(--nav-curtain-blur) * 0.22)) brightness(0.88);
   }
   to {
     opacity: var(--nav-exit-floor);
@@ -1380,8 +1540,8 @@
 
 @keyframes nav-replace-out {
   from {
-    opacity: 1;
-    transform: scale(1);
+    opacity: 0.92;
+    transform: scale(1.004);
   }
   to {
     opacity: var(--nav-exit-floor);
@@ -2250,6 +2410,28 @@
   animation-timing-function: linear;
 }
 
+/**
+ * The hold survives this setting for the same reason the veil does. It is not
+ * movement — it is a 12% dip on the screen the player has just left, held for
+ * as long as the machine is busy, so that a press is acknowledged on the frame
+ * it happens rather than a third of a second later. Removing it would leave a
+ * reduced-motion player with the *only* completely unresponsive navigation in
+ * the game.
+ */
+:root[data-reduced-motion="true"] .screen[data-nav$="-hold"] {
+  animation-name: nav-fade-hold;
+  animation-timing-function: linear;
+}
+
+@keyframes nav-fade-hold {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.88;
+  }
+}
+
 :root[data-reduced-motion="true"] .screen[data-nav] > .ambient-bg {
   animation: none;
 }
@@ -2354,7 +2536,7 @@
    enough that a slow constructor can outrun it most easily. */
 @keyframes nav-fade-out {
   from {
-    opacity: 1;
+    opacity: 0.88;
   }
   to {
     opacity: var(--nav-exit-floor);

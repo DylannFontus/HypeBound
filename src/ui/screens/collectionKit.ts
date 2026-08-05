@@ -167,7 +167,8 @@ export function emptyState(spec: EmptyStateSpec): HTMLElement {
 // ---------------------------------------------------------------------------
 
 /**
- * Draw a tile's canvas only once it is near the viewport.
+ * Draw a tile's canvas only once it is near the viewport, one card per frame,
+ * nearest the eye first.
  *
  * The collection holds 245 cards. Building all 245 canvases at mount cost 1.48s
  * to the first visible tile and left a quarter of a gigabyte of bitmap in the
@@ -180,6 +181,35 @@ export function emptyState(spec: EmptyStateSpec): HTMLElement {
  * drawn — scrolling back up must never re-rasterise — and it fades in over one
  * micro beat so nothing pops (§7).
  *
+ * ## The three things the first version got wrong
+ *
+ * A CPU profile of `#lobby → #collection` at 1280×720 attributed **1,361ms to
+ * `fillRect` and 301ms to `drawImage`** in a 3.4-second window, in one unbroken
+ * band from t=800ms to the end of the capture. The constructor was 3ms of it.
+ * A card is not five milliseconds, as the note this replaces assumed; it is
+ * about **45**, and every assumption downstream of the smaller number was wrong.
+ *
+ * 1. **A budget of 40ms is a budget of one-and-a-bit cards, and the "bit" is the
+ *    whole problem.** A `while` loop that checks the clock *before* each card
+ *    starts a 45ms card at t=39 and hands the compositor a 90ms frame. Now a
+ *    drain paints exactly one card unless that card came in genuinely cheap,
+ *    and the pacing rests a frame afterwards, so the worst gap is one card
+ *    rather than two plus the layout behind them.
+ *
+ * 2. **FIFO paints the cards the player scrolled *past*.** Measured after a
+ *    scrollbar jump: 7 of 28 visible tiles drawn at +300ms, **zero of 22** at
+ *    +1000ms, and the full row only at +4000ms — because the queue was still
+ *    working through everything the grid had flown over on the way down. The
+ *    queue is now ordered by distance from the middle of the scroller whenever
+ *    the scroller has moved, so a jump repaints what is under the eye first and
+ *    the fly-past is paid for later or not at all.
+ *
+ * 3. **Overscan competed with the fold.** A row of lead is worth having when
+ *    the page is idle and is worth nothing while the player is still waiting to
+ *    see the screen at all. So the drain runs in two gears: everything within a
+ *    margin of the viewport at the fast pace, everything beyond it at a quarter
+ *    of that, which keeps the lead without spending the frame rate on it.
+ *
  * Returns a disposer; screens call it from `dispose`.
  */
 export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
@@ -189,49 +219,76 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
   stop: () => void;
 } {
   const jobs = new WeakMap<Element, () => void>();
-  const queue: Element[] = [];
+  let queue: Element[] = [];
   let draining = 0;
   let heldUntil = 0;
+  /** Set by any scroll, and by every arrival: the order on file may be stale. */
+  let unsorted = true;
 
-  /*
-   * The queue, and why painting on the intersection callback is not enough.
+  /**
+   * How much of a frame one drain may spend *starting* work.
    *
-   * Filtering 245 cards down to 56 brings 56 previously-unpainted tiles up into
-   * the viewport at once, and a card canvas costs about five milliseconds — so
-   * the frame that reveals them cost a measured 324ms of paint. Lazy loading had
-   * only moved the stall, not removed it.
-   *
-   * So intersecting *enqueues*, and the queue drains on the frame clock with a
-   * budget. Eight milliseconds is half a 60fps frame: enough to place two or
-   * three cards a frame, little enough that the grid keeps scrolling and the
-   * search box keeps taking keys while it happens. The tiles hold their slot in
-   * the meantime and fade in as they land, which is the wave §3a asks for rather
-   * than the stall it replaced.
+   * Six milliseconds is under a third of a 60fps frame, and because it is
+   * checked before each card rather than after, it means "one card, and a
+   * second one only if the first was almost free" — which is what happens for a
+   * tile the renderer's own cache can answer.
    */
-  const BUDGET_MS = 8;
-  /*
-   * The first pass is different in kind, and 26ms was the wrong number for it.
+  const BUDGET_MS = 6;
+  /**
+   * Past this, the drain gives the page a frame off before the next card.
    *
-   * A card costs about 34ms to rasterise the first few times — the renderer's
-   * gradients, its grain and its type all warm up on the first call — so a 26ms
-   * budget bought exactly one card per animation frame and no more, and the
-   * browser then spent the rest of the frame laying out and compositing the
-   * grid it had just changed. Measured on a 1600×900 collection: 2,721ms to fill
-   * the twenty-one tiles above the fold, of which only 1,175ms was drawing.
-   *
-   * Forty milliseconds is deliberately over one frame — enough for a second card
-   * whenever the first came in under the wire. Nothing on this screen is
-   * interactive until its cards exist, the queue is held while the filter is
-   * moving, and after the first pass the budget drops back to half a frame, so
-   * the only thing this lengthens is a window in which the player is waiting
-   * anyway.
+   * A card at 45ms and no rest is 22fps for as long as the queue lasts, which
+   * is what the measurement found: 138 frames in 3,000ms on a settled
+   * collection, 27 of them over 33ms. One rest frame per card halves the
+   * throughput and doubles the frame rate, and the throughput is the axis that
+   * does not matter — a tile that arrives 300ms later is a tile that arrives
+   * while the player is still reading the row above it, and the sleeve it
+   * arrives into is drawn rather than blank.
    */
-  const FIRST_BUDGET_MS = 40;
-  let firstPass = true;
+  const REST_ABOVE_MS = 12;
+  /** Rest frames after a card that ran long, near the fold and far from it. */
+  const NEAR_REST = 1;
+  const FAR_REST = 3;
+  /** Beyond this many pixels from the viewport a tile is lead, not content. */
+  const NEAR_BAND = 260;
+
+  const clock = (): number => (typeof performance === "object" ? performance.now() : Date.now());
+
+  /**
+   * Put the nearest tile at the front.
+   *
+   * One layout flush for the whole queue rather than one per tile — every
+   * `getBoundingClientRect` here reads a layout that the first of them already
+   * forced, and nothing is written in between. The queue is bounded by what an
+   * observer with a screen of margin can see, so this is tens of rects, not
+   * hundreds.
+   */
+  const sortByProximity = (): void => {
+    unsorted = false;
+    if (queue.length < 2) return;
+    const frame = root.getBoundingClientRect();
+    const middle = frame.top + frame.height / 2;
+    const distance = new Map<Element, number>();
+    for (const target of queue) {
+      const box = target.getBoundingClientRect();
+      distance.set(target, Math.abs(box.top + box.height / 2 - middle));
+    }
+    queue.sort((a, b) => (distance.get(a) ?? 0) - (distance.get(b) ?? 0));
+  };
+
+  /** How far the front of the queue is from the fold, in pixels. */
+  const leadDistance = (): number => {
+    const head = queue[0] as HTMLElement | undefined;
+    if (!head) return 0;
+    const frame = root.getBoundingClientRect();
+    const box = head.getBoundingClientRect();
+    if (box.bottom > frame.top && box.top < frame.bottom) return 0;
+    return box.top >= frame.bottom ? box.top - frame.bottom : frame.top - box.bottom;
+  };
 
   const drain = (): void => {
     draining = 0;
-    const started = performance.now();
+    const started = clock();
     /*
      * Nothing is painted while the filter is still moving.
      *
@@ -244,11 +301,13 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
      * painted immediately afterwards.
      */
     if (started < heldUntil) {
-      schedule();
+      schedule(1);
       return;
     }
-    const budget = firstPass ? FIRST_BUDGET_MS : BUDGET_MS;
-    while (queue.length > 0 && performance.now() - started < budget) {
+    if (unsorted) sortByProximity();
+    const lead = leadDistance();
+
+    while (queue.length > 0 && clock() - started < BUDGET_MS) {
       const target = queue.shift();
       if (!target) break;
       const job = jobs.get(target);
@@ -256,14 +315,39 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
       jobs.delete(target);
       job();
     }
-    if (queue.length > 0) schedule();
-    else firstPass = false;
+    if (queue.length === 0) return;
+    const spent = clock() - started;
+    if (spent <= REST_ABOVE_MS) schedule(1);
+    else schedule(lead > NEAR_BAND ? FAR_REST : NEAR_REST);
   };
 
-  const schedule = (): void => {
+  /** Chain `frames` animation frames before the next drain. */
+  const schedule = (frames: number): void => {
     if (draining || typeof requestAnimationFrame !== "function") return;
-    draining = requestAnimationFrame(drain);
+    let left = Math.max(1, frames);
+    const step = (): void => {
+      left -= 1;
+      if (left > 0) {
+        draining = requestAnimationFrame(step);
+        return;
+      }
+      drain();
+    };
+    draining = requestAnimationFrame(step);
   };
+
+  /*
+   * A scroll invalidates the order and nothing else.
+   *
+   * Passive, no layout read, no work: it only says that the next drain has to
+   * decide again which tile is nearest. That one bit is the whole of the fix
+   * for the scrollbar jump, where the queue held a hundred tiles the player had
+   * flown past and the twenty-two under the cursor were behind all of them.
+   */
+  const onScroll = (): void => {
+    unsorted = true;
+  };
+  root.addEventListener("scroll", onScroll, { passive: true });
 
   /* No IntersectionObserver means a test environment or a very old engine; the
      honest fallback is to paint immediately rather than to show nothing. */
@@ -276,8 +360,9 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
             if (!jobs.has(entry.target)) continue;
             observer?.unobserve(entry.target);
             queue.push(entry.target);
+            unsorted = true;
           }
-          if (queue.length > 0) schedule();
+          if (queue.length > 0) schedule(1);
         },
         { root, rootMargin: margin }
       )
@@ -297,12 +382,13 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
       observer?.unobserve(cell);
     },
     hold(ms) {
-      heldUntil = performance.now() + ms;
-      if (queue.length > 0) schedule();
+      heldUntil = clock() + ms;
+      if (queue.length > 0) schedule(1);
     },
     stop() {
       observer?.disconnect();
-      queue.length = 0;
+      root.removeEventListener("scroll", onScroll);
+      queue = [];
       if (draining && typeof cancelAnimationFrame === "function") cancelAnimationFrame(draining);
       draining = 0;
     },
@@ -677,12 +763,22 @@ export function bindScrollFades(wrap: HTMLElement, scroller: HTMLElement): () =>
       sync();
     });
   };
-  scroller.addEventListener("scroll", sync, { passive: true });
+  /*
+   * The scroll handler goes through the same gate.
+   *
+   * It used to read `scrollTop`, `scrollHeight` and `clientHeight` inline on
+   * every scroll event, which on a trackpad is one forced layout of an
+   * eight-thousand-pixel grid per wheel tick. Profiled during the navigation
+   * into the collection, `sync` was 44ms of a window in which the page was
+   * already dropping frames — a whole dropped frame spent deciding whether to
+   * show a gradient.
+   */
+  scroller.addEventListener("scroll", later, { passive: true });
   const observer = typeof ResizeObserver === "function" ? new ResizeObserver(later) : null;
   observer?.observe(scroller);
   sync();
   return () => {
-    scroller.removeEventListener("scroll", sync);
+    scroller.removeEventListener("scroll", later);
     observer?.disconnect();
     if (queued && typeof cancelAnimationFrame === "function") cancelAnimationFrame(queued);
   };
@@ -1079,6 +1175,10 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 
 .col-v2 .collection-toolbar { gap: var(--sp-3); align-items: stretch; }
 
+/* the disclosure only exists where the rail does not fit beside the grid */
+.col-v2 .filter-disclose { display: none; }
+.col-v2 .filter-scrim { display: none; }
+
 .col-v2 .search-field {
   position: relative;
   flex: 1 1 300px;
@@ -1312,6 +1412,7 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
  */
 .col-v2 .card-cell .card-slot,
 .db-v2 .pool-cell .card-slot {
+  position: relative;
   display: block;
   width: 100%;
   aspect-ratio: 512 / 680;
@@ -1322,10 +1423,45 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
       rgb(255 255 255 / 0.028) 0 2px,
       rgb(255 255 255 / 0) 2px 9px
     ),
-    linear-gradient(var(--light-sweep), rgb(10 6 22 / 0.72), rgb(3 2 8 / 0.5));
+    linear-gradient(
+      var(--light-sweep),
+      color-mix(in srgb, var(--tile-key, #6a5bb0) 22%, rgb(10 6 22 / 0.86)),
+      rgb(3 2 8 / 0.62)
+    );
   box-shadow:
     inset 1px 1.4px 4px rgb(0 0 0 / 0.62),
-    inset -1px -1px 0 rgb(255 255 255 / 0.05);
+    inset -1px -1px 0 rgb(255 255 255 / 0.05),
+    inset 0 0 0 1px color-mix(in srgb, var(--tile-key, #6a5bb0) 16%, transparent);
+}
+/*
+ * The sleeve carries the two facts the bitmap would have carried.
+ *
+ * Measured after a wheel scroll: 4 of 25 visible tiles painted at +200ms, 15 at
+ * +600ms. For that half-second the grid was twenty-one identical holes, and the
+ * information a player scanning a collection actually wants from a tile at a
+ * glance — what it costs, and which Current it belongs to — is a number and a
+ * hue, neither of which needs a canvas. So the sleeve wears the card's Current
+ * in its fill and its Hype in the same blue gem the shelf header and the deck
+ * row already use. A tile is never a blank rectangle, not even for one frame,
+ * and the wave of real cards landing over the top of it reads as the rack being
+ * filled rather than as the screen failing to draw.
+ */
+.col-v2 .card-cell .card-slot::after {
+  content: attr(data-cost);
+  position: absolute;
+  top: 7%; left: 7%;
+  display: grid; place-items: center;
+  width: 24%; aspect-ratio: 1;
+  border-radius: 50%;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.62);
+  background: linear-gradient(var(--light-sweep), rgb(127 212 255 / 0.34), rgb(43 111 214 / 0.3) 60%, rgb(22 51 109 / 0.34));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), inset 0 -1px 2px rgb(0 0 0 / 0.4);
+}
+@media (max-width: 900px), (max-height: 480px) {
+  .col-v2 .card-cell .card-slot::after { font-size: 0.56rem; }
 }
 /*
  * And no shimmer on it, deliberately.
@@ -1389,6 +1525,30 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 :root[data-reduced-motion="true"] .col-v2 .card-cell:hover + .card-cell,
 :root[data-reduced-motion="true"] .col-v2 .card-cell:has(+ .card-cell:hover) { transform: none; }
 .col-v2 .card-cell.unowned canvas { opacity: 0.72; filter: saturate(0.26) brightness(0.7) contrast(0.96); }
+
+/*
+ * Where a filtered-out card goes.
+ *
+ * A layer pinned over the scroller, clipped to it, taking no clicks and holding
+ * nothing for longer than one micro beat. The tiles inside it are the real
+ * tiles, re-parented at the box they were last measured in, so nothing is
+ * cloned and no canvas is drawn twice.
+ */
+.col-v2 .col-leave-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+.col-v2 .card-cell.is-leaving {
+  animation: col-tile-out var(--dur-micro) var(--ease-leave) both;
+  pointer-events: none;
+}
+@keyframes col-tile-out {
+  to { opacity: 0; transform: scale(0.9) translateY(6px); filter: brightness(0.7); }
+}
+:root[data-reduced-motion="true"] .col-v2 .card-cell.is-leaving { animation-duration: 70ms; }
 
 .col-v2 .card-count {
   bottom: 1px; right: 3px;
@@ -1523,13 +1683,63 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
 @media (max-width: 1150px) {
   .col-v2 { --rail-w: 220px; }
 }
+/*
+ * Under the breakpoint the rail becomes a sheet over the grid.
+ *
+ * It used to be display:none. Measured at 844×390: fifty-four filter chips in
+ * the document, none of them visible, no disclosure control, and the only
+ * filter-related button on the screen was "Clear filters" — so the answer to
+ * "narrow 245 cards on a phone in landscape" was the search box and nothing
+ * else. §9 makes landscape a hard constraint that overrides aesthetics.
+ *
+ * The sheet is the same element with the same chips, translated off-canvas and
+ * slid back on the arrive curve. Visibility is what takes it out of the tab
+ * order while it is off-screen, delayed by the length of the slide so the exit
+ * is still drawn; a transform alone would leave fifty-four reachable buttons
+ * sitting three hundred pixels to the left of the window.
+ */
 @media (max-width: 900px) {
-  .col-v2 .collection-body { grid-template-columns: minmax(0, 1fr); }
-  .col-v2 .filter-rail { display: none; }
+  .col-v2 .collection-body { grid-template-columns: minmax(0, 1fr); position: relative; }
+  .col-v2 .filter-disclose {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 7px;
+    min-height: 44px;
+  }
+  .col-v2 .filter-disclose .filter-active-count { padding: 1px 7px; font-size: 0.68rem; }
+  .col-v2 .filter-rail {
+    display: grid;
+    position: absolute;
+    top: 0; bottom: 0; left: 0;
+    z-index: 30;
+    width: min(300px, 84vw);
+    visibility: hidden;
+    transform: translateX(-104%);
+    transition: transform var(--dur-ui) var(--ease-arrive), visibility 0s linear var(--dur-ui);
+    box-shadow: 22px 0 46px rgb(0 0 0 / 0.6), 0 18px 40px rgb(0 0 0 / 0.55);
+  }
+  .col-v2.rail-open .filter-rail {
+    visibility: visible;
+    transform: none;
+    transition-delay: 0s, 0s;
+  }
+  .col-v2 .filter-scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgb(3 2 8 / 0.58);
+    backdrop-filter: blur(3px);
+    animation: col-scrim-in var(--dur-ui) var(--ease-arrive) both;
+  }
+  .col-v2 .filter-scrim[hidden] { display: none; }
+  @keyframes col-scrim-in { from { opacity: 0; } }
   .col-v2 .col-shelf-grid { grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: var(--sp-3) var(--sp-2); padding: var(--sp-3) var(--sp-2); }
   .col-v2 .cd-stage { max-height: 96vh; }
   .col-v2 .cd-panel { padding: var(--sp-3); }
 }
+:root[data-reduced-motion="true"] .col-v2 .filter-rail { transition-duration: 90ms; }
 /* A phone in landscape has 390px of height and about 150 of it is chrome, so a
    168px tile leaves one and a half rows. Everything shrinks: the tile, the
    shelf header, the toolbar, and the gap between them. */

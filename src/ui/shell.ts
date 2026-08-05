@@ -314,6 +314,24 @@ interface NavTiming {
  * 20ms puts the parent's first frame under the child's fall, and the two are both
  * above 0.3 for an 84ms window. Total is 340ms, still inside the 260–420 budget.
  */
+/**
+ * How long the departing screen recedes *before* the destination is built.
+ *
+ * §2.0 of `transitions.css` has the argument and the measurements; this is the
+ * number. 70ms is the first 40% of the shortest exit in the table, so a
+ * navigation whose constructor happens to be instant plays a hold and an exit
+ * back to back at the same speed the exit alone used to run at, and one whose
+ * constructor takes a third of a second has a receded, lit, still-moving parent
+ * on screen for the whole of it instead of a frozen one.
+ *
+ * It is not scaled by the animation-speed preference and it is not shortened by
+ * reduced motion below 60ms: this is the frame that says the press was heard,
+ * and the two frames `twoFrames()` costs to get it composited are the whole
+ * budget. Anything shorter and the compositor never sees it.
+ */
+const HOLD_MS = 70;
+const REDUCED_HOLD_MS = 60;
+
 const TIMING: Readonly<Record<NavRelation, NavTiming>> = {
   arrive: { out: 0, inDelay: 0, in: 300 },
   descend: { out: 170, inDelay: 60, in: 320 },
@@ -473,6 +491,8 @@ export interface NavPlan {
   relation: NavRelation;
   /** +1 forward/right, -1 back/left, 0 where direction is meaningless */
   direction: -1 | 0 | 1;
+  /** how long the departing screen recedes before the build starts */
+  holdMs: number;
   outMs: number;
   inDelayMs: number;
   inMs: number;
@@ -520,6 +540,7 @@ export function planNavigation(from: string | null, to: string): NavPlan {
   return {
     relation,
     direction,
+    holdMs: reduced ? REDUCED_HOLD_MS : HOLD_MS,
     outMs: timing.out,
     inDelayMs: timing.inDelay,
     inMs: timing.in,
@@ -565,6 +586,34 @@ function twoFrames(): Promise<void> {
       return;
     }
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
+
+/**
+ * One frame, purely to break a task in half.
+ *
+ * Used between the destination's constructor and the moment it is placed, and
+ * the reason is a measurement rather than tidiness. A factory's synchronous
+ * body, `place()`, and the browser's first style/layout/paint of a whole new
+ * screen all used to happen inside one task: on `lobby → missions` that was a
+ * single **228ms** window in which nothing was sampled, nothing was composited
+ * and no input was accepted, and `tests/never-a-blank-frame.test.ts` fails any
+ * unobserved stretch over 200ms because that is where every hole this project
+ * has found was hiding.
+ *
+ * Yielding once splits it into a ~140ms build and a ~90ms paint with a rendered
+ * frame between them. It costs one frame of latency and it converts one window
+ * the page is unaccountable for into two it is not. It also means the entrance
+ * is declared at the *start* of a frame rather than at the tail of a long task,
+ * so its first keyframe is the first thing painted rather than the third.
+ */
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame !== "function") {
+      resolve();
+      return;
+    }
+    requestAnimationFrame(() => resolve());
   });
 }
 
@@ -935,16 +984,28 @@ export class Shell {
       if (!veiled) this.dropCurtain();
 
       /**
-       * Seal the outgoing screen, and do not move it.
+       * Seal the outgoing screen, and start it receding.
        *
        * The player has committed, so it stops taking clicks and comes out of
        * the tab order this instant — the factory below can block for the better
        * part of a second and a screen that is on its way to the bin must not
-       * spend that time answering. Not one pixel changes: the exit animation is
-       * not started here, because starting an animation and then blocking the
-       * thread is the entire defect this ordering exists to remove.
+       * spend that time answering.
+       *
+       * **And it moves, which is a reversal of what this file used to say.**
+       * The old rule was that nothing may animate before the build, because a
+       * CSS animation's clock runs in real time and a 170ms exit declared in
+       * front of a 240ms block is an exit nobody sees. That reasoning is sound
+       * about an animation that *ends*; it is exactly backwards about one that
+       * ends in a state worth holding. `<relation>-hold` plays the first 40% of
+       * the exit — the geometry, not the dim — and fills there for as long as
+       * the wait lasts, on the compositor, where a blocked thread cannot reach
+       * it. Measured before this: `lobby → mastery` held a pixel-identical
+       * lobby for 583ms and then cut. See §2.0 of `transitions.css`.
        */
-      if (outgoing) this.seal(outgoing.screen.root, outgoing.cancelSettle);
+      if (outgoing) {
+        this.seal(outgoing.screen.root, outgoing.cancelSettle);
+        this.beginExit(outgoing.screen.root, plan);
+      }
 
       /**
        * Light the room first. The crossfade behind the UI is 900ms and the
@@ -957,21 +1018,24 @@ export class Shell {
       const world = getAtmosphere();
       world?.enterRoom(routeNode(id).room);
 
+      if (veiled && outgoing) this.raiseCurtain(plan, routeNode(id).room);
+
       /**
-       * Two frames, so the closing curtain is actually painted before the main
-       * thread disappears into a constructor. One is not enough: the
-       * continuation of a single `requestAnimationFrame` still runs *before*
-       * that frame is drawn.
+       * Two frames, and now they are paid on **every** navigation.
        *
-       * Only a veiled navigation pays for the ~32ms, and it is the only kind
-       * that needs to: the curtain's close is a `translate3d` on the
-       * compositor, so once it has a frame it keeps playing smoothly for the
-       * whole of the block underneath it. That is the one animation in this
-       * file that is *supposed* to run while the thread is busy, because it is
-       * the one whose job is to say the thread is busy.
+       * They used to be the veiled path's alone, on the reasoning that only a
+       * curtain has to be composited before the thread disappears. That was
+       * true of the curtain and false of everything else: the hold above has
+       * exactly the same requirement, and a hold declared and then immediately
+       * blocked for 240ms is rendered for the first time already finished,
+       * which is the defect in its original form.
+       *
+       * One is not enough — the continuation of a single `requestAnimationFrame`
+       * still runs *before* that frame is drawn — and the ~32ms it costs is
+       * bought back many times over by the destination's entrance no longer
+       * being declared at the tail end of a long task.
        */
-      if (veiled && outgoing) {
-        this.raiseCurtain(plan, routeNode(id).room);
+      if (outgoing) {
         await twoFrames();
         /**
          * And *then* put the match on it.
@@ -995,14 +1059,24 @@ export class Shell {
       }
 
       /**
-       * Build. Nothing on screen is mid-animation while this blocks, which is
-       * the whole point of the ordering — and the elapsed time is kept, because
-       * the best available answer to "will this screen be slow next time" is
-       * how slow it was this time.
+       * Build. What is on screen while this blocks is the hold — a receded, lit
+       * parent playing on the compositor — and the elapsed time is kept,
+       * because the best available answer to "will this screen be slow next
+       * time" is how slow it was this time.
        */
       const startedBuild = now();
       const screen = await factory(params);
       this.buildCost.set(id, now() - startedBuild);
+
+      /**
+       * One frame between the build and the move, and it is not politeness.
+       *
+       * See `nextFrame`. A constructor, `place()` and the browser's first paint
+       * of a whole new screen inside one task is a single window in which the
+       * page is unaccountable — 228ms on `lobby → missions`, 231ms on
+       * `collection → lobby` — and splitting it is worth one frame of latency.
+       */
+      if (outgoing) await nextFrame();
 
       /**
        * Both halves, declared in one task, so they share a start frame.
@@ -1226,14 +1300,23 @@ export class Shell {
   /**
    * Will this route make the player wait?
    *
-   * The table's `heavy` is the opening guess and the stopwatch overrules it,
-   * because a hand-maintained list of expensive screens across forty-nine
-   * routes and fifteen builders is wrong in both directions and nobody finds
-   * out. A route measured under `HEAVY_BUILD_MS` stops being veiled even if the
-   * table says otherwise; a route measured over it starts being veiled even if
-   * nobody ever classified it. The only navigation that runs on a guess is the
-   * first one of the session to each destination, which is exactly the one no
-   * measurement can exist for.
+   * The table's `heavy` is a floor and the stopwatch can only raise it. That
+   * is a correction, and the measurement behind it is worth keeping.
+   *
+   * This used to let a measurement *demote* a flagged route, on the reasoning
+   * that a hand-maintained list across forty-nine routes is wrong in both
+   * directions. What actually happened is that the collection's constructor got
+   * virtualised and came in under `HEAVY_BUILD_MS` — so the stopwatch cleared
+   * the flag — while **leaving** it still blocked the thread for 231ms building
+   * the lobby and another 216ms tearing 245 canvases down. `collection → lobby`
+   * then ran with no cover at all, which is the exact failure the "veil either
+   * endpoint" rule below was added to fix, reintroduced by the demotion path.
+   *
+   * The honest reading is that a factory's own elapsed time is not the cost of
+   * a route: teardown, layout and paint are all on the same thread and none of
+   * them are inside the stopwatch. Promotion is still safe — a route nobody
+   * classified that turns out to cost 900ms starts being veiled on the second
+   * visit — because that direction cannot make a cover disappear.
    *
    * This deliberately answers for a route rather than for a direction, and is
    * asked about both endpoints. Leaving a heavy screen and entering one cost
@@ -1242,9 +1325,32 @@ export class Shell {
    * destination left Back out of the collection completely uncovered.
    */
   private isHeavy(id: string): boolean {
+    if (routeNode(id).heavy === true) return true;
     const measured = this.buildCost.get(id);
-    if (measured !== undefined) return measured >= HEAVY_BUILD_MS;
-    return routeNode(id).heavy === true;
+    return measured !== undefined && measured >= HEAVY_BUILD_MS;
+  }
+
+  /**
+   * Start the departing screen receding, on the frame the hash changed.
+   *
+   * Split from `retire` because the two now happen at opposite ends of the
+   * wait: this is the acknowledgement, and `retire` is the departure. It writes
+   * the hold's duration into `--nav-dur` and lets §2.0's keyframes fill there;
+   * `retire` overwrites both the duration and the attribute, which restarts the
+   * animation under a new name whose `from` is exactly this one's `to`, so the
+   * pair reads as one continuous exit with a pause in the middle of it.
+   *
+   * `arrive` has nothing to leave and the reduced-motion path gets its own
+   * two-frame dip — see §2.9. Nothing else is special-cased: a curtain covers
+   * the hold a beat later, and covering something that has already started
+   * moving is cheaper than covering something frozen.
+   */
+  private beginExit(root: HTMLElement, plan: NavPlan): void {
+    if (plan.relation === "arrive") return;
+    root.style.setProperty("--nav-dur", `${plan.holdMs}ms`);
+    root.style.removeProperty("--nav-delay");
+    if (plan.relation === "sibling") root.style.setProperty("--nav-dir", String(plan.direction));
+    root.dataset["nav"] = `${plan.relation}-hold`;
   }
 
   /**
@@ -1555,6 +1661,23 @@ export class Shell {
        * start to move, which is both the §3a overlap rule and the only thing
        * that stops the reveal opening onto an `opacity: 0` screen.
        */
+      /**
+       * Pay the teardown here, while the panels are still shut.
+       *
+       * `queueDisposal` holds a screen's `dispose()` until the arriving screen
+       * has settled, and on an ordinary navigation that is the right quiet
+       * moment. Behind a curtain it is not: measured on `collection → lobby`,
+       * the veil parted, the lobby settled, and *then* 245 canvases were torn
+       * down in a 216ms block with nothing covering it — a freeze the player
+       * gets after the transition has apparently finished, which reads as the
+       * game hanging rather than as loading.
+       *
+       * The cover exists for exactly this, it is a `translate3d` playing on the
+       * compositor, and the reveal is a handful of frames away. Spending the
+       * teardown behind it costs the reveal its own length and buys back a
+       * quarter of a second of unresponsive settled screen.
+       */
+      if (curtain?.isConnected === true) this.flushDisposals();
       const entry = this.current;
       if (root.isConnected && entry?.screen.root === root) {
         rewindEntrance(root);
