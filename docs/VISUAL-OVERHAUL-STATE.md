@@ -152,7 +152,8 @@ As of the wave-3 shell pass: `one-sun`, `card-light`, `material-contrast`,
 
 Still failing, and still nobody's:
 
-- `texture-light-rig` — a grain rank claimed twice
+- ~~`texture-light-rig`~~ — **passes 27/27** since wave 6 (`b630cfd`). This entry
+  was stale for three waves; the wave-9 verifier caught it.
 - `no-orphan-ui` — 40 exported functions with no caller outside their own file,
   spread across `art/`, `cardRenderer/`, `battle/` and `screens/`. Two were in
   `shell.ts` and are now module-private; the rest are the wiring pass.
