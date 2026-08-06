@@ -266,13 +266,24 @@ Critics are asked to be **harsh**, and harsh has a specific meaning here:
 4. **Score honestly out of 10**, where:
    - **1–4** — obviously a hobby project.
    - **5–6** — competent, clean, clearly not shipped by a studio.
-   - **7–8** — good indie. A player would not complain. *Still a fail.*
-   - **9** — indistinguishable from a funded studio release. **This is the pass mark.**
+   - **7** — good indie. A player would not complain. **This is the pass mark.**
+   - **8** — very strong indie; a stranger would have to look twice.
+   - **9** — indistinguishable from a funded studio release.
    - **10** — better than the reference on this specific element.
-5. **A pass requires 9+.** A critic who cannot find something wrong is not being
-   thorough; a critic who passes something at 7 has failed at their job. But a
-   critic who withholds a 9 from work that genuinely deserves it is *also*
-   failing — the loop has to be able to terminate.
+5. **A pass requires 7+ on both axes.** This was 9 for the first nine waves and
+   was lowered deliberately, by the project owner, once the curve flattened: the
+   assembled game sat at 8 stills / 7 motion for three consecutive waves while
+   each wave still produced real fixes. A bar that cannot be reached stops
+   directing work and starts just generating waves.
+
+   What the change is **not** is permission to stop measuring. A 6 is still a
+   fail and still needs naming. The hard constraints in §9 are not scored at all
+   — an unreachable button, a contrast breach or a dropped frame budget fails
+   regardless of how the screen looks, and no score excuses one.
+
+   A critic who cannot find something wrong is still not being thorough. Name the
+   worst thing even when you pass it; "passes at 7, and here is what would make
+   it an 8" is the most useful review this project gets.
 6. **Never pass on a promise.** Judge the screenshot in hand, not the plan.
 7. **A still cannot show motion, so do not review motion from a still.** §3 and
    §3a are half the bar and they are invisible in a single frame. Capture bursts

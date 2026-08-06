@@ -29,8 +29,11 @@ cached result was non-empty.
 
 ## The standard
 
-- `docs/AAA-BAR.md` — the bar. **9/10 passes; 7–8 ("good indie") is an explicit
-  fail.** §3a is menu animation, §8 is how a critic reviews, §10 is out of scope.
+- `docs/AAA-BAR.md` — the bar. **7/10 passes on both axes**, lowered from 9 by
+  the owner after wave 9, once the assembled game had sat at 8 stills / 7 motion
+  for three consecutive waves. §3a is menu animation, §8 is how a critic reviews,
+  §10 is out of scope. **§9's hard constraints are not scored** — an unreachable
+  control, a contrast breach or a dropped frame budget fails on its own terms.
 - `docs/FOUNDATION-CONTRACT.md` — exact primitive names and signatures. **The key
   light is 315° everywhere**, enforced by `tests/one-sun.test.ts`.
 - `docs/recon/*.md` — the original per-domain audits, plus `navigation-stall.md`.
