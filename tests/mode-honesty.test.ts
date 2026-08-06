@@ -136,15 +136,42 @@ describe("greyed, but not disabled", () => {
     expect(source).toContain('card.setAttribute("aria-haspopup", "dialog")');
   });
 
-  it("styles the locked state without :disabled", () => {
+  it("styles the locked state without :disabled, and without opacity", () => {
+    /*
+     * This used to require an `opacity` on `.mode-locked` and a lower one on
+     * `.mode-card:disabled`, and it was asserting the defect the design system
+     * later banned. FOUNDATION-CONTRACT A4: "An opacity-only disabled state and
+     * an opacity-only hover are both contract violations" — a faded tile fades
+     * its text with it, so the least legible thing on screen becomes the thing
+     * the player is trying to read an explanation of.
+     *
+     * The rule now drains the colour instead: a grey `--tile-accent`, a flatter
+     * plate via `--mat-amp`, and `saturate()`. The tile keeps its full contrast
+     * and stops looking live. Hover partially restores the saturation, which is
+     * what tells you it is still worth pressing.
+     *
+     * So the test checks the intent — locked reads as "later", not as broken,
+     * and is visually distinct from an active tile — against the mechanism that
+     * is actually there.
+     */
     expect(css).toContain(".mode-card.mode-locked");
-    // dimmed, but not as dim as a truly dead tile
-    const locked = /\.mode-card\.mode-locked\s*\{[^}]*opacity:\s*([\d.]+)/.exec(css)?.[1];
-    const dead = /\.mode-card:disabled\s*\{[^}]*opacity:\s*([\d.]+)/.exec(css)?.[1];
-    expect(locked, "no opacity on .mode-locked").toBeDefined();
-    expect(dead, "no opacity on :disabled").toBeDefined();
-    expect(Number(locked)).toBeGreaterThan(Number(dead));
-    expect(Number(locked)).toBeLessThan(1);
+
+    const block = /\.mode-card\.mode-locked\s*\{([^}]*)\}/.exec(css)?.[1];
+    expect(block, "no .mode-card.mode-locked rule at all").toBeDefined();
+
+    expect(block, "locked must drain saturation rather than fade").toMatch(/filter:\s*saturate\(/);
+    expect(block, "locked must flatten its material").toMatch(/--mat-amp:/);
+    expect(block, "locked must take a drained accent").toMatch(/--tile-accent:/);
+
+    // The contract violation, asserted as an absence.
+    expect(block, "locked must not dim with opacity — A4 bans it").not.toMatch(/(^|[^-])opacity:/);
+
+    // Still pressable, and it says so on hover.
+    expect(css).toMatch(/\.mode-card\.mode-locked:hover\s*\{[^}]*filter:\s*saturate\(/);
+
+    // `:disabled` is deliberately gone: a locked mode opens an explainer, and a
+    // disabled button is unreachable by keyboard and carries no explanation.
+    expect(css, "a locked mode must not be a disabled button").not.toContain(".mode-card:disabled");
   });
 
   it("uses CSS custom properties that exist", () => {
