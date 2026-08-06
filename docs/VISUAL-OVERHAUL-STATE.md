@@ -139,6 +139,67 @@ three rendered perfectly, just past an edge.
   `.board-mirror` a11y mirror and collapsed `<details>`. The one genuine finding
   was buried under 25 clips and 38 overlaps of noise.
 
+
+## Wave 9 — 8 stills / 8 motion. Passes the 7 bar on both axes.
+
+Suite **1,916 of 1,921**, identical across two runs, both typechecks clean.
+Motion moved for the first time in four waves.
+
+**The number that matters most is not the score.** The board, collection and
+deck builder now measure **18–27% void / 32–53% structure**, inside
+Hearthstone's own band of 25% / 51%. The screens a player lives in now measure
+like the reference.
+
+Fixed this wave: the mulligan Confirm a finger could not reach; the idle probe's
+sample grid; gallery build cost 1066 → 221ms (no longer veiled at all) and deck
+builder 692 → 299ms; and three "aesthetic" complaints that turned out to be
+coordinates — the pack standing 39px inside the back wall with its shadow on the
+wall, `ExtrudeGeometry` putting `bevelThickness` outside `depth` so every light
+spill was buried in the timber at 1.01:1, and three props named "overhang" that
+cleared the lip by 0.3 units.
+
+### Instrument twelve and thirteen
+
+**Twelve: this document.** It listed `texture-light-rig` as failing for three
+waves after it started passing at `b630cfd`. A status file is an instrument, and
+this one was quietly wrong about what still needed work.
+
+**Thirteen: the material census structurally cannot see the battle overlays.**
+It walks `shell.register` names, and `mountOverlay` is not one — so
+"no outline-only button anywhere" was true of the 49 routes and false of the two
+overlays a player sees most (`.btn-ghost` on "Back to Lobby" and "Keep Playing").
+
+### The worst thing left
+
+**The end-of-match sequence** — the screen after every single match. 93.3% void
+/ 4.9% structure. `.end-rewards` is a flat fill with a 1px solid border, both
+banned outright by §1; `.end-panel` and `.end-title` carry no material; DEFEAT is
+a flat `#6d5a90`; `--ov-scrim: 0.92` collapses four depth planes to two. The
+reward numbers are printed rather than counted — 20 samples over 2,392ms
+returned one value, and `motion.ts::tickerTo` exists and is never called.
+
+The game throws away the board, the room and the entire material system at the
+exact moment the player is most receptive.
+
+### Also open
+
+- **30fps floor breached on all nine navigation legs** — single hitches (217ms,
+  187ms, 142ms) against a 13ms/75fps median, but the floor is a hard constraint.
+- **Collection is still the heavy screen**: 528ms of long tasks against wave 8's
+  547ms, curtained both ways, 523ms out and 543ms back.
+- **Mulligan card text is illegible at 844×390.** The button is reachable now;
+  the information is not.
+- **Board props are UI debris** — what crosses the mat's silhouette is five
+  identical card-backs. Hearthstone breaks its rim with rocks, foliage, a
+  waterfall: things belonging to the world.
+- **Primary actions up to 5.3 screens away at 844×390** — achievements 2,083px
+  down a 390px viewport at 160%. All reachable, none walled. No earlier
+  instrument reported travel distance, because "reachable" was the whole of what
+  any of them asked.
+- **Six routes have never been idle-measured** — queue, online, gauntletfight,
+  doomfight, storyscene, storybattle all redirect. Reported as MISSED rather than
+  folded into the pass rate.
+
 ## Guard tests — run these before believing anything
 
 ```
