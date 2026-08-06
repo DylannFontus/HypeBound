@@ -80,6 +80,62 @@ containers and risers on the detached tree at mount, `transitions.css` §2.7 key
 off those attributes, and the queued teardown moved from the top of `handleHash`
 to *after* the hold has been composited.
 
+
+## Wave 8 — the invariant is right, the numbers proving it are not
+
+The room is a property of being a screen now: `shell.ts::dressScreen` on the one
+funnel every route passes through, layers in `transitions.css` rather than
+`hall.css` (which is reached only via `kit.ts`, so a room defined there would
+have given 49 screens seven invisible `<div>`s and no error anywhere).
+`.ambient-bg` paints nothing. `tests/every-screen-is-a-room.test.ts` and
+`tests/room.test.ts` hold 53 assertions. **That part stands.**
+
+**The evidence does not, and this is instrument eleven.**
+`_w7rw_probe.mjs::idle` samples with `screenshot()` then `waitForTimeout(200)`.
+One 1600x900 screenshot costs ~620ms, so the real grid is **~830ms against a
+floor written for 200ms**. It and the wave's own sweep both calibrated their
+*arithmetic* against `hearthstone_frames/` and neither calibrated the *grid* —
+calibrating a metric is not calibrating a sample interval.
+
+So **every idle figure published through that path is an ~830ms number wearing a
+200ms label**, including the 0.88–1.89 vs 0.18–0.71 split wave 8 was launched to
+fix, and including the gate inside `every-screen-is-a-room.test.ts`. First
+instrument error here to propagate into a committed test.
+
+## BLOCKING: a touch player cannot start a match at 160% text
+
+At **844x390 with `--ui-scale 1.6`**, the mulligan's Confirm button sits **32px
+below the fold and cannot be reached**. The overflowing ancestor is
+`overflow: hidden`, so a real `mouse.wheel` and a real `scrollBy` both move it
+**exactly 0px**.
+
+Every automated check passed it because **Playwright's `.click()` calls
+`scrollIntoViewIfNeeded` first.** A finger does not. The remix mulligan loses 32
+of the same button's 44px at *default* scale.
+
+Third unreachable control this effort has found — after the lobby's Inbox badge
+and the deck builder's Save Deck — and the first that stops play outright. All
+three rendered perfectly, just past an edge.
+
+## Also outstanding after wave 8
+
+- **Build cost, not the curtain.** Entering the three heavy children runs at
+  11.5–28.8fps (gallery 1066ms of long tasks, deckbuilder 692ms, collection
+  547ms) against §9's 30fps floor. Legs measure 473–944ms against a 260–420ms
+  budget, and descend/ascend are not reverses (473ms out, ~900ms back). The
+  curtain is the symptom; `shell.ts` veils anything over `HEAVY_BUILD_MS`, so
+  making those three build incrementally removes it everywhere at once.
+- **The mat is still a rectangle** — a much better one, but nothing crosses the
+  boundary in either direction. `hearthstone_frames/frame_00060` has foliage over
+  the rim in six places, rocks breaking the bottom-left, a waterfall on the
+  border.
+- **No contact shadow anywhere in the pack-opening room**, on the hero object of
+  the whole reward moment, and all five cards flip at once so the per-card click
+  has nothing to click.
+- `_w6scale_sweep.mjs` reports 39 clips of which ~1 is real; it counts the
+  `.board-mirror` a11y mirror and collapsed `<details>`. The one genuine finding
+  was buried under 25 clips and 38 overlaps of noise.
+
 ## Guard tests — run these before believing anything
 
 ```
