@@ -3,10 +3,11 @@
  *
  * ## Why this is not just `_w7rw_probe.mjs idle`
  *
- * It is, for the arithmetic — `meanDelta` below is that file's function
- * character for character, and `calib` recomputes the Hearthstone floor from
- * `hearthstone_frames/` with it, so if this file's numbers are not on the
- * published scale it says so before it measures anything. What it adds is the
+ * It is, for the arithmetic — both files now take `meanDelta` from
+ * `lib/idle.mjs` rather than each keeping a copy, and `calib` recomputes the
+ * Hearthstone floor from `hearthstone_frames/` with it, so if this file's
+ * numbers are not on the published scale it says so before it measures
+ * anything. What it adds is the
  * one thing that probe cannot do: hide the screen's own content and photograph
  * what is left.
  *
@@ -27,17 +28,25 @@
  * 200ms figure: a 3.6s breathe moves 0.2% of its amplitude in 20ms, so a
  * frame-to-frame reel reports a screen that is visibly breathing as 0.00.
  *
+ * ## Wave 9: it was not on a 200ms grid, and neither was anything else
+ *
+ * The paragraph above was true as an intention and false as a fact. The loop
+ * was `screenshot()` then `waitForTimeout(200)`, and one 1600x900
+ * `page.screenshot()` costs 691ms on this machine — so the real interval was
+ * 843ms and every figure this file has printed was over-stated. `calib` passed
+ * throughout, because it was checking the arithmetic and the arithmetic was
+ * never wrong. The sampler now comes from `lib/idle.mjs`, which sleeps the
+ * remainder of the period rather than a whole one, and prints the interval it
+ * achieved beside every figure.
+ *
  *   node scripts/_w8col_idle.mjs calib
  *   node scripts/_w8col_idle.mjs missions pass gauntlet --bare
  */
 import { chromium } from "playwright-core";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { decodePng } from "./lib/png.mjs";
+import { existsSync } from "node:fs";
 import { seedPlayedAccount } from "./lib/account.mjs";
+import { createIdleSampler, gridNote, referenceAtLag, referenceGrid } from "./lib/idle.mjs";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ORIGIN = "http://localhost:5173";
 const CHROME = [
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
@@ -53,43 +62,22 @@ const [VW, VH] = String(flag("size", "1600x900")).split("x").map(Number);
 const SECONDS = Number(flag("seconds", 5));
 const BARE = argv.includes("--bare");
 
-/** Identical to `_w7rw_probe.mjs::meanDelta`, which is identical to `_ic6_calib`. */
-function meanDelta(a, b) {
-  const n = Math.min(a.data.length, b.data.length);
-  let sum = 0;
-  let count = 0;
-  for (let i = 0; i + 2 < n; i += a.channels) {
-    sum += Math.abs(a.data[i] - b.data[i]);
-    sum += Math.abs(a.data[i + 1] - b.data[i + 1]);
-    sum += Math.abs(a.data[i + 2] - b.data[i + 2]);
-    count += 3;
-  }
-  return sum / count;
-}
-
-const quantiles = (values) => {
-  const s = [...values].sort((x, y) => x - y);
-  const q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
-  return { n: s.length, min: q(0), median: q(0.5), max: s[s.length - 1] };
-};
-const f3 = (x) => x.toFixed(3);
+const f3 = (x) => (x === undefined || x === null ? "-" : x.toFixed(3));
 
 if (argv[0] === "calib") {
-  const dir = path.join(HERE, "..", "hearthstone_frames");
-  const files = readdirSync(dir).filter((f) => f.endsWith(".png")).sort();
-  const deltas = [];
-  let prev = null;
-  for (const file of files) {
-    const img = decodePng(readFileSync(path.join(dir, file)));
-    if (prev) deltas.push(meanDelta(prev, img));
-    prev = img;
-  }
-  const s = quantiles(deltas);
+  const grid = referenceGrid();
+  const s = referenceAtLag(200);
   console.log(
     `[reference] hearthstone_frames n=${s.n} min=${f3(s.min)} median=${f3(s.median)} max=${f3(s.max)}` +
       `   (published: n 203, min 0.501, median 1.713)`
   );
-  const ok = s.n === 203 && Math.abs(s.min - 0.501) < 0.002 && Math.abs(s.median - 1.713) < 0.002;
+  // The half that was missing: the floor is per 200ms only because the
+  // reference frames are 200ms apart, which nobody had ever checked.
+  console.log(
+    `[reference] the set's own clock: ${grid.n} frames, filename timestamps ${grid.gaps.join("/")}ms apart` +
+      (grid.uniform ? "" : "  !! NOT UNIFORM")
+  );
+  const ok = grid.uniform && s.n === 203 && Math.abs(s.min - 0.501) < 0.002 && Math.abs(s.median - 1.713) < 0.002;
   console.log(ok ? "[calib] this file is on the published scale." : "[calib] !! NOT the published scale — do not quote it.");
   process.exit(ok ? 0 : 1);
 }
@@ -131,6 +119,7 @@ try {
   const VALUED = new Set(["--size", "--seconds"]);
   const routes = argv.filter((a, i) => !a.startsWith("--") && !VALUED.has(argv[i - 1]));
   console.log(`[idle] ${VW}×${VH}, ${SECONDS}s on a 200ms grid${BARE ? ", content hidden" : ""}\n`);
+  const sample = await createIdleSampler(page, { lagMs: 200 });
   for (const route of routes) {
     await page.goto(`${ORIGIN}/?nointro#${route}`, { waitUntil: "networkidle" });
     await page
@@ -140,19 +129,14 @@ try {
     let note = "";
     if (BARE) note = await page.evaluate(STRIP);
     await page.waitForTimeout(400);
-    const shots = [];
-    for (let i = 0; i * 0.2 < SECONDS; i += 1) {
-      shots.push(decodePng(await page.screenshot()));
-      await page.waitForTimeout(200);
-    }
-    const ds = [];
-    for (let i = 1; i < shots.length; i += 1) ds.push(meanDelta(shots[i - 1], shots[i]));
-    const s = quantiles(ds);
+    const s = await sample({ seconds: SECONDS });
     console.log(
       `  ${route.padEnd(14)} n=${s.n} min=${f3(s.min)} median=${f3(s.median)} max=${f3(s.max)}` +
-        `  [reference min 0.501 median 1.713]  ${s.median < 0.501 ? "BELOW REFERENCE FLOOR" : "alive"}` +
+        `  [reference min 0.501 median 1.713]  ` +
+        (!s.onGrid ? "NO VERDICT" : s.median < 0.501 ? "BELOW REFERENCE FLOOR" : "alive") +
         (note ? `   (${note})` : "")
     );
+    console.log(`                 ${gridNote(s)}`);
   }
 } finally {
   await browser.close();

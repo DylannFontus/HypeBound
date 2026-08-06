@@ -60,6 +60,17 @@ const VIEWPORTS = [
   { name: "iPhone SE landscape", width: 667, height: 375, touch: true, dpr: 2 },
   { name: "Pixel 7 landscape", width: 915, height: 412, touch: true, dpr: 2.6 },
   { name: "iPad landscape", width: 1080, height: 810, touch: true, dpr: 2 },
+  /**
+   * iPad Pro 11-inch, in Safari rather than standalone.
+   *
+   * 2420x1668 physical at 2x is 1210x834 points, and Safari's own chrome takes
+   * roughly 74 of them, so the page gets about 1210x760. That is a viewport this
+   * set did not cover: wider than the 1080 iPad and *shorter* than the 810 one,
+   * which is the combination that catches a layout sized from vh. It is also a
+   * device somebody actually intends to play this on, which the generic entries
+   * above are not.
+   */
+  { name: "iPad Pro 11in landscape, Safari chrome", width: 1210, height: 760, touch: true, dpr: 2 },
   { name: "small laptop", width: 1280, height: 720, touch: false, dpr: 1 },
 ];
 

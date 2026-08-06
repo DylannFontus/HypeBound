@@ -35,6 +35,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodePng } from "./lib/png.mjs";
 import { seedPlayedAccount } from "./lib/account.mjs";
+import { createIdleSampler, gridNote } from "./lib/idle.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ORIGIN = "http://localhost:5173";
@@ -139,24 +140,28 @@ async function stopFilm(label, t0, { keep = 0 } = {}) {
   return rows;
 }
 
-/** Sample the screen on a 200ms grid, exactly like the reference frames. */
+/**
+ * Sample the screen on a 200ms grid, exactly like the reference frames.
+ *
+ * It did not used to be a 200ms grid. This function was `screenshot()` then
+ * `waitForTimeout(200)`, which on this machine runs at 843ms because a 1600x900
+ * `page.screenshot()` costs 691ms — so every "per 200ms" figure this file has
+ * printed was over-stated by about four times the interval. `lib/idle.mjs` has
+ * the sampler and the argument; the short version is that the capture is now
+ * cheap enough to sleep the *remainder* of the period, and the interval it
+ * achieved is printed beside the number so that this cannot recur silently.
+ */
+let sampler = null;
 async function idle(label, seconds = 3) {
-  const shots = [];
-  for (let i = 0; i * 0.2 < seconds; i += 1) {
-    shots.push(decodePng(await page.screenshot()));
-    await page.waitForTimeout(200);
-  }
-  const ds = [];
-  for (let i = 1; i < shots.length; i += 1) ds.push(meanDelta(shots[i - 1], shots[i]));
-  const sorted = [...ds].sort((a, b) => a - b);
+  if (!sampler) sampler = await createIdleSampler(page, { lagMs: 200 });
+  const s = await sampler({ seconds });
   console.log(
-    `[idle] ${label}: n=${ds.length} min=${sorted[0].toFixed(3)} ` +
-      `median=${sorted[Math.floor(sorted.length / 2)].toFixed(3)} ` +
-      `max=${sorted[sorted.length - 1].toFixed(3)}  ` +
+    `[idle] ${label}: n=${s.n} min=${s.min.toFixed(3)} median=${s.median.toFixed(3)} max=${s.max.toFixed(3)}  ` +
       `[reference: min 0.50 median 1.71]  ` +
-      (sorted[Math.floor(sorted.length / 2)] < 0.5 ? "BELOW REFERENCE FLOOR" : "alive")
+      (!s.onGrid ? "NO VERDICT" : s.median < 0.5 ? "BELOW REFERENCE FLOOR" : "alive") +
+      `   ${gridNote(s)}`
   );
-  return ds;
+  return s;
 }
 
 const shot = async (name) => {

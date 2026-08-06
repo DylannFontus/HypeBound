@@ -58,6 +58,7 @@ import {
   currentTag,
   draggable,
   enterRow,
+  holdWhileVeiled,
   installKitStyles,
   lazyPaint,
   rarityTag,
@@ -251,12 +252,36 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
    * from opening. Cold that ran to **t=1,720ms**. A cover that is held shut by
    * the work it is covering is a cover with no exit condition.
    *
-   * `DUR.ui + 160` is the Collection's number, for the Collection's reason: the
-   * transition's own 260ms, the frames the shell needs to see calm, and the
-   * cascade's tail. The pool cells draw their own sleeves, so the window is a
-   * rack filling rather than a hole.
+   * ## And why it is no longer a duration
+   *
+   * `DUR.ui + 160` was the Collection's number, copied. It is 420ms; measured
+   * with `_w9heavy.mjs` at 1600×900, this screen's cover comes down at 454–480ms,
+   * so the painter woke up *inside* the window the shell watches for two
+   * consecutive frames under 34ms, and a pool card is about 25ms of script plus
+   * its own layout. A guess about how long a cover will take cannot win a race
+   * against the cover, and when it loses it loses by extending the very thing it
+   * was trying to get out of the way of. `holdWhileVeiled` watches the cover
+   * itself; the constant below stays only as the floor for a route arrived at
+   * with no cover at all.
    */
   painter.hold(DUR.ui + 160);
+
+  /**
+   * How far past the fold the pool may paint while the screen is arriving.
+   *
+   * Traced with `_w9trace.mjs`, entering the deck builder is **1,759ms of script
+   * in three seconds** against 170ms of style, 74ms of layout and 213ms of paint:
+   * it is `renderCardToCanvas`, and nothing else is close. At 1600×900 about
+   * twenty pool cards are on screen and the observer's 600px margin queues about
+   * forty, so half the rasterisation in the navigation was for cards below the
+   * fold. Frames delivered track idle time on this machine — 23 frames in 1,600ms
+   * against roughly 400ms of idle on a 13.3ms grid — so that half was half the
+   * frame rate. The queue is unchanged; only what the drain will spend a frame on
+   * during the arrival is capped, and the first scroll lifts the cap.
+   */
+  const ENTRY_LEAD_PX = 140;
+  painter.lead(ENTRY_LEAD_PX, 1800);
+  const unholdPainter = holdWhileVeiled({ hold: (ms) => painter.hold(ms) });
   const unbindPoolFades = poolWrap && poolHost ? bindScrollFades(poolWrap, poolHost) : () => {};
   const unbindSideFades = sideWrap && sideScroll ? bindScrollFades(sideWrap, sideScroll) : () => {};
 
@@ -1649,6 +1674,7 @@ export function createDeckBuilderScreen(content: ContentIndex, callbacks: DeckBu
   return {
     root,
     dispose: () => {
+      unholdPainter();
       painter.stop();
       /**
        * The chunked pool's own callback, cancelled rather than left to fire into

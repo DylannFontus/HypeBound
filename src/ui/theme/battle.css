@@ -1934,6 +1934,222 @@
   --cast-lift: 2.7;
 }
 
+/* =========================================================================
+   THE ACTION IS REACHABLE
+
+   The most serious defect nine waves of automated checking never saw, and the
+   reason it was never seen is worth stating before the rules that fix it.
+
+   `.battle-overlay` is `display: grid; place-items: center` over a screen whose
+   ancestors are `overflow: hidden`. A centred grid item that is taller than its
+   area overflows *both* ends and nothing can scroll to either, because there is
+   no scroller in the chain — only clipping. So the panel simply grew off the top
+   and bottom of the viewport, taking Confirm with it.
+
+   Measured, before this block, with the accessibility screen's own size control
+   and the game's own routes:
+
+     route            viewport  scale   Confirm's bottom edge
+     battle?seed=4    844x390   160%    396 in 390  —  6px past the fold
+     battle (2nd seat) 844x390  160%    422 in 390  — 32px past the fold
+     remix            844x390   100%    422 in 390  — 32px past the fold
+     remix            844x390   140%    473 in 390  — 83px past the fold
+     remix            844x390   160%    499 in 390  — 109px past the fold
+     remix           1280x720   160%    727 in 720  —  7px past the fold
+
+   The last row is the one that should have ended the argument: 1280x720 is a
+   floor the bar names in §9, not an exotic phone.
+
+   Those numbers move between deals and the range is the honest form of them.
+   The opening-hand sentence is "You go first" or "You go second — you start
+   with an extra card and Borrowed Clout", and the second wraps to a line more:
+   forty pixels of panel that depend on a coin toss. So the same viewport
+   measured 10px past the fold in one run and 32 in another, and `#remix` seeds
+   from the wall clock and cannot be pinned at all. Every figure above is one
+   observed deal, and the repair is built against the tall one.
+
+   A real `mouse.wheel(0, 400)` moved it 0px. A real touch swipe moved it 0px.
+   Every automated check passed anyway, because `locator.click()` calls
+   `scrollIntoViewIfNeeded` first and an `overflow: hidden` box *is*
+   programmatically scrollable — so the harness scrolled the button into view
+   through a route no finger has, clicked it, and reported success. The gesture
+   proof for this repair is `scripts/_w9mull_gesture.mjs`, which dispatches raw
+   CDP pointer events at the button's own viewport coordinates and never asks a
+   locator for anything.
+
+   The repair is the deck builder's, which had the same defect at the same
+   viewport: content that sizes to content, one region that gives way, and a
+   footer that cannot be squeezed off the bottom. The order of who gives way is
+   the whole design, and the first attempt got it backwards — it let the panel
+   scroll with Confirm sticky over the top, which fitted the button perfectly
+   and buried the entire hand under the sticky plate. A mulligan you cannot see
+   is not better than a mulligan you cannot confirm.
+
+   So, exactly three of the four children have a fixed size and exactly one
+   flexes, and which one that is *is* the design:
+
+     1. **Confirm never moves.** `flex: 0 0 auto`, last child of a panel that is
+        capped to the viewport, so it is inside the screen by construction.
+     2. **The hand never gives either.** The tray is `flex: 0 0 auto`. What
+        decides its height on a short screen is one explicit cap on the card
+        canvas, and that cap reads `--ui-scale`: 40vh at 100% down to 29.2vh at
+        160%, because a player who asked for bigger text asked for room to read
+        and the only place that room exists is the hand.
+     3. **The prose gives, and it is the only thing that does.** The rule and
+        the head share one wrapper — `.mulligan-brief`, built in
+        `battleScreen.ts` — and that band is the single scroll region on the
+        sheet. Whatever will not fit comes off the sentence you have already
+        read, and nothing in it is lost, so §12's "the rule is stated in full on
+        the mulligan" still holds at every size.
+     4. The panel keeps `overflow-y: auto` and the footer keeps `position:
+        sticky` behind all of that, as the guarantee rather than the mechanism.
+        The net cannot be reached by arithmetic — tray, footer and the panel's
+        own padding come to 280px against 374 of room at 844x390, and 413
+        against 704 at 1280x720 — and it is measured, not assumed: across
+        twelve configurations `panel.scrollHeight > panel.clientHeight` was
+        false in all twelve. It is there so that a future change to any of
+        those numbers degrades into a scroll rather than back into an
+        unreachable button.
+
+   Nothing here changes a pixel where the sheet already fitted. At 1280x720 and
+   100% the panel is 522px tall and Confirm's bottom edge is at 604 — the same
+   two numbers as before the repair, to the pixel.
+   ========================================================================= */
+
+/* The plate stands *in* the room rather than against its walls, so its cast and
+   its lit edge survive at the size where the panel is as tall as the viewport. */
+.battle-overlay.mulligan-overlay {
+  padding: var(--sp-2);
+}
+
+.mulligan-panel {
+  /*
+   * `min-height: 0` is not belt-and-braces. A grid item's automatic minimum
+   * size is content-based, `min-height` is applied *after* `max-height`, and a
+   * content minimum of 492px would therefore beat the cap outright and leave
+   * this whole block doing nothing. Making the panel a scroll container already
+   * zeroes that automatic minimum; stating it as well means the cap cannot be
+   * silently disarmed by someone removing the overflow later.
+   */
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  /* A swipe that runs out of panel must not start scrolling the board behind
+     it — the board is the thing this sheet exists to hide. */
+  overscroll-behavior: contain;
+}
+
+/*
+ * The prose band: the one thing on this sheet that is allowed to scroll.
+ *
+ * It is the only flexible child of the panel, which is the whole priority
+ * expressed in one declaration: whatever will not fit comes off the sentence
+ * you have already read, never off the hand you are choosing from and never off
+ * the button you are reaching for. It scrolls, so nothing in it is lost — the
+ * Remix rule in particular is stated in full, which §12 requires.
+ *
+ * The gap is the panel's own, moved inside, so a sheet with no rule note looks
+ * exactly as it did before this wrapper existed.
+ *
+ * **A keyboard can reach it, and that was checked rather than hoped.** A scroll
+ * region with no focusable child inside it is the classic way to hide text from
+ * everyone who does not own a mouse. Measured on `#remix` at 844x390 and 160%,
+ * where the band genuinely overflows (scrollHeight 225 in a 156px box): it
+ * appears in the tab order between the HUD's ghost buttons and the first card,
+ * despite `tabIndex` reading -1, and two ArrowDowns move `scrollTop` from 0 to
+ * 69. That is Chrome's keyboard-focusable-scroll-containers behaviour, which
+ * only enters the tab order when the box actually scrolls — so no extra tab
+ * stop appears on the eleven configurations where it does not.
+ */
+.mulligan-brief {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  /*
+   * Both of these restore what the panel used to give these two children for
+   * free. `align-self: stretch` puts the band's scrollbar against the panel's
+   * own padding rather than beside a centred column; `align-items: center`
+   * hands the rule and the head back the shrink-to-fit width they had as direct
+   * children of a centred panel. Without the second line the Remix rule became
+   * a full-width banner across the top of every Remix mulligan — a change
+   * nobody asked for, smuggled in behind a layout repair.
+   */
+  align-items: center;
+}
+
+/* Inside the band nothing gives; the band gives. */
+.mulligan-rule,
+.mulligan-head {
+  flex: 0 0 auto;
+}
+
+/*
+ * The hand never gives, and the version of this that let it give is worth
+ * recording because it looked correct and measured wrong.
+ *
+ * The first attempt made the tray `flex: 0 1 auto`, stretched the card buttons
+ * to it and capped the canvas at `max-height: min(100%, 40vh)` so the cards
+ * would shrink with the row. Measured at 844x390 and 160%, that tray came back
+ * **232px tall around a 156px card** — sixty pixels of empty tray — because
+ * `100%` of a height that flexbox has not resolved yet is not a number, so the
+ * canvas contributed a nonsense intrinsic height to the very layout that was
+ * supposed to constrain it. The panel then took those sixty pixels off the
+ * prose band, which fell to 44px. Circular percentage, confident wrong answer,
+ * no error anywhere.
+ *
+ * So the tray keeps its natural height and the cap that decides that height is
+ * an explicit one (see the short-screen block below). The arithmetic that makes
+ * this safe: tray, footer and the panel's own padding come to 280px at 844x390
+ * and 413px at 1280x720, against 374 and 704 of usable room.
+ */
+.mulligan-cards {
+  flex: 0 0 auto;
+}
+
+/*
+ * The footer that cannot be squeezed off.
+ *
+ * `flex: 0 0 auto` is the load-bearing half: the row is the last child of the
+ * panel and it never shrinks, so once the panel is capped to the viewport the
+ * button is inside it by construction.
+ *
+ * `position: sticky` is the second half, and it deliberately paints nothing.
+ * The first version gave it an opaque plate so cards scrolling under it would
+ * not show through — correct in principle, and measured at 1280x720 it laid a
+ * visible dark band across the bottom of every mulligan in the game: rgb(22,
+ * 15, 39) against the panel's own rgb(38, 28, 65), sampled down the column at
+ * x=300. A scrim for a state that never happens, on a screen every player sees
+ * at the start of every match, is a bad trade.
+ *
+ * It never happens because the prose band gives way first: across twelve
+ * configurations — two routes, two viewports, three interface sizes —
+ * `panel.scrollHeight > panel.clientHeight` was **false in all twelve**. The
+ * tray, the footer and the panel's own padding come to 280px at 844x390 and
+ * 413px at 1280x720, against 374 and 704 of room, so the panel has no way to
+ * overflow while the band can still shrink. `sticky` is therefore the
+ * degradation path and not the mechanism: if some future change does make the
+ * panel scroll, the button rides the bottom edge instead of leaving the screen,
+ * and *that* is the moment to give it a plate.
+ *
+ * No `backdrop-filter` as an alternative, for the reason stated twice already
+ * in this file: the board underneath is a WebGL surface redrawing every frame,
+ * and a continuously-changing backdrop costs a full-screen readback per frame.
+ */
+.mulligan-actions {
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  justify-content: center;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+}
+
 /**
  * The head, and the rule under it.
  *
@@ -2117,6 +2333,16 @@
     padding: var(--sp-3);
     gap: var(--sp-2);
   }
+  /* The band carries the panel's gap now, so it has to follow it down. */
+  .mulligan-brief { gap: var(--sp-2); }
+  /*
+   * "OPENING HAND" over "Choose cards to replace" says one thing twice, and on
+   * a 390px screen the twenty-five pixels it costs are the difference between
+   * the instruction being the first thing in the band and the instruction being
+   * the first thing you have to scroll for. Measured at 160%: with the eyebrow,
+   * the band's 144 visible pixels ended halfway through the title.
+   */
+  .mulligan-head .eyebrow { display: none; }
   .mulligan-head { padding-bottom: var(--sp-2); }
   .mulligan-head .title { font-size: var(--fs-lg); }
   .mulligan-head p { font-size: var(--fs-xs); }
@@ -2125,10 +2351,28 @@
     gap: var(--sp-2);
   }
   .mulligan-card canvas {
-    /* 44vh fitted and left the plate flush against both edges of a 390px
-       viewport, which costs it the cast that makes it an object. 40 leaves it
-       standing in the room. */
-    max-height: 40vh;
+    /*
+     * 44vh fitted and left the plate flush against both edges of a 390px
+     * viewport, which costs it the cast that makes it an object. 40 leaves it
+     * standing in the room.
+     *
+     * The scale term is the reachability repair's, and it is the one number in
+     * this file that reads `--ui-scale` directly. A player who has asked for
+     * 160% text has asked for the *text*, and on a 390px screen the only place
+     * that room can come from is the hand: 40vh at 100%, 32.8 at 140%, 29.2 at
+     * 160%, which is a 114px card — still a readable object, and it hands 42px
+     * back to the sentence that tells you what you are choosing. Measured
+     * without it, the prose band was 94px at 160%; with it, 136.
+     *
+     * A media query cannot ask about the interface size, so this is `calc()`
+     * rather than a fourth breakpoint, and it is clamped at *both* ends. The
+     * floor stops a future scale step driving the hand to nothing. The ceiling
+     * is 40vh, the number that was here before, because the ladder runs down to
+     * 80% as well as up to 160% and the term is linear: without it, 80% would
+     * have quietly grown the card to 43.6vh and changed a size nobody asked to
+     * change.
+     */
+    max-height: clamp(96px, calc(40vh - (var(--ui-scale, 1) - 1) * 18vh), 40vh);
     width: auto;
   }
   /* Still over the 44px touch floor with the panel's own scale applied, and the

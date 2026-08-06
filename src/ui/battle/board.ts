@@ -371,6 +371,21 @@ const RIM = {
   z: MAT_Z,
 } as const;
 
+/**
+ * Where the top of the deck actually is, which is **not** `RIM.height`.
+ *
+ * The ring is an `ExtrudeGeometry` with `depth: RIM.height` and
+ * `bevelThickness: 0.2`, and three.js puts the bevel *outside* the requested
+ * depth at both ends — so the solid spans -0.2 to 0.66 in the extrude axis, not
+ * 0 to 0.46. Everything that has ever been laid "on the deck" using `RIM.height`
+ * has therefore been laid two tenths of a unit **inside** it, and for a flat quad
+ * that means invisible: the two coloured spills, added a wave ago specifically so
+ * that light would cross the boundary, were horizontal planes buried in the
+ * timber. Measured on the deck beside each of them, the border was 1.01:1 and
+ * 1.04:1 against the same board with no spill at all.
+ */
+const DECK_TOP = RIM.height + 0.2;
+
 const RIM_OUTER_W = RIM.innerW + RIM.left + RIM.right;
 const RIM_OUTER_D = RIM.innerD + RIM.far + RIM.near;
 /** How far the outer rectangle sits from the hole it surrounds. */
@@ -480,11 +495,19 @@ function makeTableTexture(): THREE.CanvasTexture {
   ctx.strokeStyle = "rgba(12, 5, 28, 0.095)";
   ctx.lineWidth = 2.6;
   ctx.translate(1.4, 1.4);
-  hexPath(ctx, HEX_R, (path) => ctx.stroke(path));
+  hexPath(ctx, HEX_R, (path, wear) => {
+    ctx.globalAlpha = wear;
+    ctx.stroke(path);
+  });
   ctx.restore();
+  ctx.save();
   ctx.strokeStyle = "rgba(226, 210, 255, 0.08)";
   ctx.lineWidth = 1.4;
-  hexPath(ctx, HEX_R, (path) => ctx.stroke(path));
+  hexPath(ctx, HEX_R, (path, wear) => {
+    ctx.globalAlpha = wear;
+    ctx.stroke(path);
+  });
+  ctx.restore();
 
   /**
    * Row inlays: a shallow darker band per row, so the board has a structure
@@ -712,8 +735,37 @@ function drawScuffs(ctx: CanvasRenderingContext2D, colour: string, offset = 0): 
   ctx.restore();
 }
 
+/**
+ * How much weave survives in a given cell, 0 to 1.
+ *
+ * The lattice used to be drawn at one alpha everywhere, and that is the whole of
+ * the difference between a floor and wallpaper. Note what it is *not*: an
+ * amplitude problem. Measured on 14x14 blocks of a 310x300 patch of pure ground,
+ * ours came back with a residual of 10.4 L after fitting a 2-D quadratic against
+ * the reference sand's 4.2 — our floor already varies more than Hearthstone's
+ * does, and a frequency check found the two within 0.03 of each other. What the
+ * reference has and we did not is **irregularity**: its ground is worn through in
+ * patches and intact in others, so there is no run long enough for the eye to
+ * lock onto a repeat, at any contrast.
+ *
+ * Two incommensurable sine fields plus an integer hash, so the pattern never
+ * closes and two builds of the game still produce exactly the same floor — a
+ * random scatter here would make every visual diff useless.
+ */
+function weaveWear(col: number, row: number): number {
+  const a = Math.sin(col * 0.31 + row * 0.17) * Math.sin(col * 0.113 - row * 0.29 + 1.7);
+  const b = Math.sin(col * 0.071 - row * 0.053 + 0.4);
+  const hash = (((col * 73856093) ^ (row * 19349663)) >>> 8) % 1000;
+  const t = 0.52 + a * 0.46 + b * 0.22 + (hash / 1000) * 0.3 - 0.15;
+  return t < 0 ? 0 : t > 1 ? 1 : t;
+}
+
 /** Walk the hex lattice once; the callback decides what to do with each cell. */
-function hexPath(ctx: CanvasRenderingContext2D, radius: number, draw: (path: Path2D) => void): void {
+function hexPath(
+  ctx: CanvasRenderingContext2D,
+  radius: number,
+  draw: (path: Path2D, wear: number) => void
+): void {
   const stepY = radius * 1.5;
   const stepX = radius * Math.sqrt(3);
   for (let row = 0; row * stepY < TEX_H + radius; row++) {
@@ -729,7 +781,7 @@ function hexPath(ctx: CanvasRenderingContext2D, radius: number, draw: (path: Pat
         else path.lineTo(px, py);
       }
       path.closePath();
-      draw(path);
+      draw(path, weaveWear(col, row));
     }
   }
 }
@@ -757,10 +809,16 @@ function makeTableNormalMap(): THREE.CanvasTexture | null {
   heightCtx.fillStyle = "#808080";
   heightCtx.fillRect(0, 0, TEX_W, TEX_H);
 
-  // Hex ridges stand slightly proud of the floor.
+  // Hex ridges stand slightly proud of the floor — and are worn away in the same
+  // patches the albedo's are, because a floor whose paint and whose relief
+  // disagree about where it has been walked on is two floors.
   heightCtx.strokeStyle = "rgba(255,255,255,0.34)";
   heightCtx.lineWidth = 2.6;
-  hexPath(heightCtx, HEX_R, (path) => heightCtx.stroke(path));
+  hexPath(heightCtx, HEX_R, (path, wear) => {
+    heightCtx.globalAlpha = wear;
+    heightCtx.stroke(path);
+  });
+  heightCtx.globalAlpha = 1;
 
   /**
    * The rows are *not* in here, and that is the second time this file has had
@@ -1409,6 +1467,56 @@ function makeSkirtRamp(): THREE.CanvasTexture {
 }
 
 /**
+ * The bounce's own falloff: hottest against the inner lip, gone by the middle of
+ * the deck run.
+ *
+ * Same trick as the skirt — a `ShapeGeometry`'s default UVs are the shape's own
+ * coordinates, so distance from the ring's centre is available per fragment —
+ * with two differences that are the whole point. It is normalised against the
+ * bounce ring's **outer** extent rather than the rim's inner one, so the texel
+ * at the ring's outer edge is genuinely the far end of the ramp instead of a
+ * clamped edge sample; and the ramp runs the other way round, because this is
+ * light leaving the arena rather than shadow falling into it.
+ */
+const bounceRamps = new Map<string, THREE.CanvasTexture>();
+function makeBounceRamp(outerW: number, outerD: number): THREE.CanvasTexture {
+  const key = `${outerW}:${outerD}`;
+  const cached = bounceRamps.get(key);
+  if (cached) return cached;
+  const size = 256;
+  const ctx = canvas2d(size, size);
+  const texture = new THREE.CanvasTexture(ctx?.canvas ?? document.createElement("canvas"));
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.repeat.set(1 / outerW, 1 / outerD);
+  texture.offset.set(0.5, 0.5);
+  bounceRamps.set(key, texture);
+  if (!ctx) return texture;
+  const image = ctx.createImageData(size, size);
+  const pixels = image.data;
+  const half = size / 2;
+  /** Where the inner lip falls, as a fraction of the outer half-extent. */
+  const lip = (RIM.innerW - 0.1) / outerW;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const nx = Math.abs((x + 0.5 - half) / half);
+      const ny = Math.abs((y + 0.5 - half) / half);
+      const r = Math.min(1, Math.pow(Math.pow(nx, 6) + Math.pow(ny, 6), 1 / 6));
+      const t = Math.min(1, Math.max(0, (1 - r) / Math.max(1e-3, 1 - lip)));
+      const p = (y * size + x) * 4;
+      pixels[p] = 255;
+      pixels[p + 1] = 255;
+      pixels[p + 2] = 255;
+      // Squared, so the light dies quickly and the outer half of the run stays
+      // timber. A linear ramp over a one-unit band still reads as a lit plate.
+      pixels[p + 3] = Math.round(t * t * 255);
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
  * A prop's surface: a road case, which is what everything backstage is made of.
  *
  * One bitmap on all six faces of a box. It is not a lie — a flight case really is
@@ -1646,61 +1754,247 @@ function makeProps(): THREE.Object3D {
   group.add(cable2);
 
   /**
-   * Three things standing *over* the lip, and no two of them the same depth in.
+   * Things that actually stand *across* the lip — and the last three did not.
    *
-   * The rim did its job and the arena stopped being a hard rectangle — and then
-   * became a rounded rectangle instead, which is the same object with its
-   * corners filed off. Measured on the capture, the inner lip ran dead straight
-   * from x=420 to x=1180 across the top and down both sides: three parallel runs
-   * and four arcs, which is furniture, not ground inside a venue. Frame 60 of the
-   * reference has no straight edge anywhere on it, and the reason is not that its
-   * border is a cleverer curve — it is that foliage, rocks, a waterfall and two
-   * hero banners keep *crossing* the border, so the eye never gets a long enough
-   * run to resolve one.
+   * ## What the previous set measured
    *
-   * These are wedges and a crate, dropped where a crew would actually leave them,
-   * each overhanging the ground by a different amount (1.4, 0.9 and 2.1 units) so
-   * the apron is a different width at every point you could measure it.
+   * Three props were placed here with a comment saying they overhang the ground.
+   * Their x centres were `-RIM.innerW/2 + 1.4`, `RIM.innerW/2 - 0.9` and
+   * `-RIM.innerW/2 + 2.1` with widths 2.2, 1.9 and 1.7 — so against an inner lip
+   * at |x| = 10.2 they spanned -9.9…-7.7, 8.35…10.25 and -8.95…-7.25. Two of the
+   * three cleared the lip they were named after by 0.3 world units and never
+   * touched it; the third crossed it by **0.05 units**, which at this camera is
+   * two pixels. They were three dark plates lying on the play surface, which is
+   * the opposite of the job.
+   *
+   * ## And what the boundary measured because of it
+   *
+   * `scripts/_w9mat_probe.mjs edge`, run over the same 740px band on our capture
+   * and over frame 60 of the reference: our play surface's top boundary follows
+   * **one smooth curve for 501 consecutive pixels — 67.7% of the span — in a
+   * single unbroken run**, with four interruptions. The reference's longest
+   * uninterrupted run is **41px, 3.7%**, across nineteen interruptions. That
+   * ratio, twelve to one, is the whole of "nothing crosses the boundary", stated
+   * as a number, and it is what this set exists to close.
+   *
+   * ## Why they are at the far edge and why they are small
+   *
+   * The camera is 15° off vertical, so an object *standing* on the far deck
+   * projects upward and away from the arena and can never cover the far lip: at
+   * 1600x900 the base of a prop at z = -10.2 lands at screen y ≈ 22 and two units
+   * of height take it off the top of the frame. What covers a boundary at this
+   * angle is something whose **footprint** spans it. So each of these is placed
+   * on the deck with its box reaching over the lip onto the ground, which is also
+   * the honest picture: a crew leaves the monitor wedge half on the deck.
+   *
+   * The depth window is z = -9.7…-8.5. The lip is at -9.15 and the rival's
+   * medallion reaches z = -8.05, so there is 0.45 units of clearance and nothing
+   * here can crowd the object the match is about. The x positions sit inside the
+   * 501px run — world x between -6.7 and +6.9 — because breaking the run
+   * anywhere else would not break *that* run.
    */
-  const overhang: [THREE.Material, number, number, number, number, number, number, number][] = [
-    // stage monitor, near-left, tipped up the way a wedge is
-    [caseMaterial, 2.2, 0.62, 1.5, -RIM.innerW / 2 + 1.4, RIM.z + 5.6, 0.24, 0.42],
-    // second wedge, far-right, in a different distance
-    [fragileMaterial, 1.9, 0.55, 1.3, RIM.innerW / 2 - 0.9, RIM.z - 6.2, 0.2, -0.55],
-    // a crate reaching furthest of the three, mid-left
-    [tourMaterial, 1.7, 1.15, 1.7, -RIM.innerW / 2 + 2.1, RIM.z - 6.9, 0.16, 0.19],
-  ];
-  for (const [material, w, h, d, x, z, y, yaw] of overhang) put(material, w, h, d, x, z, y, yaw);
+  const LIP_FAR = RIM.z - RIM.innerD / 2;
+  const LIP_LEFT = -RIM.innerW / 2;
+  const LIP_RIGHT = RIM.innerW / 2;
 
   /**
-   * And two spills of light doing the same job with no geometry at all.
+   * A prop that straddles a lip, with the shadow it throws onto the ground.
+   *
+   * `put` already parks a shadow at the prop's own base height, which for a thing
+   * standing on the deck means a shadow floating 0.46 units above the mat — fine
+   * while the prop is wholly on the deck and wrong the moment it hangs over the
+   * ground, because the ground is where the shadow belongs. This one lies on the
+   * mat at y = 0.03 and is offset to the bottom-right along the key vector, so it
+   * reaches further onto the play surface than the object does and crosses the
+   * boundary with no edge of its own — which is the cheapest silhouette break
+   * there is and the one the eye argues with least.
+   */
+  /**
+   * A crosser's own material, lifted clear of the ones standing on the deck.
+   *
+   * The rim props are lit by whatever reaches the border, which at the far run is
+   * the tail of the spot's cone and not much else — correct for a case sitting in
+   * the dark and wrong for a case whose job is to be *read* against the brightest
+   * surface in the game. Photographed at 2x, the first cut of these came back as
+   * near-black plates on a play surface at L≈100: silhouettes rather than
+   * objects, which breaks the boundary and fails §1 in the same move. A colour
+   * multiplier on the same map, plus more of the studio environment, gives them a
+   * lit top face and a shaded side without adding a light or a second sun.
+   */
+  const lift = (kind: PropKind, tint: number, env: number): THREE.MeshStandardMaterial =>
+    new THREE.MeshStandardMaterial({
+      map: makePropTexture(kind),
+      color: tint,
+      roughness: 0.72,
+      metalness: 0.2,
+      envMapIntensity: env,
+    });
+  /**
+   * Six faces, two materials, and the top one is brighter.
+   *
+   * `BoxGeometry` orders its groups +x, -x, +y, -y, +z, -z, so index 2 is the
+   * face pointing at the sky. At a 15° camera tilt that face is most of what is
+   * seen of any of these, and giving it the same reflectance as the sides is why
+   * the first cut photographed as flat dark plates rather than as objects with a
+   * top and a shoulder: a box whose lit face and whose shaded face are the same
+   * value has no form, which is §1's whole argument stated in three dimensions.
+   */
+  const crossFaces = (kind: PropKind): THREE.Material[] => {
+    const side = lift(kind, 0xa898d4, 1.2);
+    const top = lift(kind, 0xd9cdf6, 2.1);
+    return [side, side, top, side, side, side];
+  };
+  const crossCase = crossFaces("case");
+  const crossTour = crossFaces("case-tour");
+  const crossFragile = crossFaces("case-fragile");
+  const crossSpeaker = crossFaces("speaker");
+
+  const crosser = (
+    material: THREE.Material | THREE.Material[],
+    w: number,
+    h: number,
+    d: number,
+    x: number,
+    z: number,
+    yaw: number,
+    /** Where the shadow lands, relative to the prop: bottom-right of the key. */
+    inward: number
+  ): void => {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+    box.position.set(x, DECK_TOP + h / 2, z);
+    box.rotation.y = yaw;
+    group.add(box);
+    // Tighter and darker than the first cut: at 1.9x/2.2x with a lift of ten it
+    // spread far enough to read as haze lying on the ground rather than as
+    // something a box was blocking, which is the same "fog not shadow" mistake
+    // the mat's own feather made a wave ago.
+    const shadow = groundShadow(w * 1.45, d * 1.7, { lift: 6 + h * 3, opacity: 0.58, y: 0.03 });
+    shadow.position.set(x + h * 0.5 * LIGHT_RIG.world.x * -1, 0.03, z + inward);
+    shadow.rotation.z = yaw;
+    group.add(shadow);
+  };
+
+  /**
+   * Four along the rival's catwalk, no two the same size, depth or angle.
+   *
+   * A single beam across the whole run would be a straight line drawn one step
+   * further out, which is the rounded-rectangle mistake the rim itself already
+   * made once. Separate objects at four different depths give four different
+   * apron widths and no run long enough to resolve.
+   */
+  crosser(crossSpeaker, 1.9, 0.68, 1.35, -5.3, LIP_FAR + 0.72, 0.24, 1.15);
+  crosser(crossTour, 1.3, 1.0, 1.4, -2.5, LIP_FAR + 0.2, -0.14, 1.35);
+  crosser(crossCase, 1.85, 0.58, 1.25, 2.7, LIP_FAR + 0.62, 0.09, 1.05);
+  crosser(crossFragile, 1.25, 0.86, 1.15, 5.7, LIP_FAR + 0.44, -0.31, 1.2);
+
+  /**
+   * And four on the flanks, which is where the last set was aiming and missed.
+   *
+   * Each is centred *on* its lip rather than a third of a unit inside it, so the
+   * box genuinely spans the boundary; the amount of overhang differs at every one
+   * (0.6, 1.1, 0.35 and 0.9 units onto the ground) so the apron is a different
+   * width at every point a ruler could be put on it. They sit between |z| = 5.5
+   * and 8, which is behind the two location sockets and clear of the widest row
+   * a six-card board can make.
+   */
+  crosser(crossCase, 2.9, 0.62, 2.1, LIP_LEFT + 0.9, RIM.z + 5.6, 0.42, 1.0);
+  crosser(crossTour, 1.8, 1.1, 1.7, LIP_LEFT + 0.7, RIM.z - 6.3, 0.19, 1.0);
+  crosser(crossFragile, 2.4, 0.55, 1.9, LIP_RIGHT - 0.7, RIM.z - 6.0, -0.55, 0.95);
+  crosser(crossCase, 1.6, 0.82, 1.45, LIP_RIGHT - 0.6, RIM.z + 6.6, -0.22, 1.0);
+
+  /**
+   * And two spills of light doing the same job with no geometry at all — which
+   * for a wave and a half only ever lit one side of the boundary.
    *
    * A practical standing outside the arena throws a wedge of light *onto* it, and
-   * that wedge crosses the boundary — so the boundary is interrupted by something
-   * with no edge of its own, which is the cheapest possible silhouette break and
-   * the one the eye argues with least.
+   * that wedge crosses the boundary, so the boundary is interrupted by something
+   * with no edge of its own. That was the intent and the code did not deliver it:
+   * each spill is a horizontal quad at **y = 0.026**, the mat's own plane, and
+   * the deck stands 0.46 units proud of it. Every part of the wedge that fell
+   * outside the lip was therefore drawn *underneath* the deck and occluded by it,
+   * so a spill positioned to straddle the rim lit only the half of itself that
+   * was over the ground. Nothing about it was visible on the border, which is
+   * exactly the "no light spills onto the border" half of the brief and it is a
+   * z-coordinate rather than an artistic decision.
+   *
+   * Each spill is now a pair: the pool on the ground and the same pool on the
+   * deck, at the deck's own height, one unit of colour split across the step it
+   * is crossing. Two quads and one texture.
    */
   for (const [x, z, size, colour] of [
     [-RIM.innerW / 2 - 0.6, RIM.z - 1.2, 7.4, 0x52c8ff],
     [RIM.innerW / 2 + 0.4, RIM.z + 2.4, 6.6, 0xff5fa2],
   ] as const) {
-    const spill = new THREE.Mesh(
-      new THREE.PlaneGeometry(size, size * 0.72),
-      new THREE.MeshBasicMaterial({
-        map: makeGlowTexture(),
-        color: colour,
-        transparent: true,
-        opacity: 0.17,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        fog: false,
-      })
-    );
-    spill.rotation.x = -Math.PI / 2;
-    spill.position.set(x, 0.026, z);
-    spill.renderOrder = 3;
-    group.add(spill);
+    for (const [y, alpha, scale] of [
+      [0.026, 0.17, 1],
+      // Slightly smaller and slightly hotter on the deck: the deck is nearer the
+      // lamp than the middle of the arena is, and a light does not arrive at two
+      // surfaces at the same strength.
+      [DECK_TOP + 0.014, 0.1, 0.6],
+    ] as const) {
+      const spill = new THREE.Mesh(
+        new THREE.PlaneGeometry(size * scale, size * 0.72 * scale),
+        new THREE.MeshBasicMaterial({
+          map: makeGlowTexture(),
+          color: colour,
+          transparent: true,
+          opacity: alpha,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          fog: false,
+        })
+      );
+      spill.rotation.x = -Math.PI / 2;
+      spill.position.set(x, y, z);
+      spill.renderOrder = 3;
+      group.add(spill);
+    }
   }
+
+  /**
+   * The rope light's bounce, on the deck rather than on the ground.
+   *
+   * The rope runs along the inner lip and until now threw its light in exactly
+   * one direction — inward, onto the play surface — which is not how a light in a
+   * channel behaves and is the second half of "no light spills onto the border".
+   * This is the outward half: a ring lying on the deck, hottest against the lip
+   * and gone by the middle of the run, vertex-shaded along the key so it is
+   * strongest at the top-left and nearly out at the bottom-right, exactly like
+   * the rope that is causing it. Additive, so it cannot draw an edge.
+   */
+  const BOUNCE_W = RIM.innerW + Math.min(RIM.left, RIM.right) * 1.5;
+  const BOUNCE_D = RIM.innerD + Math.min(RIM.far, RIM.near) * 1.5;
+  const bounceShape = ringShape(BOUNCE_W, BOUNCE_D, RIM.innerW - 0.1, RIM.innerD - 0.1, RIM.radius + 0.4);
+  const bounceGeometry = new THREE.ShapeGeometry(bounceShape, 12);
+  bounceGeometry.rotateX(-Math.PI / 2);
+  bounceGeometry.translate(0, DECK_TOP + 0.006, RIM.z);
+  shadeAlongKey(bounceGeometry, 0.08, 1);
+  const bounce = new THREE.Mesh(
+    bounceGeometry,
+    new THREE.MeshBasicMaterial({
+      /**
+       * Its own ramp, and not `makeSkirtRamp`.
+       *
+       * The skirt's ramp runs the other way — opaque at the ring's outer edge,
+       * gone at its inner one — and it is normalised against the *inner*
+       * dimensions, so sampled over a ring that extends past them every texel
+       * clamps to the edge value and the whole band comes back at full alpha.
+       * Reusing it painted the entire deck run one flat additive violet and the
+       * border measured 4.28:1 against the same board with no bounce at all: a
+       * glowing surround rather than light catching a lip.
+       */
+      map: makeBounceRamp(BOUNCE_W, BOUNCE_D),
+      color: 0xa878ff,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+    })
+  );
+  bounce.renderOrder = 2;
+  group.add(bounce);
 
   return group;
 }

@@ -460,7 +460,12 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
     return item;
   };
 
-  /** One faction's shelf: a header that names it, and the plane its cast stands on. */
+  /**
+   * A shelf's furniture: the header, and an empty plane with its height reserved.
+   *
+   * The tiles are deliberately not here. See `fillShelf` for what the wall costs
+   * when they are.
+   */
   const buildShelf = (shelf: Shelf): HTMLElement => {
     const section = document.createElement("section");
     section.className = "gal-shelf";
@@ -479,125 +484,364 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
     const grid = document.createElement("ul");
     grid.className = "gallery-grid mat-panel";
     section.appendChild(grid);
+    return section;
+  };
+
+  /**
+   * How many tiles a shelf may run the entrance keyframe on.
+   *
+   * The collection learned this and the gallery did not: `.gal-tile` carried
+   * `animation: card-tile-in` unconditionally, so putting the wall up armed a
+   * hundred and thirty-eight concurrent CSS animations, every one of which is an
+   * element Blink must re-resolve style for on every frame it runs. Traced, this
+   * screen spent **998ms in `UpdateLayoutTree`** — 44% of the whole navigation and
+   * more than script, layout and paint added together — across 73 recalculations
+   * touching 14,982 elements on a screen that only has 1,636. Twenty-four is
+   * three rows of the widest shelf, which is everything a player can see of one
+   * while its wave is playing.
+   */
+  const ENTRANCE_LIMIT = 24;
+
+  /** Fill one shelf's plane with its faces. This is the expensive half. */
+  const fillShelf = (section: HTMLElement): void => {
+    const entry = pending.get(section);
+    if (!entry) return;
+    pending.delete(section);
+    filler?.unobserve(section);
+
+    const grid = section.querySelector<HTMLElement>(".gallery-grid");
+    if (!grid) return;
+    warmShelf(entry.shelf);
 
     /* The diagonal wave the collection uses, so the two grids in the same domain
        arrive the same way — and per shelf rather than per screen, or the eleventh
        faction would be four seconds late to its own entrance. */
-    const columns = 6;
-    for (const [index, card] of shelf.cards.entries()) {
+    const columns = trackCount(grid);
+    const arriving = document.createDocumentFragment();
+    const entering: HTMLElement[] = [];
+    for (const [index, card] of entry.shelf.cards.entries()) {
       const item = buildTile(card, index);
       const tile = item.firstElementChild as HTMLElement | null;
       if (tile) {
         const wave = Math.floor(index / columns) + (index % columns);
         tile.style.setProperty("--enter-delay", motionEnabled() ? `${Math.min(420, wave * 34)}ms` : "0ms");
+        if (motionEnabled() && index < ENTRANCE_LIMIT) {
+          tile.classList.add("is-entering");
+          entering.push(tile);
+        }
       }
-      grid.appendChild(item);
+      arriving.appendChild(item);
     }
-    return section;
+    /* One insertion for the shelf rather than one per face: the style, layout and
+       paint that follow are the cost, and they are paid per batch. */
+    grid.appendChild(arriving);
+    grid.style.minHeight = "";
+
+    /*
+     * Nothing corrects the scroll position here, and that is deliberate.
+     *
+     * A version of this compensated by hand — measure the plane before the fill,
+     * measure it after, and add the difference to `scrollTop` for any shelf
+     * entirely above the viewport. It made things **worse**: measured at
+     * 1280×720, the tile the player was reading moved 199px, because Blink's own
+     * scroll anchoring was already doing exactly that job and the two corrections
+     * added up. Verified with `_w9gdiag.mjs`, which prints the reservation and the
+     * real height for all eleven shelves: the model is now within **2px a shelf**,
+     * and two pixels is well inside what anchoring absorbs on its own.
+     */
+    for (const tile of grid.querySelectorAll<HTMLElement>(".gal-tile")) alive?.observe(tile);
+
+    /* The class has to go, or a hundred finished animations stay on file for the
+       rest of the session and every subsequent recalculation walks them. */
+    if (entering.length > 0) {
+      const timer = window.setTimeout(() => {
+        entranceTimers.delete(timer);
+        for (const tile of entering) tile.classList.remove("is-entering");
+      }, 900);
+      entranceTimers.add(timer);
+    }
+
+    /* The first real shelf is the only honest measurement of a row, so the
+       remaining placeholders are re-reserved against it rather than against the
+       arithmetic that stood in for it. */
+    /*
+     * The first real shelf is the only honest measurement of a row.
+     *
+     * Averaged over the shelf rather than taken from its first tile, and that is
+     * not fussiness: a grid row is as tall as its tallest item, and at
+     * `--ui-scale 1.6` a name like "Dawnrise, the Uninvited Guest" wraps to three
+     * lines where "Ashvyre" takes one. Sampling the first cell under-read the row
+     * by about thirty pixels, the reservation under-read nine shelves by a total
+     * of 213px, and the tile the player was reading **moved 67px** while a plane
+     * above it grew into its real height. Blink's scroll anchoring absorbs a few
+     * pixels of that and cannot absorb thirty a shelf.
+     */
+    if (rowHeight === 0) {
+      const style = typeof getComputedStyle === "function" ? getComputedStyle(grid) : null;
+      const pad = style ? (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0) : 0;
+      const gap = style ? Number.parseFloat(style.rowGap) || 12 : 12;
+      const rows = Math.max(1, Math.ceil(entry.shelf.cards.length / columns));
+      const inner = grid.clientHeight - pad - (rows - 1) * gap;
+      const measured = inner > 0 ? inner / rows : 0;
+      if (measured > 0) {
+        rowHeight = measured;
+        /* Only re-reserve if the arithmetic was actually wrong. A second pass
+           over eleven planes is a second relayout of the scroller, and it buys
+           nothing when the estimate was already within a few pixels. */
+        if (Math.abs(measured - reservedRow) > 4) reserveAll();
+      }
+    }
   };
 
-  /** Put one shelf on the wall and hand its tiles to the two observers. */
+  /** Put one shelf's furniture on the wall; its faces arrive when it does. */
   const appendShelf = (scroll: HTMLElement, shelf: Shelf, index: number): void => {
-    warmShelf(shelf);
     const section = buildShelf(shelf);
     /* the shelves arrive in reading order, and the same index de-phases each
        shelf's own specular crawl from its neighbour's */
     section.style.setProperty("--cascade-i", String(Math.min(7, index)));
     scroll.appendChild(section);
-    for (const tile of section.querySelectorAll<HTMLElement>(".gal-tile")) alive?.observe(tile);
+    pending.set(section, { shelf, index });
   };
 
   /**
-   * The rest of the wall, one shelf per frame — and not until the room is calm.
+   * The wall is built to the fold, not to the cast.
    *
-   * ## The measurement this shape came out of
+   * ## What the old shape was, and what it actually cost
    *
-   * `shell.ts` veils every navigation into a `heavy` route and parts the veil on
-   * the first **two consecutive rAF frames inside 34ms**, giving up after 1,100ms.
-   * Measured with `_w7gal_heavy.mjs`, which watches `.nav-curtain` directly:
+   * It built the first shelf in the factory and pumped the other ten in one per
+   * animation frame once the page had produced five on-time frames. That was a
+   * real improvement on building all eleven at once — it took `#gallery`'s cover
+   * from 1,683ms to about 600 — but it is still the whole cast, and spreading a
+   * cost over frames does not remove it. Measured with `_w9heavy.mjs` at
+   * 1600×900, warm: **15fps entering, 1,077–1,118ms of long tasks**, the worst
+   * of them 337ms, against §9's 30fps floor on the *low* tier. Traced with
+   * `_w9trace.mjs`, the attribution is not what the sampling profiler implies:
    *
-   *     #deckbuilder   cover 529ms
-   *     #uikit         cover 570ms
-   *     #collection    cover 517ms
-   *     #gallery       cover 1,683ms      ← the ceiling, not a reveal
+   *     UpdateLayoutTree   998ms   44%     <- style recalculation
+   *     Layout             276ms   12%
+   *     RunTask            249ms   11%
+   *     FunctionCall       151ms    7%
+   *     Paint              119ms    5%
    *
-   * The gallery was the only heavy route that never went calm, so it was the only
-   * one whose cover was a timeout rather than a decision. Two things it was *not*:
-   * holding the lazy painter for a full two seconds moved the number by 200ms, and
-   * spreading the build over more frames made it worse. What it was is the sheer
-   * count — with ten of the eleven shelves left unbuilt the same probe read
-   * **723ms**, so a hundred and twenty-seven extra `.mat-panel` tiles, each with a
-   * `.mat-well` mount inside it, is about a second of style and paint that the
-   * shell was politely waiting through.
+   * 73 style recalculations touching **14,982 elements** on a screen with 1,636 of
+   * them: nine passes over the whole wall, at 0.11ms an element because a
+   * `.mat-panel` tile with a `.mat-well` mount, two pseudo-elements and four
+   * `color-mix()` calls is an expensive element to resolve. Chunking cannot help
+   * with that. Fewer elements can.
    *
-   * ## So the wall waits for the same signal the shell does
+   * ## So the shelves are furniture and the faces are lazy
    *
-   * The fold holds one shelf. That one is built in the factory; the other ten
-   * start only once the page has produced two on-time frames of its own, by the
-   * same 34ms rule and with the same kind of ceiling, so the reveal happens on a
-   * cheap screen and the rest of the cast arrives underneath it while the player
-   * is reading the first faction. Nothing they are looking at moves — a scroller
-   * grows downwards — and §3a gets what it actually asked for, which is contents
-   * arriving in reading order rather than a screen that was finished before the
-   * curtain went up.
+   * Every shelf is mounted immediately as a header and an empty plane with its
+   * height *reserved*, which is eight nodes rather than a hundred and thirty; the
+   * scroller is therefore the right length from the first frame and the scrollbar
+   * never jumps. An `IntersectionObserver` on the scroller fills a shelf with real
+   * tiles when it comes within `SHELF_LEAD` of the fold. At 1600×900 the fold
+   * holds one and a half shelves, so entering the gallery builds about twenty
+   * faces instead of a hundred and thirty-eight, and the other hundred and
+   * eighteen are built by the act of scrolling to them — which is the one moment
+   * a player is not waiting for anything.
+   *
+   * A filled shelf keeps its tiles. Recycling them would trade a cost the player
+   * has already paid for a stutter every time they scroll back up, and 138 tiles
+   * is a bounded ceiling rather than an unbounded list.
+   *
+   * ## Why the reservation is corrected twice
+   *
+   * The screen is constructed detached, so nothing has a width and the first
+   * reservation is arithmetic: the used track size the grid reports, times the
+   * mount's 3:4, plus the label plate. `reserveAll` runs again on the frame after
+   * the shell has put the screen in the document — with real geometry, before a
+   * single shelf has been observed, so no shelf is ever filled on the strength of
+   * a guess — and a third time once the first real row has been measured. Only
+   * the scrollbar's length depends on the estimate, and only below the fold.
    *
    * `flushBuild` exists because the automation hook is synchronous: `show()`
-   * returns a tile count, and a caller that got eleven because the other hundred
-   * and twenty-seven had not been built yet would be reading a stopwatch rather
-   * than a roster. Anything that needs the whole wall asks for it and pays the
-   * cost it was avoiding.
+   * returns a tile count, and a caller that got twenty because the other hundred
+   * and eighteen were still below the fold would be reading a stopwatch rather
+   * than a roster.
    */
-  const QUIET_MS = 34;
-  const QUIET_CEILING_MS = 1200;
-  let buildQueue: Array<() => void> = [];
-  let buildHandle = 0;
-  const stopBuild = (): void => {
-    if (buildHandle) cancelAnimationFrame(buildHandle);
-    buildHandle = 0;
-    buildQueue = [];
+  const SHELF_LEAD = "320px 0px";
+  const pending = new Map<HTMLElement, { shelf: Shelf; index: number }>();
+  const entranceTimers = new Set<number>();
+  let filler: IntersectionObserver | null = null;
+  let mountHandle = 0;
+
+  /**
+   * One shelf a frame, because two in a callback is one long task.
+   *
+   * The observer hands over every shelf inside its margin in a single callback,
+   * and a shelf is about 150ms of style, layout and paint. Filling the two at the
+   * fold synchronously produced a **315ms** task, which is precisely the thing
+   * `shell.ts` is waiting to stop happening before it parts its cover: measured,
+   * the veil went from 890ms to 1,725. There are only ever one or two of these at
+   * entry now, so the pump costs a frame and buys the reveal.
+   */
+  let fillQueue: HTMLElement[] = [];
+  let fillHandle = 0;
+  const pumpFill = (): void => {
+    fillHandle = 0;
+    const next = fillQueue.shift();
+    if (!next) return;
+    fillShelf(next);
+    if (fillQueue.length > 0 && typeof requestAnimationFrame === "function") {
+      fillHandle = requestAnimationFrame(pumpFill);
+    }
   };
-  const pumpBuild = (): void => {
-    if (buildQueue.length === 0) {
-      buildHandle = 0;
+  const queueFill = (section: HTMLElement): void => {
+    if (!pending.has(section) || fillQueue.includes(section)) return;
+    fillQueue.push(section);
+    if (fillHandle === 0 && typeof requestAnimationFrame === "function") {
+      fillHandle = requestAnimationFrame(pumpFill);
+    }
+  };
+  /** A row's real height, once one has existed. Estimated arithmetic until then. */
+  let rowHeight = 0;
+  /** What the last reservation assumed a row was, so a correct guess costs nothing. */
+  let reservedRow = 0;
+
+  /** The used column count, read off the grid's own resolved track list. */
+  const trackCount = (grid: HTMLElement): number => {
+    if (typeof getComputedStyle !== "function") return 6;
+    const tracks = getComputedStyle(grid).gridTemplateColumns.split(" ").filter((part) => part.trim().length > 0);
+    return tracks.length > 0 ? tracks.length : 6;
+  };
+
+  /**
+   * Give every unfilled shelf the height it will have, so the scroller is the
+   * right length before any of it exists.
+   *
+   * Without this the eleven empty planes stack at the top of the scroller, all
+   * eleven intersect the fold at once, and the observer fills the entire wall —
+   * which is the old behaviour with an extra indirection.
+   */
+  const reserveAll = (): void => {
+    const grids: { grid: HTMLElement; cards: number }[] = [];
+    for (const [section, entry] of pending) {
+      const grid = section.querySelector<HTMLElement>(".gallery-grid");
+      if (grid) grids.push({ grid, cards: entry.shelf.cards.length });
+    }
+    const first = grids[0]?.grid;
+    if (!first) return;
+
+    /*
+     * One read for eleven writes. Every shelf plane is the same width with the
+     * same track list, so asking each of them costs eleven forced style
+     * resolutions to learn one number — and it does it in the frame the screen
+     * has just been placed in, which is the frame the shell is watching for calm.
+     */
+    const style = typeof getComputedStyle === "function" ? getComputedStyle(first) : null;
+    const columns = Math.max(
+      1,
+      style ? style.gridTemplateColumns.split(" ").filter((part) => part.trim().length > 0).length : 6
+    );
+    const gap = style ? Number.parseFloat(style.rowGap) || 12 : 12;
+    /* `min-height` is a border-box length here, so the plane's own padding is
+       part of what is being reserved and `rowHeight` — derived from
+       `clientHeight` minus that padding — is not. */
+    const pad = style ? (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0) : 0;
+    let row = rowHeight;
+    if (row === 0) {
+      const track = style ? Number.parseFloat(style.gridTemplateColumns) || TILE_W : TILE_W;
+      /* A 3:4 mount inside 14px of frame, plus a label plate that grows with the
+         interface scale — hence the root font size rather than a flat 48. */
+      const label = typeof getComputedStyle === "function"
+        ? (Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) * 3
+        : 48;
+      row = Math.round((track - 14) * (TILE_H / TILE_W) + label);
+    }
+    reservedRow = row;
+    for (const { grid, cards } of grids) {
+      const rows = Math.max(1, Math.ceil(cards / columns));
+      grid.style.minHeight = `${Math.round(pad + rows * row + (rows - 1) * gap)}px`;
+    }
+  };
+
+  const stopBuild = (): void => {
+    if (mountHandle) cancelAnimationFrame(mountHandle);
+    if (fillHandle) cancelAnimationFrame(fillHandle);
+    mountHandle = 0;
+    fillHandle = 0;
+    fillQueue = [];
+    filler?.disconnect();
+    filler = null;
+    pending.clear();
+    rowHeight = 0;
+    reservedRow = 0;
+    for (const timer of entranceTimers) window.clearTimeout(timer);
+    entranceTimers.clear();
+  };
+
+  /**
+   * Start watching on the first frame on which the screen is in the document.
+   *
+   * Two things have to be true and the second one cost a whole measurement.
+   *
+   * **Reserve first, observe second.** An observer armed against eleven
+   * zero-height planes reports eleven intersections on its first callback and
+   * fills the entire wall, which is the old behaviour wearing an indirection. The
+   * reservation needs a real width, so it needs the screen to be in the document.
+   *
+   * **The screen is not in the document when the factory returns.** `shell.ts`
+   * builds a screen, and on a veiled navigation then waits two animation frames
+   * before it places the tree — so a single `requestAnimationFrame` scheduled
+   * from the constructor runs while the root is still detached. The first version
+   * of this checked `isConnected`, found `false`, and returned. Entering the
+   * gallery then measured **53.8fps with one 51ms long task**, which is exactly
+   * what a screen with no faces on it measures. Nothing threw; the number was
+   * wonderful; the wall was empty. It was caught by counting the canvases beside
+   * the frame rate rather than by looking at the frame rate, which is the whole
+   * reason `_w9heavy.mjs` counts them.
+   *
+   * So this waits for the placement rather than assuming it, with a ceiling so a
+   * screen that is built and thrown away cannot leave a frame loop behind.
+   */
+  const MOUNT_PATIENCE_FRAMES = 90;
+  const watchShelves = (scroll: HTMLElement): void => {
+    if (typeof IntersectionObserver !== "function" || typeof requestAnimationFrame !== "function") {
+      for (const section of [...pending.keys()]) fillShelf(section);
       return;
     }
-    buildHandle = requestAnimationFrame(() => {
-      buildQueue.shift()?.();
-      pumpBuild();
-    });
-  };
-  /**
-   * Five on-time frames in a row, or the ceiling — then start pumping.
-   *
-   * Five rather than the shell's two, and the difference is the whole point: both
-   * are watching the same signal and only one of them can be allowed to act on it
-   * first. At two, the wall started building on the same frame the shell decided
-   * to reveal, took the thread back, and the cover measured 935ms — better than
-   * the 1,683 it was, and still three hundred over the other heavy routes. Three
-   * more frames of patience is fifty milliseconds and it hands the race to the
-   * reveal every time.
-   */
-  const buildWhenCalm = (): void => {
-    const clock = (): number => (typeof performance === "object" ? performance.now() : Date.now());
-    const deadline = clock() + QUIET_CEILING_MS;
-    let previous = clock();
-    let calm = 0;
-    const step = (): void => {
-      const stamp = clock();
-      calm = stamp - previous <= QUIET_MS ? calm + 1 : 0;
-      previous = stamp;
-      if (calm >= 5 || stamp >= deadline) {
-        pumpBuild();
+    let waited = 0;
+    const arm = (): void => {
+      mountHandle = 0;
+      if (!scroll.isConnected) {
+        waited += 1;
+        if (waited > MOUNT_PATIENCE_FRAMES) return;
+        mountHandle = requestAnimationFrame(arm);
         return;
       }
-      buildHandle = requestAnimationFrame(step);
+      reserveAll();
+      filler = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            /**
+             * Only what is at the fold, and deliberately not what is above it.
+             *
+             * Filling the shelves a jump-scroll flew past was tried, on the
+             * reasoning that an unfilled plane above the viewport is the one place
+             * a reservation error can still shove the player. It measured three
+             * times worse — 313px against 95 — because a plane that grows above
+             * the fold makes Blink re-anchor, and doing that to six of them one
+             * per frame while the player is standing on the seventh is a worse
+             * thing to do than leaving them alone.
+             */
+            if (entry.isIntersecting) queueFill(entry.target as HTMLElement);
+          }
+        },
+        { root: scroll, rootMargin: SHELF_LEAD }
+      );
+      for (const section of pending.keys()) filler.observe(section);
     };
-    buildHandle = requestAnimationFrame(step);
+    mountHandle = requestAnimationFrame(arm);
   };
+
   const flushBuild = (): void => {
-    if (buildHandle) cancelAnimationFrame(buildHandle);
-    buildHandle = 0;
-    while (buildQueue.length) buildQueue.shift()?.();
+    if (mountHandle) cancelAnimationFrame(mountHandle);
+    if (fillHandle) cancelAnimationFrame(fillHandle);
+    mountHandle = 0;
+    fillHandle = 0;
+    fillQueue = [];
+    for (const section of [...pending.keys()]) fillShelf(section);
   };
 
   const page = (card: CardDef): string => {
@@ -861,27 +1105,19 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
          * cover to watch.
          */
         painter.hold(DUR.ui + 1800);
+        /* Queue a screen of lead, spend a frame on none of it until the player
+           scrolls — see `lazyPaint`'s own note on why those are two numbers. */
+        painter.lead(140, 1800);
         whenRevealed(() => painter?.hold(0));
         alive = grantIdleLight(scroll, root);
         /*
-         * The first shelf is built now; the other ten are built one per frame.
-         *
-         * Measured with `_w3nav_cost.mjs`: building all eleven in the factory put
-         * a **417ms long task** on `lobby → gallery` and left the page eleven rAF
-         * frames in the following 1.6 seconds, which the shell then covered with
-         * a title card for a whole second — over the 260–420ms §3a allows for
-         * routine navigation, and the worst mount on any menu route. A shelf is
-         * about 150ms of that; the fold holds one and a half of them.
-         *
-         * Chunking is not only cheaper, it is what §3a asks for anyway: the
-         * contents arrive in reading order instead of all at once, each shelf
-         * running its own diagonal wave as it lands. The player is at the top of
-         * a scroller that grows below them, so nothing they are looking at moves.
+         * Every shelf's furniture goes up now; only the ones near the fold get
+         * faces. See the note on `SHELF_LEAD` for the trace that produced this
+         * shape and for why chunking the same hundred and thirty-eight tiles
+         * across frames was never going to reach the 30fps floor.
          */
-        const first = shown[0];
-        if (first) appendShelf(scroll, first, 0);
-        buildQueue = shown.slice(1).map((shelf, i) => () => appendShelf(scroll, shelf, i + 1));
-        buildWhenCalm();
+        for (const [index, shelf] of shown.entries()) appendShelf(scroll, shelf, index);
+        watchShelves(scroll);
         if (wrap) unbindFades = bindScrollFades(wrap, scroll);
       }
       /* §3a: numbers count up rather than print — but once, on arrival, not
@@ -1229,12 +1465,44 @@ const GALLERY_CSS = String.raw`
     0 1px 2px rgb(0 0 0 / 0.55);
 }
 /* the room you are standing in breathes; the ten you are not do not */
-.gal-v3 .gal-fac.active .gal-fac-gem { animation: gal-gem-breathe 3.6s var(--ease-in-out) infinite; }
-@keyframes gal-gem-breathe {
-  0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--c) 55%, transparent), inset 0 -1px 0 rgb(0 0 0 / 0.45); }
-  50% { box-shadow: 0 0 12px color-mix(in srgb, var(--c) 85%, transparent), inset 0 -1px 0 rgb(0 0 0 / 0.45); }
+/*
+ * The gems breathe on an opacity, not on a box-shadow, and this was worth 15fps.
+ *
+ * 'gal-gem-breathe' animated 'box-shadow' from a 6px glow to a 12px one, on the
+ * active roster gem and on all eleven shelf gems. A shadow is a paint property:
+ * it cannot go to the compositor, so every one of those elements had its style
+ * re-resolved and its pixels re-drawn on **every frame, forever**. §3a's own
+ * non-negotiables name it — "Animate transform, opacity and filter. Never width,
+ * top, or box-shadow on a large surface" — and twelve small surfaces at 75Hz is
+ * the same bill as one large one.
+ *
+ * Measured with '_w9heavy.mjs' against an untouched control route in the same
+ * batch, on the warm visit: killing this one animation took 'lobby -> gallery'
+ * from 23.8fps to 38.8 and the shell's cover from 1,087ms to 688. Blink's own
+ * invalidation trace had already named it — 924 'StyleRecalcInvalidation:
+ * Animation' records against 'SPAN class=gal-shelf-gem' in a three-second window.
+ *
+ * The glow is now a pseudo-element holding the *bright* shadow at rest, faded in
+ * and out. Same light, same period, same phase offsets; a compositor property.
+ */
+.gal-v3 .gal-fac-gem, .gal-v3 .gal-shelf-gem { position: relative; }
+.gal-v3 .gal-fac-gem::after, .gal-v3 .gal-shelf-gem::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
 }
-:root[data-reduced-motion="true"] .gal-v3 .gal-fac.active .gal-fac-gem { animation: none; }
+.gal-v3 .gal-fac.active .gal-fac-gem::after {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--c) 85%, transparent);
+  animation: gal-gem-glow 3.6s var(--ease-in-out) infinite;
+}
+@keyframes gal-gem-glow {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+:root[data-reduced-motion="true"] .gal-v3 .gal-fac.active .gal-fac-gem::after { animation: none; }
 
 .gal-v3 .gal-rail-foot {
   display: grid;
@@ -1355,8 +1623,14 @@ const GALLERY_CSS = String.raw`
 .gal-v3 .gal-shelf-count { font-size: var(--fs-micro); color: var(--text-faint); }
 /* every shelf gem breathes, on its own phase, so eleven headers are eleven
    lamps rather than eleven printed dots */
-.gal-v3 .gal-shelf-gem { animation: gal-gem-breathe 4.2s var(--ease-in-out) infinite; animation-delay: calc(var(--cascade-i, 0) * -370ms); }
-:root[data-reduced-motion="true"] .gal-v3 .gal-shelf-gem { animation: none; }
+/* eleven lamps rather than eleven printed dots — see the note on gal-gem-glow
+   for why the light is on a pseudo-element's opacity and not on the shadow */
+.gal-v3 .gal-shelf-gem::after {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--c) 85%, transparent);
+  animation: gal-gem-glow 4.2s var(--ease-in-out) infinite;
+  animation-delay: calc(var(--cascade-i, 0) * -370ms);
+}
+:root[data-reduced-motion="true"] .gal-v3 .gal-shelf-gem::after { animation: none; }
 
 /*
  * The plane the faces stand on.
@@ -1433,9 +1707,23 @@ const GALLERY_CSS = String.raw`
      it and the only ink the band crosses is a display-weight name at 0.8rem. */
   --sheen-alpha: 0.07;
   --sheen-hover: 0.12;
+  /*
+   * The entrance is opt-in per tile — the Collection's rule, arrived at here from
+   * the trace rather than from the frame counter.
+   *
+   * This used to be unconditional, so a wall of a hundred and thirty-eight frames
+   * armed a hundred and thirty-eight concurrent CSS animations and Blink
+   * re-resolved every one of them on every frame they ran. 'UpdateLayoutTree' was
+   * 44% of the whole navigation. 'fillShelf' grants the class to the first
+   * twenty-four faces on a shelf and takes it away again when the wave is over,
+   * because a finished animation left on file is still an animation on file.
+   */
+  animation: none;
+}
+.gal-v3 .gal-tile.is-entering {
   animation: card-tile-in 320ms var(--ease-arrive) var(--enter-delay, 0ms) backwards;
 }
-:root[data-reduced-motion="true"] .gal-v3 .gal-tile {
+:root[data-reduced-motion="true"] .gal-v3 .gal-tile.is-entering {
   animation-duration: 90ms;
   animation-name: card-tile-fade;
 }

@@ -14,8 +14,8 @@ import { chromium } from "playwright-core";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { decodePng } from "./lib/png.mjs";
 import { seedPlayedAccount } from "./lib/account.mjs";
+import { createIdleSampler, gridNote } from "./lib/idle.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ORIGIN = "http://localhost:5173";
@@ -33,16 +33,20 @@ const browser = await chromium.launch({
   args: ["--enable-unsafe-swiftshader", "--no-sandbox"],
 });
 
-function meanDelta(a, b) {
-  const n = Math.min(a.data.length, b.data.length);
-  let s = 0;
-  let c = 0;
-  for (let i = 0; i + 2 < n; i += a.channels * 2) {
-    s += Math.abs(a.data[i] - b.data[i]) + Math.abs(a.data[i + 1] - b.data[i + 1]) + Math.abs(a.data[i + 2] - b.data[i + 2]);
-    c += 3;
-  }
-  return s / c;
-}
+/**
+ * Two corrections at once, both of the same family.
+ *
+ * This file used to keep its own `meanDelta` which stepped `i += a.channels * 2`
+ * — every *other* pixel — and then printed its answer beside "[reference min
+ * 0.50 median 1.71]", which was computed over every pixel. A half-resolution
+ * subsample of a noise field is roughly unbiased and so the two never disagreed
+ * loudly enough for anyone to notice, which is precisely the problem: nothing
+ * would have told us if it had. And it sampled with `screenshot()` then
+ * `waitForTimeout(200)`, which runs at 843ms on this machine and made every
+ * "per 200ms" figure here about four times its own grid. Both the metric and
+ * the stopwatch now come from `lib/idle.mjs`, which is the one place either can
+ * be argued with.
+ */
 
 const CASES = [
   { tag: "1280x720", w: 1280, h: 720, settings: {} },
@@ -94,16 +98,11 @@ for (const c of CASES) {
   for (const s of fit.off.slice(0, 5)) console.log(`      off ${s}`);
 
   // is it alive?
-  const shots = [];
-  for (let i = 0; i < 12; i += 1) {
-    shots.push(decodePng(await page.screenshot()));
-    await page.waitForTimeout(200);
-  }
-  const ds = [];
-  for (let i = 1; i < shots.length; i += 1) ds.push(meanDelta(shots[i - 1], shots[i]));
-  ds.sort((a, b) => a - b);
+  const sample = await createIdleSampler(page, { lagMs: 200 });
+  const s = await sample({ seconds: 2.4 });
   console.log(
-    `[${c.tag}] idle min=${ds[0].toFixed(3)} median=${ds[Math.floor(ds.length / 2)].toFixed(3)} max=${ds[ds.length - 1].toFixed(3)}  [reference min 0.50 median 1.71]`
+    `[${c.tag}] idle min=${s.min.toFixed(3)} median=${s.median.toFixed(3)} max=${s.max.toFixed(3)}  ` +
+      `[reference min 0.50 median 1.71]  ${gridNote(s)}`
   );
   await page.close();
 }

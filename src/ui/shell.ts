@@ -186,7 +186,32 @@ export const ROUTES: Readonly<Record<string, RouteNode>> = {
   profile: { parent: "lobby", order: 11, room: "record" },
   settings: { parent: "lobby", order: 12, room: "system" },
   replays: { parent: "lobby", order: 13, room: "record" },
-  gallery: { parent: "lobby", order: 14, room: "forge", heavy: true },
+  /**
+   * The gallery has stopped being heavy, and this is the flag coming off.
+   *
+   * It was the most expensive route in the game to enter — 138 framed portraits
+   * built whatever the fold held, 1,636 nodes, 15fps and 1,077ms of long tasks —
+   * and it now builds eleven shelves' worth of furniture and about twenty faces,
+   * for 666 nodes. Measured with `_w9heavy.mjs` across a warm walk carrying
+   * `#missions` as an untouched control, with and without this flag:
+   *
+   *     veiled     first visit 36.9fps  settled 643    second 47.5fps  settled 543
+   *     unveiled   first visit 41.9fps  settled 583    second 41.3fps  settled 586
+   *
+   * So the cover is no longer buying anything on this route — which is what
+   * `RouteNode.heavy` says a stale prior looks like, and the stopwatch had
+   * already been overruling it from the second visit onward. Off the flag, a
+   * player never sees a title card on the way into the cast, at either end.
+   *
+   * `collection` and `deckbuilder` keep theirs on the same evidence read the
+   * other way: both still rasterise a fold's worth of card canvases on a first
+   * visit — twenty-one on the deck builder, measured — and dropping their flags
+   * took that visit from 18.8fps to 8.1 and from 17.5 to 8.8 against the same
+   * control. Their build *cost* is under `HEAVY_BUILD_MS`, which is why the
+   * stopwatch unveils them from visit two, and their first visit is still a
+   * second of dropped frames that the cover is the right thing to put over.
+   */
+  gallery: { parent: "lobby", order: 14, room: "forge" },
   lab: { parent: "lobby", order: 15, room: "forge" },
   doomscroll: { parent: "lobby", order: 16, room: "descent" },
   remixhub: { parent: "lobby", order: 17, room: "play" },

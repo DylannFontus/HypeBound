@@ -9,8 +9,20 @@
  * — was built as `kit.ts::room()`, a helper a screen called from inside its own
  * template. Eleven screens called it. Measured with `scripts/_w7rw_probe.mjs`,
  * whose metric reproduces the reference set at n=203 / min 0.501 / median
- * 1.713, those eleven idled at **0.88–1.89** per 200ms and the other
- * **thirty-eight at 0.18–0.71**, with minima at 0.067.
+ * 1.713, those eleven idled at **0.88–1.89** and the other **thirty-eight at
+ * 0.18–0.71**, with minima at 0.067.
+ *
+ * **Those figures were labelled "per 200ms" and were not.** The probe sampled
+ * with `page.screenshot()` then `waitForTimeout(200)`, and a 1600x900
+ * `page.screenshot()` costs 691ms, so the real interval was 843ms — every one of
+ * them is a 843ms number, roughly four times the stated grid. On an 843ms grid
+ * the reference set's own floor is 1.274, not 0.501, so most of the eleven
+ * "alive" screens were in fact *under* the floor they were being credited with
+ * clearing. The 4.9x gap between the two groups is real and the defect it
+ * described was real; the absolute numbers were not. `scripts/_w9grid.mjs`
+ * holds the whole reckoning, and the honest re-measurement is in
+ * `scripts/_w8room_sweep.results.json`, which the last block of this file
+ * asserts against.
  *
  * Everything about the room was correct. Every test in the suite passed. A
  * census that counts class names found no plain panel anywhere. The defect was
@@ -41,20 +53,31 @@
  *   5. The one layer that carries the measurement lives on the layer that is
  *      mounted once and never unmounted.
  *
- * ## What this deliberately does not do
+ * ## What this deliberately does not do, and what it stopped delegating
  *
  * It does not measure. The floor — every route at or above 0.50 per 200ms with
- * a minimum above zero — needs a real browser, a real compositor and about six
- * minutes, and it lives in `scripts/_w8room_sweep.mjs`, which calibrates
- * against `hearthstone_frames/` before it reports anything and exits non-zero
- * on any route under the floor. This file is the cheap half that runs on every
- * commit and fails the moment the *mechanism* is weakened, which is the earlier
- * and more useful of the two signals: a room can only measure zero if something
- * here has already become false.
+ * a minimum above zero — needs a real browser, a real compositor and about eight
+ * minutes, and it lives in `scripts/_w8room_sweep.mjs`.
+ *
+ * What this file used to do was *name* that script and repeat its prose: "it
+ * calibrates against `hearthstone_frames/` before it reports anything and exits
+ * non-zero on any route under the floor". Both halves were true and the gate was
+ * still mis-scaled, because calibrating a metric is not calibrating a sample
+ * interval and nothing here could tell the difference. That is how an instrument
+ * error got inside a committed test for the first time in this project.
+ *
+ * So the last two blocks below stop taking the sweep's word for anything. One
+ * asserts the *properties of the instrument* — that it samples through the
+ * validated sampler, that the sampler can refuse a run whose clock slipped, and
+ * that no script in the repository still contains the shape that caused this.
+ * The other reads the sweep's published table and asserts the numbers in it,
+ * including the interval each row was taken at. A table with no `gridMs` is
+ * rejected outright: an idle figure without its interval is not a measurement,
+ * and this file spent a whole wave proving it.
  */
 
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { ROOM_LAYERS, ROUTES, roomLightFor } from "../src/ui/shell";
 import { ROOMS } from "../src/ui/atmosphere";
@@ -360,5 +383,307 @@ describe("the layer that carries the measurement cannot be unmounted", () => {
     // The floor is value structure, not decoration, and must survive both.
     expect(TRANSITIONS).not.toMatch(/:root\[data-reduced-motion="true"\] \.d-room-floor/);
     expect(TRANSITIONS).toMatch(/:root\[data-contrast="high"\] \.d-room-floor/);
+  });
+});
+
+/* ===========================================================================
+   The instrument, and then the numbers. Everything above this line is about
+   the mechanism; everything below is about whether the thing that measures the
+   mechanism can be trusted, which is the question wave 9 had to answer before
+   any of the numbers meant anything.
+   =========================================================================== */
+
+/** Every `.mjs` under `scripts/`, with comments removed so prose cannot match code. */
+function scriptSources(): Array<{ file: string; code: string }> {
+  const out: Array<{ file: string; code: string }> = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".mjs")) {
+        out.push({
+          file: path.relative(ROOT, full).replace(/\\/g, "/"),
+          code: readFileSync(full, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""),
+        });
+      }
+    }
+  };
+  walk(path.join(ROOT, "scripts"));
+  return out;
+}
+
+describe("the instrument this file delegates its measurement to", () => {
+  const SWEEP = read("scripts", "_w8room_sweep.mjs");
+  const IDLE_LIB = read("scripts", "lib", "idle.mjs");
+
+  it("samples through the shared sampler instead of a loop of its own", () => {
+    /**
+     * The sweep used to carry its own `idleAt`, its own `meanDelta` and its own
+     * `quantiles`, each introduced with a comment saying it was identical to
+     * `_w7rw_probe.mjs`'s — and they were, on the day they were pasted. What
+     * they were not was *jointly validated*: the copies all reproduced the
+     * reference distribution and all sampled at 843ms. One sampler, validated
+     * once, in a file whose whole job is to be argued with.
+     */
+    expect(SWEEP).toMatch(/from "\.\/lib\/idle\.mjs"/);
+    expect(SWEEP).toMatch(/createIdleSampler\(page, \{ lagMs: LAG_MS/);
+    expect(SWEEP, "the sweep has grown a second copy of the metric").not.toMatch(/^function meanDelta\(/m);
+  });
+
+  it("can refuse a run whose clock slipped, and the sweep acts on the refusal", () => {
+    /**
+     * The single line that would have caught instrument eleven on the day it
+     * was written. `onGrid` is the sampler's own verdict on whether it held the
+     * interval it was asked for; a probe that computes it and then does not
+     * consult it is no better than one that never measured it.
+     */
+    expect(IDLE_LIB).toMatch(/onGrid:\s*drift !== null && drift <= 0\.08/);
+    // The achieved interval is returned, not merely computed and discarded.
+    expect(IDLE_LIB).toMatch(/^\s*grid,\s*$/m);
+    expect(SWEEP).toMatch(/!stats\.onGrid/);
+    expect(SWEEP).toMatch(/OFF GRID/);
+  });
+
+  it("leaves no script in the repository sampling on a grid it cannot hold", () => {
+    /**
+     * The shape, banned repository-wide, because it was never confined to one
+     * file: `_w7rw_probe.mjs`, `_w8room_sweep.mjs`, `_w8col_idle.mjs`,
+     * `_ic6_board.mjs` and `_ic6_journey.mjs` all carried it, all against a
+     * floor written per 200ms, and all had "calibrated".
+     *
+     *     shots.push(decodePng(await page.screenshot()));
+     *     await page.waitForTimeout(200);
+     *
+     * What is banned is precisely a **capture inside a loop with a fixed sleep
+     * beside it**: a cadence that has budgeted nothing for the capture, so the
+     * period it achieves is the period plus however long the camera took. Two
+     * screenshots seven hundred milliseconds apart to test whether a reduced-
+     * motion screen is byte-identical is not that, and `_w4b_a11y.mjs` does
+     * exactly that and is not an offender — which is why this looks for the
+     * loop rather than for the two calls.
+     *
+     * `_w9grid.mjs` is exempt and must be: it keeps the defective loop verbatim
+     * as the control arm of the experiment that condemned it, which is the one
+     * place in the repository where the shape is evidence rather than a defect.
+     */
+    const EXEMPT = new Set(["scripts/_w9grid.mjs"]);
+    const offenders = scriptSources()
+      .filter((s) => !EXEMPT.has(s.file))
+      .filter((s) =>
+        s.code
+          .split(/\bfor\s*\(/)
+          .slice(1)
+          .some((body) => {
+            const head = body.slice(0, 400);
+            return /await\s+page\.screenshot\(\s*\)/.test(head) && /await\s+page\.waitForTimeout\(/.test(head);
+          })
+      )
+      .map((s) => s.file);
+    expect(
+      offenders,
+      `these sample with an unbudgeted capture and quote the result against a per-200ms floor: ${offenders.join(", ")}`
+    ).toEqual([]);
+  });
+
+  it("is calibrated against a reference set that really is 200ms apart", () => {
+    /**
+     * The assumption underneath every floor in this project, never once
+     * checked. `hearthstone_frames/` carries its own clock in its filenames —
+     * `frame_00042_t00008.40s.png` — so "per 200ms" is falsifiable in about
+     * four lines. A single dropped frame anywhere in the sequence would make
+     * its neighbours 400ms apart and quietly move the floor.
+     *
+     * Skipped rather than failed when the directory is absent: the frames are
+     * Blizzard's and gitignored, so a clean checkout legitimately has none.
+     */
+    const dir = path.join(ROOT, "hearthstone_frames");
+    if (!existsSync(dir)) return;
+    const stamps = readdirSync(dir)
+      .filter((f) => f.endsWith(".png"))
+      .sort()
+      .map((f) => {
+        const m = /frame_(\d+)_t(\d+\.\d+)s\.png$/.exec(f);
+        return m ? { index: Number(m[1]), t: Math.round(Number(m[2]) * 1000) } : null;
+      });
+    expect(stamps.every((s) => s !== null), "a reference frame does not carry its own timestamp").toBe(true);
+    expect(stamps.length).toBeGreaterThan(100);
+    const steps = new Set(stamps.slice(1).map((s, i) => s!.t - stamps[i]!.t));
+    expect([...steps], "the reference set is not on one uniform grid, so 'per 200ms' is not true of it").toEqual([200]);
+  });
+});
+
+describe("the published table, and the numbers in it", () => {
+  /**
+   * `scripts/_w8room_sweep.results.json` is written by a full default sweep and
+   * read here. It is the corrected replacement for a paragraph of prose: before
+   * wave 9 this file described the sweep's findings in a comment, and a comment
+   * cannot go red when the findings stop being true.
+   */
+  const TABLE_PATH = path.join(ROOT, "scripts", "_w8room_sweep.results.json");
+  type Row = {
+    route: string;
+    n: number;
+    min: number | null;
+    median: number | null;
+    max: number | null;
+    gridMs: number | null;
+    onGrid: boolean;
+    planes: number;
+    planesInDom: number;
+    drawnLayers: string[];
+    hall: boolean;
+    rail: boolean;
+    board: boolean;
+    missed: boolean;
+    pageErrors: number;
+  };
+  type Table = { lagMs: number; floor: number; viewport: string; routes: Row[] };
+  /**
+   * Read inside the tests, never at collection time.
+   *
+   * A `readFileSync` in the describe body turns a missing table into a *suite*
+   * error, which takes the twenty static assertions above it down with it — and
+   * those are the half that runs on every commit and needs no browser. A missing
+   * table should cost one red test with an instruction in it.
+   */
+  const load = (): Table => {
+    expect(
+      existsSync(TABLE_PATH),
+      "no measured table — run `node scripts/_w8room_sweep.mjs idle` with the dev server up"
+    ).toBe(true);
+    return JSON.parse(readFileSync(TABLE_PATH, "utf8")) as Table;
+  };
+  const rowsOf = (table: Table): Row[] => table.routes.filter((r) => !r.missed);
+
+  it("was taken at the interval it is compared against", () => {
+    const table = load();
+    const measured = rowsOf(table);
+    /**
+     * The assertion this whole wave exists for, and the one that has to come
+     * first: a table of idle figures with no record of the interval they were
+     * sampled at is not evidence of anything. Eight per cent is the sampler's
+     * own tolerance; every row of the honest sweep sits inside one per cent.
+     */
+    expect(table.lagMs).toBe(200);
+    expect(table.viewport).toBe("1600x900");
+    for (const row of measured) {
+      expect(row.gridMs, `${row.route} has no recorded interval — it is not a measurement`).not.toBeNull();
+      expect(
+        Math.abs(row.gridMs! - table.lagMs) / table.lagMs,
+        `${row.route} was sampled at ${row.gridMs}ms and compared to a ${table.lagMs}ms floor`
+      ).toBeLessThanOrEqual(0.08);
+      expect(row.onGrid).toBe(true);
+    }
+  });
+
+  it("covers every route main.ts registers", () => {
+    const table = load();
+    // A table that has quietly stopped covering a route is the same failure as
+    // a hand-kept list of which screens get a room.
+    const inTable = new Set(table.routes.map((r) => r.route));
+    const absent = REGISTERED.filter((id) => !inTable.has(id));
+    expect(absent, `re-run scripts/_w8room_sweep.mjs — these routes are not in the table: ${absent.join(", ")}`).toEqual(
+      []
+    );
+  });
+
+  it("was taken against an app that was not falling over at the time", () => {
+    const measured = rowsOf(load());
+    // A route measured after a dev-server 500 is a measurement of a broken app
+    // wearing that route's name. The first honest sweep lost twenty-six rows
+    // this way and reported them as roomless.
+    const noisy = measured.filter((r) => r.pageErrors > 0).map((r) => `${r.route}(${r.pageErrors})`);
+    expect(noisy, `page errors were raised while these were on screen: ${noisy.join(" ")}`).toEqual([]);
+  });
+
+  it("has every measured route at or above the floor", () => {
+    const table = load();
+    const measured = rowsOf(table);
+    const under = measured
+      .filter((r) => r.median === null || r.median < table.floor)
+      .map((r) => `${r.route}@${r.median}`);
+    expect(under, `under ${table.floor} per ${table.lagMs}ms: ${under.join(" ")}`).toEqual([]);
+  });
+
+  it("has no route that froze for a whole tick", () => {
+    const measured = rowsOf(load());
+    // A zero minimum is a frame that did not change at all in 200ms, which the
+    // reference set never does — its quietest tick is 0.501.
+    const frozen = measured.filter((r) => r.min !== null && r.min <= 0).map((r) => r.route);
+    expect(frozen, `these produced an identical pair of frames: ${frozen.join(" ")}`).toEqual([]);
+  });
+
+  it("found a full room drawn on every route that is not behind a board", () => {
+    /**
+     * The invariant the top of this file asserts statically, confirmed against a
+     * real compositor — and `planes` counts what is **drawn**, not what is in
+     * the DOM. That distinction is the reason this assertion is worth anything.
+     * The sweep's census used to count `room.children.length`, which counts a
+     * `display: none` element as readily as a painted one, so the six match
+     * routes passed it while their rooms were switched off by
+     * `:root[data-board="true"]` — the right outcome, reached by an argument
+     * that would equally have passed a route whose room went missing by mistake.
+     */
+    /**
+     * And the assertion is on *which* planes, not how many, because the one
+     * legitimate omission has a name. `hall.css` §5 hides `.d-room-wall` on a
+     * **hall** with no rail standing in it — the wall is positioned against the
+     * rail track, so without a rail there is nothing for it to be the wall of.
+     * `#story` draws six of seven for exactly that reason. A count makes that
+     * indistinguishable from a plane going missing by accident; naming it means
+     * a *different* absent plane still goes red.
+     *
+     * The exemption needs both halves of the CSS condition. Keyed on `rail`
+     * alone it would also excuse a missing wall on the thirty-odd routes that
+     * are not halls at all — `#legal` has no rail and draws its wall — which is
+     * a licence the stylesheet never granted.
+     *
+     * It is deliberately *narrower* than the stylesheet rather than wider. The
+     * full rule is `.d-hall` and (`.d-hall-solo` or no `.d-rail`); this checks
+     * `.d-hall` and no `.d-rail`, so a hall that is solo *and* has a rail would
+     * come back red. No such screen exists today, and if one is added the error
+     * is a false alarm somebody investigates — which is the survivable direction
+     * for a guard to be wrong in. The other direction is how this project got
+     * eleven confident wrong answers.
+     */
+    const measured = rowsOf(load());
+    /**
+     * Counted, not set-compared: `ROOM_LAYERS` names `d-room-dust` twice — the
+     * near field and `d-room-dust is-far` — and a set comparison would call a
+     * screen with one of the two dust planes complete.
+     */
+    const tally = (names: readonly string[]): Map<string, number> => {
+      const out = new Map<string, number>();
+      for (const n of names) out.set(n, (out.get(n) ?? 0) + 1);
+      return out;
+    };
+    const bare: string[] = [];
+    for (const row of measured) {
+      if (row.board) continue;
+      const wallExempt = row.hall && !row.rail;
+      const want = tally(ROOM_LAYERS.map((l) => l.split(" ")[0]!).filter((l) => !wallExempt || l !== "d-room-wall"));
+      const got = tally(row.drawnLayers);
+      const missing = [...want].filter(([n, k]) => (got.get(n) ?? 0) < k).map(([n, k]) => `${n}x${k - (got.get(n) ?? 0)}`);
+      if (missing.length) bare.push(`${row.route} is missing ${missing.join("+")} (drew ${row.drawnLayers.join(",")})`);
+    }
+    expect(bare, `planes emitted but not drawn: ${bare.join("; ")}`).toEqual([]);
+  });
+
+  it("drops the room behind a board, and only there, and keeps it in the DOM", () => {
+    /**
+     * The exemption, asserted as an exemption rather than assumed. A match must
+     * have its room *dropped* — behind an opaque board the seven planes are
+     * invisible and cost +0.79ms of frame interval — but it must still have been
+     * built, because `data-board` comes off the moment the match ends and
+     * nothing rebuilds a room that was never there.
+     */
+    const table = load();
+    const boards = rowsOf(table).filter((r) => r.board);
+    expect(boards.length, "no route reported itself as a board; the flag is not reaching the census").toBeGreaterThan(0);
+    for (const row of boards) {
+      expect(row.planes, `#${row.route} is a board and is still drawing its room`).toBe(0);
+      expect(row.planesInDom, `#${row.route} is a board and was never given a room to drop`).toBe(ROOM_LAYERS.length);
+      expect(row.median, `#${row.route} lost the grain along with the room`).toBeGreaterThanOrEqual(table.floor);
+    }
   });
 });

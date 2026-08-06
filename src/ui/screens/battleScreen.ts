@@ -1017,21 +1017,40 @@ export class BattleScreen {
 
     const panel = document.createElement("div");
     panel.className = "mulligan-panel panel panel-chrome";
+    /**
+     * The rule and the head share one wrapper, and the wrapper is the reason a
+     * finger can start a match.
+     *
+     * They are prose; the cards and Confirm are the task. When the panel is
+     * taller than the screen — 160% text on a 390px phone carries 262px of
+     * type before a single card is drawn, and a Remix rule is 87px of that —
+     * something has to give, and it must not be the thing you tap. One wrapper
+     * makes them a single flexible, scrollable band that `battle.css` can
+     * squeeze ahead of everything else, instead of two rigid siblings that
+     * pushed Confirm 109px past the bottom of the viewport with nothing in the
+     * chain able to scroll to it.
+     *
+     * Nothing else about them changes: `.mulligan-rule-name` and
+     * `.mulligan-rule-text` are what `verify-remix.mjs` reads, and both are
+     * still exactly where they were.
+     */
     panel.innerHTML = `
-      ${
-        this.options.ruleNote
-          ? `<div class="mulligan-rule" id="mulligan-rule">
-               <span class="mulligan-rule-name">${this.options.ruleNote.name}</span>
-               <span class="mulligan-rule-text">${this.options.ruleNote.text}</span>
-             </div>`
-          : ""
-      }
-      <div class="mulligan-head">
-        <div class="eyebrow">Opening Hand</div>
-        <h2 class="title">Choose cards to replace</h2>
-        <p class="muted">Selected cards are shuffled back and replaced. You go ${
-          view.activeSeat === view.seat ? "first" : "second — you start with an extra card and Borrowed Clout"
-        }.</p>
+      <div class="mulligan-brief">
+        ${
+          this.options.ruleNote
+            ? `<div class="mulligan-rule" id="mulligan-rule">
+                 <span class="mulligan-rule-name">${this.options.ruleNote.name}</span>
+                 <span class="mulligan-rule-text">${this.options.ruleNote.text}</span>
+               </div>`
+            : ""
+        }
+        <div class="mulligan-head">
+          <div class="eyebrow">Opening Hand</div>
+          <h2 class="title">Choose cards to replace</h2>
+          <p class="muted">Selected cards are shuffled back and replaced. You go ${
+            view.activeSeat === view.seat ? "first" : "second — you start with an extra card and Borrowed Clout"
+          }.</p>
+        </div>
       </div>`;
 
     const cardRow = document.createElement("div");

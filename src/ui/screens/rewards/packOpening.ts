@@ -300,6 +300,30 @@ const ROOM_CSS = `
   50%      { opacity: 1; transform: translate3d(1.4%, 0, 0) scaleX(1.05); }
 }
 
+/*
+ * The corner, which is the darkest part of any real room and was not here at all.
+ *
+ * Measured across the join before this existed: the wall sat at L=23.8 three
+ * pixels above it and the floor at L=35.8 three pixels below, then held 34-36
+ * for the next forty rows. A +12 luminance step in three pixels with a plateau
+ * on each side is the definition of two flat planes butted together, and it is
+ * what the brief means by "no graduation across it and no falloff". Light that
+ * reaches a floor also reaches the wall above it and gets trapped in the angle
+ * between them, so the wall darkens as it approaches the join and the floor is
+ * at its brightest just in front of it. Two soft bands, one on each element,
+ * turn a step into a corner.
+ */
+.rw-room-wall::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(16%, 130px);
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0) 0%, rgb(2 1 6 / 0.14) 62%, rgb(2 1 6 / 0.26) 100%);
+  pointer-events: none;
+}
+
 /* The floor. It runs past the bottom of the overlay rather than stopping at it,
    so the surface recedes under the footer instead of ending at a second edge. */
 .rw-room-floor {
@@ -314,9 +338,54 @@ const ROOM_CSS = `
   transition: background 620ms var(--ease-arrive, ease-out);
 }
 
-/* The join: two hairlines, dark over lit, fading at both ends per §7. This is
-   the single most load-bearing pixel in the room — it is the difference between
-   two planes meeting and one gradient. */
+/*
+ * The grazing band the floor catches in front of the wall, and the falloff
+ * toward the viewer that a flat fill does not have.
+ *
+ * The first cut of this put the *peak* at the crease and made the defect worse,
+ * measurably: the step across the join went from 31.9 L to 50.4 and the columns
+ * agreeing on one row went from 66% to 79%. The physics is the other way round.
+ * The angle between two surfaces is the one place light cannot reach from either
+ * of them, so the crease is the **darkest** part of both planes; the floor's
+ * bright grazing band starts a little in front of it and then falls away toward
+ * the camera as the angle opens. Dark on both sides of the join is what turns a
+ * step into a corner, because the two planes now arrive at nearly the same value
+ * and diverge over fifty pixels instead of three.
+ *
+ * That fall is also what a contact shadow is subtracted *from*: a black ellipse
+ * on a floor holding one value for forty rows has nothing to modulate.
+ */
+.rw-room-floor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to bottom,
+      rgb(1 0 4 / 0.62) 0%,
+      rgb(1 0 4 / 0.3) 3.5%,
+      rgb(from var(--rw-accent, #b56cff) r g b / 0.13) 12%,
+      rgb(0 0 0 / 0) 32%,
+      rgb(0 0 0 / 0.3) 76%,
+      rgb(0 0 0 / 0.56) 100%
+    );
+}
+
+/*
+ * The join: two hairlines, dark over lit, fading at both ends per §7. This is
+ * the single most load-bearing pixel in the room — it is the difference between
+ * two planes meeting and one gradient.
+ *
+ * It is now also masked in the *middle*, and that is not decoration. Measured on
+ * the closed pack, 66.1% of the frame's 1600 columns put their strongest
+ * vertical edge on one single row — a line ruled across the picture. Where the
+ * pool is brightest the corner is washed out and the join genuinely disappears,
+ * which is what happens in any lit room and is the one honest way to break a
+ * line that runs the full width. What the eye is left with is a join that
+ * resolves at the edges of the room and dissolves behind the subject, plus
+ * whatever is standing on the floor crossing it.
+ */
 .rw-room-floor::before {
   content: "";
   position: absolute;
@@ -330,6 +399,8 @@ const ROOM_CSS = `
   background-repeat: no-repeat;
   background-size: 100% 1px, 100% 1px;
   background-position: 0 0, 0 100%;
+  mask-image: radial-gradient(58% 100% at 50% 50%, rgb(0 0 0 / 0.06) 0%, rgb(0 0 0 / 0.45) 54%, #000 100%);
+  -webkit-mask-image: radial-gradient(58% 100% at 50% 50%, rgb(0 0 0 / 0.06) 0%, rgb(0 0 0 / 0.45) 54%, #000 100%);
 }
 
 /* The pool the cards stand in, in whatever the best card so far is worth — it
@@ -340,14 +411,21 @@ const ROOM_CSS = `
 .rw-room-pool {
   left: 50%;
   right: auto;
-  top: var(--rw-horizon);
+  /*
+   * Centred on the line the subject's feet are actually on, not on the horizon.
+   *
+   * layoutRoom() already knows how far in front of the wall the subject stands
+   * and publishes it as --rw-standoff; the pool is the light that subject is
+   * standing in, so that is exactly where its middle belongs. Anchored to the
+   * horizon instead, its centre sat 45px up-board of the pack's base and the
+   * floor there measured L=25 — which is why differencing the pack's cast
+   * against a frame with the cast switched off found it removing 2.35 L. A
+   * shadow can only be as legible as the light it is subtracted from.
+   */
+  top: calc(var(--rw-horizon) + var(--rw-standoff, 40px));
   width: min(78%, 1080px);
-  height: min(24vh, 190px);
-  /* Two thirds of it on the floor rather than half. This is the light the cards
-     are standing *in*, and it is what the contact shadows underneath them are
-     subtracted from — on a floor with no light on it a black ellipse is a
-     smudge, which is the note screens.css already makes about the shop's pack. */
-  translate: -50% -34%;
+  height: min(26vh, 210px);
+  translate: -50% -50%;
   border-radius: 50%;
   background: radial-gradient(
     closest-side,
@@ -524,6 +602,28 @@ const ROOM_CSS = `
  * which is §3's secondary motion — "when the main thing moves, something small
  * moves because of it".
  */
+/*
+ * ## Why this was invisible, which was never about the alpha
+ *
+ * The element has been here for a wave and photographed as nothing, and the
+ * reason was two floors up: \`layoutRoom\` put the wall/floor join *below* the
+ * pack's base, so the pack stood on the back wall and this ellipse lay on the
+ * wall with it. Measured, the join detected at y=677 and the cast centred at
+ * y≈646 — thirty-one pixels of vertical wall between a shadow and the surface it
+ * was supposed to be lying on. No opacity fixes that. The sign in \`layoutRoom\`
+ * does, and with the floor under it this reads immediately.
+ *
+ * What is left to get right here is the *shape* of it. §1 asks for two things
+ * and they are different things: a soft wide drop, which is the light the room
+ * fails to get under the object, and a tight contact shadow, which is the black
+ * line where two surfaces actually touch. One blurred ellipse is only ever the
+ * first of them, and an object with only the soft half hovers a centimetre off
+ * the table. The core is \`::after\`.
+ *
+ * Both sit a little to the bottom-right of the object, because the key is at
+ * 315° and FOUNDATION-CONTRACT §0 says every contact shadow in this game falls
+ * that way.
+ */
 .rw-pack-cast {
   position: absolute;
   z-index: 3;
@@ -533,15 +633,40 @@ const ROOM_CSS = `
      The two used to be independent min() expressions against different limits,
      which meant the shadow was the right size for the object at exactly one
      window height and drifted apart everywhere else. */
-  width: calc(var(--rw-pack-w, min(34vh, 320px)) * 1.15);
-  height: calc(var(--rw-pack-w, min(34vh, 320px)) * 0.238);
-  translate: -50% 0;
-  margin-top: calc(var(--rw-pack-w, min(34vh, 320px)) * 0.52);
+  width: calc(var(--rw-pack-w, min(34vh, 320px)) * 1.3);
+  height: calc(var(--rw-pack-w, min(34vh, 320px)) * 0.34);
+  /* 0.545 is the pack's own half-height (0.664w at 512/680) less half of this
+     element's height, so the ellipse is centred on the base rather than near
+     it. It used to be 0.52, which is close enough to be right and far enough to
+     be arbitrary; the arithmetic is written down so the next size change keeps
+     it. */
+  translate: calc(-50% + var(--rw-pack-w, 0px) * 0.022) 0;
+  /* 0.60, not the 0.545 that centres the ellipse on the base: like the cards',
+     this cast lies forward of the object because the room is lit from 315° and
+     seen from in front, and the half of a centred ellipse that falls behind the
+     base is hidden by the pack standing on it. */
+  margin-top: calc(var(--rw-pack-w, min(34vh, 320px)) * 0.6);
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(closest-side, rgb(0 0 0 / 0.74) 0%, rgb(0 0 0 / 0.32) 46%, rgb(0 0 0 / 0) 78%);
-  filter: blur(9px);
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.94) 0%, rgb(0 0 0 / 0.46) 42%, rgb(0 0 0 / 0) 78%);
+  filter: blur(10px);
   animation: rw-pack-cast 5.2s var(--ease-sweep, ease-in-out) infinite;
+}
+
+/* The contact: short, dark and barely blurred, right where the object meets the
+   table. This is the 2px half of §1's pair and the reason a thing reads as
+   standing rather than as hovering. */
+.rw-pack-cast::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54%;
+  height: 30%;
+  translate: -50% -84%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.98) 0%, rgb(0 0 0 / 0.56) 52%, rgb(0 0 0 / 0) 88%);
+  filter: blur(3px);
 }
 
 /* Counter-phase to rw-pack-float: the pack is highest when the cast is widest
@@ -574,18 +699,56 @@ const ROOM_CSS = `
  * of the flip would announce the flip. What escalates with rarity is the pool,
  * not the cast.
  */
+/*
+ * Two terms in one element, because §1 asks for two and there is only one
+ * pseudo-element left.
+ *
+ * The wide layer is the light the room fails to get under the card; the small
+ * one, at 54% of the width and nearly opaque, is the contact where the card
+ * actually touches the table. A single soft ellipse gives an object that hovers
+ * — measured before this change, the paired reading under each of five cards
+ * against the gap beside it came back 1.35, 0.76, 0.95, 1.63 and 0.88 to one,
+ * i.e. four of the five had no readable cast at all and the fifth was a
+ * coincidence of the pool's own gradient.
+ *
+ * They share one blur, which is the compromise the element count forces: a
+ * contact shadow wants about 2px and a drop wants about 20. Five is the value at
+ * which the small layer still reads as a hard join and the large one still reads
+ * as air, and it is worth more than the third \`&lt;div&gt;\` per slot it would take to
+ * separate them.
+ *
+ * Off-centre to the bottom-right, like every other shadow in this game, because
+ * the key is at 315°.
+ */
+/*
+ * It also has to lie mostly *in front of* the card rather than centred on its
+ * base, and that was worth four fifths of the effect.
+ *
+ * A cast is centred on the base only when the light is directly overhead and the
+ * camera is directly above with it. This room is lit from 315° and looked at
+ * from in front, so the shadow lies forward and to the right — and the half of a
+ * centred ellipse that falls *behind* the base is simply hidden by the card
+ * standing on it. Measured by differencing the frame against the same frame with
+ * the casts switched off, the centred version removed 3.36 L from the floor
+ * under a card: six per cent, which is not a shadow, it is a rounding error.
+ */
 .reveal-slot::after {
   content: "";
   position: absolute;
   z-index: -2;
   left: 50%;
-  bottom: -7%;
-  width: 116%;
-  height: 15%;
+  bottom: -15%;
+  width: 126%;
+  height: 25%;
   translate: -50% 0;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(closest-side, rgb(0 0 0 / 0.68) 0%, rgb(0 0 0 / 0.28) 50%, rgb(0 0 0 / 0) 78%);
+  background-image:
+    radial-gradient(closest-side, rgb(0 0 0 / 0.98), rgb(0 0 0 / 0.5) 54%, rgb(0 0 0 / 0) 88%),
+    radial-gradient(closest-side, rgb(0 0 0 / 0.88), rgb(0 0 0 / 0.4) 44%, rgb(0 0 0 / 0) 78%);
+  background-size: 52% 42%, 100% 100%;
+  background-position: 53% 26%, 52% 46%;
+  background-repeat: no-repeat;
   filter: blur(6px);
   opacity: 0;
   transition: opacity 320ms var(--ease-arrive);
@@ -997,6 +1160,29 @@ export function openPack(options: PackOpeningOptions): PackOpening {
    * `top` is deliberately absent — the wall and the floor animate their fill,
    * not their geometry, so the horizon moving is a layout change and wants to
    * land with the deal rather than lag behind it.
+   *
+   * ## The sign was wrong, and it is why the pack levitated
+   *
+   * This used to put the join at `box.bottom + 26px` — *below* the object's own
+   * base — with the reasoning that "a shadow needs somewhere to fall". It is the
+   * opposite of the truth, and it is the whole defect. The join is the far edge
+   * of the floor: everything standing on that floor is nearer the viewer than
+   * the join is, so every base belongs **below** it on screen. Putting the join
+   * under the pack put the pack on the *wall*.
+   *
+   * Measured on the capture before this change: the wall/floor edge detected at
+   * y=677 with the pack's base at y=638, so the object stood 39px inside the
+   * back wall — and `.rw-pack-cast`, positioned from the same base, landed at
+   * y≈646, above the floor entirely and behind the pack that cast it. There was
+   * a cast shadow in the DOM the whole time and no arrangement of alphas could
+   * ever have made it visible, because it was not on the floor and it was not in
+   * front of the object.
+   *
+   * The stand-off is a fraction of the subject's own height, because "how far
+   * forward on the table is it standing" scales with the object: a card 374px
+   * tall standing 60px proud of the wall is the same picture as a card half that
+   * size standing 30px proud. Clamped so a ten-pull's two rows do not push the
+   * join off the top of the room.
    */
   const layoutRoom = (): void => {
     const overlayBox = overlay.getBoundingClientRect();
@@ -1004,14 +1190,17 @@ export function openPack(options: PackOpeningOptions): PackOpening {
     const subject = torn || !pack?.isConnected ? grid : pack;
     const box = subject.getBoundingClientRect();
     if (box.height <= 0) return;
-    /*
-     * A few pixels *below* the base, not level with it. A shadow needs somewhere
-     * to fall, and a card whose bottom edge sits exactly on the join reads as
-     * inserted into the table rather than standing on it.
-     */
-    const base = box.bottom - overlayBox.top + Math.min(26, box.height * 0.07);
+    const standoff = Math.min(96, Math.max(28, box.height * 0.16));
+    const base = box.bottom - overlayBox.top - standoff;
     const pct = Math.max(34, Math.min(86, (base / overlayBox.height) * 100));
     room.style.setProperty("--rw-horizon", `${pct.toFixed(2)}%`);
+    /*
+     * How far the subject stands in front of the wall, published so the cast
+     * shadows can be *as long as the object stands forward*. A shadow whose
+     * length is unrelated to the object's position on the table is a decal.
+     */
+    room.style.setProperty("--rw-standoff", `${Math.round(standoff)}px`);
+    overlay.style.setProperty("--rw-standoff", `${Math.round(standoff)}px`);
   };
 
   fit();

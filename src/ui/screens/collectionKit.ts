@@ -216,6 +216,7 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
   watch: (cell: HTMLElement, paint: () => void) => void;
   release: (cell: HTMLElement) => void;
   hold: (ms: number) => void;
+  lead: (px: number, releaseMs?: number) => void;
   stop: () => void;
 } {
   interface Job {
@@ -310,6 +311,29 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
    * over the fold is worth resting for; twenty holes under the player's eyes
    * after a filter or a wheel scroll are not. The rest is therefore spent where
    * nobody is waiting and skipped where somebody is.
+   *
+   * ## The obvious improvement here was tried and is wrong
+   *
+   * The reasoning was clean: entering the deck builder with the lead cap already
+   * in place paints exactly the twenty-one cards of the fold, so the backlog is
+   * urgent for the whole arrival and the drain never rests once — and a 25ms card
+   * on a 13.3ms grid delivers about one frame per card. Granting one rest frame
+   * per card should therefore have roughly doubled the frame rate for 280ms of
+   * extra fill into sleeves that are already drawn.
+   *
+   * It does the opposite. A/B'd with `_w9heavy.mjs`, two rounds alternating, each
+   * walk carrying `#missions` as an untouched control so the two machine loads
+   * could be divided out — the warm `lobby → deckbuilder`, as a fraction of the
+   * control's frame rate:
+   *
+   *     urgent skips the rest    0.69   0.73
+   *     urgent rests one frame   0.49   0.37
+   *
+   * The rest frames do not go to the page; they go to whatever else is queued on
+   * it — the cell fill, the cascade, the atmosphere — and the fold ends up
+   * interleaved with all of it instead of getting out of the way. Left as it was,
+   * with the measurement written down so the next person does not spend an
+   * afternoon rediscovering it.
    */
   const visibleBacklog = (): number => {
     let count = 0;
@@ -320,8 +344,60 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
     }
     return count;
   };
-  /** Above this many holes on screen, the fill stops being polite. */
+  /** Above this many holes on screen, the fill stops waiting for a far-rest. */
   const URGENT = 3;
+
+  /**
+   * How far past the fold the drain will actually paint, and why it is separate
+   * from the observer's own margin.
+   *
+   * The two numbers answer different questions. `margin` is "how early may a tile
+   * join the queue", and it wants to be generous, because a tile that is queued
+   * costs nothing and a wheel scroll that outruns the queue lands on empty
+   * sleeves. `lead` is "how far past the fold may the drain *spend a frame*", and
+   * during a navigation it wants to be mean.
+   *
+   * The measurement that separated them: traced with `_w9trace.mjs`, entering the
+   * deck builder is **1,759ms of script in a three-second window** and essentially
+   * all of it is `renderCardToCanvas`. At 1600×900 the pool shows about twenty
+   * cards and a 600px lead queues about forty; at roughly 25ms a card that is
+   * ~500ms of work for tiles nobody has scrolled to yet, paid inside the
+   * navigation. Frames delivered track idle time almost exactly on this machine —
+   * 23 frames in 1,600ms against ~400ms of idle, on a 13.3ms grid — so half a
+   * second of avoidable work is half the frame rate.
+   *
+   * Nothing is thrown away: a job outside the lead stays at the head of the queue
+   * and is painted the moment the cap is lifted.
+   *
+   * ## And the cap is lifted by the player, not by a clock
+   *
+   * The first version released it when the shell's cover came down, which moved
+   * the work by about two hundred milliseconds and reduced it by nothing —
+   * measured, the deck builder went from 14.4fps to 13.8 and the collection from
+   * 28.1 to 23.1, because the same forty rasterisations still landed inside the
+   * same window, just later in it. A frame rate that improves because work slid
+   * past the edge of the sample is the twelfth instrument lie, not a fix.
+   *
+   * The lead exists for one thing: a wheel scroll that outruns the queue. So a
+   * scroll is what releases it — the listener below already runs on every one —
+   * and the timer is the backstop for a player who arrives, reads the fold and
+   * never scrolls at all. Until one of those happens the queue is still full and
+   * the tiles are still ordered; the drain simply spends its frames on the rows
+   * somebody is looking at.
+   */
+  let leadPx = Number.POSITIVE_INFINITY;
+  let leadTimer = 0;
+  const withinLead = (job: Job): boolean => {
+    if (leadPx === Number.POSITIVE_INFINITY) return true;
+    return job.top + job.height > viewTop - leadPx && job.top < viewTop + viewHeight + leadPx;
+  };
+  const releaseLead = (): void => {
+    if (leadPx === Number.POSITIVE_INFINITY) return;
+    leadPx = Number.POSITIVE_INFINITY;
+    window.clearTimeout(leadTimer);
+    leadTimer = 0;
+    if (queue.length > 0) schedule(1);
+  };
 
   const drain = (): void => {
     draining = 0;
@@ -344,15 +420,27 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
     if (unsorted) sortByProximity();
     const backlog = visibleBacklog();
 
+    let painted = 0;
     while (queue.length > 0 && clock() - started < BUDGET_MS) {
-      const next = queue.shift();
+      const next = queue[0];
       if (!next) break;
+      /* The queue is ordered by distance from the middle of the fold, so if the
+         head is out of reach every tile behind it is too. */
+      if (!withinLead(next)) break;
+      queue.shift();
       const job = jobs.get(next.el);
       if (!job) continue;
       jobs.delete(next.el);
       job();
+      painted += 1;
     }
     if (queue.length === 0) return;
+    /* Nothing was in reach: the cap is on, or the player has scrolled away from
+       everything queued. Come back at the far pace rather than every frame. */
+    if (painted === 0) {
+      schedule(FAR_REST);
+      return;
+    }
     const spent = clock() - started;
     if (spent <= REST_ABOVE_MS || backlog > URGENT) schedule(1);
     else schedule(backlog > 0 ? NEAR_REST : FAR_REST);
@@ -385,6 +473,8 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
     // a scroll event fires against a settled layout, so this costs nothing
     readView();
     unsorted = true;
+    // and a scroll is the player asking for the lead the entrance withheld
+    releaseLead();
   };
   root.addEventListener("scroll", onScroll, { passive: true });
 
@@ -435,13 +525,112 @@ export function lazyPaint(root: HTMLElement, margin = "500px 0px"): {
       heldUntil = clock() + ms;
       if (queue.length > 0) schedule(1);
     },
+    lead(px, releaseMs) {
+      leadPx = px;
+      window.clearTimeout(leadTimer);
+      leadTimer =
+        releaseMs === undefined || px === Number.POSITIVE_INFINITY
+          ? 0
+          : window.setTimeout(releaseLead, releaseMs);
+      if (queue.length > 0) schedule(1);
+    },
     stop() {
       observer?.disconnect();
       root.removeEventListener("scroll", onScroll);
+      window.clearTimeout(leadTimer);
+      leadTimer = 0;
       queue = [];
       if (draining && typeof cancelAnimationFrame === "function") cancelAnimationFrame(draining);
       draining = 0;
     },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// arriving behind the shell's cover
+// ---------------------------------------------------------------------------
+
+export interface RevealHold {
+  /** Called with a duration whenever the painter should stay asleep for longer. */
+  hold: (ms: number) => void;
+  /** Called once, on the first frame with no cover, before the hold is released. */
+  onReveal?: () => void;
+  /** Called when the hold is finally over, to widen the lead again. */
+  onSettled?: () => void;
+}
+
+/**
+ * Keep a screen's lazy painter asleep for exactly as long as the shell's cover
+ * is up, and not one card longer.
+ *
+ * ## Why this is one function and used to be three
+ *
+ * All three heavy screens need the same thing and each had invented its own
+ * answer. The Collection ran a bespoke rAF loop watching `.nav-curtain`. The
+ * gallery used a `MutationObserver` and a 2,060ms ceiling. The **deck builder
+ * used a fixed `DUR.ui + 160`** — a guess about how long the shell would take —
+ * and the two numbers are coupled in the worst possible direction: measured with
+ * `_w9heavy.mjs`, the deck builder's cover comes down at 454–480ms and its
+ * painter woke at 420, so the last thing that happened before the reveal was a
+ * card rasterisation, and the shell parts its veil on two consecutive frames
+ * under 34ms. A guess cannot win a race against an event it is guessing about.
+ *
+ * The event is observable, so it is observed: `.nav-curtain` is in the document
+ * while the cover is up and gone when it is not. If a build never draws one, the
+ * caller's own fixed hold is still the ceiling and this degrades to nothing.
+ *
+ * The four clear frames afterwards cover the reveal's own 210ms of panel travel,
+ * so the first card does not land on top of the curtain opening.
+ *
+ * Returns a canceller; screens call it from `dispose`.
+ */
+export function holdWhileVeiled(spec: RevealHold): () => void {
+  if (typeof requestAnimationFrame !== "function" || typeof document === "undefined") {
+    spec.onReveal?.();
+    spec.onSettled?.();
+    return () => {};
+  }
+  const clock = (): number => (typeof performance === "object" ? performance.now() : Date.now());
+  const deadline = clock() + 2600;
+  let clear = 0;
+  let wasVeiled = false;
+  let handle = 0;
+  let stopped = false;
+
+  const finish = (): void => {
+    if (stopped) return;
+    stopped = true;
+    spec.onSettled?.();
+  };
+
+  const tick = (): void => {
+    if (stopped) return;
+    if (clock() > deadline) {
+      finish();
+      return;
+    }
+    if (document.querySelector(".nav-curtain") !== null) {
+      wasVeiled = true;
+      spec.hold(220);
+      clear = 0;
+      handle = requestAnimationFrame(tick);
+      return;
+    }
+    clear += 1;
+    if (clear === 1 && wasVeiled) spec.onReveal?.();
+    if (clear >= 4) {
+      finish();
+      return;
+    }
+    spec.hold(150);
+    handle = requestAnimationFrame(tick);
+  };
+  handle = requestAnimationFrame(tick);
+
+  return () => {
+    stopped = true;
+    if (handle && typeof cancelAnimationFrame === "function") cancelAnimationFrame(handle);
+    handle = 0;
   };
 }
 

@@ -27,6 +27,24 @@
  *    come back, the metric here is not the metric the floors were written
  *    against and nothing below it can be compared to them.
  *
+ * ## And the correction, wave 9: point 3 was not enough, and this file is why
+ *
+ * `idle` sampled with `page.screenshot()` then `waitForTimeout(200)` and quoted
+ * the result against a floor written per 200ms. One 1600x900 `page.screenshot()`
+ * costs a median of 691ms on this machine and `decodePng` another 64ms, so the
+ * loop ran at **843ms** — 4.2x its own label, in the direction that flatters a
+ * slow breathe. `calib` passed the whole time, because reproducing a
+ * distribution proves the arithmetic and says nothing whatever about the
+ * stopwatch. That is instrument eleven, and it reached a committed test through
+ * `_w8room_sweep.mjs`.
+ *
+ * Sampling now lives in `lib/idle.mjs`, which sleeps the *remainder* of each
+ * period after a capture made cheap enough to leave a remainder, and which
+ * hands back the interval it achieved so that no figure can be printed without
+ * one. `_w9grid.mjs replay` is the proof: it plays the reference frames into a
+ * browser at a known 200ms cadence and requires the sampler to walk them one at
+ * a time — the new one walks 1,1,1,…, the old one walked 3.
+ *
  * PNG, never JPEG — `lib/png.mjs` explains why in full: JPEG's own quantisation
  * noise is about 0.3 mean absolute delta between two *identical* frames, which
  * is a fifth of the reference median, so a JPEG reel reports a frozen screen as
@@ -41,11 +59,12 @@
  *   node scripts/_w7rw_probe.mjs handtray    -- hand card vs Hype tray overlap
  */
 import { chromium } from "playwright-core";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodePng } from "./lib/png.mjs";
 import { seedPlayedAccount } from "./lib/account.mjs";
+import { createIdleSampler, gridNote, meanDelta, quantiles, referenceAtLag, referenceGrid } from "./lib/idle.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ORIGIN = "http://localhost:5173";
@@ -65,54 +84,31 @@ const UI_SCALE = Number(flag("scale-ui", 0)) || 0;
 const OUT = String(flag("dir", path.join(HERE, "screenshots", "w7", "rewards")));
 mkdirSync(OUT, { recursive: true });
 
-/** Mean absolute per-channel delta, identical arithmetic to `_ic6_calib.mjs`. */
-function meanDelta(a, b) {
-  const n = Math.min(a.data.length, b.data.length);
-  let sum = 0;
-  let count = 0;
-  for (let i = 0; i + 2 < n; i += a.channels) {
-    sum += Math.abs(a.data[i] - b.data[i]);
-    sum += Math.abs(a.data[i + 1] - b.data[i + 1]);
-    sum += Math.abs(a.data[i + 2] - b.data[i + 2]);
-    count += 3;
-  }
-  return sum / count;
-}
-
-const quantiles = (values) => {
-  const s = [...values].sort((x, y) => x - y);
-  const q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
-  return {
-    n: s.length,
-    min: q(0),
-    p10: q(0.1),
-    median: q(0.5),
-    p90: q(0.9),
-    max: s[s.length - 1],
-    mean: s.reduce((a, b) => a + b, 0) / s.length,
-  };
-};
 const f3 = (x) => (x === undefined || x === null ? "-" : x.toFixed(3));
 
 /* ---------------------------------------------------------------------------
    calib: does this file's metric reproduce the numbers the floors are written
-   against? Run before anything else, every time.
+   against — and is the grid it will sample on the grid those numbers are on?
+   Run before anything else, every time. The second question is the one wave 8
+   did not ask, and it is the one that mattered.
    --------------------------------------------------------------------------- */
 
 if (mode === "calib") {
-  const dir = path.join(HERE, "..", "hearthstone_frames");
-  const files = readdirSync(dir).filter((f) => f.endsWith(".png")).sort();
-  const deltas = [];
-  let prev = null;
-  for (const file of files) {
-    const img = decodePng(readFileSync(path.join(dir, file)));
-    if (prev) deltas.push(meanDelta(prev, img));
-    prev = img;
-  }
-  const s = quantiles(deltas);
+  const grid = referenceGrid();
   console.log(
-    `[reference] hearthstone_frames  n=${s.n}  min=${f3(s.min)}  median=${f3(s.median)}  ` +
-      `p90=${f3(s.p90)}  max=${f3(s.max)}    (published: min 0.50, median 1.71)`
+    `[reference] ${grid.n} frames, filename timestamps ${grid.gaps.join("/")}ms apart -> ` +
+      (grid.uniform ? `a genuine ${grid.stepMs}ms grid` : "!! NOT UNIFORM")
+  );
+  for (const lag of [200, 400, 600, 800]) {
+    const s = referenceAtLag(lag);
+    console.log(
+      `[reference] at ${String(lag).padStart(4)}ms  n=${s.n}  min=${f3(s.min)}  median=${f3(s.median)}  ` +
+        `p90=${f3(s.p90)}  max=${f3(s.max)}` + (lag === 200 ? "    (published: min 0.50, median 1.71)" : "")
+    );
+  }
+  console.log(
+    "[reference] the floor is a property of the screen AND the stopwatch. A figure taken at 843ms\n" +
+      "            faces 1.274/4.480, not 0.501/1.713 — which is what wave 8's sweep was doing."
   );
   process.exit(0);
 }
@@ -177,13 +173,22 @@ async function stopFilm(label, t0, { keep = 0, threshold = 0.5, print = 40 } = {
    * judging. Every published floor in this wave is a **200ms** figure, so the
    * reel is differenced at 200ms as well, against the same frames.
    */
+  /**
+   * The tolerance used to be ±90ms, which on a 200ms target admits pairs
+   * anywhere from 110 to 290ms apart and quotes the lot as "@200ms lag". That is
+   * a smaller version of instrument eleven living inside the cure for it, so it
+   * is ±40ms now and the **achieved** lag is published beside the figure rather
+   * than assumed. A screencast reel on this machine arrives in bursts of three
+   * about 130ms apart, so roughly two anchors in three find a partner; that is
+   * a printed `n`, not a silent one.
+   */
   const lagged = [];
   for (let i = 0; i < rows.length; i += 1) {
     const target = rows[i].t + 200;
     let j = i + 1;
     while (j < rows.length - 1 && Math.abs(rows[j + 1].t - target) < Math.abs(rows[j].t - target)) j += 1;
-    if (j >= rows.length || Math.abs(rows[j].t - target) > 90) continue;
-    lagged.push({ t: rows[i].t, d: meanDelta(decodePng(frames[i].buf), decodePng(frames[j].buf)) });
+    if (j >= rows.length || Math.abs(rows[j].t - target) > 40) continue;
+    lagged.push({ t: rows[i].t, lag: rows[j].t - rows[i].t, d: meanDelta(decodePng(frames[i].buf), decodePng(frames[j].buf)) });
   }
   const moved = rows.find((r) => r.d !== null && r.d > threshold);
   const last = [...rows].reverse().find((r) => r.d !== null && r.d > threshold);
@@ -201,9 +206,11 @@ async function stopFilm(label, t0, { keep = 0, threshold = 0.5, print = 40 } = {
   );
   if (lagged.length) {
     const s = quantiles(lagged.map((r) => r.d));
+    const l = quantiles(lagged.map((r) => r.lag));
     console.log(
       `       @200ms lag: n=${s.n} min=${f3(s.min)} median=${f3(s.median)} max=${f3(s.max)}  ` +
-        `[reference min 0.50 median 1.71]  ${s.median < 0.5 ? "BELOW REFERENCE FLOOR" : "alive"}`
+        `[reference min 0.50 median 1.71]  ${s.median < 0.5 ? "BELOW REFERENCE FLOOR" : "alive"}` +
+        `   (achieved lag median ${l.median}ms, ${l.min}–${l.max}ms over ${l.n} pairs)`
     );
   }
   if (print) {
@@ -226,7 +233,8 @@ async function stopFilm(label, t0, { keep = 0, threshold = 0.5, print = 40 } = {
 }
 
 /**
- * Sample at rest on a 200ms grid, exactly like the reference frames.
+ * Sample at rest on a 200ms grid, exactly like the reference frames — and
+ * print the grid, every time, beside the figure it produced.
  *
  * `require` is not optional politeness. A run of this probe measured the shop
  * for three seconds and printed it under the label "pack at anticipation",
@@ -234,7 +242,13 @@ async function stopFilm(label, t0, { keep = 0, threshold = 0.5, print = 40 } = {
  * same class of mistake as the `#rw-pack` selector that produced this wave's
  * second finding, one level up. A measurement that cannot prove it is looking at
  * its subject is not a measurement.
+ *
+ * The achieved interval is the same kind of proof about the clock that `require`
+ * is about the subject, and it was the missing one: this function used to sample
+ * at 843ms and print "per 200ms". A run that drifts off the grid now says
+ * `OFF GRID` and its number is not comparable to the reference at all.
  */
+let sampler = null;
 async function idle(label, seconds = 3, require = null) {
   if (require) {
     const found = await present(require);
@@ -243,18 +257,14 @@ async function idle(label, seconds = 3, require = null) {
       return null;
     }
   }
-  const shots = [];
-  for (let i = 0; i * 0.2 < seconds; i += 1) {
-    shots.push(decodePng(await page.screenshot()));
-    await page.waitForTimeout(200);
-  }
-  const ds = [];
-  for (let i = 1; i < shots.length; i += 1) ds.push(meanDelta(shots[i - 1], shots[i]));
-  const s = quantiles(ds);
+  if (!sampler) sampler = await createIdleSampler(page, { lagMs: 200 });
+  const s = await sampler({ seconds });
   console.log(
     `[idle] ${label}: n=${s.n} min=${f3(s.min)} median=${f3(s.median)} max=${f3(s.max)}  ` +
-      `[reference min 0.50 median 1.71]  ${s.median < 0.5 ? "BELOW REFERENCE FLOOR" : "alive"}`
+      `[reference min 0.50 median 1.71]  ` +
+      (!s.onGrid ? "NO VERDICT" : s.median < 0.5 ? "BELOW REFERENCE FLOOR" : "alive")
   );
+  console.log(`       ${gridNote(s)}  capture ${s.captureMs.median?.toFixed(0)}ms  lost ${s.lost}`);
   return s;
 }
 

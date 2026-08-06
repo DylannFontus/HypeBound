@@ -40,6 +40,7 @@ import {
   debounce,
   emptyState,
   esc,
+  holdWhileVeiled,
   installKitStyles,
   lazyPaint,
   rarityTag,
@@ -181,6 +182,23 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
   const painter = lazyPaint(grid ?? root, "520px 0px");
 
   /**
+   * Two rows of lead may be *queued* during the arrival; none of it may be
+   * *painted* until the arrival is over.
+   *
+   * These were the same number and should never have been. Traced with
+   * `_w9trace.mjs`, entering the collection is 1,717ms of script in a three-second
+   * window against 229ms of style and 220ms of layout — it is card rasterisation
+   * almost end to end, and on this machine frames delivered track idle time
+   * almost exactly. The 520px margin is right for a wheel scroll and wrong for
+   * the first second and a half of the screen's life, because a row of lead
+   * painted then is a row of frames not delivered then. The cap is released by
+   * the first scroll — see `lazyPaint`, which owns that listener already — with
+   * the timer below as the backstop for a player who never scrolls.
+   */
+  const ENTRY_LEAD_PX = 140;
+  painter.lead(ENTRY_LEAD_PX, 1800);
+
+  /**
    * When the painter is next allowed to rasterise, remembered on this side.
    *
    * `lazyPaint.hold` is write-only — it takes a duration and keeps its own
@@ -243,41 +261,24 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
    * cover the reveal's own 210ms so the first card does not land on top of the
    * panels opening.
    */
-  (function holdWhileVeiled(): void {
-    if (typeof requestAnimationFrame !== "function") return;
-    const deadline = performance.now() + 2600;
-    let clear = 0;
-    let wasVeiled = false;
-    const tick = (): void => {
-      if (performance.now() > deadline) return;
-      if (document.querySelector(".nav-curtain") !== null) {
-        wasVeiled = true;
-        holdPainter(220);
-        clear = 0;
-        requestAnimationFrame(tick);
-        return;
-      }
-      clear += 1;
-      /**
-       * The cascade is replayed onto the reveal, if there was one.
-       *
-       * `shell.ts::rewindEntrance` takes the destination's own `nav-*`
-       * animations back to frame zero so the curtain opens on a screen arriving
-       * rather than a screen that has arrived — and it can only see animations
-       * named `nav-*`, which the tile cascade is deliberately not. So the grid's
-       * own 34ms diagonal wave, the single change §3a calls "the biggest
-       * perceived-quality gap between a hobby menu and a shipped one", ran
-       * underneath an opaque veil on every veiled entry and no player has seen
-       * it. Re-arming it on the frame the veil clears costs one class toggle per
-       * visible tile.
-       */
-      if (clear === 1 && wasVeiled && motionEnabled()) cascade(shownCells());
-      if (clear >= 4) return;
-      holdPainter(150);
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  })();
+  const unholdPainter = holdWhileVeiled({
+    hold: holdPainter,
+    /**
+     * The cascade is replayed onto the reveal, if there was one.
+     *
+     * `shell.ts::rewindEntrance` takes the destination's own `nav-*` animations
+     * back to frame zero so the curtain opens on a screen arriving rather than a
+     * screen that has arrived — and it can only see animations named `nav-*`,
+     * which the tile cascade is deliberately not. So the grid's own 34ms diagonal
+     * wave, the single change §3a calls "the biggest perceived-quality gap
+     * between a hobby menu and a shipped one", ran underneath an opaque veil on
+     * every veiled entry and no player has seen it. Re-arming it on the frame the
+     * veil clears costs one class toggle per visible tile.
+     */
+    onReveal: () => {
+      if (motionEnabled()) cascade(shownCells());
+    },
+  });
 
   // ---- filter rail ---------------------------------------------------------
 
@@ -1189,6 +1190,26 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
     for (const spot of before ?? []) spots.set(spot.cell, spot);
 
     for (const shelf of shelves.values()) {
+      /**
+       * Detaching the grid while it is reconciled was tried, and does nothing.
+       *
+       * The reasoning was sound and the measurement says no. Clicking one Current
+       * chip on a settled collection costs **11.7fps and 659ms of long tasks**,
+       * of which — read out of `__cardMs`, which `paint` already stamps —
+       * seventeen card rasterisations account for **43ms**. So it is not the
+       * bitmaps, and the obvious remaining suspect was the two hundred and
+       * seventeen `remove()` calls: a detached grid has no layout, so batching
+       * them behind one attach per shelf should have collapsed the cost.
+       *
+       * It measured 920ms against 659. `.col-shelf-grid` already carries
+       * `contain: layout style`, so each removal's reflow was stopping at its own
+       * shelf and there was nothing to save; what is left is the single big
+       * relayout and repaint of a grid going from eight thousand pixels to
+       * fifteen hundred, plus the `:has()` invalidation set that
+       * `theme/screens.css` and this kit both attach to `.card-cell`. Neither is
+       * batchable from here and the second is not in a file this owner may edit.
+       * Recorded so the next person does not spend the afternoon on it.
+       */
       let at = 0;
       for (const card of shelf.cards) {
         const show = matches(card, acct);
@@ -1795,6 +1816,7 @@ export function createCollectionScreen(content: ContentIndex, callbacks: Collect
       unbindFades();
       unbindRailFades();
       unbindRetile();
+      unholdPainter();
       painter.stop();
       /**
        * The grid may still be filling itself in. Cancelling by handle covers
