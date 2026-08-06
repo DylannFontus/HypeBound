@@ -35,7 +35,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, because wrangler 4 declares `engines.node >= 22.0.0` and refuses
+          # to run on 20 — "Wrangler requires at least Node.js v22.0.0". Only
+          # this job needs it: the Bundle step is the only thing in the
+          # repository that invokes wrangler, and it is the step that proves the
+          # Worker actually builds under esbuild, which the typecheck above
+          # cannot because the two disagree about what a JSON import is.
+          #
+          # deploy.yml is deliberately left on 20. It builds the client, has no
+          # wrangler in it, and changing the runtime of the pipeline that
+          # publishes the game to fix a pipeline that does not is a trade with
+          # nothing on the other side.
+          node-version: 22
           cache: npm
           # Both lockfiles, because both installs happen — see below.
           cache-dependency-path: |
