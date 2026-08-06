@@ -38,6 +38,32 @@
  * number on the next frame. It now throws the reward at the wallet chip, the
  * chip lands it, and the counter ratchets. See `rewardKit::flyReward` for why
  * the flight has to live on `document.body`.
+ *
+ * ## The room, and the band at the top of it
+ *
+ * This screen is full-bleed, so it never showed the dead margins the mode hubs
+ * did. What it showed instead is the other half of the same failure, and it is
+ * measurable: with every panel hidden, the backdrop alone read **0.195** on the
+ * 200ms idle probe against a Hearthstone floor of 0.501 — identical to the
+ * screen's full-content figure, which is what "there is no room behind it"
+ * looks like as a number. `.rw-wash` is a plate: a full-viewport gradient at
+ * `z-index: -1` in front of `atmosphere.ts`, exactly the object `hall.css` was
+ * written to delete on the eleven screens it migrated. This one was not on that
+ * list, so it kept its plate.
+ *
+ * So the plate is simply gone. Nothing replaces it here, and that is the point:
+ * `shell.ts::dressScreen` builds the room on every screen at mount and lights it
+ * from the `ROOMS` table, so `#missions` is in the Archive — the same room as
+ * `#stats` one click away — without this file saying anything at all. What it
+ * had to stop doing was standing a wash in front of it.
+ *
+ * The second half is composition. Five bands of identical value stacked down the
+ * page is a screen with no subject, and the one figure a player opens Missions to
+ * check — how many dailies they have banked, and how close the next bonus Drop
+ * is — was the last line of the last paragraph, below the fold on every viewport
+ * the constraints name. The promise and the record are now a lead-and-support
+ * band at the top: the hero says nothing expires, the card beside it proves it
+ * with the count.
  */
 
 import type { ContentIndex } from "../../engine/types";
@@ -76,10 +102,10 @@ import {
   syncWallets,
   tokenHtml,
   updateWallet,
-  WASH,
 } from "./rewards/rewardKit";
 import { createPaintQueue, paintRewardArt, type PaintQueue } from "./rewards/rewardArt";
 import { installRewardsTheme } from "./rewards/rewardsTheme";
+import { countUp } from "./data/kit";
 
 export interface MissionsCallbacks {
   onBack: () => void;
@@ -216,6 +242,15 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
     const bonus = bonusDailies(content, now);
     const toward = root.querySelector<HTMLElement>("#missions-bonus-toward");
     if (toward) toward.textContent = formatNumber(bonus.progress.toward);
+    /*
+     * The same figure is now in two places — the bonus group's own head, and the
+     * record card at the top of the screen — because they answer two different
+     * questions from two different scroll positions. Both are patched here; a
+     * claim that updated one of them would leave the screen disagreeing with
+     * itself, which is worse than not showing it twice.
+     */
+    const recordToward = root.querySelector<HTMLElement>("#missions-record-toward");
+    if (recordToward) recordToward.textContent = formatNumber(bonus.progress.toward);
     const done = root.querySelector<HTMLElement>("#missions-dailies-done");
     if (done) done.textContent = formatNumber(profile.missions.dailiesCompleted);
     const weekDone = root.querySelector<HTMLElement>("#missions-weeklies-done");
@@ -286,7 +321,6 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
     };
 
     root.innerHTML = `
-      ${WASH}
       <header class="screen-header">
         ${backButton("missions-back")}
         <h1 class="title">Missions</h1>
@@ -296,7 +330,8 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
       </header>
 
       <main class="missions-body rw-missions-body">
-        <section class="missions-intro mat-panel rw-panel-pad rw-stack">
+        <div class="d-band d-band-lead missions-lead">
+        <section class="missions-intro mat-panel d-hero rw-panel-pad rw-stack">
           <p class="rw-note" style="font-size:var(--fs-md);margin:0">
             <strong>Nothing here expires.</strong> Missions bank while you are away — you simply
             hold up to three dailies at a time. There is no streak to break and no timer to beat.
@@ -319,6 +354,47 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
             }
           </div>
         </section>
+
+        ${/*
+           * The record, promoted off the last line of the page.
+           *
+           * "Completed 0 dailies and 0 weeklies" was the final sentence of a
+           * grey paragraph below four full bands — below the fold at 1600×900,
+           * at 1280×720 and on a phone — and it is the single figure that makes
+           * the panel beside it *true*. A promise that nothing expires is a
+           * claim; a count that only ever goes up is the evidence, and §3a asks
+           * for it to be counted up rather than printed. It also gives the top
+           * of the screen the lead-and-support shape the rest of the domain has,
+           * instead of a fifth full-width slab.
+           */ ""}
+        <section class="mat-panel rw-panel-pad missions-record">
+          <h2 class="d-rail-label">Your record</h2>
+          <dl class="d-rail-stats">
+            <div class="d-stat">
+              <dt>Dailies completed</dt>
+              <dd class="num" id="missions-dailies-done" data-count="${profile.missions.dailiesCompleted}" data-digits="4">0</dd>
+            </div>
+            <div class="d-stat">
+              <dt>Weeklies completed</dt>
+              <dd class="num" id="missions-weeklies-done" data-count="${profile.missions.weekliesCompleted}" data-digits="4">0</dd>
+            </div>
+          </dl>
+          ${railHtml({
+            value: bonus.progress.toward,
+            max: bonus.progress.every,
+            height: 10,
+            label: "Progress toward a bonus Merch Drop",
+          })}
+          <p class="missions-record-note">
+            <span class="num" id="missions-record-toward">${formatNumber(bonus.progress.toward)}</span> of
+            ${formatNumber(bonus.progress.every)} dailies toward a bonus Merch Drop, counted up and never
+            reset. Finish all of a week's missions for
+            ${content.balance.economy.missions.weeklyWrapDrops} extra Merch Drop.${
+              tokens > 0 ? ` You hold ${formatNumber(tokens)} reroll ${plural(tokens, "token")}.` : ""
+            }
+          </p>
+        </section>
+        </div>
 
         <section class="checkin-panel mat-panel rw-panel-pad">
           <div class="rw-section-head">
@@ -346,7 +422,7 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
           </div>
           <p class="rw-note rw-quiet checkin-note" style="margin-top:var(--sp-3)">
             No streaks, no resets, no consecutive days. Log in on six scattered days and you claim
-            six steps.${tokens > 0 ? ` You hold ${formatNumber(tokens)} reroll ${plural(tokens, "token")}.` : ""}
+            six steps.
           </p>
         </section>
 
@@ -413,12 +489,6 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
           </div>
           <ul class="missions-list" id="missions-weekly">${weeklies.map((view) => card(view, now)).join("")}</ul>
         </section>
-
-        <p class="rw-note rw-quiet missions-foot" style="margin:0">
-          Completed <span class="num" style="min-width:0" id="missions-dailies-done">${formatNumber(profile.missions.dailiesCompleted)}</span> dailies and
-          <span class="num" style="min-width:0" id="missions-weeklies-done">${formatNumber(profile.missions.weekliesCompleted)}</span> weeklies.
-          Finish all of a week's missions for ${content.balance.economy.missions.weeklyWrapDrops} extra Merch Drop.
-        </p>
       </main>`;
 
     root.querySelector("#missions-back")?.addEventListener("click", () => {
@@ -490,6 +560,14 @@ export function createMissionsScreen(content: ContentIndex, callbacks: MissionsC
       if (body) body.scrollTop = scrollTo;
     }
 
+    /*
+     * Every render, not only the first. The two record figures ship as `0` with
+     * their target on `data-count` — that is what makes them ratchet rather than
+     * appear — so a re-render that skipped this would leave a screen printing
+     * two honest zeroes over a real count. `cascaded` guards the *entrance*,
+     * which only ever plays once; the counters are state.
+     */
+    countUp(root);
     syncWallets(root);
   };
 

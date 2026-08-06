@@ -925,42 +925,37 @@ export function deferPaint<T extends HTMLElement>(
 // ---------------------------------------------------------------------------
 
 /**
- * The six layers of `hall.css`'s plane 2, as one string.
+ * Nothing. Deliberately, and this comment is the whole of what is left.
  *
- * Eleven screens each wrote `<div class="ambient-bg"></div>` and got the same
- * flat plate; they now each write `room({ accent })` and get the same *room*.
- * Keeping it a function rather than a snippet to copy is the difference between
- * one composition and eleven that drift — the alcove's position is the key light
- * and the key light is the single most load-bearing constant in this build, so it
- * is not something a twelfth screen should be able to decide for itself.
+ * This function used to return the seven layers of the room plus a grain plane
+ * over the content, and eleven screens called it. That is exactly eleven more
+ * than the number of screens that should have to. Measured with
+ * `scripts/_w7rw_probe.mjs` — the calibrated one, whose metric reproduces the
+ * Hearthstone reference at n=203, min 0.501, median 1.713 — the eleven callers
+ * idled at 0.88–1.89 and the thirty-eight non-callers at 0.18–0.71, with minima
+ * down at 0.067. The room was real; the opt-in was the bug. A screen that is
+ * alive because somebody remembered a call is a screen that will be dead the
+ * next time somebody does not, and the front door was already one of them.
  *
- * The layer order is back to front and it matters: alcove (the accent), crawl
- * (the accent moving), the far dust, the grid, the near dust, the wall, then the
- * floor over everything so the bottom of the frame darkens the dust too. A floor
- * under the dust would leave specks glowing in the dark mass, which is the one
- * arrangement that reads as a bug rather than as air.
+ * So the room moved to the two places a screen cannot avoid: the layers are in
+ * `theme/transitions.css` §1.9, which `atmosphere.ts` imports at boot and which
+ * is therefore loaded on every route rather than only on the twenty-three that
+ * pull in this file; and the element is put there by `shell.ts::dressScreen`,
+ * on the detached tree at mount, next to `markCascade`. The per-route accent
+ * comes from the same `ROOMS` table that already decides which of the ten
+ * lighting setups the world behind the screen is in, so the Collection and the
+ * Deck Builder are lit as one workshop without either of them saying so.
  *
- * `lit` scales the alcove alone. The Archive and Back Office rooms are quiet by
- * design — `atmosphere.ts` gives them 0.6 and 0.42 intensity for the same reason
- * — and a screen you *read* wants its accent under, not over, the text.
+ * The signature survives, returning `""`, for one reason: the eleven call sites
+ * live in files owned by other people this wave, and a function that quietly
+ * emits nothing is a smaller and much more reviewable change than eleven
+ * simultaneous edits to eleven screens. It is a deprecation, not a design —
+ * `tests/every-screen-is-a-room.test.ts` fails if a *twelfth* call appears, so
+ * the next person to reach for it is told where the room actually lives instead
+ * of finding out from a screenshot.
  */
-export function room(options: { accent?: string; lit?: number } = {}): string {
-  const accent = options.accent ? `--hall-accent:${esc(options.accent)};` : "";
-  const lit = options.lit !== undefined ? `--hall-lit:${options.lit};` : "";
-  const style = accent || lit ? ` style="${accent}${lit}"` : "";
-  return `<div class="d-room" aria-hidden="true"${style}>
-      <div class="d-room-alcove"></div>
-      <div class="d-room-crawl"></div>
-      <div class="d-room-dust is-far"></div>
-      <div class="d-room-grid"></div>
-      <div class="d-room-dust"></div>
-      <div class="d-room-wall"></div>
-      <div class="d-room-floor"></div>
-    </div>
-    <div class="d-room-glass" aria-hidden="true"${style}>
-      <div class="d-room-glass-sweep"></div>
-      <div class="d-room-glass-grain"></div>
-    </div>`;
+export function room(_options: { accent?: string; lit?: number } = {}): string {
+  return "";
 }
 
 /**

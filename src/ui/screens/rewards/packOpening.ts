@@ -134,9 +134,30 @@ import { installRewardsTheme } from "./rewardsTheme";
  * |---|---|---|
  * | `.rw-room-wall`  | atmosphere | the back wall, lit from 315°, with a broad pool behind where the cards stand, dissolving at its own top edge rather than ending at one |
  * | `.rw-room-floor` | midground  | the table, from the horizon down, with the lit join across its back edge and a near edge that dissolves |
+ * | `.rw-room-beam`  | atmosphere | the key light itself, a shaft descending from the top-left onto the cards |
  * | `.rw-room-pool`  | midground  | the light the cards stand in, in whatever the best card so far is worth |
  * | `.rw-room-sweep` | midground  | one soft specular crawling the floor on an 11s period |
  * | `.rw-room-motes` | atmosphere | dust in the beam, two layers on different periods |
+ *
+ * ## The third correction: a room with no light *above* the subject is a band of void
+ *
+ * Photographed at 1600×900 and measured off the pixels — per scanline, the 99th
+ * percentile of luminance, so that module B's grain cannot be mistaken for
+ * content — **43.9% of the frame had nothing in it brighter than 24% grey**, and
+ * 218 of those rows were one unbroken band immediately under the title. The
+ * cause was two decisions that were each right on their own. `.rw-room-wall`
+ * masks its own top 30% to *fully* transparent, so that a wall lit from 315°
+ * does not draw a bright hard line across the ceiling; and its only source, the
+ * pool, sits at `50% 104%` — below the wall's own bottom edge. Between them the
+ * upper third of the room was mathematically black.
+ *
+ * A room lit from below its own back wall is also the wrong picture. §0 of the
+ * foundation contract puts the key at 315° everywhere, and here that light is
+ * *in shot* — so it is drawn: a shaft entering top-left, descending at 45° and
+ * landing where the cards stand, with the pool underneath it as the place it
+ * lands and the motes already in the air to catch it. The dead band stops being
+ * dead because the thing filling it is the same light every surface in the game
+ * claims to be lit by.
  *
  * The horizon is **measured, never guessed**, for the reason `shopScreen.ts`
  * spells out about `--pack-base`: the card grid is sized from the viewport by
@@ -204,14 +225,79 @@ const ROOM_CSS = `
   top: 0;
   bottom: calc(100% - var(--rw-horizon));
   /* The pool is tight and the wall around it is nearly black: a broad soft
-     light on a broad soft wall is fog, and fog has no planes in it. */
+     light on a broad soft wall is fog, and fog has no planes in it.
+     Above it, the lamp — a broad fall from the top-left corner, which is where
+     the beam below enters and the only place on this wall §0 permits a source
+     to be. It is a third of the pool's strength and four times its area, so it
+     lifts the ceiling out of black without competing with the thing the cards
+     are standing in. */
   background:
     radial-gradient(40% 66% at 50% 104%, rgb(from var(--rw-accent, #b56cff) r g b / 0.34), rgb(from var(--rw-accent, #b56cff) r g b / 0) 76%),
+    radial-gradient(58% 52% at 10% -6%, rgb(from var(--rw-accent, #b56cff) r g b / 0.26), rgb(from var(--rw-accent, #b56cff) r g b / 0) 78%),
     linear-gradient(var(--light-sweep, 135deg), rgb(34 24 62 / 0.42) 0%, rgb(6 3 14 / 0.86) 74%);
-  /* A wall with a hard line across its top is a second panel. */
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 30%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 30%);
+  /* A wall with a hard line across its top is a second panel — but a mask that
+     runs all the way to zero deletes the ceiling rather than softening it, and
+     measured, that erasure *was* the 218px dead band. It ramps from a third
+     instead: enough to kill the ramp's own bright top edge, not enough to make
+     the upper room a hole. */
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.34) 0%, rgb(0 0 0 / 0.78) 16%, #000 34%);
+  -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.34) 0%, rgb(0 0 0 / 0.78) 16%, #000 34%);
   transition: background 620ms var(--ease-arrive, ease-out);
+}
+
+/*
+ * The key light itself.
+ *
+ * A single soft shaft, entering at the top-left and descending to the right at
+ * 45° — which is 315° stated as a direction of travel rather than as a gradient
+ * angle, and therefore the same light the rim on every panel in the game claims.
+ * It is drawn as one diagonal band across an oversized child rather than as a
+ * clipped trapezoid, because a clip-path has hard edges and a shaft of light has
+ * none; the blur is what makes it air rather than a shape.
+ *
+ * \`linear-gradient(45deg, …)\` puts its axis towards the top-right, so its bands
+ * of constant colour run top-left to bottom-right. That is the one detail worth
+ * stating, because the intuitive angle is the perpendicular one and picking it
+ * points the light the wrong way across the room.
+ *
+ * The whole element is masked at both ends: it must not draw a line along the
+ * ceiling, and it must die *before* the horizon rather than crossing it, or the
+ * shaft continues through the table it is supposed to be landing on.
+ */
+.rw-room-beam {
+  top: 0;
+  bottom: calc(100% - var(--rw-horizon));
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.45) 0%, #000 26%, #000 72%, rgb(0 0 0 / 0) 100%);
+  -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.45) 0%, #000 26%, #000 72%, rgb(0 0 0 / 0) 100%);
+}
+
+.rw-room-beam::before {
+  content: "";
+  position: absolute;
+  inset: -34% -18%;
+  background: linear-gradient(
+    45deg,
+    rgb(from var(--rw-accent, #b56cff) r g b / 0) 30%,
+    rgb(from var(--rw-accent, #b56cff) r g b / 0.20) 41%,
+    rgb(255 255 255 / 0.15) 48%,
+    rgb(from var(--rw-accent, #b56cff) r g b / 0.20) 55%,
+    rgb(from var(--rw-accent, #b56cff) r g b / 0) 66%
+  );
+  /* Static, so the blur is one paint into a layer the compositor then owns —
+     the animation below moves and fades that layer and never re-blurs it.
+     18 rather than 26: at the wider radius the shaft stopped being a shaft and
+     became an even lift across the top of the room, which is fog again — §6's
+     value structure needs the light to have an edge somewhere. */
+  filter: blur(18px);
+  animation: rw-room-beam 13s var(--ease-sweep, ease-in-out) infinite;
+}
+
+/* Air moving through a beam, on a period long enough that nothing in it is ever
+   the thing the eye is following. */
+@keyframes rw-room-beam {
+  0%, 100% { opacity: 0.7; transform: translate3d(-1.4%, 0, 0) scaleX(0.98); }
+  50%      { opacity: 1; transform: translate3d(1.4%, 0, 0) scaleX(1.05); }
 }
 
 /* The floor. It runs past the bottom of the overlay rather than stopping at it,
@@ -388,6 +474,7 @@ const ROOM_CSS = `
 }
 :root[data-contrast="high"] .rw-room-pool,
 :root[data-contrast="high"] .rw-room-motes,
+:root[data-contrast="high"] .rw-room-beam,
 :root[data-contrast="high"] .rw-room-sweep { display: none; }
 
 /*
@@ -398,19 +485,30 @@ const ROOM_CSS = `
  */
 :root[data-reduced-motion="true"] .rw-room-pool,
 :root[data-reduced-motion="true"] .rw-room-sweep::before,
+:root[data-reduced-motion="true"] .rw-room-beam::before,
 :root[data-reduced-motion="true"] .rw-room-motes,
 :root[data-reduced-motion="true"] .rw-room-motes::after {
   animation: none;
 }
 :root[data-reduced-motion="true"] .rw-room-pool { transform: scale(1.01); opacity: 0.9; }
+/* Held at the drift's own mid-point, like the pool, so switching the setting
+   does not change how lit the room is. */
+:root[data-reduced-motion="true"] .rw-room-beam::before { opacity: 0.86; }
 
 /*
  * The low tier drops the two effects that each cost a full-screen composited
  * layer and keeps both planes, the join and the pool. A phone that cannot afford
  * dust can still afford a table.
+ *
+ * The beam stays, and loses its blur. It is the light the room is lit by rather
+ * than an ornament on it — deleting it is what put the 218px of void back — and
+ * a 26px blur over a full-width layer is the one part of it a low tier cannot
+ * afford. The gradient's own stops are soft enough to survive without it; what
+ * goes is the last few pixels of falloff at the shaft's edges.
  */
 :root[data-gfx-tier="low"] .rw-room-motes,
 :root[data-gfx-tier="low"] .rw-room-sweep { display: none; }
+:root[data-gfx-tier="low"] .rw-room-beam::before { filter: none; }
 
 /* -------------------------------------------------------------------------
    things standing on the floor
@@ -431,10 +529,14 @@ const ROOM_CSS = `
   z-index: 3;
   left: 50%;
   top: 50%;
-  width: min(34vh, 300px);
-  height: min(8vh, 62px);
+  /* Cut from the pack's own width rather than from the viewport a second time.
+     The two used to be independent min() expressions against different limits,
+     which meant the shadow was the right size for the object at exactly one
+     window height and drifted apart everywhere else. */
+  width: calc(var(--rw-pack-w, min(34vh, 320px)) * 1.15);
+  height: calc(var(--rw-pack-w, min(34vh, 320px)) * 0.238);
   translate: -50% 0;
-  margin-top: min(15vh, 132px);
+  margin-top: calc(var(--rw-pack-w, min(34vh, 320px)) * 0.52);
   border-radius: 50%;
   pointer-events: none;
   background: radial-gradient(closest-side, rgb(0 0 0 / 0.74) 0%, rgb(0 0 0 / 0.32) 46%, rgb(0 0 0 / 0) 78%);
@@ -745,6 +847,7 @@ export function openPack(options: PackOpeningOptions): PackOpening {
     `<div class="rw-open-room" aria-hidden="true">` +
     `<span class="rw-room-wall"></span>` +
     `<span class="rw-room-floor"></span>` +
+    `<span class="rw-room-beam"></span>` +
     `<span class="rw-room-pool"></span>` +
     `<span class="rw-room-sweep"></span>` +
     `<span class="rw-room-motes"></span>` +
@@ -753,7 +856,10 @@ export function openPack(options: PackOpeningOptions): PackOpening {
     `<header class="rw-open-head">` +
     `<div class="rw-open-title">` +
     `<span class="t-label">${esc(options.eyebrow)}</span>` +
-    `<h2 class="t-display" style="font-size:var(--fs-xl)">${esc(options.title)}</h2>` +
+    /* The size is a stylesheet's job, not an inline one: on a 390px-tall phone
+       the masthead has to be able to shrink, and an inline font-size cannot be
+       out-specified by a media query without `!important`. */
+    `<h2 class="t-display rw-open-name">${esc(options.title)}</h2>` +
     `</div>` +
     `<div class="rw-open-count" aria-hidden="true">` +
     cards.map(() => `<span class="rw-pip"></span>`).join("") +
@@ -764,10 +870,19 @@ export function openPack(options: PackOpeningOptions): PackOpening {
     cards.map((entry, index) => slotMarkup(options.content, entry, index, cards.length, backArt)).join("") +
     packMarkup(backArt, options.tearLabel ?? "Tear it open") +
     `</div>` +
+    /*
+     * One line under the cards, and it says whichever of the two things there is
+     * to say. The instruction and the result are the same beat of the
+     * composition — the reveal ends by answering the question the hint asked —
+     * so they share a grid cell rather than living in two different strips with
+     * a band of floor between them. See `.rw-open-msg`.
+     */
+    `<div class="rw-open-msg">` +
     hintMarkup(options.tearLabel ?? "Tear it open") +
+    `<div class="rw-open-summary">${summaryMarkup(options)}</div>` +
+    `</div>` +
     `</div>` +
     `<footer class="rw-open-foot mat-panel">` +
-    `<div class="rw-open-summary">${summaryMarkup(options)}</div>` +
     `<div class="rw-open-actions">` +
     `<button class="mat-panel act rw-back" id="reveal-all" type="button">${icon("skip-end")}<span>Reveal all</span></button>` +
     (options.onCollection
@@ -787,6 +902,7 @@ export function openPack(options: PackOpeningOptions): PackOpening {
   const pack = overlay.querySelector<HTMLElement>(".rw-pack");
   const packCast = overlay.querySelector<HTMLElement>(".rw-pack-cast");
   const hint = overlay.querySelector<HTMLElement>(".rw-pack-hint");
+  const message = overlay.querySelector<HTMLElement>(".rw-open-msg");
   const pips = [...overlay.querySelectorAll<HTMLElement>(".rw-pip")];
   const slots = [...overlay.querySelectorAll<HTMLElement>(".reveal-slot")];
   const doneButton = overlay.querySelector<HTMLButtonElement>("#reveal-done")!;
@@ -818,18 +934,40 @@ export function openPack(options: PackOpeningOptions): PackOpening {
    * limited by 390px of viewport minus the header, the footer and the room the
    * captions need under each card, not by width. Sizing on width alone produces
    * a grid that is beautiful at 1600×900 and clipped on a phone.
+   *
+   * ## What was wrong with it, measured
+   *
+   * The result of this function was clamped to **212px**, and at 1600×900 the
+   * two real constraints were 282 (width) and 443 (height) — so on the frame
+   * this set-piece is designed against, the size of the most important object in
+   * the game was decided by a magic number rather than by the room. Photographed,
+   * five cards occupied a hull of 1,134×289: **22.8% of the frame**, with 312px
+   * of nothing above them and 299 below. The cap is gone. Both constraints stay,
+   * because both are real, and between them there is no viewport where a card
+   * can grow past what the grid can hold.
+   *
+   * The gap is read rather than assumed for the same reason. The stylesheet says
+   * `clamp(6px, 1.1vw, 18px)`, which is 17.6px at 1600 and 14.08 at 1280; this
+   * arithmetic hard-coded 14 and therefore over-estimated the room available on
+   * every viewport above 1,273px wide.
    */
   const fit = (): void => {
-    const gap = 14;
+    const gap = Number.parseFloat(getComputedStyle(grid).columnGap) || 14;
     const width = stage.clientWidth || overlay.clientWidth || 1280;
     /*
-     * The hint is a row of the stage, not an overlay on it, so the grid gets the
-     * stage minus whatever the hint is currently occupying — measured rather
-     * than assumed, because it is two lines while the pack is closed and two
-     * different lines afterwards, and it is removed entirely at the summary.
+     * The message is a row of the stage, not an overlay on it, so the grid gets
+     * the stage minus whatever that row is currently occupying — measured rather
+     * than assumed, because it is two lines while the pack is closed, two
+     * different lines during the reveal, and a summary that may wrap to three on
+     * a phone once the pull is over.
+     *
+     * It is the *row* that is measured and not the hint inside it. The hint used
+     * to be the row, and it used to be removed outright when the summary
+     * arrived — which changed the stage's height at the one moment the cards are
+     * standing still and being looked at.
      */
-    const hintBox = hint?.isConnected ? hint.getBoundingClientRect().height : 0;
-    const height = (stage.clientHeight || 420) - hintBox;
+    const messageBox = message?.isConnected ? message.getBoundingClientRect().height : 0;
+    const height = (stage.clientHeight || 420) - messageBox;
     const byWidth = (width - gap * (columns - 1) - 24) / columns;
     /*
      * `CAPTION_LANE` is subtracted once per row *and* published as the grid's
@@ -840,7 +978,7 @@ export function openPack(options: PackOpeningOptions): PackOpening {
      * row's cards while `fit()` believed it had made room for them.
      */
     const byHeight = ((height - CAPTION_LANE * (rows - 1) - CAPTION_LANE * rows) / rows) * (512 / 680);
-    const size = Math.max(66, Math.min(212, Math.floor(Math.min(byWidth, byHeight))));
+    const size = Math.max(66, Math.floor(Math.min(byWidth, byHeight)));
     grid.style.setProperty("--rw-card-w", `${size}px`);
   };
 
@@ -908,12 +1046,40 @@ export function openPack(options: PackOpeningOptions): PackOpening {
    */
   const cardWidth = Number.parseInt(grid.style.getPropertyValue("--rw-card-w"), 10) || 168;
 
+  /**
+   * How wide the *bitmap* is, which is not the same question as how wide the
+   * card is.
+   *
+   * The 1.15 is oversampling, and it was affordable when the cap held a slot to
+   * 212px. Lifting the cap makes a 1600×900 slot 282, and 1.15 of that is 324 —
+   * against 244 before, which is 1.77× the pixels. Measured with a `longtask`
+   * observer across the anticipation beat, the old size cost five long tasks at
+   * a peak of 146ms; area alone would put the new peak around 260, and a 260ms
+   * task is a quarter of a second of frozen room on the beat whose entire job is
+   * to look alive.
+   *
+   * `renderCardToCanvas` already multiplies by `devicePixelRatio`, so the
+   * oversample is a second copy of the same idea: at dpr 2, a 288px render on a
+   * 282px slot is a 576px backing store for 564 device pixels, which is already
+   * sharp. The ceiling therefore costs nothing visible and holds the paint cost
+   * to about 1.5× rather than 1.8× — and below it, on the small viewports where
+   * `fit()` still returns 212 or less, the 1.15 is untouched.
+   *
+   * The `max` is the floor under the ceiling, and it matters for exactly one
+   * shape: the banner's ×1 pull. One card is bound by height rather than by
+   * width, so it is 410px wide at 1600×900 — and a flat cap of 300 would draw a
+   * bitmap smaller than the object it is stretched across, on the one reveal
+   * where the card *is* the whole composition. It is a single card, so paying
+   * full size for it costs one paint.
+   */
+  const renderWidth = Math.round(Math.min(cardWidth * 1.15, Math.max(300, cardWidth)));
+
   const paintFace = (index: number): void => {
     const entry = cards[index];
     const card = entry ? (options.content.cards[entry.cardId] as CardDef | undefined) : undefined;
     const face = slots[index]?.querySelector<HTMLElement>(".reveal-front");
     if (!entry || !card || !face || face.childElementCount > 0) return;
-    const canvas = renderCardToCanvas(card, Math.round(cardWidth * 1.15), {
+    const canvas = renderCardToCanvas(card, renderWidth, {
       premium: entry.rarity === "legendary",
     });
     /*
@@ -956,15 +1122,21 @@ export function openPack(options: PackOpeningOptions): PackOpening {
    * Measured: one face at this size costs 150–250ms of main thread, and five in
    * one task came to 440ms. A frame-per-card chain was no better — it simply
    * moved five long tasks into the deal, which is the one beat that must not
-   * stutter. So the queue is *slower than the animation*: a card every 260ms,
+   * stutter. So the queue is *slower than the animation*: a card every 320ms,
    * always at least one ahead of the reveal, and `flip` paints on demand for the
    * case where the player skips to the end faster than the queue can run.
+   *
+   * 320 and not the 260 it was, because a card is bigger than it was: the space
+   * between two paints has to stay longer than a paint, or the tasks stack and
+   * the room stops breathing for the whole beat rather than for a frame of it.
+   * The reveal cannot outrun it — the first auto-flip is 1,800ms after the tear
+   * and the tear cannot happen before the player acts.
    */
   const paintQueue = (): void => {
     if (closed || painting >= cards.length) return;
     paintFace(painting);
     painting += 1;
-    later(paintQueue, 260);
+    later(paintQueue, 320);
   };
   /*
    * 300ms, not 30. The overlay fades in over DUR.ui, and a 200ms card render
@@ -1117,13 +1289,20 @@ export function openPack(options: PackOpeningOptions): PackOpening {
 
   const finish = (): void => {
     if (closed) return;
-    hint?.remove();
     /*
-     * Removing the hint changes the stage's row heights, which moves the grid,
-     * which moves the line the cards are standing on. Re-measuring here is what
-     * keeps the join under the cards through the one layout change that happens
-     * after the deal.
+     * The hint crosses out and the summary crosses in, in the same grid cell.
+     *
+     * It used to be `hint.remove()`, which changed the stage's row heights at
+     * the exact moment the cards had settled and were being looked at: the grid
+     * moved, and with it the line the cards were standing on. Nothing is removed
+     * now, so nothing reflows — what changes is two opacities and the
+     * `aria-hidden` that stops a screen reader announcing an instruction the
+     * player has already carried out.
      */
+    hint?.setAttribute("aria-hidden", "true");
+    overlay.classList.add("rw-summed");
+    /* Belt and braces: a summary that wraps to a taller line than the hint on a
+       narrow viewport still moves the row, and the join has to follow it. */
     layoutRoom();
     foot.classList.add("rw-ready");
     doneButton.disabled = false;

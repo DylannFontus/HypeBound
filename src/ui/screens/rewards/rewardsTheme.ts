@@ -770,6 +770,11 @@ const CSS = `
   gap: clamp(var(--sp-2), 1.4vh, var(--sp-4));
   overflow: hidden;
   animation: rw-open-in var(--dur-ui) var(--ease-arrive) both;
+  /* The pack's size, declared once, because three things are cut from it: the
+     object, the shadow it stands in and how far below its own centre that
+     shadow lies. They were three independent \`min()\` expressions and they only
+     agreed at one viewport height. */
+  --rw-pack-w: min(34vh, 320px);
 }
 
 .rw-open[hidden] { display: none; }
@@ -820,22 +825,57 @@ const CSS = `
   mix-blend-mode: screen;
 }
 
+/*
+ * A masthead, not two corners.
+ *
+ * This was \`justify-content: space-between\` on a full-width row, which at
+ * 1600x900 put "MERCH DROP / 5 cards" at x=48 and the five progress pips at
+ * x=1478 with fourteen hundred pixels of nothing between them — the two ends of
+ * a rail with no rail. Photographed, the title read as a caption somebody had
+ * left in the corner of a black frame rather than as the name of the moment.
+ *
+ * Centred, and the pips directly under the title they are counting, it is one
+ * composed object at the top of the shot — which is also what the shaft below
+ * is pointing at, so the light has something to arrive on before it reaches the
+ * cards. The \`--sp-4\` gap that used to separate the two ends becomes the space
+ * between a title and its own counter.
+ */
 .rw-open-head {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+  text-align: center;
 }
 
-.rw-open-title { display: grid; gap: 2px; }
+.rw-open-title { display: grid; gap: 2px; justify-items: center; }
 .rw-open-title .t-label { color: var(--accent-bright); }
+
+/* Tied to the viewport's height rather than its width, because the masthead
+   competes with the cards for the one axis a phone in landscape has none of. */
+.rw-open-name { font-size: clamp(1.15rem, 3.4vh, var(--fs-xl)); line-height: 1.15; }
 
 .rw-open-count {
   display: flex;
   align-items: center;
   gap: 7px;
+}
+
+/*
+ * On a short viewport the masthead collapses back into one centred line.
+ *
+ * Stacked, it is three rows — eyebrow, display line, pips — and at 844x390 that
+ * measured 110px, or 28% of the entire viewport, spent on the name of a thing
+ * whose five cards were 93px wide underneath it. Centred as a single row it is
+ * about thirty, and \`fit()\` spends the difference on the cards, which is the
+ * whole point of the exercise. It is still one composed object rather than two
+ * opposite corners, which is what the change was for.
+ */
+@media (max-height: 560px) {
+  .rw-open-head { flex-direction: row; flex-wrap: wrap; gap: var(--sp-3); }
+  .rw-open-title { grid-auto-flow: column; align-items: baseline; gap: var(--sp-2); }
 }
 
 .rw-pip {
@@ -1148,7 +1188,12 @@ const CSS = `
   translate: -50% -50%;
   display: grid;
   place-items: center;
-  width: min(30vh, 260px);
+  /* Bigger than it was, and for the same reason the cards are: measured, the
+     anticipation beat had 44.7% of its scanlines carrying nothing brighter than
+     24% grey, with a 260px object alone in the middle of a 1600x900 frame. The
+     pack is the only thing on screen during that beat and it has to be worth
+     looking at. */
+  width: var(--rw-pack-w, min(34vh, 320px));
   aspect-ratio: 512 / 680;
   border: 0;
   padding: 0;
@@ -1246,7 +1291,9 @@ const CSS = `
 .rw-pack-hint {
   position: relative;
   z-index: 4;
-  padding-top: 6px;
+  /* The row above owns the lead-in now — see .rw-open-msg. Keeping it here as
+     well offset the hint three pixels against the summary it is stacked with,
+     which is exactly the sort of drift a cross-fade in one grid cell exposes. */
   display: grid;
   justify-items: center;
   gap: 4px;
@@ -1265,14 +1312,28 @@ const CSS = `
 /* The footer is present from the first frame — "Reveal all" has to be reachable
    while the reveal is still running, and a keyboard user needs somewhere to be.
    It is the *summary* that arrives, once there is something to summarise. */
+/*
+ * The actions, and nothing else on the plate.
+ *
+ * This used to hold the summary too, on a \`space-between\` row — which sounds
+ * like it cannot leave a gap on a \`fit-content\` plate, and did: the summary is
+ * laid out from the first frame and only its *opacity* changes, so for the whole
+ * of the reveal, the beat the player is actually watching, the footer measured
+ * 846px wide with **462px of empty plate on the left** and its three buttons
+ * jammed into the last 385 on the right. \`.rw-open-actions\` sat at x=839 inside
+ * a footer that started at x=377.
+ *
+ * The summary moved up to \`.rw-open-msg\`, where it belongs — it is the answer to
+ * the hint's question and the two now share one line — and what is left here is a
+ * plate the size of its buttons. A pill of three controls, centred: 52px of plate
+ * either side of them rather than 462 and 17.
+ */
 .rw-open-foot {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  flex-wrap: wrap;
-  padding: var(--sp-3) var(--sp-4);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  padding: var(--sp-2) var(--sp-3);
   /* A grid item's automatic minimum size is its min-content size, and
      width: max-content is not a definite length, so it cannot clamp it: the
      footer resolved to **1,057px inside an 844px viewport**, which put
@@ -1285,36 +1346,73 @@ const CSS = `
   /* Shrink-wrapped and centred, not full-bleed. A slab the width of the viewport
      with three buttons huddled at one end and eleven hundred empty pixels at the
      other is a lot of pale furniture at the moment the player is looking
-     hardest at the cards.
-     There is no jump when the summary arrives, because the summary is laid out
-     from the first frame and only its opacity changes — so max-content already
-     reserves the room it will need. */
+     hardest at the cards. */
   margin-inline: auto;
   width: fit-content;
   max-width: 100%;
 }
 
+/*
+ * The line under the cards, and it holds both things that can be said there.
+ *
+ * Before this the reveal had three separate strips stacked down the bottom third
+ * of the frame — the captions, a floating hint, and a footer whose first row was
+ * an invisible summary — with a band of unlit floor between each pair. Measured
+ * at 1600x900, 67 of those rows were inside the footer's own plate and had
+ * nothing on them at all.
+ *
+ * Both children are placed in the same grid cell, so the row is as tall as the
+ * taller of them and neither one arriving or leaving can move the cards above
+ * it. That is the whole reason for the stack: the summary lands at the moment
+ * the player is looking hardest at what they just got, and a layout that shifts
+ * on that frame is the worst possible time to shift.
+ */
+.rw-open-msg {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.rw-open-msg > * { grid-area: 1 / 1; }
+
 .rw-open-summary {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--sp-4);
   flex-wrap: wrap;
   min-width: 0;
-  flex: 1 1 auto;
+  max-width: 100%;
+  text-align: center;
   opacity: 0;
   translate: 0 12px;
+  pointer-events: none;
   transition: opacity var(--dur-ui) var(--ease-arrive), translate var(--dur-ui) var(--ease-arrive);
 }
 
-.rw-open-foot.rw-ready .rw-open-summary { opacity: 1; translate: 0 0; }
+.rw-open.rw-summed .rw-open-summary { opacity: 1; translate: 0 0; pointer-events: auto; }
 
-/* Below about a phone's width the footer is two rows, and the actions are the
-   second of them, right-aligned. Wrapping them into the summary's row is what
-   pushed Done past the viewport edge in the first place. */
+/* The instruction leaves on a sharper curve than the answer arrives on — §3's
+   "a sharper ease-in for things leaving" — so the two do not read as a
+   cross-fade of equals. It keeps its box, because its box is what stops the row
+   changing height. */
+.rw-open.rw-summed .rw-pack-hint {
+  opacity: 0;
+  animation: none;
+  transition: opacity 160ms var(--ease-leave);
+  pointer-events: none;
+}
+
+/* On a phone the summary is the thing that wraps, and it is allowed to: the
+   actions row is the one that must never be wider than the viewport, and it is
+   already centred by the grid above. */
 @media (max-width: 900px) {
-  .rw-open-foot { flex-direction: column; align-items: stretch; gap: var(--sp-2); }
-  .rw-open-foot .rw-open-actions { justify-content: flex-end; }
-  .rw-open-summary { justify-content: center; }
+  .rw-open-foot { padding: 7px var(--sp-2); }
+  .rw-open-msg { padding-top: 2px; }
+  .rw-open-summary { gap: var(--sp-2); font-size: var(--fs-xs); }
 }
 
 .rw-sum {
@@ -1327,7 +1425,7 @@ const CSS = `
 
 .rw-sum > .num { color: var(--text); font-size: var(--fs-md); }
 
-.rw-open-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.rw-open-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: center; }
 
 /* =========================================================================
    6. Shop
@@ -1718,6 +1816,45 @@ const CSS = `
 
 .banner-card-art { width: 100%; display: grid; place-items: center; }
 .banner-card-art > canvas { width: 100%; height: auto; display: block; border-radius: 4.5%; }
+
+/*
+ * The socket a banner card is drawn into — and the last seven flat fills in the
+ * game, which were not this domain's and were not a scrim.
+ *
+ * The census counts an element as a flat fill when it has a background *colour*,
+ * no background image and no shadow. Seven came back on #banner, all of them
+ * \`div.banner-card-art\`, all at \`rgba(0, 0, 0, 0.22)\` — and an earlier review
+ * cleared them as scrims laid over card art, which would have made them exempt:
+ * §1 bans a solid fill on a *surface*, not a tint over a photograph.
+ *
+ * They are not scrims. The rule is \`[data-art] { background-color: rgb(0 0 0 /
+ * 0.22) }\` in \`screens/data/data.css\`, written unscoped for the data screens'
+ * deferred painter, and this screen uses the same \`data-art\` attribute as its
+ * own hook — so an unrelated domain's socket colour was landing behind seven
+ * cards here. It is *behind* the picture rather than over it, which is the whole
+ * difference, and it is on screen for a real window: each card is a sized empty
+ * canvas until the render queue reaches it, and then the finished card fades in
+ * over \`--dur-ui\` from \`opacity: 0\`. For that beat the flat rectangle is the
+ * only thing drawn.
+ *
+ * So it gets the recess it was always standing in for: a 315° ramp, the accent
+ * falling across the top-left where the key is, a lit rim, an unlit lip and the
+ * inner shadow of a real socket — the same treatment \`.rw-card-slot\` already
+ * gives the placeholder canvas that sits inside it, so the two agree instead of
+ * one being a hole behind the other. The \`background\` shorthand is deliberate:
+ * it resets \`background-color\` to transparent, which takes the borrowed fill
+ * out of the cascade rather than painting over it.
+ */
+.banner-card .banner-card-art {
+  border-radius: 4.5%;
+  background:
+    radial-gradient(72% 50% at 30% 18%, rgb(from var(--rw-accent, #b56cff) r g b / 0.20), rgb(from var(--rw-accent, #b56cff) r g b / 0) 74%),
+    linear-gradient(var(--light-sweep), rgb(40 28 68 / 0.92) 0%, rgb(9 6 19 / 0.96) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.09),
+    inset 0 2px 6px rgb(0 0 0 / 0.45),
+    inset 0 -1px 0 rgb(0 0 0 / 0.62);
+}
 
 /* The card-shaped alcove a spotlight stands in until its card is drawn.
    The seven cards on this screen are rendered off the navigation frame, which

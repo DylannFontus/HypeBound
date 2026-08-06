@@ -670,9 +670,34 @@
  * 0.10 of 255. The room was built, lit, animated and then hidden.
  *
  * `.atmosphere-fore` is the half of the world that sits in front. It carries
- * three things and no more: the near mote field, the specular crawl and a
- * vignette. That is enough for §2's fourth resolvable depth plane and for
- * §3a's "the screen is alive at rest" on every route at once, migrated or not.
+ * four things and no more: the near mote field, the specular crawl, a drifting
+ * grain and a vignette. That is enough for §2's fourth resolvable depth plane
+ * and for §3a's "the screen is alive at rest" on every route at once.
+ *
+ * ## The grain is here, and it is here rather than on the screen, deliberately
+ *
+ * The grain plane was invented in `screens/data/hall.css` §5a and it worked:
+ * the eleven screens that emitted it measured 0.88–1.89 at rest against 0.18–
+ * 0.71 for the thirty-eight that did not. That is not a small difference, and
+ * it was **entirely** the grain. `hall.css` does the arithmetic in full and the
+ * conclusion is worth repeating here, because it is the only reason any of this
+ * measures anything: dust covers about 0.1% of the frame and can therefore
+ * never contribute more than a fraction of a level; a 34px grid drifting one
+ * cell in eleven seconds moves a fifth of a pixel per 200ms tick, which is
+ * sub-pixel and therefore nothing. **Grain covers 100% of the frame at the
+ * highest spatial frequency there is.** Translate a noise tile far enough that
+ * a pixel samples a different speck and every pixel in the frame changes by
+ * roughly the grain's own amplitude — for values spread over ±a the expected
+ * absolute difference between two independent samples is 2a/3, so a tile at
+ * ±2.5 levels lands near 1.7 on its own. That is the reference floor, bought
+ * from the one effect §1 already demanded for a completely different reason.
+ *
+ * So the question is only *where one instance of it lives*, and the answer that
+ * makes it an invariant rather than a habit is: on the layer that is mounted
+ * once, outside the screen router, and never unmounted. A screen-level grain is
+ * a thing forty-nine screens have to remember; this is a thing no screen can
+ * forget, including the forty-ninth one, including the one added tomorrow, and
+ * including the error screen, which is not built by a route factory at all.
  *
  * Everything about it is deliberately quiet, because unlike the layer behind it
  * this one is over content. The motes come out at a quarter alpha, the sweep
@@ -726,6 +751,49 @@
   width: 56%;
   animation-duration: 9.5s;
   animation-delay: -2.5s;
+}
+
+/**
+ * The grain, in front of everything, drifting.
+ *
+ * It reuses `--grain-src` — the 96px tile `atmosphere.ts` generates once at
+ * boot and hangs on the document root — because there must be exactly one grain
+ * in the build or the eye reads two materials, and because a second generator
+ * would be a second 30 KB data URI for the same dirt.
+ *
+ * Oversized by one tile in each direction and translated by exactly one tile,
+ * so the loop is seamless and the drift never reverses. 96px in 7s is about
+ * 2.7px per 200ms tick — three grain widths, far enough that a pixel samples an
+ * uncorrelated speck and close enough that the eye reads a slow shimmer rather
+ * than a moving pattern.
+ *
+ * **A plain alpha layer with no blend mode.** `overlay` or `soft-light` would
+ * be more correct film grain and would take a full-viewport animated layer off
+ * the compositor on every frame it moves, which is the one thing this must
+ * never do.
+ *
+ * The opacity was measured rather than chosen. The shared tile is generated at
+ * an amplitude of 0.055, so at full alpha this plane sits near ±7 levels and
+ * reads around 3.6 on the idle probe — over twice the Hearthstone floor, on a
+ * settings screen. `hall.css` landed on 0.38 for the same tile at screen level
+ * and measured 1.5-ish; this one is scaled by `--atm-strength` on top, so high
+ * contrast and the low tier turn it down with everything else rather than
+ * needing a rule of their own. §3's other half is "never distracting".
+ */
+.atm-fore-grain {
+  position: absolute;
+  inset: -96px;
+  background-image: var(--grain-src, none);
+  background-repeat: repeat;
+  opacity: calc(0.44 * var(--atm-strength));
+  animation: atm-fore-grain-drift 7s linear infinite;
+  will-change: transform;
+}
+
+@keyframes atm-fore-grain-drift {
+  to {
+    transform: translate3d(96px, 96px, 0);
+  }
 }
 
 .atm-fore-vignette {
@@ -1057,6 +1125,395 @@
 :root[data-gfx-tier="low"] .atmosphere[data-travel="curtain-out"] .atm-body,
 :root[data-gfx-tier="low"] .atmosphere[data-travel="replace"] .atm-body {
   animation: none;
+}
+
+/* =========================================================================
+   1.9 THE ROOM — plane 2, and a property of being a screen
+
+   Every rule below used to live in `src/ui/screens/data/hall.css`, which is
+   imported by `screens/data/kit.ts`, which is imported by the twenty-three
+   data screens and by nothing else. So the room was *loadable* on about half
+   the game and *emitted* on eleven routes, because emitting it meant writing
+   `${room({ accent })}` into a template by hand.
+
+   That worked, and the measurement says how well: the eleven read 0.88–1.89
+   at rest and the other thirty-eight read 0.18–0.71, with minima at 0.067.
+   The game did not get more alive; half of it did, and it was the half a
+   player visits least. `#stats` has a lit room and `#missions`, one click
+   away, is flat near-black outside its panels.
+
+   **The fix is not a twelfth call site. It is deleting the call site.** These
+   rules are now in the module that owns continuity, in a file that is loaded
+   by `atmosphere.ts` at boot and therefore present on every route whether or
+   not a data screen has ever been built; `shell.ts::dressScreen` puts the
+   element in every screen it mounts, on the detached tree, next to
+   `markCascade`; and `kit.ts::room()` returns the empty string, so there is
+   no longer anything for a new screen to remember to call.
+
+   What is left in `hall.css` is only the part that is genuinely about the
+   hall: where the room sits in the four-track grid, and the wall that stands
+   behind a rail that only hall screens have.
+   ========================================================================= */
+
+/**
+ * `.d-room` is a decorative direct child of the screen root, in the position
+ * `.ambient-bg` used to occupy, and deliberately *not* named like a content
+ * container: `shell.ts::markCascade` only indexes `<header> <nav> <main>
+ * <section> <footer>` and classes containing `-body` or `-sheet`, so a
+ * `<div class="d-room">` is skipped by the entrance cascade. Furniture does
+ * not stagger in.
+ *
+ * `contain` is `layout paint style` rather than `strict`: `strict` adds size
+ * containment, and a size-contained box sizes as though it had no contents,
+ * which is fine here only by accident of `inset: 0`.
+ *
+ * `z-index: -1` is what `.ambient-bg` used and it was never the defect — the
+ * defect was that `.ambient-bg` is opaque. Nothing in here is.
+ */
+.screen > .d-room {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout paint style;
+}
+
+.d-room > * {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/**
+ * The alcove: the room's one accent, thrown from where the key light is.
+ *
+ * 315° is the key everywhere in this build, so the accent sits at the top-left
+ * and nothing else on the screen is allowed to be this saturated. The second
+ * stop is a cool counter-bounce from the lower right at a quarter of the
+ * strength — a fill, never a second key. Both are capped well under the
+ * furniture's own chroma, which is the rule `atmosphere.ts` states for the
+ * world and which applies with more force to a layer this close to content.
+ *
+ * `--hall-accent` and `--hall-lit` are written on the screen root by
+ * `dressScreen`, from the same `ROOMS` table that decides which of the ten
+ * lighting setups the world behind is in. A route that nobody has classified
+ * gets the hub's, because `routeNode` already has an answer for that and the
+ * whole point of this section is that there is no question left to forget.
+ */
+.d-room-alcove {
+  background:
+    radial-gradient(
+      52% 58% at 12% -4%,
+      color-mix(in srgb, var(--hall-accent, var(--accent)) calc(34% * var(--hall-lit, 1)), transparent),
+      color-mix(in srgb, var(--hall-accent, var(--accent)) calc(11% * var(--hall-lit, 1)), transparent) 44%,
+      transparent 74%
+    ),
+    radial-gradient(46% 50% at 92% 96%, rgb(70 92 150 / calc(0.1 * var(--hall-lit, 1))), transparent 72%);
+}
+
+/**
+ * The floor. The dark mass, and the reason a squint test resolves at all.
+ *
+ * AAA bar §6 asks you to squint and see light and dark masses. Before this, a
+ * squint at `#stats` resolved to one value: mid-purple background, mid-purple
+ * panels, mid-purple everything. There was no dark. The floor takes the bottom
+ * and the right of the frame down toward `--bg-void`, so the alcove at the
+ * top-left becomes a *light* mass by contrast without anything being made
+ * brighter. Value structure is a relationship, and the cheapest way to get one
+ * is to darken rather than to lift.
+ *
+ * It is square to the viewport rather than on the rig axis, which is the one
+ * exception the domain allows and the right one here: a floor darkens with
+ * *height*, not with the direction the key comes from. The horizon at 62% is a
+ * single hairline of lit dust where the wall meets the floor — the cheapest
+ * possible way to say a room has a depth as well as a width.
+ */
+.d-room-floor {
+  background:
+    linear-gradient(180deg, transparent 26%, rgb(5 2 12 / 0.6) 70%, rgb(3 1 8 / 0.9) 100%),
+    radial-gradient(128% 70% at 50% 124%, rgb(7 3 16 / 0.78), transparent 68%),
+    radial-gradient(90% 120% at 96% 4%, rgb(4 2 10 / 0.5), transparent 62%);
+}
+
+.d-room-floor::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 62%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--hall-accent, var(--accent)) 24%, transparent) 22%,
+    color-mix(in srgb, var(--hall-accent, var(--accent)) 10%, transparent) 68%,
+    transparent
+  );
+  opacity: 0.5;
+}
+
+/**
+ * The wall behind the rail, and the fallbacks are the load-bearing part.
+ *
+ * It is anchored to the rail *track* rather than to a percentage, so it lines
+ * up with the furniture standing against it at every viewport width and every
+ * `--ui-scale`. On a screen with no hall grid those three custom properties do
+ * not exist, and a `calc()` naming an unresolved custom property is invalid at
+ * computed-value time — which would not have degraded, it would have thrown the
+ * whole declaration away and taken the `inset` with it. With `0px` fallbacks
+ * the width resolves to zero and the wall simply is not there, which is the
+ * correct answer for a screen that has no rail to stand against.
+ *
+ * Lit on its left edge rather than its top: light at 315° falls onto the near
+ * edge of a recess and the far face stays in shadow, so a wall lit on the wrong
+ * edge is the two-suns defect at room scale.
+ */
+.d-room-wall {
+  inset: 0 0 0 auto;
+  width: calc(var(--hall-rail, 0px) + var(--hall-gutter, 0px) + var(--hall-gap, 0px));
+  background: linear-gradient(90deg, transparent, rgb(7 4 16 / 0.34) 26%, rgb(5 3 12 / 0.5));
+  box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.045);
+}
+
+/**
+ * The near grid, drifting by transform.
+ *
+ * `atmosphere.ts` already owns a drifting grid and this is not a second one —
+ * it is the *near* one, a third the cell size and a quarter the contrast,
+ * running at a different rate so the two read as parallax rather than as one
+ * grid with a moiré. §2 asks for separation carried by scale and parallax
+ * rather than by z-index, and two grids at the same pitch would be the
+ * counter-example.
+ *
+ * Oversized by one cell in each direction and translated by exactly one cell,
+ * so the loop has no seam. It is a `background-image` that never moves and a
+ * `transform` that does, which is the distinction that costs the compositor
+ * nothing; `background-position` here would repaint a full-viewport image every
+ * frame, which is the mistake `foundation.css` spends forty lines on.
+ */
+.d-room-grid {
+  inset: -34px;
+  background-image:
+    linear-gradient(rgb(198 178 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(198 178 255 / 0.05) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(120% 96% at 22% 8%, #000 12%, transparent 74%);
+  animation: room-grid-drift 11s linear infinite;
+  will-change: transform;
+}
+
+@keyframes room-grid-drift {
+  to {
+    transform: translate3d(34px, 34px, 0);
+  }
+}
+
+/**
+ * Dust, in two fields at two rates.
+ *
+ * Drawn as tiled radial gradients rather than from a canvas: `atmosphere.ts`
+ * generates real mote tiles and hands them over as `data:` URIs, and
+ * duplicating that generator here would put a second 512px canvas and a
+ * megabyte of decoded PNG behind every route for a layer that is deliberately
+ * fainter than the one already there.
+ *
+ * The near field travels roughly three times as far as the far one over the
+ * same period. That ratio is the whole effect: dust at one speed is a texture,
+ * dust at two is a volume. Neither is here for the probe — between them they
+ * are worth about 0.08 of a level and the note at §1.6 says why.
+ */
+.d-room-dust {
+  inset: -140px;
+  background-image:
+    radial-gradient(1.6px 1.6px at 22% 14%, rgb(236 226 255 / 0.5), transparent 100%),
+    radial-gradient(1.2px 1.2px at 68% 42%, rgb(214 200 255 / 0.42), transparent 100%),
+    radial-gradient(2.1px 2.1px at 41% 77%, rgb(255 244 255 / 0.36), transparent 100%),
+    radial-gradient(1.3px 1.3px at 86% 66%, rgb(200 214 255 / 0.44), transparent 100%);
+  background-size:
+    190px 190px,
+    260px 260px,
+    330px 330px,
+    150px 150px;
+  mask-image: radial-gradient(110% 100% at 30% 20%, #000 30%, transparent 86%);
+  animation: room-dust-near 15s linear infinite;
+  will-change: transform;
+}
+
+.d-room-dust.is-far {
+  inset: -200px;
+  background-image:
+    radial-gradient(1.1px 1.1px at 12% 62%, rgb(190 176 236 / 0.34), transparent 100%),
+    radial-gradient(1.5px 1.5px at 74% 22%, rgb(206 190 255 / 0.28), transparent 100%),
+    radial-gradient(1px 1px at 52% 88%, rgb(226 216 255 / 0.3), transparent 100%);
+  background-size:
+    240px 240px,
+    410px 410px,
+    300px 300px;
+  animation: room-dust-far 24s linear infinite;
+}
+
+/**
+ * The travel is one whole tile of the *largest* size in each field, so every
+ * layer wraps on the same frame and no field slides out of registration with
+ * itself. 330px for the near field, 410px for the far one.
+ */
+@keyframes room-dust-near {
+  to {
+    transform: translate3d(-330px, 66px, 0);
+  }
+}
+
+@keyframes room-dust-far {
+  to {
+    transform: translate3d(410px, -82px, 0);
+  }
+}
+
+/**
+ * The crawl: one very soft sheet of the accent, drifting across the alcove.
+ *
+ * This is the layer that is *supposed* to be barely measurable. It is here for
+ * the eye rather than for the probe — a room whose light never changes is a
+ * photograph of a room — and it is kept to a single wide gradient at 7% so it
+ * can never compete with a panel edge.
+ *
+ * ## Its box was three and a half times the viewport, and that was the cost
+ *
+ * `inset: -30% -60%` makes the element 220% wide and 160% tall — 3.5 viewports
+ * of composited texture for the faintest layer in the room, and at 1600×900
+ * that is about 20 MB of GPU memory on its own. It was the largest single
+ * surface anywhere in this file and it was carrying the least.
+ *
+ * Measured, interleaved, six arms of three seconds each: the whole room plus
+ * the front grain cost **+0.9ms of frame interval** (+0.98, +0.87, +0.79 across
+ * three runs on two routes), which is 6% of a 60fps budget. Halving the largest
+ * box is the one change that moves that number without removing anything a
+ * player can see: the gradient's stops are widened by exactly the ratio the box
+ * shrank, so the pool of light on screen is the same size, in the same place,
+ * travelling the same distance. `-12% -26%` is 1.5 viewports rather than 3.5.
+ *
+ * The travel is expressed in percentages of the element, so it shrinks with the
+ * box — the amplitudes below are scaled back up to keep the light moving the
+ * same number of *pixels* as before.
+ */
+.d-room-crawl {
+  inset: -12% -26%;
+  background: radial-gradient(
+    46% 55% at 50% 50%,
+    color-mix(in srgb, var(--hall-accent, var(--accent)) 7%, transparent),
+    transparent 72%
+  );
+  animation: room-crawl 34s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes room-crawl {
+  from {
+    transform: translate3d(-20%, -8%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(23%, 11%, 0) scale(1.18);
+  }
+}
+
+/* ---- 1.9a the room under the accessibility and tier switches ------------ */
+
+/**
+ * Everything that moves is decorative and goes. The room, its planes and the
+ * value structure stay: somebody on reduced motion gets the same composition
+ * standing still, not a fallback screen.
+ */
+:root[data-reduced-motion="true"] .d-room-grid,
+:root[data-reduced-motion="true"] .d-room-dust,
+:root[data-reduced-motion="true"] .d-room-crawl {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .d-room-grid,
+  .d-room-dust,
+  .d-room-crawl {
+    animation: none;
+  }
+}
+
+/**
+ * High contrast wants the haze gone and the structure kept.
+ *
+ * The floor gets *stronger*, because it is the value structure and that is the
+ * one thing this setting should never soften; the alcove, the crawl, the dust
+ * and the grid go, because a tinted fog under a paragraph is exactly what the
+ * setting exists to remove.
+ */
+:root[data-contrast="high"] .d-room-alcove,
+:root[data-contrast="high"] .d-room-crawl,
+:root[data-contrast="high"] .d-room-dust,
+:root[data-contrast="high"] .d-room-grid {
+  display: none;
+}
+
+:root[data-contrast="high"] .d-room-floor {
+  background: linear-gradient(180deg, transparent 20%, rgb(3 2 8 / 0.72) 70%, rgb(2 1 6 / 0.92) 100%);
+}
+
+:root[data-contrast="high"] .d-room-wall {
+  background: linear-gradient(90deg, transparent, rgb(3 2 8 / 0.6) 24%, rgb(2 1 6 / 0.78));
+}
+
+/**
+ * The low tier drops the two full-viewport tiled layers and keeps the washes.
+ * A device choosing between this and the battle board spends its budget on the
+ * board; the room still has its planes without them, and the near plane's grain
+ * — which is the only layer that measures anything — survives at every tier.
+ */
+:root[data-gfx-tier="low"] .d-room-dust,
+:root[data-gfx-tier="low"] .d-room-grid {
+  display: none;
+}
+
+/**
+ * ...and behind the board, the room is not drawn at all.
+ *
+ * `shell.ts` writes `data-board` while a route with `battle: true` is mounted —
+ * the same flag that already decides a match gets the curtain rather than a
+ * descend, so this is a property of being a match rather than a list of ten
+ * route ids, and a match added tomorrow inherits it or gets the wrong
+ * transition.
+ *
+ * The reason is that the room is *invisible* there. A match fills the viewport
+ * with an opaque three.js scene, so seven planes behind it are behind something
+ * nothing can see through — and even at the mulligan, where the board is
+ * blurred behind a modal, it is still opaque.
+ *
+ * ## What this cost, and the version of it that was wrong
+ *
+ * Sixteen interleaved arms at 1600×900. The room and the front grain together
+ * cost **+3.42ms and +4.43ms** of frame interval on `#battle` across two runs —
+ * 67.7fps down to 52.1 — against **−0.47ms** for the same test on `#missions`,
+ * which is inside the instrument's own noise. Charged separately they are
+ * +0.79ms (room) and +0.84ms (grain); together they cost more than twice their
+ * sum, which is what compositing pressure looks like when a GPU already running
+ * a bloom chain tips over.
+ *
+ * The first version of this rule dropped **both** of them, on the further
+ * argument that `battle/scene.ts` ends its merged pass with a `NoiseEffect` and
+ * a `VignetteEffect` so a DOM grain over it is a second grain. That argument is
+ * good and the rule was still wrong, and the sweep said so within a minute:
+ * `#boss` fell to **0.203**, under the floor. A battle route *at rest* is not a
+ * live board — it is the mulligan, a modal over a blurred still, and the board's
+ * own noise is behind that blur and behind the modal. The layer keeping the
+ * screen alive was the one being removed for duplicating something that was not
+ * on screen.
+ *
+ * So only the invisible half goes. Re-measured with the grain kept, the same
+ * sixteen arms on `#battle` charge **+0.61ms**, which is inside the ±1.5ms this
+ * instrument can resolve on a busy machine — and `#boss` came back at 1.936,
+ * `#battle` 1.890, `#tutorial` 2.004, `#puzzle` 6.886, every match route above
+ * the floor.
+ */
+:root[data-board="true"] .screen > .d-room {
+  display: none;
 }
 
 /* =========================================================================
@@ -1635,109 +2092,87 @@
   }
 }
 
-/* ---- 2.6 letting the world show through -------------------------------- */
+/* ---- 2.6 the plate, and the answer to whether it should exist ---------- */
 
 /**
- * Thirty-nine screens still paint their own opaque `.ambient-bg`, and they will
- * keep doing so until the migration wave reaches them — this phase is additive
- * and does not rewire consumers. But an opaque backdrop is what makes a screen a
- * photograph: the whole world can be deleted behind it without a pixel moving.
+ * ## `.ambient-bg` should not exist, and this is where it stops existing
  *
- * So it is translucent **at rest**, not only during a transition. The first
- * version of this rule faded the plate for the duration of a navigation and put
- * it back, which made the travel feel deep and left the destination dead — the
- * world existed for about 200ms in the middle of a route change and was
- * invisible for the other 99% of the session.
+ * Sixteen screen files still write `<div class="ambient-bg"></div>`, and
+ * `base.css` paints it as a full-viewport plate at `z-index: -1` whose last
+ * gradient stop is a solid `linear-gradient(180deg, --bg-deep, --bg-void)`.
+ * That plate sits **in front of** `atmosphere.ts` and behind the screen's own
+ * content, which is the exact arrangement §2 calls a lost depth plane. The
+ * gallery had it and lost a plane to it; the lobby deleted its own and
+ * `screens.css` says so at length.
  *
- * 0.8 is the largest number that changes nothing about how a screen reads. Both
- * the plate and the world behind it are near-black, so the mean brightness
- * shift is a couple of levels; what comes through is the *moving* fifth of the
- * room — the drifting grid, the motes, the specular sweep and the breath of the
- * key light. High contrast puts it back to opaque, because a haze under a
- * paragraph is exactly what that setting exists to remove.
+ * The previous version of this rule was a compromise: hold the plate at 0.8
+ * opacity so a fifth of the world reads through. That is a fifth of a plane,
+ * and the arithmetic is unforgiving — every moving thing behind it is
+ * multiplied by 0.2, so `#missions`'s entire backdrop contributed about 0.195
+ * to a floor of 0.50. The compromise bought a rounding error and kept the
+ * defect.
  *
- * The rest value has to be in the keyframes too. `animation-fill-mode: both`
- * holds the last keyframe forever, so a `100% { opacity: 1 }` would have made
- * the plate opaque again the first time the player navigated and left it that
- * way for the session.
+ * So: **the plate's paint is taken away entirely and its element is left
+ * alone.** Two reasons for that division rather than deleting the element in
+ * sixteen files. It is declarative, so it is true for every mount path
+ * including the two error screens, which are built by hand and never go
+ * through a route factory. And an element with `background: none` and no
+ * pseudo-element paints nothing at all — there is no cost left to remove, only
+ * a `<div>` that a later wave can delete from the templates at leisure without
+ * any of this depending on it having happened.
+ *
+ * `.d-room` — §1.9, put there by `dressScreen` — is what stands in its place,
+ * and unlike the plate it is translucent by construction, so the world behind
+ * it reads at full strength on all forty-nine routes.
  */
-:root {
-  --ambient-rest: 0.8;
+.screen > .ambient-bg {
+  background: none;
+  opacity: 1;
 }
 
-:root[data-contrast="high"] {
+/**
+ * ...including the scanline grid it drew in a pseudo-element, which animated
+ * `background-position` on a full-viewport masked image. That is a paint-property
+ * animation on the largest box on the screen — the thing `foundation.css` spends
+ * forty lines banning — and `.d-room-grid` is the same motif done on the
+ * compositor, at a third the cell size, on every route rather than sixteen.
+ */
+.screen > .ambient-bg::after {
+  content: none;
+}
+
+/**
+ * The variable outlives the plate because the menu veil reads it, and it is
+ * pinned at 1 now that there is nothing translucent left for it to describe.
+ */
+:root {
   --ambient-rest: 1;
 }
 
-.screen > .ambient-bg {
-  opacity: var(--ambient-rest);
-}
-
 /**
- * And during a transition it drops further still, so the furniture moves and
- * the room does not. A screen that has migrated and dropped its `.ambient-bg`
- * simply has nothing here to match, and gets the same result for free.
- */
-.screen[data-nav$="-in"] > .ambient-bg,
-.screen[data-nav="arrive"] > .ambient-bg {
-  animation: nav-ambient-in var(--nav-dur, 300ms) var(--nav-ease-arrive) var(--nav-delay, 0ms) both;
-}
-
-.screen[data-nav$="-out"] > .ambient-bg {
-  animation: nav-ambient-out var(--nav-dur, 200ms) var(--nav-ease-leave) both;
-}
-
-/**
- * ## The arriving screen's own room is there from its first frame
+ * ## What the two ramps that used to be here were for, and why they are gone
  *
- * It used to start at zero and still be at a third of its rest value at the 46%
- * mark, so the front half of every entrance was a screen's *content* floating
- * over the atmosphere with no plate under it — while the departing plate was
- * ramping 0.8 → 0.1 and the world behind both was itself mid-crossfade between
- * two rooms, because `shell.ts` deliberately starts the 900ms room change on the
- * same frame as the 320ms transition. Three surfaces all at their dimmest at
- * once is not a composition anybody chose; it is three ramps that were each
- * right on their own.
+ * `nav-ambient-in` brought the arriving plate up from a third of its rest value
+ * over the front half of an entrance, and `nav-ambient-out` dropped the
+ * departing one to 0.1 so an exit read as receding into the world rather than
+ * sliding over it. Both were animations *of the plate*, and there is no longer
+ * a plate: the room behind a screen is `.d-room`, which is translucent at rest
+ * and therefore has nothing to fade out of the way.
  *
- * So the arriving room comes up on the front half instead of the back half:
- * 0.34 of rest at the first keyframe, full rest by 62%. The end state is
- * identical and it costs nothing, because this is an opacity ramp on a
- * full-screen plate that is composited either way.
- *
- * **What it did not fix, measured, and why:** it was written to lift the
+ * One measurement is worth keeping out of that deletion, because it is a trap
+ * that will be walked into again. The entrance ramp was written to lift the
  * 95th-percentile floor of an unveiled `lobby → collection`, which sits at 29%
- * of the departing lobby's for a 254ms window in the middle of the exchange. It
- * moved that number by nothing at all, and the reason is worth writing down
- * rather than quietly deleting the change: `nav-descend-in` animates `opacity`
- * on the **screen root**, so every surface inside it — this plate included — is
- * already multiplied by the entrance's own ramp. No backdrop can be brighter
- * than the screen it is inside. The real floor on that leg is that the Collection
+ * of the departing lobby's for a 254ms window in the middle of the exchange,
+ * and it moved that number by **nothing at all**. `nav-descend-in` animates
+ * `opacity` on the *screen root*, so every surface inside it is already
+ * multiplied by the entrance's own ramp: no backdrop can be brighter than the
+ * screen it is inside. The real floor on that leg is that the Collection
  * genuinely *is* a dark screen until its cards rasterise, and the fix for it is
  * the 43ms-per-tile cost in the card renderer, not anything in this file.
  *
- * The **departing** ramp is left alone on purpose. That one dropping is what
- * makes an exit read as receding into the world rather than sliding over it.
+ * The receding half is not lost either — §1.7's `travel()` moves the whole
+ * world behind the exchange, which is where that cue always belonged.
  */
-@keyframes nav-ambient-in {
-  0% {
-    opacity: calc(var(--ambient-rest) * 0.34);
-  }
-  62% {
-    opacity: var(--ambient-rest);
-  }
-  100% {
-    opacity: var(--ambient-rest);
-  }
-}
-
-@keyframes nav-ambient-out {
-  from {
-    opacity: var(--ambient-rest);
-  }
-  to {
-    opacity: 0.1;
-  }
-}
 
 /* ---- 2.7 secondary motion, and it costs no screen a single line -------- */
 
@@ -3124,9 +3559,9 @@
   }
 }
 
-:root[data-reduced-motion="true"] .screen[data-nav] > .ambient-bg {
-  animation: none;
-}
+/* The plate's two navigation ramps used to be switched off here. §2.6 took the
+   plate's paint away and §1.9's room replaced it, and everything the room does
+   that moves is already listed in §1.9a — so there is nothing left to silence. */
 
 /**
  * The secondary layer from §2.7 goes entirely. The cascade is decorative by

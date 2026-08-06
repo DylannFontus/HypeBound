@@ -87,6 +87,7 @@ import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { FACTION_COLOR } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
 import { icon } from "../art/uiIcons";
+import { getCardArt, onArtLoaded } from "../art/artLoader";
 import { DUR, motionEnabled, tickerTo } from "../motion";
 import {
   CURRENT_SIGIL,
@@ -106,6 +107,40 @@ export interface GalleryCallbacks {
 /** The portrait box. 3:4, so every row's baselines agree whatever the name does. */
 const TILE_W = 168;
 const TILE_H = 224;
+
+/**
+ * Run `then` on the frame the shell's cover leaves — or now, if there is none.
+ *
+ * The gallery is the most expensive route in the game to build and it has one
+ * scheduling question: when may it start rasterising portraits? Too early and it
+ * steals the frames `shell.ts` is watching for before it lifts its cover; too
+ * late and the player looks at a wall of empty frames for two seconds. Both of
+ * those have been measured on this screen, in that order.
+ *
+ * The answer is not a duration, because the event is visible: `.nav-curtain` is
+ * the cover, `shell.ts` puts it in the document and takes it out again, and a
+ * `MutationObserver` on the body's child list sees it go for the cost of one
+ * callback per navigation. The caller keeps its own long hold as the ceiling, so
+ * a route that arrives with no cover at all — a reload straight onto #gallery,
+ * or a build where the cover is skipped — is never left waiting on an event that
+ * is not coming.
+ */
+function whenRevealed(then: () => void): void {
+  if (typeof MutationObserver !== "function" || typeof document === "undefined") {
+    then();
+    return;
+  }
+  if (!document.querySelector(".nav-curtain")) {
+    then();
+    return;
+  }
+  const observer = new MutationObserver(() => {
+    if (document.querySelector(".nav-curtain")) return;
+    observer.disconnect();
+    then();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
 
 /**
  * How many tiles share one phase of the specular crawl before it repeats.
@@ -158,6 +193,85 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
   let portraitW = 0;
   /** The cast tally counts up once, on arrival, not on every filter change. */
   let counted = false;
+  /** Torn down with the screen: the decoder warmer and the swap watcher. */
+  let unwatchArt: () => void = () => {};
+
+  /**
+   * Get a shelf's paintings decoding *before* anything asks to draw one.
+   *
+   * This is the whole of the fix for the fold sitting empty, and the reason is
+   * that a PNG costs twice. `artLoader` starts the download and sets
+   * `decoding = "async"`, which means the bitmap is **not** decoded when `load`
+   * fires — it is decoded the first time somebody calls `drawImage` with it, on
+   * whichever thread that call is on, which is the main one. So the first paint
+   * of every tile was a download's worth of latency followed by a full decode
+   * inside `lazyPaint`'s six-millisecond budget, and the budget's response to a
+   * card that overran was to rest two frames before trying the next one.
+   *
+   * `HTMLImageElement.decode()` is the browser's own answer to exactly this: it
+   * resolves once a decoded frame exists, and it does the work off the main
+   * thread. Called here, at the moment a shelf is built and long before its
+   * tiles come near the fold, every subsequent `drawImage` is a blit.
+   *
+   * Per shelf rather than for the whole cast, because the cast is 138 paintings
+   * and firing all of them at once puts the fold's eleven behind a hundred and
+   * twenty-seven others in the connection queue — the same ordering mistake
+   * `lazyPaint` documents about FIFO, one layer down.
+   */
+  const warmShelf = (shelf: Shelf): void => {
+    for (const card of shelf.cards) {
+      const art = getCardArt(card);
+      /* Already loaded: decode it now. Not yet: `onArtLoaded` below catches it
+         when it lands, which is the same call a beat later. */
+      void art?.decode?.().catch(() => {});
+    }
+  };
+
+  /** Every tile on the wall right now, by card id, for the swap watcher below. */
+  const tiles = new Map<string, { tile: HTMLElement; card: CardDef }>();
+
+  /**
+   * A painting that arrives *after* its tile was drawn, and how it arrives.
+   *
+   * `portraitCanvas` draws the renderer's procedural placeholder when the PNG is
+   * not loaded yet, registers for `onArtLoaded`, and then repaints **the same
+   * canvas in place** when it lands. That repaint is a hard cut: measured on the
+   * gallery's own fold, one of nineteen tiles went from an "art pending" field
+   * to a finished painting between two frames with nothing between them. §7 does
+   * not have an exemption for a picture.
+   *
+   * Two things happen here, on one listener:
+   *
+   * 1. **The decode is warmed.** `load` fires before a `decoding: "async"` image
+   *    has a decoded frame, so this is the same call `warmShelf` makes, for the
+   *    cards that were still in flight when their shelf was built.
+   * 2. **The swap gets an entrance**, on the *next* frame rather than this one.
+   *    The ordering is deliberate and it is the only subtle part: this listener
+   *    is registered when the screen is built and `portraitCanvas`'s is
+   *    registered when a tile is painted, so this one runs first — before the
+   *    repaint it is meant to be introducing. A frame later the new pixels are
+   *    on the canvas and the animation plays over them.
+   *
+   * It never fades from zero. There is a recess behind the canvas, so a fade
+   * from nothing would show the empty mount in the middle of a swap and read as
+   * the picture leaving and a different one arriving. It dissolves from just
+   * under half instead, which is a picture changing its mind.
+   */
+  unwatchArt = onArtLoaded((cardId) => {
+    const entry = tiles.get(cardId);
+    if (!entry) return;
+    void getCardArt(entry.card)?.decode?.().catch(() => {});
+    if (!motionEnabled()) return;
+    requestAnimationFrame(() => {
+      const canvas = entry.tile.querySelector<HTMLCanvasElement>("canvas");
+      if (!canvas?.isConnected) return;
+      canvas.classList.remove("gal-art-swap");
+      /* Two frames, not one: removing and re-adding a class inside a single
+         frame is coalesced by the style engine and the animation never
+         restarts. */
+      requestAnimationFrame(() => canvas.classList.add("gal-art-swap"));
+    });
+  });
 
   const factions = Object.values(content.factions).filter((faction) => faction.id !== "neutral");
   const leaderIds = new Set(selectableLeaders(content).map((leader) => leader.id));
@@ -297,6 +411,8 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
     });
     button.addEventListener("pointerenter", () => audio.play("sfx.ui.hover"));
 
+    tiles.set(card.id, { tile: button, card });
+
     painter?.watch(button, () => {
       /*
        * Measured once per grid, not once per tile: reading `clientWidth` from
@@ -382,6 +498,7 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
 
   /** Put one shelf on the wall and hand its tiles to the two observers. */
   const appendShelf = (scroll: HTMLElement, shelf: Shelf, index: number): void => {
+    warmShelf(shelf);
     const section = buildShelf(shelf);
     /* the shelves arrive in reading order, and the same index de-phases each
        shelf's own specular crawl from its neighbour's */
@@ -628,6 +745,10 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
     alive?.disconnect();
     alive = null;
     portraitW = 0;
+    /* The wall is about to be rebuilt from scratch, so every entry in here is a
+       reference to a detached button. The swap watcher keys off this map, which
+       is what stops it animating a tile nobody can see. */
+    tiles.clear();
 
     /*
      * Each faction is a different room in one continuous place. The accent is a
@@ -704,12 +825,43 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
          * never let it go calm, so the cover was reaching its ceiling and the
          * player spent a second and a half on a title card. Measured on film:
          * still veiled at 1,189ms, against the collection's reveal at about 600.
-         * The collection solved the same problem the same way and this is its
-         * number plus the chunked build's own ten frames. What the player sees
-         * during it is the room, the shelves and the empty mounts — designed
-         * states, arriving on the cascade — rather than a cover.
+         *
+         * ## Why the hold is now 420ms and not 1,800
+         *
+         * Because it bought the cover's freedom with the fold's. Measured with
+         * `_w8rw_probe.mjs gallery`, which counts drawn canvases every 200ms
+         * against the tiles actually in the viewport: **nineteen empty mounts
+         * until 2,193ms**, the first picture at 2,193 and the last at 2,870. The
+         * hold was `DUR.ui + 1800` = 2,060, and the fold filling at 2,193 is that
+         * number plus one drain. A designed empty state is the right thing to
+         * show for a beat; it is not the right thing to show for two seconds,
+         * and §3a's "nothing appears without an entrance" is not satisfied by
+         * making the wait long enough that the arrival counts as a separate
+         * event.
+         *
+         * The reason the hold had to be that long was the cost of a first paint,
+         * and `warmShelf` above has taken the decode out of it.
+         *
+         * ## And why the number is not a number
+         *
+         * The obvious replacement was a shorter constant, and it was measured
+         * and rejected: at `DUR.ui + 420` the fold filled by 1,177ms — but
+         * `_w7gal_heavy.mjs` put the cover at 511, 558, 655, 967 and 1,000ms
+         * across five runs, against a steady 539 before. That is the same trade
+         * the long hold made, paid the other way round. Nothing had gone wrong
+         * with the paints; they had simply moved inside the window where the
+         * shell is watching for two calm frames, and every run where a
+         * placeholder card landed in that window lost the race.
+         *
+         * A guess cannot win here because the thing being waited for is
+         * observable. `.nav-curtain` is the cover, it is in the document, and it
+         * is removed when the reveal happens — so the hold is long, and
+         * `whenRevealed` cancels it on the frame the cover actually leaves. The
+         * long constant stays as the ceiling for the case where there is no
+         * cover to watch.
          */
         painter.hold(DUR.ui + 1800);
+        whenRevealed(() => painter?.hold(0));
         alive = grantIdleLight(scroll, root);
         /*
          * The first shelf is built now; the other ten are built one per frame.
@@ -808,6 +960,8 @@ export function createGalleryScreen(content: ContentIndex, callbacks: GalleryCal
       stopBuild();
       painter?.stop();
       unbindFades();
+      unwatchArt();
+      tiles.clear();
       alive?.disconnect();
       alive = null;
       delete (window as unknown as { hypeboundGallery?: unknown }).hypeboundGallery;
@@ -1300,14 +1454,57 @@ const GALLERY_CSS = String.raw`
   --rim-a: 0.13;
   --lip-a: 0.92;
 }
+/*
+ * The picture arriving in the frame — an entrance, not an appearance.
+ *
+ * It was \`hb-tile-lit\`: a bare 200ms fade from zero, fired the instant the
+ * canvas was inserted, with no relationship to any other tile. Nineteen of those
+ * firing in whatever order \`lazyPaint\` happened to drain the queue in is
+ * nineteen unrelated events, which is exactly what §3a means by contents that do
+ * not arrive in reading order.
+ *
+ * \`--enter-delay\` is inherited from the tile, where \`buildShelf\` has already
+ * written the collection's diagonal wave — \`min(420, (row + column) * 34)\` —
+ * so the pictures land on the same cascade the frames did, one step behind. A
+ * custom property crossing from the button to a canvas two levels down is free;
+ * a second scheduler to do the same job would not have been.
+ *
+ * It settles rather than only fading: 1.03 down to 1, inside a mount that clips,
+ * so the painting eases into the recess. Transform and opacity only — there are
+ * a hundred and thirty-eight of these.
+ */
 .gal-v3 .gal-mount canvas {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
   transition: filter var(--dur-ui) var(--ease-arrive);
-  animation: hb-tile-lit 200ms var(--ease-arrive) both;
+  animation: gal-portrait-in 260ms var(--ease-arrive) var(--enter-delay, 0ms) both;
 }
+
+@keyframes gal-portrait-in {
+  from { opacity: 0; transform: scale(1.03); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/*
+ * And the second arrival: a placeholder that turns into a painting.
+ *
+ * See the note on the \`onArtLoaded\` watcher in this file for why it starts at
+ * 0.45 rather than at zero — there is a recess behind the canvas, and a swap
+ * that goes through transparent shows it.
+ */
+.gal-art-swap { animation: gal-art-swap 240ms var(--ease-arrive) both; }
+
+@keyframes gal-art-swap {
+  from { opacity: 0.45; transform: scale(1.02); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+:root[data-reduced-motion="true"] .gal-v3 .gal-mount canvas {
+  animation: hb-tile-lit 90ms linear both;
+}
+:root[data-reduced-motion="true"] .gal-art-swap { animation: none; }
 /* the sleeve the picture arrives into, so a lazy paint never shows a hole */
 .gal-v3 .gal-tile-slot { display: block; width: 100%; height: 100%; }
 

@@ -48,6 +48,29 @@
  * the hooks `scripts/verify-pass.mjs` drives. They live on the rebuilt elements
  * on purpose: a check that can still prove a rebuilt track claims the right
  * tiers is worth more than a tidy class list.
+ *
+ * ## The room, and the head that was not lit
+ *
+ * Like Missions, this screen is full-bleed and so never showed a dead margin —
+ * and like Missions it carried `.rw-wash`, a full-viewport plate at `z-index:
+ * -1` sitting in front of `atmosphere.ts`. That is the object the room was
+ * written to delete, and neither of these two was on the list of eleven it was
+ * deleted from. Nothing replaces it here: `shell.ts::dressScreen` builds the
+ * room on every screen at mount and lights it from the `ROOMS` table, which puts
+ * the Hype Wave in the Market with the shop. All this file had to do was stop
+ * standing a wash in front of it.
+ *
+ * The head is the subject of the screen — the tier, the meter, the pacing state
+ * and the two things that can be bought — and it was the same value as the
+ * paragraph at the bottom of the page. It is `.d-hero` now, which lights its
+ * top-left corner from the room's own accent and crosses it with a specular
+ * every fifteen seconds, so the squint test resolves to *head, track, footnote*
+ * rather than to three grey bands.
+ *
+ * The footnote itself was a full-width slab of small print closing the screen.
+ * It is two plates now: what the Rerun Vault guarantees, and where the XP that
+ * moves the meter actually comes from — which is the question the screen raises
+ * and never answered, and it now answers it with the route out.
  */
 
 import type { CardDef, ContentIndex } from "../../engine/types";
@@ -81,7 +104,6 @@ import {
   riseIn,
   syncWallets,
   updateWallet,
-  WASH,
   type CoinKind,
 } from "./rewards/rewardKit";
 import { createPaintQueue, paintRewardArt, type PaintQueue } from "./rewards/rewardArt";
@@ -278,7 +300,7 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
     const { state } = pass;
     const into = state.complete ? state.perTier : state.intoTier;
     return `
-      <section class="rw-pass-head mat-panel" data-season="${esc(pass.season.id)}">
+      <section class="rw-pass-head mat-panel d-hero" data-season="${esc(pass.season.id)}">
         <div class="rw-tier-badge mat-chip">
           <span class="num">${state.tier}</span>
           <span class="t-label">of ${hypeWaveData().tiers}</span>
@@ -359,7 +381,6 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
     const pass = passes.find((entry) => entry.season.id === showing) ?? passes[0] ?? null;
 
     root.innerHTML = `
-      ${WASH}
       <header class="screen-header">
         ${backButton("pass-back")}
         <h1 class="title">Hype Wave</h1>
@@ -421,14 +442,40 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
                </section>`
         }
 
-        <section class="mat-panel rw-panel-pad">
-        <p class="rw-note rw-quiet" style="margin:0">
-          Seasonal cosmetics return to the shop two seasons later through the Rerun Vault, so nothing
-          here is missable. Fall behind and <em>Wave Rebound</em> pays 50% extra until you are level
-          with the season; miss the season entirely and the pass keeps going as an Archive Pass,
-          forever. That is why you will not find a countdown on this screen.
-        </p>
-        </section>
+        ${/*
+           * Two plates, not one slab of small print.
+           *
+           * The closing paragraph was doing two jobs in six lines — "nothing is
+           * missable" and "nothing about this is a timer" — and the screen's own
+           * unanswered question, *where does the XP come from*, was not in it at
+           * all. A player who has just read that the meter is fed by "the XP you
+           * already earn" has exactly one follow-up, and the answer is one route
+           * away. §5's rule about designed states applies to the bottom of a
+           * screen as much as to an empty one: this was the place the page
+           * stopped rather than the place it ended.
+           */ ""}
+        <div class="d-band pass-lead pass-close">
+          <section class="mat-panel rw-panel-pad">
+            <h2 class="d-rail-label">Nothing here is missable</h2>
+            <p class="rw-note rw-quiet" style="margin:0">
+              Seasonal cosmetics return to the shop two seasons later through the Rerun Vault, so nothing
+              here is missable. Fall behind and <em>Wave Rebound</em> pays 50% extra until you are level
+              with the season; miss the season entirely and the pass keeps going as an Archive Pass,
+              forever. That is why you will not find a countdown on this screen.
+            </p>
+          </section>
+          <section class="mat-panel rw-panel-pad pass-feed-card">
+            <h2 class="d-rail-label">What moves the meter</h2>
+            <p class="rw-note rw-quiet" style="margin:0">
+              Season XP is the XP you already earn — every match, every mission, every chapter. There is
+              no separate grind for the pass and no way to play at it directly, which is why it has no
+              objectives of its own.
+            </p>
+            <button class="mat-panel act rw-back" id="pass-to-missions">
+              ${icon("missions")}<span>Daily missions</span>${icon("chevron-right")}
+            </button>
+          </section>
+        </div>
       </main>`;
 
     bind(pass);
@@ -481,6 +528,14 @@ export function createHypeWaveScreen(content: ContentIndex, callbacks: HypeWaveC
       callbacks.onBack();
     });
     root.querySelector("#pass-missions")?.addEventListener("click", () => callbacks.onMissions());
+    /*
+     * A second id rather than a second `#pass-missions`. The between-seasons
+     * panel already carries that one and the closing band is drawn in every
+     * state, so sharing the id would put two of it in the document exactly when
+     * there is no live pass — and `querySelector` would wire the first and leave
+     * the second dead.
+     */
+    root.querySelector("#pass-to-missions")?.addEventListener("click", () => callbacks.onMissions());
 
     const scroller = root.querySelector<HTMLElement>("#pass-scroller");
     scroller?.addEventListener("scroll", () => {

@@ -470,7 +470,25 @@ export function mountAtmosphere(host: HTMLElement | null = null): Atmosphere {
   const foreBody = layer("atm-fore-body");
   const foreMotes = layer("atm-motes atm-fore-motes");
   const foreSweep = layer("atm-sweep atm-fore-sweep");
-  foreBody.append(foreMotes, foreSweep, layer("atm-fore-vignette"));
+  /**
+   * The grain, and it is the only layer in this file that a probe can see.
+   *
+   * `transitions.css` §1.6 carries the arithmetic in full; the summary is that
+   * dust covers about a tenth of a percent of the frame and a drifting grid
+   * moves a fifth of a pixel per 200ms tick, so between them they are worth
+   * hundredths of a level — while a translated noise tile changes *every* pixel
+   * by roughly its own amplitude and lands on its own near the reference floor.
+   * Every other moving thing in this module is for the eye. This one is the
+   * reason forty-nine routes measure alive instead of eleven.
+   *
+   * It goes in the front plane rather than into a screen because this element
+   * is mounted once, outside the router, and is never unmounted — which is the
+   * strongest available form of "a route added tomorrow gets it for free". It
+   * is not per-route at all; it is per-page, so it also covers the two error
+   * screens and anything else that is drawn without a route factory.
+   */
+  const foreGrain = layer("atm-fore-grain");
+  foreBody.append(foreMotes, foreSweep, foreGrain, layer("atm-fore-vignette"));
   fore.append(foreBody);
   parent.appendChild(fore);
 
@@ -482,9 +500,17 @@ export function mountAtmosphere(host: HTMLElement | null = null): Atmosphere {
    * wash rather than as a layer of its own, so there is nothing to fade in and
    * no way to add it later without the surface visibly changing. Generating it
    * up front means the backdrop has never once been a mathematically clean
-   * gradient, which is the whole point of having it. The low tier skips it: the
-   * one device that cannot afford a repeating background image is the one that
-   * is already choosing between this and the board.
+   * gradient, which is the whole point of having it.
+   *
+   * **The low tier used to skip it, and that is now a bug rather than a saving.**
+   * The argument was that a device choosing between this and the board should
+   * not spend anything on a repeating background image. Since `.atm-fore-grain`
+   * exists, this tile is the single layer keeping every route alive at rest, and
+   * a low-tier device with no `--grain-src` gets `background-image: none` and a
+   * front plane that measures zero. It is 30 KB of memory and one composited
+   * 96px repeat — genuinely the cheapest thing in this file — and the tier's
+   * saving is taken instead by `--atm-strength`, which §1.8 already drops to 0.6
+   * on low and which the grain's opacity is multiplied by.
    *
    * The property used to live on `.atmosphere`, which meant only the four
    * layers inside this element could reach it. The one other surface in the
@@ -497,7 +523,7 @@ export function mountAtmosphere(host: HTMLElement | null = null): Atmosphere {
    * whoever needs it next. §1: reality has dirt, and it has the *same* dirt
    * everywhere or the eye reads two materials.
    */
-  if (tier !== "low") {
+  {
     const grain = grainTile(96, 0.055, 0x1d4b);
     if (grain) document.documentElement.style.setProperty("--grain-src", `url("${grain}")`);
   }

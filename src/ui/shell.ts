@@ -918,6 +918,176 @@ function markCascade(root: HTMLElement): void {
   }
 }
 
+/**
+ * The seven layers of the room, back to front, and the order matters.
+ *
+ * Alcove (the accent), crawl (the accent moving), the far dust, the near grid,
+ * the near dust, the wall, then the floor **over everything** so the bottom of
+ * the frame darkens the dust too. A floor under the dust would leave specks
+ * glowing inside the dark mass, which is the one arrangement that reads as a
+ * rendering fault rather than as air.
+ *
+ * A frozen array rather than a template string, because this is built with
+ * `createElement` on a detached tree rather than written through `innerHTML`.
+ * The screen's own markup has already been parsed by the time this runs, and
+ * touching `innerHTML` again would re-parse all of it.
+ */
+export const ROOM_LAYERS = [
+  "d-room-alcove",
+  "d-room-crawl",
+  "d-room-dust is-far",
+  "d-room-grid",
+  "d-room-dust",
+  "d-room-wall",
+  "d-room-floor",
+] as const;
+
+/**
+ * What colour a route's room is lit in, as a pure function of its id.
+ *
+ * Split out of `dressScreen` and exported for one reason, and it is the reason
+ * this whole wave exists: the claim being made is *"a route added tomorrow gets
+ * a lit room without anybody remembering"*, and that claim is either executable
+ * or it is a comment. `tests/every-screen-is-a-room.test.ts` hands this an id
+ * that appears nowhere in the codebase and asserts it still comes back with a
+ * colour — which is the assertion that would have failed two waves ago, when
+ * the answer for thirty-eight of forty-nine routes was "nothing at all".
+ *
+ * `--hall-lit` is floored rather than passed straight through. `ROOMS`
+ * intensities run 0.42 (Back Office) to 1.0 (the Lobby) and were chosen for a
+ * full-viewport wash *behind* a screen; the alcove is a smaller, closer light
+ * and the same number reads roughly half as strong on it, so the quiet rooms
+ * would arrive at a tint nobody can see — which is exactly how a screen that is
+ * nominally lit ends up measuring like an unlit one. The mapping keeps the
+ * ordering and lifts the bottom: 0.42 becomes 0.65, 1.0 stays 1.0.
+ */
+export function roomLightFor(id: string): { accent: string; lit: string } {
+  const light = ROOMS[routeNode(id).room];
+  return { accent: light.key, lit: (0.42 + light.intensity * 0.58).toFixed(3) };
+}
+
+/**
+ * Give a screen the room it gets for being a screen.
+ *
+ * ## The mistake this replaces
+ *
+ * The room — four depth planes, an accent alcove where the key light is, a
+ * floor that gives the frame a dark mass, and layers that drift so the screen
+ * is alive at rest — was built as `kit.ts::room()`, a helper a screen called
+ * from inside its own template. Eleven screens called it. Measured with
+ * `scripts/_w7rw_probe.mjs`: those eleven idled at 0.88–1.89 per 200ms and the
+ * other thirty-eight at 0.18–0.71, minima down at 0.067, against a Hearthstone
+ * reference of min 0.501 / median 1.713. Nothing about the room was wrong. The
+ * *opt-in* was wrong, and the half of the game left out of it included the
+ * front door.
+ *
+ * So it happens here instead, and "here" is chosen carefully. `place()` is the
+ * one funnel every route in the game passes through — there is no second way to
+ * mount a screen — and this runs on the **detached tree**, in the same pass as
+ * `markCascade`, before the element has ever been in the document. Seven
+ * appends and two custom properties on a tree nothing is observing invalidate
+ * nothing; the same writes after insertion would each cost a style recalc on a
+ * subtree the size of a screen, which is the exact cost `markCascade` exists to
+ * document.
+ *
+ * ## What guarantees tomorrow's route
+ *
+ * Three things, and they are independent, which is the point:
+ *
+ * 1. A route does not opt in. It cannot: nothing in a screen factory is
+ *    consulted. A screen is dressed because `place()` mounted it.
+ * 2. The stylesheet is not the data domain's any more. §1.9 of
+ *    `theme/transitions.css` is imported by `atmosphere.ts` and therefore
+ *    present from boot, so the layers are painted whether or not the route in
+ *    question has ever pulled in `screens/data/kit.ts`.
+ * 3. The accent comes from `routeNode(id).room`, and `routeNode` already
+ *    answers for a route that is not in `ROUTES` at all — `UNKNOWN_ROUTE` puts
+ *    it in the hub's light. An unclassified screen gets a lit room, not an
+ *    exception and not a black rectangle.
+ *
+ * ## What a screen may still decide
+ *
+ * Exactly one thing, and only by writing `--hall-accent` on its own root before
+ * it is handed over: which colour the room is lit in. `profileScreen` is the
+ * case that needs it — its accent is the player's chosen colour and cannot come
+ * from a static table. Anything already set is left alone; everything else takes
+ * the room the route belongs to, so the Collection and the Deck Builder are lit
+ * as one workshop without either of them having said so.
+ */
+const roomWatchers = new WeakMap<HTMLElement, MutationObserver>();
+
+function buildRoom(root: HTMLElement): void {
+  // Idempotent, and it has to be: the observer below re-runs this on every
+  // direct-child mutation, and a room stacked behind another room is two rooms.
+  if (root.querySelector(":scope > .d-room")) return;
+  const room = document.createElement("div");
+  room.className = "d-room";
+  room.setAttribute("aria-hidden", "true");
+  for (const layer of ROOM_LAYERS) {
+    const node = document.createElement("div");
+    node.className = layer;
+    room.appendChild(node);
+  }
+  /**
+   * First child, which is where `.ambient-bg` used to sit and where a `z-index:
+   * -1` box has to be if a screen paints anything of its own at the same level.
+   * `insertBefore(node, null)` is `appendChild`, so an empty screen is fine.
+   */
+  root.insertBefore(room, root.firstChild);
+}
+
+function dressScreen(root: HTMLElement, id: string): void {
+  const light = roomLightFor(id);
+  /**
+   * `style.getPropertyValue` rather than `getComputedStyle`, and that is not an
+   * optimisation — it is the only thing that works. The tree is detached, so it
+   * has no computed style to read; the inline declaration is the only place a
+   * screen's own choice can be sitting at this point in its life.
+   */
+  if (!root.style.getPropertyValue("--hall-accent")) root.style.setProperty("--hall-accent", light.accent);
+  if (!root.style.getPropertyValue("--hall-lit")) root.style.setProperty("--hall-lit", light.lit);
+
+  buildRoom(root);
+
+  /**
+   * ## And then it has to survive the screen rebuilding itself
+   *
+   * This is the correction that came out of the first measured sweep, and it is
+   * the one worth reading. Every route came back with seven planes and a lit
+   * room — **except the lobby, which came back with none.** Not because the
+   * shell skipped it: because `lobbyScreen` sets `root.innerHTML` inside its
+   * own `render()`, and `render()` runs again whenever the profile changes or
+   * the screen resumes from a child. One assignment removes every direct child
+   * the shell put there, silently, with no error and no type change, and the
+   * front door goes back to being the flat screen this whole wave exists to
+   * fix. That is the *same class of failure* as the opt-in — a mechanism that
+   * is true at one moment and quietly stops being true later — arrived at from
+   * the other direction, and a fix that did not survive it would have shipped
+   * looking correct in every still taken within a second of a navigation.
+   *
+   * A `MutationObserver` with `childList` and **no `subtree`** is the cheap
+   * answer. It fires only when a screen's *direct* children change, which is
+   * essentially only on a full re-render; the Collection rebuilding two hundred
+   * cells inside its body mutates nodes several levels down and is not observed
+   * at all. `buildRoom` is idempotent, so a re-render costs one query and one
+   * insert, and a screen that never re-renders costs a registration and nothing
+   * else.
+   *
+   * The custom properties survive an `innerHTML` write on their own — they are
+   * inline styles on the root, and the root is the thing being written *into*.
+   */
+  roomWatchers.get(root)?.disconnect();
+  const watcher = new MutationObserver(() => buildRoom(root));
+  watcher.observe(root, { childList: true });
+  roomWatchers.set(root, watcher);
+}
+
+/** Stop watching a screen that has left the document. */
+function undressScreen(root: HTMLElement): void {
+  roomWatchers.get(root)?.disconnect();
+  roomWatchers.delete(root);
+}
+
 /** Every range under `root`, including `root` itself if it is one. */
 function syncRangesIn(root: ParentNode | HTMLElement): void {
   if (root instanceof HTMLInputElement && root.type === "range") {
@@ -1173,6 +1343,30 @@ export class Shell {
       world?.enterRoom(routeNode(id).room);
 
       /**
+       * ## Behind a board, the room is not drawn
+       *
+       * A match fills the viewport with an opaque three.js scene, so the seven
+       * planes behind the screen are invisible by definition — and they are not
+       * free: sixteen interleaved arms at 1600×900 charge the room and the
+       * front grain together at **+3.42ms and +4.43ms** of frame interval on
+       * `#battle`, against **−0.47ms** for the same test on `#missions`, which
+       * is inside the instrument's own noise.
+       *
+       * **A property, not a route list.** `battle` is the flag already on
+       * `RouteNode` that decides a match gets the curtain rather than a descend,
+       * so a match added tomorrow declares it or gets the wrong transition, and
+       * a menu route added tomorrow declares nothing and keeps its room.
+       *
+       * §1.9a of `transitions.css` carries the rest, including the version of
+       * this that was wrong: dropping the *grain* here as well took `#boss` to
+       * 0.203, under the floor, because a match at rest is the mulligan — a
+       * modal over a blurred still — and not a live board at all.
+       */
+      const board = document.documentElement.dataset;
+      if (routeNode(id).battle) board["board"] = "true";
+      else delete board["board"];
+
+      /**
        * Two frames, and now they are paid on **every** navigation.
        *
        * They used to be the veiled path's alone, on the reasoning that only a
@@ -1396,10 +1590,11 @@ export class Shell {
     root.style.setProperty("--nav-delay", `${plan.inDelayMs}ms`);
     if (plan.relation === "sibling") root.style.setProperty("--nav-dir", String(plan.direction));
     /**
-     * Named while it is still detached, which is the whole of why this is
-     * cheap. See `markCascade`.
+     * Named and furnished while it is still detached, which is the whole of why
+     * both are cheap. See `markCascade` and `dressScreen`.
      */
     markCascade(root);
+    dressScreen(root, id);
     root.dataset["nav"] = plan.relation === "arrive" ? "arrive" : `${plan.relation}-in`;
 
     /**
@@ -1804,6 +1999,11 @@ export class Shell {
       // Out of the document now — that is what stops it being drawn — and torn
       // down once the arriving screen has stopped moving. See `queueDisposal`.
       root.remove();
+      // The room's watcher goes with the element. A `MutationObserver` holds
+      // its target weakly, so this is tidiness rather than a leak fix — but a
+      // detached screen that a stale reference re-renders would otherwise keep
+      // rebuilding a room nobody can see.
+      undressScreen(root);
       this.queueDisposal(entry.id, () => entry.screen.dispose?.());
     };
 
@@ -2088,8 +2288,12 @@ export class Shell {
   private showError(id: string, error: unknown): void {
     const node = document.createElement("div");
     node.className = "screen error-screen";
+    /**
+     * No `.ambient-bg`. It painted an opaque plate in front of the world and
+     * §2.6 of `transitions.css` has taken its paint away, so all it was doing
+     * here was occupying the slot `dressScreen` puts the room in.
+     */
     node.innerHTML = `
-      <div class="ambient-bg"></div>
       <div class="panel panel-chrome error-panel">
         <div class="eyebrow">Something broke</div>
         <h2 class="title">Could not open “${id}”</h2>

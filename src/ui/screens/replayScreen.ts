@@ -39,7 +39,6 @@ import {
   quantify,
   paintArt,
   rankMark,
-  room,
   rovingList,
 } from "./data/kit";
 
@@ -55,6 +54,24 @@ interface HistoryFilter {
   factionId: string;
   result: string;
 }
+
+/**
+ * The Archive's blue, for the one thing the room cannot light: a canvas.
+ *
+ * The room itself is `shell.ts::dressScreen`'s and its accent comes from the
+ * `ROOMS` table, so nothing here writes `--hall-accent`. The ladder plate on the
+ * empty state is a `data:` URI rasterised by `art.ts` from a hex passed as an
+ * argument, which no custom property can reach — the recipe is resolved off the
+ * mounting frame, on a tree that has no computed style yet. So this one literal
+ * survives, and it is the Archive's key because that is the room #replays is in.
+ *
+ * `#7d92c8`, read back off the mounted screen rather than typed from memory —
+ * the value that used to be here was `#7fa6e8`, a blue this route had invented
+ * for itself and passed to the old `room()` helper, and it is not the Archive's.
+ * Statistics, Profile, Mastery and Missions are all in the same room; the plate
+ * on this one's empty state is now painted in the same light as they are.
+ */
+const ARCHIVE_ACCENT = "#7d92c8";
 
 /** One board snapshot per intent, plus the opening position. */
 interface Frame {
@@ -131,7 +148,6 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
   const history = getProfile().history;
 
   const root = document.createElement("div");
-  root.className = "screen replay-screen";
   const bag = disposeBag();
 
   /**
@@ -141,54 +157,104 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
    * another is what the recon measured, and it reads as content that failed to
    * load rather than as a state anybody designed. §2 calls an unresolved
    * composition exactly that. So the split only exists once there is something to
-   * split: before the first match, the route is one plate, centred, on the key
-   * art the rest of the domain uses, with the action that fixes it on it.
+   * split.
+   *
+   * ## And the plate that replaced it was the same mistake one size down
+   *
+   * The first repair made the empty route "one plate, centred, on the key art
+   * the rest of the domain uses". Measured at 1600×900 that plate is 800px wide
+   * in a 1600px frame — **400px of dead background on each side, the widest
+   * margins anywhere in the game** — on a route reachable from the lobby, from
+   * Statistics and from the end of every match. A centred card in a void is what
+   * §2 reads as an unresolved composition, and making the card prettier does not
+   * resolve it.
+   *
+   * So the empty state is now the *shape* of the screen it stands in for: a
+   * full-width band across the top and a row of plates under it, in the hall, on
+   * the same room every sibling route uses. §5 asks an empty state to be a
+   * designed moment; the three plates are the three things the workbench would
+   * have told you and one of them — that none of this leaves the device — is the
+   * reason the feature exists and was a subordinate clause.
    */
   const virgin = history.length === 0;
+  /*
+   * `.d-hall` only when there is nothing on record. The workbench is a list pane
+   * beside a stage — the two-column arrangement the hall exists to impose,
+   * arrived at independently and tuned to a workbench rather than to a rail —
+   * and wrapping it in a second grid wins nothing. The empty state has no
+   * workbench to preserve, so it takes the room's own geometry.
+   */
+  root.className = `screen replay-screen${virgin ? " d-hall d-hall-solo" : ""}`;
 
   root.innerHTML = `
-    ${
-      /*
-       * The room, and deliberately **not** `.d-hall`.
-       *
-       * Of the eleven screens this wave owns, this is the one whose composition
-       * was already right: `.replay-body` is a list pane beside a stage, which is
-       * the two-column arrangement `.d-hall` exists to impose, arrived at
-       * independently and tuned to a workbench rather than to a rail. Wrapping it
-       * in the hall grid would put a second axis inside a layout that already has
-       * one and win nothing. What it shares with the other ten is the plate — an
-       * `.ambient-bg` in front of `atmosphere.ts` — and that is all that changes
-       * here.
-       */ ""
-    }
-    ${room({ accent: "#7fa6e8", lit: 0.7 })}
     <header class="sub-header">
       <button class="btn btn-ghost" id="replay-back">${icon("arrow-left", 16)} Lobby</button>
       <h1 class="title">Match History</h1>
       <div class="sub-header-meta">${quantify(history.length, "match", "matches")} on record</div>
     </header>
-    ${virgin ? "" : '<div class="replay-filters d-chips" id="replay-filters"></div>'}
-    <div class="replay-body ${virgin ? "is-virgin" : ""}">
-      ${virgin ? "" : '<aside class="replay-list" id="replay-list"></aside>'}
-      <section class="replay-stage mat-panel ${virgin ? "is-virgin" : ""}" id="replay-stage"></section>
-    </div>`;
+    ${
+      virgin
+        ? '<main class="replay-virgin-body data-body"></main>'
+        : `<div class="replay-filters d-chips" id="replay-filters"></div>
+           <div class="replay-body">
+             <aside class="replay-list" id="replay-list"></aside>
+             <section class="replay-stage mat-panel" id="replay-stage"></section>
+           </div>`
+    }`;
 
   if (virgin) {
-    const stagePlate = root.querySelector("#replay-stage")!;
+    const stagePlate = root.querySelector(".replay-virgin-body")!;
+    /*
+     * The plate is 1,400 wide now rather than 800, so the ladder is drawn at the
+     * width it will be shown at. `artAttr` is a *recipe*, resolved off the
+     * mounting frame by `paintArt`, and the numbers in it are the canvas the
+     * generator rasterises — a 1,280px drawing stretched across 1,400 is the
+     * blurry-chart defect `drawSized` exists to stop, arrived at from the other
+     * direction.
+     */
     stagePlate.innerHTML = `
-      <div class="d-key replay-virgin-key" ${artAttr("ladder", [1280, 420, "#b56cff"])}
-           style="--key-aspect:3/1" aria-hidden="true">
-        <div class="d-key-scrim"></div>
-      </div>
-      <div class="empty d-enter replay-virgin-text">
-        ${icon("mode-replays", 44)}
-        <h3 class="t-heading">No matches on record</h3>
-        <p class="t-body">
-          Every match this device plays is written down here — the deck, the opponent, the length and
-          the result. The most recent ${REPLAYABLE_HISTORY} keep a full replay you can scrub turn by turn,
-          and nothing is ever sent anywhere.
-        </p>
-        <button type="button" class="mat-hero act r-chip" id="replay-play">${icon("play", 16)} Play a match</button>
+      <section class="mat-panel d-hero d-enter replay-virgin-hero">
+        <div class="d-key replay-virgin-key" ${artAttr("ladder", [1400, 280, ARCHIVE_ACCENT])}
+             style="--key-aspect:5/1" aria-hidden="true">
+          <div class="d-key-scrim"></div>
+        </div>
+        <div class="empty replay-virgin-text">
+          ${icon("mode-replays", 44)}
+          <h3 class="t-heading">No matches on record</h3>
+          <p class="t-body">
+            This is the archive. Every match this device plays is written into it the moment it ends,
+            and it is read from here — never from anywhere else.
+          </p>
+          <button type="button" class="mat-hero act r-chip" id="replay-play">${icon("play", 16)} Play a match</button>
+        </div>
+      </section>
+
+      <div class="d-band replay-virgin-band">
+        <section class="mat-panel d-enter replay-virgin-card">
+          ${icon("list", 22)}
+          <h3 class="t-heading">Everything, every time</h3>
+          <p>
+            The deck, the opponent, the mode, the length, the result and the peak Obsession — kept for
+            every match, however old, and filterable by all three.
+          </p>
+        </section>
+        <section class="mat-panel d-enter replay-virgin-card">
+          ${icon("mode-replays", 22)}
+          <span class="replay-virgin-figure num">${count(REPLAYABLE_HISTORY)}</span>
+          <h3 class="t-heading">keep the board itself</h3>
+          <p>
+            The most recent ${quantify(REPLAYABLE_HISTORY, "match", "matches")} keep every intent, so the
+            whole game can be rebuilt and scrubbed turn by turn. Older ones keep their figures.
+          </p>
+        </section>
+        <section class="mat-panel d-enter replay-virgin-card">
+          ${icon("lock", 22)}
+          <h3 class="t-heading">None of it leaves</h3>
+          <p>
+            The archive is this device's storage and nothing else. There is no upload, no account
+            behind it, and it reads exactly the same with the network switched off.
+          </p>
+        </section>
       </div>`;
     root.querySelector("#replay-play")?.addEventListener("click", () => {
       audio.play("sfx.ui.confirm");

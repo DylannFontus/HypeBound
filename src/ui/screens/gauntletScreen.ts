@@ -15,6 +15,34 @@
  * Epics after saying Legendary is a draft lying about its own odds, and the
  * whole point of `src/game/fairness/` was that the published number and the
  * rolled number are the same number.
+ *
+ * ## Why this screen has two columns now
+ *
+ * It was `.d-hall.d-hall-solo`, which is the hall with its rail track collapsed
+ * — so it got the room and the lighting and kept the geometry the room was built
+ * to replace: one 1,120px column of full-width slabs on **240px of dead
+ * background each side** at 1600, measured. Lighting a bad composition does not
+ * make it a good one, and a screen that opts out of the second column is a screen
+ * that has to justify the opt-out. This one could not.
+ *
+ * The rail is not filler and it is not the same card six times. It is the thing
+ * the player is holding while they look at the thing they are choosing:
+ *
+ *   hub .......... the account's record, and what this build defers
+ *   leader ....... the shape of the run they are about to commit to
+ *   draft ........ **the deck as it fills** — the curve and the thirty picks
+ *   ready/run .... the same deck, now locked, beside the fight
+ *   done ......... the deck that got them there
+ *
+ * A drafter looks at the offer and at their curve, in that order, on every one of
+ * thirty picks; MTG Arena puts the pool on the right for exactly this reason. It
+ * was underneath the offer, one full panel-height down, so every pick cost a
+ * scroll to answer "do I need a three-drop".
+ *
+ * Every phase writes a rail, deliberately. `hall.css` collapses the track with
+ * `:has(> .d-rail)` when there is nothing on that wall, and a hall that flickers
+ * between two column counts as you click through six phases is worse than either
+ * arrangement on its own.
  */
 
 import type { CardDef, ContentIndex } from "../../engine/types";
@@ -49,7 +77,7 @@ import {
 import { TARGET_CURVE, curveBucket } from "../../engine/deck";
 import { aiCloutRemaining, getProfile } from "../../save/profile";
 import { aiDailyCap } from "../../game/economy/income";
-import { artAttr, count, countUp, enter, icon, quantify, room } from "./data/kit";
+import { artAttr, count, countUp, enter, icon, quantify, railCard } from "./data/kit";
 
 export interface GauntletCallbacks {
   onBack: () => void;
@@ -72,10 +100,25 @@ const percent = (value: number): string => `${Math.round(value * 1000) / 10}%`;
 export function createGauntletScreen(content: ContentIndex, callbacks: GauntletCallbacks): Screen {
   const data = gauntletData();
   const root = document.createElement("div");
-  root.className = "screen gauntlet-screen d-hall d-hall-solo d-hall-read";
+  root.className = "screen gauntlet-screen d-hall d-hall-read";
 
+  /*
+   * No backdrop markup, and no accent written here either.
+   *
+   * This screen used to open with `room({ accent: "#4fe3d0", lit: 0.85 })`. The
+   * room is `shell.ts::dressScreen`'s now — built on the detached tree at mount
+   * for every route, lit from the `ROOMS` table `routeNode(id).room` already
+   * points at, which for both Gauntlet routes is the Descent. A hex repeated
+   * here would be the same decision made in two places, and the one that drifts
+   * is always the copy.
+   *
+   * It matters for the hero as well as for the wall: `.d-hero::before` reads
+   * `--hall-accent` from the screen root, and while the room's accent lived on
+   * the room's own element the hero was lit by `.d-hall`'s `var(--accent)`
+   * fallback — the global violet — six pixels from a teal alcove. Two suns on
+   * the largest object on the screen. One lamp, one table, one place.
+   */
   root.innerHTML = `
-    ${room({ accent: "#4fe3d0", lit: 0.85 })}
     <header class="screen-header">
       <button class="btn btn-ghost" id="gauntlet-back">${icon("arrow-left", 16)} Back</button>
       <h1 class="title">The Gauntlet</h1>
@@ -94,9 +137,11 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
        * thumb, which is §7's "tear in the world" with extra steps. Dropping the
        * class hands the element back to the foundation's drawing.
        */ ""}
-    <main class="gauntlet-body data-body" id="gauntlet-body"></main>`;
+    <main class="gauntlet-body data-body" id="gauntlet-body"></main>
+    <section class="d-rail" id="gauntlet-rail" aria-label="This run"></section>`;
 
   const body = root.querySelector<HTMLElement>("#gauntlet-body")!;
+  const rail = root.querySelector<HTMLElement>("#gauntlet-rail")!;
   const chip = root.querySelector<HTMLElement>("#gauntlet-record-chip")!;
 
   root.querySelector("#gauntlet-back")?.addEventListener("click", () => callbacks.onBack());
@@ -142,7 +187,19 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
         onPick();
       });
     }
-    tile.appendChild(renderCardToCanvas(card, 200));
+    /*
+     * 236, not 200.
+     *
+     * The three offered cards are the whole of the decision this mode is made
+     * of, and with the deck panel moved to the wall they are the only thing in
+     * the main column — measured at 1600×900 the offer panel ended at y=680 and
+     * left 220px of floor under it. §0a's note about the reference set applies
+     * directly here: "board units are substantial — large framed medallions,
+     * readable at a glance. Ours are tiny rectangles." A drafted card is read for
+     * its cost, its type line and its rules text before it is picked, and 200px
+     * puts that text at about 7px.
+     */
+    tile.appendChild(renderCardToCanvas(card, 236));
     const caption = document.createElement("div");
     caption.className = "gauntlet-tile-caption";
     caption.innerHTML = `<span class="gauntlet-tile-name">${esc(card.name)}</span><span class="t-label">${esc(
@@ -307,6 +364,41 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
       </ul>
     </section>`;
 
+  /**
+   * The shape of a run, at the moment the player commits to one.
+   *
+   * Four numbers, and they are the four the prose beside them states in a
+   * sentence and therefore does not *show*: how many picks, how wide an offer,
+   * how long a run lasts and what one loss costs. `.d-rail-stats` is the two-up
+   * block `hall.css` added for exactly this — six across a page, two across a
+   * wall.
+   *
+   * It went here rather than the deferred list, and that was a second attempt.
+   * The first put "What the full Gauntlet has that this build does not" on the
+   * wall, on the reasonable-sounding grounds that a list of absent things is an
+   * aside — and it measured 700px of small print against a 90px record card, so
+   * the wall of a mode's front door was four paragraphs of what you cannot do.
+   * `hall.css` states the rule this breaks: the rail holds the thing the player
+   * came to check or the thing they will click. A list of exclusions is neither,
+   * and it is back at the foot of the column where a document belongs.
+   */
+  const runShapeCard = (): string =>
+    railCard({
+      label: "The run ahead",
+      className: "gauntlet-shape",
+      body: `
+        <dl class="d-rail-stats">
+          <div class="d-stat"><dt>Picks</dt><dd class="num">${count(data.draft.picks)}</dd></div>
+          <div class="d-stat"><dt>Cards per offer</dt><dd class="num">${count(data.draft.offerSize)}</dd></div>
+          <div class="d-stat"><dt>Wins to retire</dt><dd class="num">${count(data.run.winsToRetire)}</dd></div>
+          <div class="d-stat"><dt>Losses allowed</dt><dd class="num">${count(data.run.lossesToRetire)}</dd></div>
+        </dl>
+        <p class="t-body">
+          One free full re-draft before the first match, then the deck is locked. Entry is free and
+          nothing is charged at any point.
+        </p>`,
+    });
+
   /** The drafted deck, grouped by cost, with the curve it is filling. */
   function deckPanel(run: GauntletRun): string {
     const counts = new Map<number, CardDef[]>();
@@ -321,8 +413,15 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
       .sort((a, b) => a - b);
     const tallest = Math.max(1, ...buckets.map((bucket) => Math.max(counts.get(bucket)?.length ?? 0, TARGET_CURVE[bucket]!)));
 
+    /*
+     * `d-rail-card` unconditionally, and that is not a class applied on spec.
+     * `hall.css` scopes the rail card's padding and lit left edge to `.d-rail >
+     * .d-rail-card`, so the class is inert anywhere else — which means the deck
+     * panel can be written once and stand either in the main column or against
+     * the wall without a flag deciding which markup to emit.
+     */
     return `
-      <section class="mat-panel gauntlet-deck d-enter">
+      <section class="mat-panel d-rail-card gauntlet-deck d-enter">
         <div class="settings-head">
           <span class="settings-mark" aria-hidden="true">${icon("deck", 20)}</span>
           <div class="policy-doc-head">
@@ -371,8 +470,28 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
   function renderHub(): void {
     const save = gauntletStore.get();
     chip.innerHTML = "";
+    rail.innerHTML = `
+      ${railCard({
+        label: "Your record",
+        className: "gauntlet-record-card",
+        body:
+          save.runsStarted === 0
+            ? `<p class="t-body"><span class="gauntlet-none">${icon(
+                "campfire",
+                15
+              )} No runs yet — the first one starts free.</span></p>`
+            : `<dl class="d-rail-stats gauntlet-record-stats">
+                 <div class="d-stat"><dt>Runs started</dt><dd class="num" data-count="${save.runsStarted}" data-digits="4">0</dd></div>
+                 <div class="d-stat"><dt>Best run</dt><dd class="num" data-count="${save.bestWins}" data-digits="3">0</dd></div>
+                 <div class="d-stat"><dt>Clout banked</dt><dd class="num" data-count="${save.lifetimeClout}" data-digits="7">0</dd></div>
+                 <div class="d-stat"><dt>Card-back tokens</dt><dd class="num">${count(
+                   save.cardBackProgress
+                 )} / ${count(data.cardBack.progressRequired)}</dd></div>
+               </dl>`,
+      })}
+      ${runShapeCard()}`;
     body.innerHTML = `
-      <section class="mat-panel gauntlet-intro d-enter">
+      <section class="mat-panel d-hero gauntlet-intro d-enter">
         ${/*
            * The hub's right third was empty, and prose cannot fill it.
            *
@@ -384,6 +503,11 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
            * one behind the Leaderboards standing and the empty Match History —
            * and it composes the frame while claiming nothing, which is the right
            * trade on a screen whose whole argument is not overclaiming.
+           *
+           * It survives the rail. The panel is ~1,060 rather than ~1,080 now, so
+           * an 84ch measure still leaves the same third, and the plate is still
+           * what closes it — the rail took the *screen's* dead margin, not this
+           * panel's.
            */ ""}
         <div class="d-key gauntlet-intro-key" ${artAttr("ladder", [520, 700, "#b56cff"])}
              style="--key-aspect:3/4" aria-hidden="true">
@@ -398,21 +522,6 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
           <strong>${quantify(data.run.lossesToRetire, "loss", "losses")}</strong>. It draws from the whole
           card pool, not your collection — a brand-new account is on exactly level ground here.
         </p>
-        ${
-          save.runsStarted === 0
-            ? `<p class="t-body"><span class="gauntlet-none">${icon(
-                "campfire",
-                15
-              )} No runs yet — the first one starts free.</span></p>`
-            : `<dl class="d-stats gauntlet-record-stats">
-                 <div class="d-stat"><dt>Runs started</dt><dd class="num" data-count="${save.runsStarted}" data-digits="4">0</dd></div>
-                 <div class="d-stat"><dt>Best run</dt><dd class="num" data-count="${save.bestWins}" data-digits="3">0</dd></div>
-                 <div class="d-stat"><dt>Clout banked</dt><dd class="num" data-count="${save.lifetimeClout}" data-digits="7">0</dd></div>
-                 <div class="d-stat"><dt>Card-back tokens</dt><dd class="num">${count(save.cardBackProgress)} / ${count(
-                   data.cardBack.progressRequired
-                 )}</dd></div>
-               </dl>`
-        }
         <div class="row center">
           <button type="button" class="mat-hero act r-chip gauntlet-cta" id="gauntlet-start">
             ${icon("play", 16)} Start a run
@@ -455,8 +564,9 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
 
   function renderLeaderPick(run: GauntletRun): void {
     chip.innerHTML = runChip("profile", "Pick a leader");
+    rail.innerHTML = runShapeCard();
     body.innerHTML = `
-      <section class="mat-panel gauntlet-phase d-enter">
+      <section class="mat-panel d-hero gauntlet-phase d-enter">
         <div class="t-label">Step 1 of 2</div>
         <h2 class="t-display">Choose your leader</h2>
         <p class="t-body">
@@ -513,8 +623,9 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
           } from the rarity below</span>`
         : "";
 
+    rail.innerHTML = deckPanel(run);
     body.innerHTML = `
-      <section class="mat-panel gauntlet-phase d-enter">
+      <section class="mat-panel d-hero gauntlet-phase d-enter">
         <div class="t-label">${esc(leaderName)} · pick ${count(offer.pick)} of ${count(
           data.draft.picks
         )}</div>
@@ -527,7 +638,25 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
         </p>
         <div class="gauntlet-offer" id="gauntlet-offer"></div>
       </section>
-      ${deckPanel(run)}`;
+
+      ${/*
+         * The pool behind the offer, on the screen where it explains something.
+         *
+         * `realityFor(leaderCardId)` — the per-leader rarity breakdown — existed
+         * and was only ever called with `null`, so the honest half of the odds
+         * table was shown on the hub and on the leader picker and never during
+         * the thirty picks it is actually about. A player who has just been told
+         * "Legendary pick" and handed three Epics has one question, and the
+         * answer is this list.
+         */ ""}
+      <section class="mat-panel d-enter" id="gauntlet-pool">
+        <div class="settings-head">
+          <span class="settings-mark" aria-hidden="true">${icon("mode-draft", 20)}</span>
+          <h2 class="t-heading">What this pool can offer</h2>
+        </div>
+        ${realityFor(run.leaderCardId)}
+        ${rarityTable()}
+      </section>`;
 
     const host = body.querySelector<HTMLElement>("#gauntlet-offer")!;
     for (const cardId of offer.cardIds) {
@@ -546,8 +675,9 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
   function renderReady(run: GauntletRun): void {
     const canRedraft = run.redraftsUsed < data.draft.redrafts;
     chip.innerHTML = runChip("check", "Deck ready");
+    rail.innerHTML = deckPanel(run);
     body.innerHTML = `
-      <section class="mat-panel gauntlet-phase d-enter">
+      <section class="mat-panel d-hero gauntlet-phase d-enter">
         <div class="t-label">${esc(content.leaders[run.leaderCardId!]?.name ?? "")}</div>
         <h2 class="t-display">${count(data.draft.picks)} cards, drafted.</h2>
         <p class="t-body">
@@ -565,7 +695,6 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
           </button>
         </div>
       </section>
-      ${deckPanel(run)}
       ${paysPanel()}`;
 
     body.querySelector("#gauntlet-begin")?.addEventListener("click", () => {
@@ -598,8 +727,9 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
       "gauntlet-record"
     );
 
+    rail.innerHTML = deckPanel(run);
     body.innerHTML = `
-      <section class="mat-panel gauntlet-phase d-enter">
+      <section class="mat-panel d-hero gauntlet-phase d-enter">
         <div class="t-label">${esc(content.leaders[run.leaderCardId!]?.name ?? "")}</div>
         <h2 class="t-display">${quantify(run.wins, "win")}, ${quantify(run.losses, "loss", "losses")}</h2>
         <div class="gauntlet-pips" id="gauntlet-pips">
@@ -627,7 +757,6 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
             : ""
         }
       </section>
-      ${deckPanel(run)}
       ${paysPanel()}`;
 
     body.querySelector("#gauntlet-fight")?.addEventListener("click", () => {
@@ -644,8 +773,9 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
   function renderDone(run: GauntletRun): void {
     const payout = previewGauntlet(content, run);
     chip.innerHTML = "";
+    rail.innerHTML = deckPanel(run);
     body.innerHTML = `
-      <section class="mat-panel gauntlet-phase d-enter" id="gauntlet-summary">
+      <section class="mat-panel d-hero gauntlet-phase d-enter" id="gauntlet-summary">
         <div class="t-label">${run.retiredEarly ? "Retired" : run.wins >= data.run.winsToRetire ? "Perfect run" : "Run over"}</div>
         <h2 class="t-display num">${count(run.wins)}–${count(run.losses)}</h2>
         <div class="gauntlet-summary-grid">
@@ -682,8 +812,7 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
             ${icon("chest", 16)} Collect
           </button>
         </div>
-      </section>
-      ${deckPanel(run)}`;
+      </section>`;
 
     body.querySelector("#gauntlet-collect")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");
@@ -712,9 +841,13 @@ export function createGauntletScreen(content: ContentIndex, callbacks: GauntletC
      * all, so each phase change replaced four panels on a single frame. Doing it
      * here rather than in each of the six branches is also why a seventh phase
      * cannot forget: `render` is the only way any of them is reached.
+     *
+     * `root` rather than `body`, since the rail is a sibling of the main column
+     * and not a descendant of it. Staggering one and not the other is how a
+     * two-column screen ends up with a wall that pops while the page cascades.
      */
-    enter(body, ".d-enter", 42);
-    countUp(body);
+    enter(root, ".d-enter", 42);
+    countUp(root);
   }
 
   render();

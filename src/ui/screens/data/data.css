@@ -1571,3 +1571,582 @@ th.num {
     --key-aspect: 21 / 6;
   }
 }
+
+/* -------------------------------------------------------------------------
+   12. Second columns — the four screens that were still one
+   -------------------------------------------------------------------------
+   `hall.css` built the four-track grid and eleven screens took it. Three did
+   not, and two of those three took it and then collapsed the rail track with
+   `.d-hall-solo` — which is the hall with the composition removed and the
+   lighting kept. Measured at 1600×900 before this section:
+
+       #gauntlet    content 240…1350   span 0.70   240px of dead background each side
+       #doomscroll  content 360…1240   span 0.55   360px each side
+       #replays     content 400…1200   span 0.50   400px each side, on the empty state
+
+   None of that is a material defect and a census that counts class names cannot
+   see any of it — all three were already `.mat-panel` throughout, already lit at
+   315°, already carrying the room. They were the right materials in the wrong
+   shape, which is the exact failure `hall.css` opens by naming.
+
+   What is here is only the geometry those three screens' own stylesheets pin at
+   a width that predates the hall. Every rule is an override of a measure, and
+   each one says which declaration it is unpinning and where that declaration
+   lives, because the alternative — editing four files owned by three people —
+   is how a layout ends up meaning something different on each of them.
+
+   `.screen.<name>` rather than a bare class: `rooms.css` and `screens.css` both
+   load *after* this file, so an equal-specificity rule here loses to whatever
+   they say. The extra class is what makes the outcome a property of the CSS
+   rather than of the module graph's import order. `rooms.css` opens with the
+   same note. */
+
+/**
+ * The Gauntlet's deck, standing on the wall instead of lying under the offer.
+ *
+ * `screens.css` gives `.gauntlet-deck-list` `repeat(auto-fill, minmax(200px,
+ * 1fr))` with `max-height: 260px; overflow-y: auto`, which is right for a panel
+ * spanning a page and wrong twice over in a 350px rail: the auto-fill resolves
+ * to a single column anyway, and a 260px scroller *inside* a column that already
+ * scrolls is two nested scrollbars for one list. The rail is the scroller; the
+ * list is a list.
+ */
+.screen.gauntlet-screen .d-rail .gauntlet-deck-list {
+  grid-template-columns: minmax(0, 1fr);
+  max-height: none;
+  overflow: visible;
+  margin-top: var(--sp-2);
+}
+
+/**
+ * Two up, not three.
+ *
+ * `.d-rail-stats` floors its tracks at 96px, which in a 310px card resolves to
+ * three columns and leaves the fourth figure alone on a second row — and the
+ * one label long enough to wrap ("Cards per offer") then wraps while the three
+ * beside it do not, so a block of four equal facts reads as one odd one out.
+ * Four figures want two rows of two.
+ */
+.screen.gauntlet-screen .gauntlet-shape .d-rail-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/** `screens.css` reserves 18px under the panel for the curve's floating labels. */
+.screen.gauntlet-screen .d-rail .gauntlet-deck {
+  padding-bottom: calc(var(--sp-4) + 18px);
+}
+
+/**
+ * The curve, at rail width.
+ *
+ * Eight cost buckets across 300px is 30px a column with the gap, and the count
+ * above each bar is `--fs-xs`. It fits; what does not fit is `screens.css`'s
+ * 96px height once the labels below it are competing for the same space, so the
+ * block is shortened rather than letting the "7+" label collide with the list.
+ */
+.screen.gauntlet-screen .d-rail .gauntlet-curve {
+  height: 78px;
+  gap: 4px;
+}
+
+/**
+ * The Doomscroll's setup column was pinned to 880px by `rooms.css`.
+ *
+ * That number was correct when it was written: the screen was `.d-hall-solo`,
+ * the body was 1,120 wide, and two stacked plates at two different widths is the
+ * composition failure the rule's own comment describes. With a rail on the wall
+ * the body is ~1,060 and the record band has left the column entirely, so the
+ * cap now does the thing it was written to prevent — it centres one plate in a
+ * track and re-opens a margin on both sides of it.
+ */
+.screen.doom-screen .d-hall > .data-body .doom-setup,
+.screen.doom-screen .data-body .doom-setup {
+  max-width: none;
+  margin-inline: 0;
+}
+
+/**
+ * The four rules, as a band of recessed tiles.
+ *
+ * `.mat-well` rather than a fifth `.mat-panel`: these sit *inside* a panel, and
+ * A1 is explicit that a raised material inside a raised material is two objects
+ * where there is one. A well inverts the light — the inner shadow at the
+ * top-left, the faint rim at the bottom-right — so the tiles read as cut into
+ * the plate rather than stacked on it, which is also the cheapest way to add a
+ * depth plane to a screen that had three.
+ */
+/**
+ * `.panel` in `base.css` is background + border + radius and **no padding** —
+ * `screens.css` grants it through an explicit list of screen-specific class
+ * names, and a class added today is a class that list has never heard of. The
+ * long note on `.d-pad` in §1 is about exactly this drift; the band is stated
+ * here rather than given `.d-pad` because it wants a label above a grid rather
+ * than `.d-pad`'s flex column.
+ */
+.screen.doom-screen .doom-rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+}
+
+.screen.doom-screen .doom-rules-band {
+  --band-min: 220px;
+}
+
+.screen.doom-screen .doom-rule {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "mark figure"
+    "mark name"
+    "line line";
+  align-items: baseline;
+  column-gap: var(--sp-2);
+  row-gap: 2px;
+  padding: var(--sp-3);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+}
+
+.screen.doom-screen .doom-rule-mark {
+  grid-area: mark;
+  align-self: start;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-field);
+  color: var(--accent-bright);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+.screen.doom-screen .doom-rule-figure {
+  grid-area: figure;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  line-height: 1;
+}
+
+.screen.doom-screen .doom-rule-name {
+  grid-area: name;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.screen.doom-screen .doom-rule-line {
+  grid-area: line;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+/**
+ * The descent ladder, on the wall.
+ *
+ * `rooms.css` lays an act out as `[number] [name + blurb] [state]` across a
+ * page, which at 300px puts the state word under a two-word name and leaves the
+ * blurb at four characters a line. On the wall it becomes a stack: the number
+ * and the state on one row, the name under it, the blurb under that.
+ */
+.screen.doom-screen .d-rail .doom-act {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "no state"
+    "no text";
+  align-items: center;
+  column-gap: var(--sp-2);
+  row-gap: 2px;
+}
+
+.screen.doom-screen .d-rail .doom-act-no {
+  grid-area: no;
+}
+
+.screen.doom-screen .d-rail .doom-act-text {
+  grid-area: text;
+  min-width: 0;
+}
+
+.screen.doom-screen .d-rail .doom-act-state {
+  grid-area: state;
+  justify-self: start;
+}
+
+/** Three figures on one line is a page rule; on a wall they are a stat block. */
+.screen.doom-screen .d-rail .doom-record-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(84px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-2);
+}
+
+/**
+ * The run's own sidebar, once it is the rail rather than a column inside one.
+ *
+ * `screens.css` gives `.doom-side` a `mat-panel` box of its own and a
+ * `minmax(260px, 330px)` grid track to sit in. Standing in the rail it is the
+ * rail card, so the plate is `.d-rail-card`'s and the width is the track's; what
+ * it keeps is its internal rhythm.
+ */
+.screen.doom-screen .d-rail > .doom-side {
+  max-height: none;
+  width: auto;
+}
+
+/**
+ * 90px of the frame, back.
+ *
+ * `screens.css` gives `.doom-body` `height: calc(100% - 90px)`, which dates from
+ * before this screen was a grid item: it was subtracting a header that the grid
+ * now puts in a row of its own. In the hall the body's row is already the
+ * viewport minus the header, so the calc took a second header's worth off the
+ * bottom — a measured 90px strip of empty floor under every phase of the mode.
+ */
+.screen.doom-screen .data-body {
+  height: auto;
+}
+
+/**
+ * The Doomscroll's map, with the sidebar gone from beside it.
+ *
+ * `.doom-layout` was a two-column grid inside a body that was itself half the
+ * window — the second column existed and the screen was still narrow, which is
+ * the case a census of "does this route have two columns" gets wrong. The
+ * sidebar is the hall's rail now, so the main column holds one child and the
+ * scrolling belongs to the body, as it does on every other hall screen. Two
+ * nested scrollers is what `screens.css`'s `overflow-y: auto` on `.doom-main`
+ * would otherwise leave behind.
+ */
+.screen.doom-screen .data-body > .doom-main {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+/**
+ * The map, and the key beside it.
+ *
+ * `screens.css` caps `.doom-map` at 660px and centres it, and the note above
+ * that rule is right — the edges only read as a descent while the gap between
+ * floors is comparable to the gap between columns, so a map stretched to fill a
+ * 1,060px column stops being a map of anything. What that leaves is ~200px of
+ * panel either side of it, which is the same defect at panel scale as the one
+ * this section is about at screen scale.
+ *
+ * So the flank holds the legend. `auto` rather than a fraction, so the key is
+ * sized by its own content and the map keeps every pixel that is left; below
+ * 1080 the key drops under the map and becomes a wrapping row, because a 180px
+ * column beside a 460px map on a phone is neither.
+ */
+.screen.doom-screen .doom-map-stage {
+  --legend-w: calc(212px * var(--ui-scale, 1));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--legend-w);
+  align-items: start;
+  gap: var(--sp-4);
+}
+
+/**
+ * The track is stated, not `auto`.
+ *
+ * An `auto` track plus a percentage `max-width` on its only child is circular —
+ * the track sizes to the content, the content sizes to a percentage of the
+ * track — and Blink resolves it by giving the key about 110px, at which point
+ * every blurb wraps to one word a line and the key is less legible than the
+ * tooltip it replaced. Measured at 1600×900 before this: "Merch Table / Spend /
+ * run- / Clout / on / cards" down eleven lines.
+ */
+.screen.doom-screen .doom-legend {
+  list-style: none;
+  margin: var(--sp-5) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.screen.doom-screen .doom-legend-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-2);
+  padding: 5px var(--sp-2);
+  border-radius: var(--r-field);
+}
+
+/**
+ * The mark takes the node's own colour, so the key and the map read as one
+ * legend rather than as two. `screens.css` tints exactly three kinds — the
+ * Sponsor Drop and the Main Event in gold, the Touch Grass Break in green — and
+ * those three are restated here rather than inherited, because the class that
+ * carries them on the map carries a width as well.
+ */
+.screen.doom-screen .doom-legend-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-field);
+  background: rgb(0 0 0 / 0.28);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  color: var(--accent-bright);
+}
+
+.screen.doom-screen .doom-legend-row[data-kind="treasure"] .doom-legend-mark,
+.screen.doom-screen .doom-legend-row[data-kind="boss"] .doom-legend-mark {
+  color: var(--accent-gold);
+}
+
+.screen.doom-screen .doom-legend-row[data-kind="rest"] .doom-legend-mark {
+  color: var(--success);
+}
+
+.screen.doom-screen .doom-legend-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.screen.doom-screen .doom-legend-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.screen.doom-screen .doom-legend-blurb {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+
+@media (max-width: 1080px) {
+  .screen.doom-screen .doom-map-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .screen.doom-screen .doom-legend {
+    margin-top: 0;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+/* -------------------------------------------------------------------------
+   12a. Match History before the first match
+   -------------------------------------------------------------------------
+   §5: "Empty states are designed too. 'You own no cards' is a moment to be
+   charming, not a blank grid."
+
+   The old one was one 800px card centred in a 1600px frame — the widest dead
+   margins measured anywhere in the game, on a route reachable from the lobby,
+   from Statistics and from the end of a match. It was also, structurally, a
+   *smaller* version of the screen it stands in for: one plate where the real
+   screen has two panes, so arriving at it read as the workbench having failed to
+   load rather than as a state anybody drew.
+
+   So the empty state is now the same shape as the screen it replaces — a full
+   hero band across the top and a row of plates under it — and it answers the
+   three questions the workbench would have answered: what is written down, how
+   much of it can be replayed, and where it goes. That last one is the reason
+   this screen exists at all and it was a clause in a paragraph. */
+
+/**
+ * Centred, because the leftover height is not a lower half.
+ *
+ * The hero and its three plates come to about 670px in an ~800px body. Left at
+ * the top that is 130px of floor under the last plate, which is the same reading
+ * §2 gives an unresolved lower half; split evenly it is 65px of air above and
+ * below a composition that is plainly finished. It collapses to `start` the
+ * moment the content is taller than the box, which is what `flex-start` would
+ * have to be doing anyway at 844×390.
+ */
+.screen.replay-screen .replay-virgin-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-4);
+}
+
+/**
+ * The hero is the art, and the art reaches the panel's edges.
+ *
+ * `.d-key` is normally an inset plate with a radius; here it is the top third of
+ * the hero and it bleeds, so the heading below sits *in* the frame rather than
+ * on a picture that stops at a rectangle 40px short of it. §2's note about the
+ * mat is the same note: an environment that ends at a hard edge is a panel
+ * dropped on a photo.
+ */
+.screen.replay-screen .replay-virgin-hero {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/**
+ * The three plates under it, and why the middle one is allowed to be widest.
+ *
+ * `.d-band` is `auto-fit, minmax(--band-min, 1fr)`, so at 1600 this is three
+ * equal columns, at 1180 it is two and one, and at 844 it is a stack — the same
+ * behaviour every other band in the domain has, rather than a fourth breakpoint
+ * table for one screen.
+ */
+.screen.replay-screen .replay-virgin-band {
+  --band-min: 260px;
+}
+
+.screen.replay-screen .replay-virgin-card {
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  align-items: flex-start;
+}
+
+.screen.replay-screen .replay-virgin-card .hb-icon {
+  color: var(--accent-bright);
+}
+
+.screen.replay-screen .replay-virgin-card h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+
+.screen.replay-screen .replay-virgin-card p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/**
+ * A figure the plate is about, drawn at display size.
+ *
+ * "The most recent 8 keep a full replay" is a number a player acts on — it is
+ * the difference between a row that opens a board and a row that opens a
+ * summary — and it was the eleventh word of a sentence. `.num` because §A3 makes
+ * every number a player reads under pressure tabular, and this one sits directly
+ * above a second figure on the plate beside it.
+ */
+.screen.replay-screen .replay-virgin-figure {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  line-height: 1;
+  color: var(--accent-bright);
+}
+
+@media (max-height: 460px) {
+  .screen.replay-screen .replay-virgin-band {
+    --band-min: 220px;
+  }
+
+  .screen.replay-screen .replay-virgin-card {
+    padding: var(--sp-3);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   12b. The two reward screens, which had a hero and did not light it
+   -------------------------------------------------------------------------
+   Missions and the Hype Wave are full-bleed already, so neither shows the dead
+   margin the three above did. What they showed instead is the other half of the
+   same failure: a stack of equal-weight bands with no subject. Squinted at,
+   #missions resolved to five grey slabs of identical value, and the one figure a
+   player opens it to check — how many dailies they have banked — was the last
+   line of the last paragraph, below the fold.
+
+   Both now open on a band rather than a slab: the promise on the left, the
+   record on the right. `.d-band-lead` is `hall.css`'s 1.55fr/1fr, so the two are
+   visibly a lead and a support rather than a split. */
+
+.screen.missions-screen .missions-lead,
+.screen.pass-screen .pass-lead {
+  --band-min: 320px;
+  align-items: stretch;
+}
+
+.screen.missions-screen .missions-lead > *,
+.screen.pass-screen .pass-lead > * {
+  min-width: 0;
+}
+
+/**
+ * The Hype Wave's head, crushed to 34px at the minimum supported viewport.
+ *
+ * This one was found by lighting it. Making the head a `.d-hero` is what sent me
+ * to measure its box, and the box turned out to be wrong at 1280×720 with or
+ * without the class:
+ *
+ *     1280×720   grid-template-rows: 0px 34px 387.469px 195.438px
+ *                .rw-pass-head  y=98…132   — 34px tall, "SEASON 1" sliced
+ *     1600×900   grid-template-rows: 0px 132.141px 445.062px 179.281px
+ *                .rw-pass-head  y=98…230   — correct
+ *
+ * Verified against the same page with `d-hero` removed at runtime: identical
+ * rows, identical 34px. So the tier badge, the season name, the XP meter, the
+ * pacing state and both purchase buttons have been folded into a 34px strip on
+ * the viewport `docs/AAA-BAR.md` §9 names as the floor, and lighting the panel
+ * only made it visible.
+ *
+ * The mechanism is the track sizing algorithm. `rewardsTheme.css` gives
+ * `.rw-pass-body` `grid-template-rows: auto auto auto auto`, and an `auto` track
+ * is `minmax(auto, max-content)`. When the rows do not fit — 658px of content in
+ * a 606px box at 1280×720 — the algorithm has no positive free space to
+ * distribute, so **every track stays at its base size**, which is its
+ * min-content. The head's min-content is its padding alone, because each of its
+ * three children is itself a grid or a `min-height: 0` stack with a zero
+ * automatic minimum. The track is the one row that cannot shrink, so the head
+ * absorbs the whole shortfall.
+ *
+ * `max-content` as the base rather than `auto` is the fix: a `max-content` track
+ * cannot be shrunk below its content, so the four rows come to their real height
+ * and the body — which is already `overflow-y: auto` — scrolls, which is what a
+ * 720px window should do with 756px of pass on it.
+ *
+ * `rewardsTheme.ts` is another module's file. This is stated here, scoped to the
+ * route, and should move there when that owner next opens it.
+ */
+.screen.pass-screen .rw-pass-body {
+  grid-template-rows: max-content max-content max-content max-content;
+}
+
+/** The closing pair is a genuine half-and-half; only the head is a lead. */
+.screen.pass-screen .pass-close {
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--band-min, 300px) * var(--ui-scale, 1)), 1fr));
+}
+
+.screen.pass-screen .pass-feed-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  align-items: flex-start;
+}
+
+/**
+ * The record card: two stat pairs and a meter, on the wall side of the band.
+ *
+ * It is `.d-rail-stats` rather than `.d-stats` for the reason that block exists
+ * — six across a page, two across a column — and the numbers carry `data-count`
+ * so `countUp` ratchets them on arrival like every other figure in the domain.
+ */
+.screen.missions-screen .missions-record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  justify-content: center;
+}
+
+.screen.missions-screen .missions-record .d-rail-stats {
+  grid-template-columns: repeat(auto-fit, minmax(calc(110px * var(--ui-scale, 1)), 1fr));
+}
+
+.screen.missions-screen .missions-record-note {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  line-height: 1.5;
+}
