@@ -1,0 +1,167 @@
+# Recon: Card renderer — frames, rarity, foils, typography, art treatment (src/ui/cardRenderer/*)
+
+**Score: 5/10** — 13 defects (3 critical)
+
+---
+
+> ## SCOPE CORRECTION — read before acting on anything below
+>
+> **Card art coverage is not a defect and must never be scored.** The 120/296
+> figure is simply where the hand-authored art has got to; the remaining pieces
+> are being made one at a time and will land on their own schedule. An audit that
+> marks a card down for not being painted yet is measuring the artist's calendar,
+> not the renderer.
+>
+> **Therefore:**
+>
+> - **Do not generate, synthesise or fabricate card art.** Not procedurally, not
+>   as a "temporary" fill, not as a demo. Art arrives by dropping a PNG into
+>   `public/assets/art/<card-id>.png` and nothing else may write into that space.
+> - **Do not deduct for unpainted cards**, and do not treat a collection grid full
+>   of placeholders as evidence of anything except that art is in progress.
+> - **Do not reduce the placeholder's importance either.** It is the opposite
+>   mistake. 176 cards wear it today and some will wear it for months, so it is a
+>   long-lived, heavily-seen state.
+>
+> **What genuinely is in scope, and what this domain is judged on:**
+>
+> 1. **The placeholder must look deliberate.** AAA-BAR §5 — empty states are
+>    designed. Right now it reads as an image that failed to load: a flat gradient
+>    with a disembodied black ball, because the figure silhouette is buried under
+>    a 93%-opaque scrim, and the honest "ART PENDING" disclosure is drawn beneath
+>    the rules box where nobody will ever see it. Those are real bugs. A player
+>    should be able to see an unpainted card and think "that is the art-pending
+>    treatment", never "that one is broken".
+> 2. **The frame must carry a card on its own.** This is the real test the recon
+>    identified, and it stands: black out the portrait on a Hearthstone or MTG
+>    Arena card and there is still an object there — frame material, textbox,
+>    rarity furniture, collector line. Do that here and there is nothing but chips
+>    on a gradient. Fixing that improves all 296 cards, painted or not.
+> 3. Everything else below — rarity language, foils, the gem/badge treatment,
+>    typography and legibility, the card back, entrance and hover motion — is
+>    entirely independent of how much art exists.
+>
+> Defect 1 below is correct in its diagnosis and its fix; read it as "the
+> art-pending state is badly drawn", not as "there are too few paintings".
+
+---
+
+## The single worst thing
+
+Three cards in five are a flat vertical gradient with a disembodied black circle floating in the middle of them. `verify-art.mjs` reports 120/296 painted (40.5%), so 176 cards fall through to `drawPlaceholderArt`, and that placeholder's only figurative element — a torso-plus-head silhouette anchored at 0.96h — is drawn *under* a bottom scrim that starts at 0.52h and is 93% opaque by 0.55h. The torso is buried; only the head survives. Every screenshot of the collection is a wall of coloured rectangles each with one black dot in it, and the card has no frame, no material and no rarity language to carry it when the art is absent. Hearthstone has no equivalent state because its frame is an object that is interesting with the portrait blacked out; MTG Arena's unpainted cards still ship a full frame, textbox parchment, set symbol and collector line. Here, remove the art and there is nothing left but chips on a gradient.
+
+## Defects
+
+### 1. [CRITICAL] The procedural placeholder renders as a flat Current-hued gradient with a single black circle floating in it. The figure silhouette (torso from baseY=0.96h up to ~0.58h, head circle at ~0.44h) is composed against the full 512x680 rect, but LAYOUT.bottomScrim covers y=356..680 and reaches 93% opacity by y≈430, so the torso is entirely buried and only the head remains — a disembodied ball. The honest 'ART PENDING' disclosure is drawn at rect.h-6, i.e. underneath the rules box and the stat gems, so it is never visible either. The same silhouette inside renderLeader's circular clip turns every unpainted leader medallion into a keyhole (see board.png, enemy leader).
+
+- **Where:** src/ui/cardRenderer/placeholderArt.ts:99-112 (figure), :226-235 (watermark); src/ui/cardRenderer/palette.ts:226 (bottomScrim); src/ui/cardRenderer/renderLeader.ts:412
+- **Why it fails:** AAA-BAR §1 (nothing is flat: the placeholder is a two-stop gradient plus three 30%-alpha cones, no texture, no grain, no edge treatment) and §0 (the one-sentence test — this is what a viewer sees first, on 59% of the collection). MTG Arena's unillustrated/proxy states are still a complete printed frame with textbox material and collector furniture; Gwent never shows an empty art panel because the border and the power plate carry the card on their own.
+- **Fix:** Delete the figure entirely — a humanoid silhouette is the one thing that cannot survive a scrim. Replace with a composition that lives in the top 52% only: a Current-specific etched guilloche (radial rays for Halo, wave rosettes for Tide, hex lattice for Root) built from the existing hash seed, an embossed faction-crest watermark at 8% alpha using the 512px crest PNG already on disk, a deterministic 2-4% canvas noise overlay, and a corner vignette. Move the 'ART PENDING' string into the type line gap at y≈460 where nothing occludes it. Then re-run the grid capture: no card should read as an image that failed to load.
+
+### 2. [CRITICAL] Rarity has no visual language. RARITY_STYLE differs only in a hex colour and a pip count (1/2/3/4), and drawRarityGem paints those pips as ~11px diamonds at cy=644 of 680 — hard on the bottom edge, between the two stat gems. On the collection grid the `.card-count` pill (`position:absolute; bottom:6px; left:50%`) sits directly over them, so on the one screen where a player compares rarities the only rarity signal is fully occluded. grid-legendary.png shows eleven LEGENDARY cards that are indistinguishable from the commons in grid.png.
+
+- **Where:** src/ui/cardRenderer/palette.ts:201-206, :254; src/ui/cardRenderer/renderCard.ts:609-638; src/ui/theme/screens.css:544-546
+- **Why it fails:** AAA-BAR §6 (saturation is a resource — the thing that matters most should read loudest; here the most valuable card in the game reads identically to a 40-shard common) and §9 (never signal by colour alone — four gold specks vs one grey speck at 4px in a tile is not a second channel, it is noise). Hearthstone gilds a legendary with a hand-painted dragon frame plus a gem in the nameplate and an audible/particle flourish; MTG Arena gives mythics an orange-red set symbol plus a legendary crown on the frame; Gwent gives legendaries a distinct border treatment and an animated art panel.
+- **Fix:** Make rarity a frame variant, not a badge. Four tiers of the *same* frame: common = the current single rim; rare = add a second inset rim line and metal-blue corner caps; epic = corner caps plus a gradient rim with two visible facets and a faint inner glow; legendary = a full gilded rim (warm metal gradient with a specular band that follows the key light), enlarged corner ornaments, a gold nameplate variant, and a rarity crest replacing the pip row. Move the pip row off the bottom edge into the nameplate's left cap so nothing can occlude it, and give the collection tile's count pill `bottom: -10px` or move it to a corner.
+
+### 3. [CRITICAL] There is no frame — only strokes. drawFrameRim is three concentric traces (5px gradient, 1.5px black at inset 4, 1px highlight at inset 7). The name plate is a rounded rect with a left-to-right gradient and one uniform 1.5px hairline; the rules box is `rgba(6,4,14,0.86)` flat fill with one uniform 1.5px hairline. No bevel, no inner shadow, no rim light that varies with position, no material, no texture anywhere in the file, and `ctx.shadowOffsetX/Y` is never set on any element, so nothing on the card casts a contact shadow onto the art beneath it.
+
+- **Where:** src/ui/cardRenderer/renderCard.ts:264-303 (rim), :399-437 (name plate), :467-510 (text box)
+- **Why it fails:** AAA-BAR §1, which bans this explicitly: 'a border: 1px solid as the only edge treatment' and 'a drop shadow with no corresponding highlight', and requires a gradient with a light source, an edge treatment, texture at 2-6%, and a contact shadow on anything sitting on anything else. The nameplate's gradient runs horizontally (dark-light-dark, a tube) while the rim's runs top-left to bottom-right — two suns on one card, which §1 calls out by name. In MTG Arena the textbox is a lit surface with a visible inner drop shadow where it is sunk into the frame; in Hearthstone the nameplate is a carved banner with a top rim highlight and a cast shadow onto the portrait.
+- **Fix:** Build one shared raised-panel routine: given a Path2D and a light angle (fixed at 315deg for the whole game), fill with a two-stop gradient along the light vector, stroke the lit arc at rgba(255,255,255,0.10) and the shaded arc at rgba(0,0,0,0.55), then draw an inner shadow by stroking the path clipped to itself with a 6px black shadow offset down-right. Apply to the name plate, the rules box, the Current badge and the cost gem. Add a single tiled 128px noise pattern (generated once, cached, 3% alpha, `overlay` blend) across the whole card. Give the name plate, rules box and both stat gems a 2px offset contact shadow onto the art.
+
+### 4. [MAJOR] The card's outer neon bloom is amputated and the Current silhouettes are cropped flat. LAYOUT.bleed is 8px, but flameNotch's peaks reach y-15 and its ember flare reaches y+h+12; circuitAngle's steps reach x+w+12; waveRound's bulges reach x+w+9 — all outside a canvas that is exactly CARD_W x CARD_H. Worse, drawFrameRim's `shadowBlur: 24` is applied to a stroke 8px from the canvas edge, so 16px of glow is clipped on all four sides and the bloom terminates in a hard straight line with square corners (clearly visible around the Epic and Legendary cards in rarity-ladder.png and along the right edge of Small Print in scale-legibility.png).
+
+- **Where:** src/ui/cardRenderer/palette.ts:213-221 (CARD_W/CARD_H/bleed); src/ui/cardRenderer/frameShapes.ts:53, :62, :83, :141-152, :165; src/ui/cardRenderer/renderCard.ts:268-277
+- **Why it fails:** AAA-BAR §7 ('nobody asks for it and everybody notices') and §1. A glow that ends in a straight line is the single most recognisable canvas-rendering tell; neither Hearthstone nor Gwent ever shows a clipped bloom because the glow lives on a layer larger than the card. It also silently defeats frameShapes.ts's own stated purpose — the file claims the silhouette is the primary non-colour Current cue, and Cinder's flames and Halo's dome are the two most distinctive, and both are the ones that get chopped.
+- **Fix:** Raise LAYOUT.bleed to 40 and grow CARD_W/CARD_H to 592x760 (keeping the printable rect at 512x680 so existing art still cover-fits), or render the bloom into a separate padded offscreen canvas composited under the card. Then re-tune the shapes so the identity is visible at tile size: Cinder's notches need to be ~3x deeper, Halo's dome rises 28px over 496px (a 1:18 arc — invisible) and needs to be a real 60px dome or a different cue, and Gale's ribbon sweep is completely undetectable at 185px (see current-shapes.png).
+
+### 5. [MAJOR] The foil is invisible and never animates. drawFoil paints one diagonal band at `screen` blend with a 0.26 peak alpha over an already-bright card; a three-up A/B at 300px (foil off / phase 0.3 / phase 0.6) is indistinguishable. The `phase` parameter is dead: the only caller in the game passes the literal `0.3` and nothing ever advances it, so no card in HYPEBOUND has ever shimmered. The collection detail view tilts the card in 3D on pointer move, and the baked-in foil sweep does not respond to the tilt at all.
+
+- **Where:** src/ui/cardRenderer/renderCard.ts:640-661; src/ui/screens/collectionScreen.ts:317 (the only non-constant caller, `phase: 0.3`); src/ui/screens/grandTourScreen.ts:138,142; src/ui/screens/shopScreen.ts:217
+- **Why it fails:** AAA-BAR §3 ('idle is never dead' — a screen with nothing happening still breathes) and §5 (every state is designed). Premium/foil is the game's headline cosmetic reward and it currently renders as nothing. Hearthstone's golden cards are fully animated with per-card particle layers; MTG Arena's foils are a rainbow diffraction that parallaxes with the card's tilt; Gwent animates the art panel itself on premium cards.
+- **Fix:** Rewrite as two layers: (1) a diffraction layer — 5-7 hue-rotated bands at 0.10-0.18 alpha in `color-dodge`, masked to the frame silhouette, offset by the card's live tilt angle rather than a scalar phase; (2) a specular sweep at 0.32 alpha driven by a shared rAF clock at a 4-6s period. Feed the collection detail's existing `pointermove` tilt into the foil offset so the sheen tracks the pointer. Gate both behind `prefers-reduced-motion` (drop to a single static diffraction layer, no sweep) and behind a shared clock so 245 canvases do not each own a rAF loop.
+
+### 6. [MAJOR] Board cards draw five elements that are illegible at the size they are actually shown. The board texture is rendered at 819x1088 and displayed at ~121px — a 6.7:1 downsample. At that size the type line ('CHARACTER — IDOL') is a grey smear, the three lines of rules text are a grey smear, the Current badge's label is mush, the rarity pips read as dirt, and the 1.5px inner rim lines vanish entirely (see the 3x pixelated blow-up in scale-legibility.png). `statEmphasis` correctly enlarges attack and health, but nothing is *removed*.
+
+- **Where:** src/ui/cardRenderer/renderCard.ts:685 (drawTextBox with compactForBoard), :434 (type line always drawn); src/ui/battle/cardMesh.ts:56-82 (TEXTURE_SCALE 1.6); src/ui/cardRenderer/palette.ts:245-253
+- **Why it fails:** AAA-BAR §4 (type is designed; text over imagery needs a plate — here it has a plate and is still unreadable, which is worse: it is a designed-looking block of noise) and §6 (value structure — squint at the board and 40% of each unit is undifferentiated grey mud). Hearthstone shows a board minion with *no* rules text and *no* cost gem — art, name banner, attack, health, and a keyword glow. Gwent shows power plus a single ability icon. Both strip the card down when it goes to the board; HYPEBOUND ships the whole card face at one-quarter scale.
+- **Fix:** Add a `boardFace: true` mode that skips the type line, the rules box and the rarity pips entirely, widens the name plate to full frame width with the name at a fixed 34px card-space, and replaces the rules text with up to three 44px keyword glyphs in a row (the icons.ts status glyphs already exist). Keep the full face for the press-and-hold inspect. Drop TEXTURE_SCALE to 1.0 for board faces at the same time — the extra pixels are being thrown away by the mip chain.
+
+### 7. [MAJOR] The card back is a wireframe: a three-stop vertical gradient, four concentric stroked diamonds, and a hard-cornered `strokeRect(10,10,...)` on a 256x358 canvas. No texture, no bevel, no centre medallion, no logo lockup, no vignette, no rounded corners — so a face-down card has a completely different silhouette from every face-up card, whose frames are Current-shaped. This is the game's headline sellable cosmetic (season tier 1, banner rewards, monthly check-in), and every variant is the same wireframe in a different hue.
+
+- **Where:** src/ui/battle/cardMesh.ts:129-199 (getCardBackTexture, DEFAULT_BACK)
+- **Why it fails:** AAA-BAR §1 (solid/two-stop fill plus a single stroked rectangle as the only edge treatment is the explicit ban) and §7 (consistent corner radii — hard corners against Current-shaped fronts). Hearthstone card backs are individually illustrated objects with sculpted metal borders and animated inserts, and they are the most-collected cosmetic in that game; Gwent's is embossed leather and metal. A stroked rectangle cannot be sold.
+- **Fix:** Rebuild at 512x680 to match the front, using the same frame silhouette + raised-panel + noise primitives as the face so a back and a front are visibly the same object flipped: rounded/Current-neutral silhouette, a metal rim with the shared key light, a tiled diagonal guilloche at 6% alpha, a centred embossed HYPEBOUND emblem with an inner-shadow lip, a corner vignette, and the cosmetic's colour driving the rim and emblem only. One back design, tinted — that is exactly how the existing cosmetic ids are structured.
+
+### 8. [MAJOR] Canvas typography is one hardcoded system font with no hierarchy, no tabular figures, and no accessibility hook. `fontFor()` returns `"Segoe UI", system-ui, sans-serif` for the name, the type line, the rules text and every numeral; renderLeader hardcodes the same string again. The DOM has a `--font-display` token and uses `font-variant-numeric: tabular-nums` in eleven places, and the canvas uses neither — so cost/attack/health numerals are proportional and visibly shift inside their gems when a stat changes width. The `dyslexiaFont` setting swaps the font on `body` and `.screen`, which means the most text-dense surface in the game — the rules text on every card — is the one surface that ignores it. Card names are fitted between 30px and 15px, so 'Small Print' renders at exactly double the size of 'Dawnrise, the Uninvited Guest' side by side in the same grid, and body text auto-shrinks 20px→11px per card.
+
+- **Where:** src/ui/cardRenderer/renderCard.ts:93-97 (fontFor), :112-158 (drawRichText shrink loop), :160-193 (drawFittedLine); src/ui/cardRenderer/renderLeader.ts:275-278; src/ui/theme/base.css:75-76, :173-178; src/save/settings.ts:247
+- **Why it fails:** AAA-BAR §4 in full — 'four sizes of the same weight is not a hierarchy', 'numbers the player reads under pressure are tabular and never move when they change width', 'tracking matters' — and §9 ('accessibility is not negotiable'). MTG Arena runs Beleren for names and a separate humanist face for rules; Hearthstone runs Belwe for names and Franklin Gothic for rules, both with fixed size steps. HYPEBOUND runs one face at a continuously variable size.
+- **Fix:** Introduce a canvas type scale that mirrors the CSS tokens: display (name, 2 fixed steps only — 30px, and 22px for names over 18 characters), label (type line, 13px, +0.19em), body (rules, 3 fixed steps: 18/15/13, never below 13), numeric (a separate stack with `font-variant-numeric: tabular-nums` set via `ctx.fontVariantCaps`/measured monospace fallback, or pre-measure the widest digit and centre on that box so numerals never shift). Read the family from a module-level token that `applySettings` updates alongside `data-font`, so the dyslexia stack reaches the card faces, and repaint cached canvases on change.
+
+### 9. [MAJOR] The top 130px of every card is a toolbar of three unrelated objects on three different baselines: the cost hex centred at y=58, the faction crest at y=56, the Current badge at y=52. The badge is 190x52 — 37% of the card's width — a rounded-full pill with a 2px uniform stroke, i.e. a web chip, and it outweighs the card's own name. The crest and Current glyphs are 512x512 PNGs drawn untinted straight down to 44px and 28px in a single step, so the crest is a muddy blob sitting directly on the character's hair with no plate or shadow, and the badge glyph is the *same hue* as the badge it sits on (a gold halo ring on a gold pill — roughly 1.3:1 contrast).
+
+- **Where:** src/ui/cardRenderer/palette.ts:231-232, :255 (costGem/badge/crest geometry); src/ui/cardRenderer/renderCard.ts:353-396 (drawCurrentBadge), :689-697 (crest call); src/ui/cardRenderer/icons.ts:196-218 (untinted painted icon), :390-394 (untinted painted crest)
+- **Why it fails:** AAA-BAR §7 ('icons on a single grid, single stroke weight, single optical size' — three optical centres 6px apart is the opposite) and §6 (accent restraint, one hero accent per screen). Gwent puts provision and faction as small etched emblems inside the border; MTG Arena's mana pips are roughly a twelfth of the card width and are inset into the frame with a cast shadow. Nothing in the reference set puts a 37%-width UI pill on a card face.
+- **Fix:** Put all three on one optical centre line at y=56 and one grid. Shrink the badge to a 120x40 engraved cartouche that reads as part of the frame (inner shadow + rim light from the shared primitive), not a pill. Seat the crest in a small recessed medallion with its own dark plate and a 2px contact shadow so it never sits raw on hair. Pre-scale the 512px crest and Current PNGs to 64px offscreen once at boot (a cached mip) instead of downsampling 512→44 per card, and composite the Current glyph with a `lighten` pass or a dark 40% underplate so it separates from a same-hue badge.
+
+### 10. [MAJOR] The cost gem is the same cyan hexagon on all 296 cards — the function fetches the Current palette and then explicitly discards it (`void palette`). On Tide cards it is blue-on-blue and nearly disappears; on Cinder and Halo it is the most saturated object on the card, outranking the artwork. Its left point crosses the frame rim and sits on top of it with no collar, mount or cast shadow, breaking the frame's continuity.
+
+- **Where:** src/ui/cardRenderer/renderCard.ts:305-351 (drawCostGem, `void palette` at :350); src/ui/cardRenderer/palette.ts:231 (costGem cx=56, r=38 vs bleed=8)
+- **Why it fails:** AAA-BAR §6 ('the most saturated thing on screen should be the thing that matters most') and §1 (an object overlapping another must cast). Hearthstone's mana gem is inset into the frame with a metal collar and a cast shadow so it reads as mounted hardware; here it reads as a sticker.
+- **Fix:** Keep Hype cyan as the identity (it is a universal resource and that is defensible), but give the gem a Current-tinted metal collar so it harmonises, drop its saturation ~15% so it stops outranking the art, and mount it: a dark socket ring beneath, a 2px offset contact shadow onto the frame, and a specular highlight aligned to the shared 315deg key light rather than the current hardcoded top-left triangle.
+
+### 11. [MINOR] The attack and health chips are not a family. Attack is an 8-point star with alternating radii 38/31 — at any real size it reads as a lumpy octagon, not a blade — filled with an orange radial gradient; health is a plain circle with a red radial gradient. Both overlap the frame rim at the bottom corners with no socket or mount, and the attack diamond's lower point is cut by the frame's corner fillet. Neither carries a contact shadow.
+
+- **Where:** src/ui/cardRenderer/renderCard.ts:535-607 (drawStatChip); src/ui/cardRenderer/palette.ts:233-234
+- **Why it fails:** AAA-BAR §7 (one icon grid, one stroke weight) and §1 (contact shadow). Hearthstone's attack and health gems are two pieces of one hand-painted set, seated in sculpted sockets that are part of the frame. Gwent unifies to a single power plate clamped into a notch in the border.
+- **Fix:** Draw both from one gem primitive — same silhouette family (a shield-cut hexagon for attack, the same hexagon rotated with a rounded base for health), same bevel, same key light, same rim thickness — and cut a matching socket into the frame silhouette at each bottom corner so the gems sit in the border rather than on it. Add the 2px contact shadow.
+
+### 12. [MINOR] Nothing on a card ever moves and nothing enters. The renderer emits a static bitmap: no idle specular crawl, no hover sweep on the canvas (the tile's only hover is a CSS translate/scale on the wrapper), and because art loads asynchronously and repaints via `onArtLoaded`, every card in the collection visibly pops from placeholder to painted art with no crossfade — the first grid capture and the second, taken a second apart, show a different set of cards painted.
+
+- **Where:** src/ui/cardRenderer/renderCard.ts:756-799 (renderCardToCanvas, `paint()` swap with no transition); src/ui/theme/screens.css:541
+- **Why it fails:** AAA-BAR §3 ('idle is never dead' — 3-8s periods, very low amplitude) and §7 ('nothing ever pops in; anything appearing has an entrance'). In Hearthstone even a common card in the collection catches a slow light sweep, and art streams in behind a fade.
+- **Fix:** Add one shared low-frequency clock (a single rAF at ~15fps driving all visible card canvases, paused when the tab is hidden and reduced to a single static frame under `prefers-reduced-motion`) that advances a specular offset on the frame rim only — 4-6% amplitude, 6s period. On the art-loaded repaint, crossfade: paint the new frame into an offscreen canvas and blend it in over 240ms with the arriving ease rather than swapping in one frame.
+
+### 13. [MINOR] No collector furniture. There is no set symbol, no collector number, no artist credit, no rarity word anywhere on the card face — the bottom band of an Action card (which has no stat gems) is completely empty except for two 11px pips.
+
+- **Where:** src/ui/cardRenderer/renderCard.ts:671-747 (renderCard draw order); src/ui/cardRenderer/palette.ts:220-256 (LAYOUT has no footer region)
+- **Why it fails:** AAA-BAR §7. Both MTG Arena and Gwent carry a footer line, and it is a large part of why their cards read as *printed objects* rather than as UI. It also costs nothing and fills a band that is currently dead on every non-character card (see 'Small Print' in scale-legibility.png).
+- **Fix:** Add a `LAYOUT.footer` band at y≈652 with a 10px +0.14em small-caps line: faction short code, a two-digit collector number derived from the card id's position in its set, the rarity word, and an art credit slot that falls back to 'HYPEBOUND' for procedural art. Fade the divider above it at both ends rather than butting it into the frame (§7).
+
+## Plan
+
+1. Fix the placeholder first — it is 176 of 296 cards. Delete the humanoid silhouette from placeholderArt.ts, recompose the whole thing inside the top 52% that the scrim leaves visible, and rebuild it as an etched Current guilloche + embossed crest watermark + noise + vignette. Re-run `node scripts/shot.mjs collection --out grid` and confirm no tile reads as a failed image.
+2. Enlarge the card canvas so the bloom and the silhouettes stop being clipped: bleed 8 → 40, CARD_W/H 592x760 with the printable rect held at 512x680 so all 120 existing PNGs still cover-fit unchanged. Re-tune flameNotch, radiantCircle and ribbonSweep to be visible at 185px, then verify against a fresh current-shapes sheet.
+3. Build the shared material layer (see sharedNeeds) and rebuild the four existing surfaces on top of it — frame rim, name plate, rules box, Current badge — with one 315deg key light, real inner shadows, contact shadows and a 3% noise overlay. This is the change that removes the 'chips on a gradient' read.
+4. Design the rarity ladder as four frame variants (rim weight, corner ornaments, nameplate treatment, gilded legendary rim with a specular band), move the pip row into the nameplate cap so `.card-count` can no longer occlude it, and nudge `.card-count` to a corner. Verify with a four-up rarity ladder capture.
+5. Add `boardFace` mode: strip the type line, rules box and pips at board scale, widen the name plate, and swap in up to three keyword glyphs. Drop cardMesh TEXTURE_SCALE to 1.0 for board faces. Verify with the 121px @3x pixelated sheet — every remaining element must be readable.
+6. Rewrite the foil as a tilt-driven diffraction layer plus a clock-driven specular sweep, wire the collection detail's existing pointer tilt into it, and gate it on prefers-reduced-motion. A/B at 300px must be unmistakable.
+7. Rebuild the card back at 512x680 on the same primitives so a back and a front are visibly the same object, with the cosmetic colour driving only the rim and emblem.
+8. Introduce the canvas type scale: fixed size steps for name/label/body, a tabular numeric stack that pre-measures on the widest digit, and a module-level family token that `applySettings` updates so the dyslexia font reaches card text. Cap the name at two steps and the body at three.
+9. Re-grid the top band onto one optical centre, shrink the Current badge to an engraved cartouche, seat the crest in a recessed medallion, and pre-scale the 512px crest/Current PNGs to a cached 64px mip at boot instead of downsampling per card.
+10. Unify the stat gems into one gem primitive with sockets cut into the frame, mount the cost gem with a Current-tinted collar and contact shadow, and desaturate it ~15%.
+11. Add the footer band — set code, collector number, rarity word, art credit — with an end-faded divider.
+12. Add the shared idle clock and the art-loaded crossfade, then do a full pass at 1280x720 and phone-landscape to confirm the new frame weight and type steps still hold at the minimum supported size.
+13. Repair the recon tooling on the way past: scripts/preview-cards.mjs and scripts/preview-leaders.mjs both wait 15s for a `window.hypebound` global that no longer exists anywhere in src/, and scripts/zoom-board-card.mjs never seeds an account so it lands on the starter picker and times out. All three currently crash.
+
+## Files
+
+- `D:/Gooner Card Game/src/ui/cardRenderer/renderCard.ts`
+- `D:/Gooner Card Game/src/ui/cardRenderer/placeholderArt.ts`
+- `D:/Gooner Card Game/src/ui/cardRenderer/palette.ts`
+- `D:/Gooner Card Game/src/ui/cardRenderer/frameShapes.ts`
+- `D:/Gooner Card Game/src/ui/cardRenderer/icons.ts`
+- `D:/Gooner Card Game/src/ui/cardRenderer/renderLeader.ts`
+- `D:/Gooner Card Game/src/ui/cardRenderer/hatch.ts`
+- `D:/Gooner Card Game/src/ui/battle/cardMesh.ts`
+- `D:/Gooner Card Game/src/ui/screens/collectionScreen.ts`
+- `D:/Gooner Card Game/src/ui/theme/screens.css`
+- `D:/Gooner Card Game/src/ui/theme/base.css`
+- `D:/Gooner Card Game/src/save/settings.ts`
+- `D:/Gooner Card Game/src/ui/art/assetLoader.ts`
+- `D:/Gooner Card Game/src/ui/art/artLoader.ts`
+- `D:/Gooner Card Game/scripts/preview-cards.mjs`
+- `D:/Gooner Card Game/scripts/preview-leaders.mjs`
+- `D:/Gooner Card Game/scripts/zoom-board-card.mjs`

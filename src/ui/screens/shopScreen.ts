@@ -8,21 +8,57 @@
  * from `balance.economy.pack`, the same object the algorithm rolls from. A
  * number cannot be advertised here and be different in the roll.
  *
- * The second job is the reveal, which is the only place in the game where the
- * card renderer is the whole screen. Cards turn one at a time and a duplicate
- * past the playable cap says what it became instead, itemised, because "you
- * already have this" is exactly the moment a player is owed an explanation.
+ * The second job is **the reward moment**, and it is why this file was rewritten.
+ *
+ * ## What it used to be
+ *
+ * A 180ms opacity cross-fade of five 150px thumbnails inside a small dialog
+ * floating in a dimmed void, over in about 1.2 seconds, with no player input at
+ * any point. `paint()` rewrote the overlay's `innerHTML` on each of the five
+ * steps — fifteen card renders for a five-card pack — which also meant no card
+ * could animate, because every already-revealed card's DOM was destroyed and
+ * recreated every 260ms. The rarity glow was on the *face-down* card and was
+ * removed at the moment of the turn, so the game spoiled the Legendary before
+ * you flipped it and then gave the revealed Legendary nothing.
+ *
+ * All of that now lives in `rewards/packOpening.ts`, as an actual set-piece with
+ * a pack you tear. This file's part of the bargain is to hand it the roll and
+ * get out of the way.
+ *
+ * ## And why the right-hand column is a pack rather than a paragraph
+ *
+ * The screen used to end at 44% of the viewport height with 55% of the right
+ * half bare, because a two-column grid with `align-content: start` and nothing
+ * tall in it does exactly that. Hearthstone's shop fills the frame with pack art
+ * at scale. There is no pack art and there is not going to be any, but there is
+ * a card back — a real, rendered, seasonal object — and a drop is five of those.
+ * So the hero of this screen is the thing you are buying, at size, lit, floating,
+ * with the price under it.
  */
 
-import type { CardDef, ContentIndex, Rarity } from "../../engine/types";
+import type { ContentIndex, FactionId, Rarity } from "../../engine/types";
 import type { Screen } from "../shell";
 import type { DropResult } from "../../game/economy/drops";
 import { publishedOdds } from "../../game/economy/drops";
 import { canAffordDrop, currentBanner, getProfile, openMerchDrop, profileStore } from "../../save/profile";
-import { renderCardToCanvas } from "../cardRenderer/renderCard";
-import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
-import { getSettings } from "../../save/settings";
+import { icon } from "../art/uiIcons";
+import { FACTION_COLOR } from "../cardRenderer/palette";
+import { num as formatNumber, plural } from "../format";
+import {
+  HOUSE_BACK,
+  backButton,
+  coinChip,
+  coinInline,
+  esc,
+  railHtml,
+  riseIn,
+  syncWallets,
+  WASH,
+} from "./rewards/rewardKit";
+import { cardBackSpec, createPaintQueue, paintRewardArt, type PaintQueue } from "./rewards/rewardArt";
+import { installRewardsTheme } from "./rewards/rewardsTheme";
+import { openPack } from "./rewards/packOpening";
 
 export interface ShopCallbacks {
   onBack: () => void;
@@ -32,9 +68,6 @@ export interface ShopCallbacks {
   onOpenFairness: () => void;
 }
 
-const esc = (value: string): string =>
-  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-
 const RARITY_LABEL: Record<Rarity, string> = {
   common: "Common",
   rare: "Rare",
@@ -43,102 +76,174 @@ const RARITY_LABEL: Record<Rarity, string> = {
 };
 
 export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks): Screen {
+  installRewardsTheme();
+
   const root = document.createElement("div");
   root.className = "screen shop-screen";
 
   const pack = content.balance.economy.pack;
   const economy = content.balance.economy;
-  let revealing: DropResult | null = null;
-  let revealed = 0;
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  /** the roll currently on screen, kept for the automation hook */
+  let lastDrop: DropResult | null = null;
+  let opening: { close: () => void } | null = null;
+  /**
+   * Nothing on this screen is rasterised on the frame it is navigated to.
+   *
+   * The pack the shop sells is a 282×374 card back drawn to a canvas and
+   * PNG-encoded, and doing that inside `render()` cost a measured **146ms** long
+   * task with a 147ms gap between painted frames — on `lobby → shop`, a
+   * transition budgeted at 260–420ms. The markup asks for the picture by name
+   * and this queue delivers it once the descend is over.
+   */
+  let art: PaintQueue | null = null;
+  let cascaded = false;
 
   const render = (): void => {
     const profile = getProfile();
     const headliner = currentBanner(content);
     const affordable = canAffordDrop(content);
     const toPity = Math.max(0, pack.legendaryPity - profile.drops.sinceLegendary);
+    const free = profile.pendingDrops > 0;
 
     root.innerHTML = `
-      <div class="ambient-bg"></div>
+      ${WASH}
       <header class="screen-header">
-        <button class="btn btn-ghost" id="shop-back">← Back</button>
+        ${backButton("shop-back")}
         <h1 class="title">Merch Drops</h1>
-        <div class="shop-wallet">
-          <div class="currency" title="Clout — earned by playing">
-            <span class="currency-icon clout">◈</span><span class="currency-value" id="shop-clout">${profile.clout.toLocaleString()}</span>
-          </div>
-          <div class="currency" title="Signal — craft any card">
-            <span class="currency-icon shards">✦</span><span class="currency-value" id="shop-signal">${profile.shards.toLocaleString()}</span>
-          </div>
+        <div class="rw-wallet">
+          ${coinChip("clout", profile.clout)}
+          ${coinChip("shards", profile.shards)}
         </div>
       </header>
 
-      <main class="shop-body">
-        ${
-          headliner
-            ? `<section class="panel panel-chrome shop-headliner">
-                 <div class="eyebrow">Headliner${headliner.live ? "" : " — between runs"}</div>
-                 <h2 class="shop-offer-title">${esc(headliner.banner.name)}</h2>
-                 <p class="muted shop-offer-note">${esc(headliner.banner.blurb)}</p>
-                 <p class="muted shop-short">
-                   Rate-up on ${esc(content.cards[headliner.banner.featuredLegendary]?.name ?? "a Legendary")} and two
-                   Epics. Every card on it is already in Drops and crafting — a banner concentrates
-                   odds, it never gates.
-                 </p>
-                 <button class="btn btn-primary" id="shop-banner">Open the banner →</button>
-               </section>`
-            : ""
-        }
-        <section class="panel panel-chrome shop-offer">
-          <div class="eyebrow">Standard Drop</div>
-          <h2 class="shop-offer-title">${economy.packSize} cards</h2>
-          <p class="muted shop-offer-note">
-            Bought with Clout, which is earned by playing. Never with money.
-          </p>
-          <button class="btn btn-primary shop-buy" id="shop-buy" ${affordable ? "" : "disabled"}>
-            ${
-              profile.pendingDrops > 0
-                ? `Open a free Drop — ${profile.pendingDrops} left`
-                : `<span class="currency-icon clout">◈</span> ${pack.price} — Open a Drop`
-            }
-          </button>
-          ${affordable ? "" : `<p class="muted shop-short">You need ${(pack.price - profile.clout).toLocaleString()} more Clout. Play a match.</p>`}
-          ${profile.pendingDrops > 0 ? `<p class="muted shop-short">Free Drops from your starter deck. They cost nothing.</p>` : ""}
-          <div class="shop-counter">
-            <div class="shop-counter-label">Legendary guaranteed within</div>
-            <div class="shop-counter-value" id="shop-pity">${toPity} Drop${toPity === 1 ? "" : "s"}</div>
-            <div class="shop-counter-bar"><span style="width:${(profile.drops.sinceLegendary / pack.legendaryPity) * 100}%"></span></div>
-          </div>
-          <div class="muted shop-opened">${profile.drops.opened.toLocaleString()} opened</div>
-        </section>
+      <main class="shop-body rw-shop-body">
+        <!--
+          The disclosure column is wrapped, and the wrapper is the whole point.
 
-        <section class="panel shop-odds">
-          <div class="eyebrow">What is in a Drop</div>
-          <table class="odds-table">
-            <thead><tr><th>Rarity</th><th>Chance per card</th></tr></thead>
-            <tbody>
-              ${publishedOdds(content)
-                .map(
-                  (row) =>
-                    `<tr><td><span class="rarity-dot ${row.rarity}"></span>${RARITY_LABEL[row.rarity]}</td><td>${row.percent}</td></tr>`
-                )
-                .join("")}
-            </tbody>
-          </table>
-          <ul class="odds-rules">
-            <li>At least <strong>1 Rare or better</strong> in every Drop.</li>
-            <li>A <strong>Legendary within every ${pack.legendaryPity} Drops</strong>. The counter is above and it is yours, not a rolling average.</li>
-            <li>No card appears <strong>twice in the same Drop</strong>.</li>
-            <li>You will never open a card you already have the maximum of
-                <strong>while any card of that rarity is still missing</strong>.</li>
-            <li>Once a rarity is complete, further copies convert to Signal at
-                <strong>${Math.round((economy.dupeConversionBonus - 1) * 100)}% above</strong> the normal dismantle value.</li>
-          </ul>
-          <button class="btn btn-ghost" id="shop-fairness">Full probability disclosures →</button>
+          The rw-shop-left column is itself the scroller, so a ramp drawn on it
+          scrolls away with the paragraph it is fading. At 1280x720 and
+          100% the last thing on screen was "…and it is yours, not a rolling
+          average." sliced through its own x-height by the bottom of the window,
+          with no fade, no bottom edge and — because the odds table is nine rows
+          of rules a player is entitled to read before spending — no sign that
+          the sentence continued at all. The wrapper does not move, so the ramp
+          does not either.
+        -->
+        <div class="shop-left-wrap">
+        <div class="rw-shop-left">
+          ${
+            headliner
+              ? `<section class="mat-panel rw-panel-pad rw-stack" style="--rw-accent:${esc(FACTION_COLOR[headliner.banner.factionId as FactionId] ?? "#b56cff")}">
+                   <div class="rw-spread">
+                     <span class="t-label">Headliner${headliner.live ? "" : " — between runs"}</span>
+                     ${icon("star-filled", { size: 16 })}
+                   </div>
+                   <h2 class="t-heading" style="margin:0">${esc(headliner.banner.name)}</h2>
+                   <p class="rw-note">${esc(headliner.banner.blurb)}</p>
+                   <p class="rw-note rw-quiet">
+                     Rate-up on ${esc(content.cards[headliner.banner.featuredLegendary]?.name ?? "a Legendary")} and two
+                     Epics. Every card on it is already in Drops and crafting — a banner concentrates
+                     odds, it never gates.
+                   </p>
+                   <button class="mat-panel act rw-back" id="shop-banner">
+                     ${icon("sparkle")}<span>Open the banner</span>${icon("chevron-right")}
+                   </button>
+                 </section>`
+              : ""
+          }
+
+          <section class="shop-odds mat-panel rw-panel-pad rw-stack">
+            <span class="t-label">What is in a Drop</span>
+            <table class="rw-odds-table odds-table">
+              <thead><tr><th>Rarity</th><th>Chance per card</th></tr></thead>
+              <tbody>
+                ${publishedOdds(content)
+                  .map(
+                    (row) =>
+                      `<tr><td><span class="rw-odds-name"><span class="rw-rarity-dot" style="--rar-key:var(--rarity-${row.rarity})"></span>${RARITY_LABEL[row.rarity]}</span></td><td class="num">${row.percent}</td></tr>`,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+            <ul class="rw-rules">
+              <li>${icon("check")}<span>At least <strong>1 Rare or better</strong> in every Drop.</span></li>
+              <li>${icon("star")}<span>A <strong>Legendary within every ${pack.legendaryPity} Drops</strong>. The counter is beside the button and it is yours, not a rolling average.</span></li>
+              <li>${icon("close")}<span>No card appears <strong>twice in the same Drop</strong>.</span></li>
+              <li>${icon("lock")}<span>You will never open a card you already have the maximum of <strong>while any card of that rarity is still missing</strong>.</span></li>
+              <li>${icon("shards")}<span>Once a rarity is complete, further copies convert to Signal at <strong>${Math.round((economy.dupeConversionBonus - 1) * 100)}% above</strong> the normal dismantle value.</span></li>
+            </ul>
+            <button class="mat-panel act rw-back" id="shop-fairness">
+              ${icon("info")}<span>Full probability disclosures</span>${icon("chevron-right")}
+            </button>
+          </section>
+        </div>
+        </div>
+
+        <section class="rw-shop-hero mat-panel">
+          <div class="rw-stack-tight">
+            <span class="t-label">Standard Drop</span>
+            <h2 class="t-display" style="font-size:var(--fs-2xl);margin:0">${economy.packSize} cards</h2>
+            <p class="rw-note">Bought with Clout, which is earned by playing. Never with money.</p>
+          </div>
+
+          <!--
+            The alcove: the two planes the pack was missing.
+
+            AAA-BAR section 2 asks for four resolvable depth planes and this
+            screen had two — the panel, and a 190px object floating in it. The
+            contact shadow rewardsTheme already draws was landing on nothing,
+            which is why it read as a drop shadow rather than as contact: an
+            ellipse of black on an empty field is a smudge, and the same ellipse
+            on a lit floor is a pack standing on a shelf.
+
+            So there is a back wall with a pool of light on it, a floor the wall
+            meets along a lit join, and a second pool on the floor where the
+            pack stands. All three are one element's children so the whole
+            alcove can be dimmed at once for high contrast, and every one of
+            them is lit from 315 degrees like the rest of the game.
+          -->
+          <div class="rw-shop-pack">
+            <div class="shop-alcove" aria-hidden="true">
+              <span class="shop-alcove-wall"></span>
+              <span class="shop-alcove-floor"></span>
+              <span class="shop-alcove-pool"></span>
+            </div>
+            <div class="rw-pack-still" aria-hidden="true">
+              <span class="rw-art" data-rw-art="${esc(cardBackSpec(HOUSE_BACK, 0.55))}"></span>
+            </div>
+          </div>
+
+          <div class="rw-shop-buyrow">
+            <div class="rw-meter" style="width:min(100%,420px)">
+              <div class="rw-meter-head">
+                <span class="t-label">Legendary guaranteed within</span>
+                <span class="num" id="shop-pity">${toPity} ${plural(toPity, "Drop")}</span>
+              </div>
+              ${railHtml({
+                value: profile.drops.sinceLegendary,
+                max: pack.legendaryPity,
+                label: "Progress toward the guaranteed Legendary",
+                ticks: [{ at: 1, kind: "promise", title: "The guarantee" }],
+                fill: "linear-gradient(var(--light-sweep), #ffe6a8 0%, var(--rarity-legendary) 55%, #a86a12 100%)",
+              })}
+            </div>
+
+            <button class="rw-buy mat-hero act" id="shop-buy" ${affordable ? "" : "disabled"}>
+              ${icon("merch-drop")}
+              <span>${free ? `Open a free Drop — ${profile.pendingDrops} left` : "Open a Drop"}</span>
+              ${free ? "" : coinInline("clout", pack.price)}
+            </button>
+
+            ${
+              affordable
+                ? ""
+                : `<p class="rw-note rw-quiet">You need ${formatNumber(pack.price - profile.clout)} more Clout. Play a match.</p>`
+            }
+            ${free ? `<p class="rw-note rw-quiet">Free Drops from your starter deck. They cost nothing.</p>` : ""}
+            <p class="rw-note rw-quiet"><span class="num" style="min-width:0">${formatNumber(profile.drops.opened)}</span> opened</p>
+          </div>
         </section>
       </main>
-
-      <div class="shop-reveal" id="shop-reveal" hidden></div>
     `;
 
     root.querySelector("#shop-banner")?.addEventListener("click", () => callbacks.onOpenBanner());
@@ -148,132 +253,173 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
       callbacks.onBack();
     });
     root.querySelector("#shop-buy")?.addEventListener("click", buy);
+
+    art?.stop();
+    art = createPaintQueue();
+    paintRewardArt(root, art);
+
+    if (!cascaded) {
+      cascaded = true;
+      riseIn(root.querySelectorAll(".rw-shop-left > section, .rw-shop-hero > *"), { from: 180, step: 45 });
+    }
+
+    bindLeftFades();
+    bindAlcove();
+    syncWallets(root);
   };
 
+  /**
+   * Tell the alcove where the pack's base is.
+   *
+   * The floor line has to meet the object standing on it, and the pack is
+   * centred inside a row whose height moves with the interface scale while the
+   * pack's own height is capped by `36vh` — so the gap between the pack's base
+   * and the row's bottom edge is 14px on one window and 69px on another.
+   * Measured, not guessed: a percentage in the stylesheet was right at 1280×720
+   * and drew the join across the middle of the card back at 1600×900.
+   *
+   * A `ResizeObserver` on both boxes rather than a one-off read, because the
+   * first read happens while the screen is still detached and returns zeroes,
+   * and because the two things that move this number — the window and the text
+   * scale — are exactly the two things nobody dispatches an event for.
+   */
+  let unbindAlcove: () => void = () => {};
+  const bindAlcove = (): void => {
+    unbindAlcove();
+    const alcove = root.querySelector<HTMLElement>(".shop-alcove");
+    const row = root.querySelector<HTMLElement>(".rw-shop-pack");
+    const pack = root.querySelector<HTMLElement>(".rw-pack-still");
+    if (!alcove || !row || !pack) return;
+    const sync = (): void => {
+      const base = row.getBoundingClientRect().bottom - pack.getBoundingClientRect().bottom;
+      if (base <= 0) return;
+      alcove.style.setProperty("--pack-base", `${Math.round(base)}px`);
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
+    observer?.observe(row);
+    observer?.observe(pack);
+    sync();
+    unbindAlcove = () => {
+      observer?.disconnect();
+      unbindAlcove = () => {};
+    };
+  };
+
+  /**
+   * Light the disclosure column's two ramps from its own scroll position.
+   *
+   * A gradient that is always on is a lie in the other direction — it says
+   * there is more to read when the player has reached the end of the pity rule,
+   * on the one screen in the game where "have I seen all the terms?" is the
+   * question the whole column exists to answer. So both ends follow the
+   * scroller, and the 2px of slack is there because a fractional device pixel
+   * otherwise leaves the bottom ramp burning at a tenth of its opacity forever.
+   *
+   * Re-bound on every `render()` because `render()` replaces the whole subtree
+   * — the listener would otherwise be attached to a node that no longer exists,
+   * which is the quiet way a scroll-driven effect stops after the first pack is
+   * opened.
+   */
+  let unbindLeft: () => void = () => {};
+  const bindLeftFades = (): void => {
+    unbindLeft();
+    const wrap = root.querySelector<HTMLElement>(".shop-left-wrap");
+    const column = root.querySelector<HTMLElement>(".rw-shop-left");
+    if (!wrap || !column) return;
+    const sync = (): void => {
+      const room = column.scrollHeight - column.clientHeight;
+      wrap.style.setProperty("--fade-top", column.scrollTop > 2 ? "1" : "0");
+      wrap.style.setProperty("--fade-bottom", room - column.scrollTop > 2 ? "1" : "0");
+    };
+    column.addEventListener("scroll", sync, { passive: true });
+    /* A resize observer as well as a scroll listener, because the first call
+       happens while the tree is detached and reads zeroes, and because the two
+       things that decide whether this column overflows at all are the window
+       and the interface scale. */
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
+    observer?.observe(column);
+    sync();
+    unbindLeft = () => {
+      column.removeEventListener("scroll", sync);
+      observer?.disconnect();
+      unbindLeft = () => {};
+    };
+  };
+
+  /**
+   * Buy one, and hand the roll to the set-piece.
+   *
+   * The music change belongs here rather than inside the overlay: the opening
+   * theme is about *this purchase*, and an overlay that started and stopped the
+   * soundtrack would fight the banner screen the moment it used the same
+   * component.
+   */
   const buy = (): void => {
     const result = openMerchDrop(content);
     if (!result) return;
-    /**
-     * The drop itself, not a button click. This is the one moment in the game
-     * that is purely a reward, and it was silent.
-     */
-    audio.play("sfx.pack.open");
     audio.playMusic("music.packOpening");
-    revealing = result;
-    revealed = 0;
-    render();
-    showReveal();
-  };
-
-  /** Turn the cards one at a time; a click turns the rest at once. */
-  const showReveal = (): void => {
-    const overlay = root.querySelector<HTMLElement>("#shop-reveal");
-    if (!overlay || !revealing) return;
-    const drop = revealing;
-
-    const paint = (): void => {
-      overlay.hidden = false;
-      overlay.innerHTML = `
-        <div class="reveal-panel panel panel-chrome">
-          <div class="eyebrow"><span class="ui-icon ui-icon-merch-drop-open" aria-hidden="true">◈</span> Drop opened</div>
-          <div class="reveal-cards">
-            ${drop.cards
-              .map((entry, index) => {
-                const card = content.cards[entry.cardId];
-                if (!card) return "";
-                const palette = CURRENT_PALETTE[card.current];
-                const shown = index < revealed;
-                return `
-                  <div class="reveal-slot ${shown ? "shown" : ""} ${entry.rarity}" data-index="${index}" style="--c:${palette.key}">
-                    <div class="reveal-inner">
-                      <div class="reveal-back"></div>
-                      <div class="reveal-front" data-card="${esc(entry.cardId)}"></div>
-                    </div>
-                    <div class="reveal-tag">
-                      ${
-                        entry.convertedToSignal !== undefined
-                          ? `<span class="reveal-converted">Converted · +${entry.convertedToSignal} Signal</span>`
-                          : entry.isNew
-                            ? `<span class="reveal-new">NEW</span>`
-                            : `<span class="reveal-dupe">Second copy</span>`
-                      }
-                    </div>
-                  </div>`;
-              })
-              .join("")}
-          </div>
-          ${drop.signal > 0 ? `<div class="reveal-signal">+${drop.signal} Signal from cards you already had</div>` : ""}
-          <div class="reveal-actions">
-            <button class="btn btn-ghost" id="reveal-collection">Open collection</button>
-            <button class="btn btn-primary" id="reveal-done" ${revealed < drop.cards.length ? "disabled" : ""}>Done</button>
-          </div>
-        </div>`;
-
-      // paint the faces that have turned
-      for (const slot of overlay.querySelectorAll<HTMLElement>(".reveal-slot.shown .reveal-front")) {
-        const cardId = slot.dataset["card"];
-        const card = cardId ? content.cards[cardId] : undefined;
-        if (!card || slot.childElementCount > 0) continue;
-        slot.appendChild(renderCardToCanvas(card as CardDef, 150, { premium: card.rarity === "legendary" }));
-      }
-
-      overlay.querySelector("#reveal-done")?.addEventListener("click", close);
-      overlay.querySelector("#reveal-collection")?.addEventListener("click", () => {
-        close();
-        callbacks.onOpenCollection();
-      });
-      overlay.addEventListener("click", (event) => {
-        if ((event.target as HTMLElement).closest(".reveal-actions")) return;
-        // a click turns everything still face down
-        if (revealed < drop.cards.length) {
-          revealed = drop.cards.length;
-          paint();
-        }
-      });
-    };
-
-    const step = (): void => {
-      revealed += 1;
-      /**
-       * Sounded per card as it turns, and only for the ones worth sounding.
-       * A chime on every common would make the rare reveal mean nothing, which
-       * is the opposite of what the sound is for.
-       */
-      const turned = drop.cards[revealed - 1];
-      if (turned && (turned.rarity === "epic" || turned.rarity === "legendary")) {
-        audio.play("sfx.pack.rareReveal");
-      }
-      paint();
-      if (revealed < drop.cards.length) timer = setTimeout(step, getSettings().reducedMotion ? 0 : 260);
-    };
-    paint();
-    timer = setTimeout(step, getSettings().reducedMotion ? 0 : 200);
-  };
-
-  const close = (): void => {
-    if (timer) clearTimeout(timer);
-    timer = null;
-    revealing = null;
-    revealed = 0;
-    // Back to the shop's own soundscape; the opening theme belongs to the
-    // reveal and would otherwise keep playing over the store.
-    audio.playMusic("music.menu");
-    render();
+    lastDrop = result;
+    /*
+     * The screen underneath is *not* re-rendered here. It is about to be covered
+     * by a full-viewport overlay, and rebuilding it costs a card render and a
+     * full `innerHTML` on the exact frame the player pressed the button — which
+     * a long-task observer caught as part of a 376ms stall. It is rendered on
+     * close instead, when the wallet also needs to count.
+     */
+    const newCards = result.cards.filter((entry) => entry.isNew).length;
+    opening = openPack({
+      content,
+      cards: result.cards.map((entry) => ({
+        cardId: entry.cardId,
+        rarity: entry.rarity,
+        isNew: entry.isNew,
+        convertedToSignal: entry.convertedToSignal,
+      })),
+      eyebrow: "Merch Drop",
+      title: `${result.cards.length} cards`,
+      tearLabel: "Tear it open",
+      back: HOUSE_BACK,
+      summary: [
+        ...(newCards > 0
+          ? [{ label: newCards === 1 ? "card is new to you" : "cards are new to you", value: newCards, icon: "collection" as const }]
+          : [{ label: "every card was one you already had", icon: "collection" as const }]),
+        ...(result.signal > 0 ? [{ label: "Signal from duplicates", value: result.signal, coin: "shards" as const }] : []),
+      ],
+      onCollection: () => callbacks.onOpenCollection(),
+      onClose: () => {
+        opening = null;
+        // Back to the shop's own soundscape; the opening theme belongs to the
+        // reveal and would otherwise keep playing over the store.
+        audio.playMusic("music.menu");
+        render();
+      },
+      walletHost: root,
+    });
   };
 
   render();
+
+  /**
+   * Keep the wallet honest while a pack is open, without repainting the screen
+   * under it. The chips count rather than jump, because `syncWallets` reads the
+   * value the player last saw off the chip itself.
+   */
   const unsubscribe = profileStore.subscribe(() => {
-    // keep the wallet honest while a reveal is open, without repainting it
-    const clout = root.querySelector("#shop-clout");
-    const signal = root.querySelector("#shop-signal");
-    if (clout) clout.textContent = getProfile().clout.toLocaleString();
-    if (signal) signal.textContent = getProfile().shards.toLocaleString();
+    const profile = getProfile();
+    for (const [kind, value] of [
+      ["clout", profile.clout],
+      ["shards", profile.shards],
+    ] as const) {
+      const chip = root.querySelector<HTMLElement>(`[data-wallet="${kind}"]`);
+      if (chip) chip.dataset["value"] = String(value);
+    }
+    syncWallets(root);
   });
 
   /** Automation hook, the same shape the story and Doomscroll screens expose. */
   (window as unknown as { hypeboundShop?: unknown }).hypeboundShop = {
     price: () => pack.price,
-    lastDrop: () => revealing,
+    lastDrop: () => lastDrop,
     profile: () => getProfile().drops,
     buy,
   };
@@ -281,7 +427,10 @@ export function createShopScreen(content: ContentIndex, callbacks: ShopCallbacks
   return {
     root,
     dispose: () => {
-      if (timer) clearTimeout(timer);
+      opening?.close();
+      art?.stop();
+      unbindLeft();
+      unbindAlcove();
       unsubscribe();
       delete (window as unknown as { hypeboundShop?: unknown }).hypeboundShop;
     },

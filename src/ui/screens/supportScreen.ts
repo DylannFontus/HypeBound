@@ -18,6 +18,7 @@ import type { Screen } from "../shell";
 import { buildDiagnostics, policiesData } from "../../game/policies";
 import { getProfile } from "../../save/profile";
 import { audio } from "../../audio/audio";
+import { count, enter, icon } from "./data/kit";
 
 export interface SupportCallbacks {
   onBack: () => void;
@@ -41,6 +42,7 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
   const { faq } = policiesData().support;
 
   let query = "";
+  let mounted = false;
 
   const diagnostics = (): ReturnType<typeof buildDiagnostics> =>
     buildDiagnostics(content, { lastMatchSeed: lastMatchSeed(), matchesPlayed: getProfile().stats.matchesPlayed });
@@ -57,48 +59,75 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="support-back">← Back</button>
+        <button class="btn btn-ghost" id="support-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Support</h1>
         <div class="mastery-wallet">
           <div class="currency" title="The data version this build is running">
-            <span class="currency-icon">◆</span><span class="currency-value">${esc(report.dataVersion)}</span>
+            <span class="currency-icon">${icon("diamond", 14)}</span><span class="currency-value">${esc(
+      report.dataVersion
+    )}</span>
           </div>
         </div>
       </header>
 
-      <main class="policy-body">
-        <section class="panel panel-chrome support-faq">
-          <div class="stats-table-head">
-            <h2 class="profile-section-title">Frequently asked</h2>
-            <span class="muted" id="support-count">${shown.length} of ${faq.length}</span>
+      <main class="policy-body data-body data-doc">
+        <section class="mat-panel support-faq d-enter">
+          <div class="support-faq-head">
+            <span class="settings-mark" aria-hidden="true">${icon("help", 20)}</span>
+            <h2 class="t-heading">Frequently asked</h2>
+            <label class="support-search field-group">
+              <span class="sr-only">Search the questions</span>
+              <input class="field" type="search" id="support-search" value="${esc(query)}"
+                     placeholder="save, odds, bug, multiplayer" />
+            </label>
+            <span class="t-label support-faq-count" id="support-count">
+              <span class="num">${count(shown.length)}</span> of <span class="num">${count(faq.length)}</span>
+            </span>
           </div>
-          <label class="patch-search">
-            <span class="muted">Search</span>
-            <input type="search" id="support-search" value="${esc(query)}" placeholder="save, odds, bug, multiplayer" />
-          </label>
           ${
             shown.length === 0
-              ? `<p class="muted">Nothing matches “${esc(query)}”. There is no ticket queue in this build — the diagnostic export below is the way to send something on.</p>`
-              : `<dl class="fairness-questions" id="support-list">
+              ? `<div class="empty d-enter">
+                   ${icon("search", 40)}
+                   <h3 class="t-heading">Nothing matches “${esc(query)}”</h3>
+                   <p class="t-body">There is no ticket queue in this build. The diagnostic export below is the way to send something on.</p>
+                 </div>`
+              : /*
+                 * Two columns, and each answer on its own plate.
+                 *
+                 * The old markup was a flat `<dl>`: a bold question at body size,
+                 * an answer at body size directly under it, seven times, in a
+                 * 1114px panel whose text stopped at 740px — so the right third
+                 * of the largest object on the screen held nothing, and the eye
+                 * had no way to tell where one answer ended and the next question
+                 * began. A recessed plate per question gives the pair an edge to
+                 * live inside, and the auto-fit grid spends the width that was
+                 * being wasted.
+                 */
+                `<div class="support-qa" id="support-list">
                    ${shown
                      .map(
                        (entry) => `
-                         <dt data-faq="${esc(entry.id)}">${esc(entry.question)}</dt>
-                         <dd>${entry.answer.map((line) => `<p>${esc(line)}</p>`).join("")}</dd>`
+                         <article class="mat-well r-tile support-qa-item d-enter" data-faq="${esc(entry.id)}">
+                           <h3 class="support-q">${esc(entry.question)}</h3>
+                           ${entry.answer.map((line) => `<p class="support-a">${esc(line)}</p>`).join("")}
+                         </article>`
                      )
                      .join("")}
-                 </dl>`
+                 </div>`
           }
         </section>
 
-        <section class="panel panel-chrome support-report">
-          <h2 class="profile-section-title">Report a bug</h2>
-          <p class="muted">
+        <section class="mat-panel support-report d-enter">
+          <div class="settings-head">
+            <span class="settings-mark" aria-hidden="true">${icon("warning", 20)}</span>
+            <h2 class="t-heading">Report a bug</h2>
+          </div>
+          <p class="t-body">
             There is no ticket queue offline, so this exports a file you can attach wherever you are
             reporting. It is shown in full below first — there is nothing in it that identifies you,
             and no part of your save.
           </p>
-          <table class="patch-table policy-table" id="support-diagnostic">
+          <table class="d-table patch-table policy-table" id="support-diagnostic">
             <tbody>
               ${Object.entries(report)
                 .map(
@@ -111,27 +140,55 @@ export function createSupportScreen(content: ContentIndex, callbacks: SupportCal
             </tbody>
           </table>
           <div class="mail-actions">
-            <button class="btn btn-primary" id="support-export">Export the diagnostic</button>
-            <button class="btn btn-ghost" id="support-privacy">What is stored about me →</button>
-            <button class="btn btn-ghost" id="support-fairness">Probability disclosures →</button>
-            <button class="btn btn-ghost" id="support-cards">Card and rules reference →</button>
+            <!--
+              One hero, because exactly one of the four is the thing this panel
+              is for; the other three are signposts. base.css's .btn-primary and
+              .btn-ghost are the pre-foundation pills — a flat fill and a 1px
+              outline, with an opacity-only disabled state A4 rules out twice.
+            -->
+            <button type="button" class="mat-hero act r-chip" id="support-export">
+              ${icon("arrow-down", 15)} Export the diagnostic
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="support-privacy">
+              ${icon("lock", 15)} What is stored about me ${icon("chevron-right", 14)}
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="support-fairness">
+              ${icon("diamond", 15)} Probability disclosures ${icon("chevron-right", 14)}
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="support-cards">
+              ${icon("collection", 15)} Card and rules reference ${icon("chevron-right", 14)}
+            </button>
           </div>
         </section>
 
-        <section class="panel panel-chrome policy-note">
-          <h2 class="profile-section-title">Safety, and spending</h2>
-          <p class="muted">
+        <section class="mat-panel policy-note d-enter">
+          <div class="settings-head">
+            <span class="settings-mark" aria-hidden="true">${icon("kw-parasocial", 20)}</span>
+            <h2 class="t-heading">Safety, and spending</h2>
+          </div>
+          <p class="t-body">
             There is no chat, no friends list and no player-to-player messaging in this build, so
             there is nobody to report and nothing to block. Those tools arrive with the server, along
             with the appeal route for anything a moderator does.
           </p>
-          <p class="muted">
+          <p class="t-body">
             There is also nothing to spend money on: this build takes no payments at all, which makes
             spending controls a feature with nothing to control. Session reminders and caps arrive with
             the online build.
           </p>
         </section>
       </main>`;
+
+    /*
+     * The panels cascade once, on arrival; the answers cascade on every filter.
+     *
+     * This screen re-renders on each keystroke, so staggering everything would
+     * replay the whole entrance seven times while somebody types "odds" — which
+     * is the opposite of §3a's "filtering re-flows with a transition rather than
+     * a jump". The answers are what changed, so the answers are what moves.
+     */
+    enter(root, mounted ? ".support-qa-item" : ".d-enter", 34);
+    mounted = true;
 
     root.querySelector("#support-back")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");

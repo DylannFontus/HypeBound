@@ -4,6 +4,12 @@
    nothing important is signalled by colour alone.
    ========================================================================= */
 
+/* The surface foundation: materials, radii, type roles, focus, scrollbars and
+   the form-control kit. It has to be an `@import` at the top rather than a
+   second entry in `main.ts`, so that the tokens it defines are in scope for
+   everything below and its rules never out-order this file by accident. */
+@import "./foundation.css";
+
 :root {
   /* ---- surfaces (glossy black + glass) ---- */
   --bg-void: #05030b;
@@ -74,6 +80,25 @@
   /* ---- type scale (rem-based so the accessibility text scale works) ---- */
   --font-display: "Segoe UI Semibold", "Trebuchet MS", system-ui, sans-serif;
   --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+  /**
+   * The legibility floor, and the reason it is a token rather than a number.
+   *
+   * `--fs-xs` was the bottom of this scale for a reason — 0.72rem is 11.5px at
+   * 100% — and then the overhaul wrote a dozen literals underneath it, because
+   * a compact layout is easier to reach by shrinking type than by rethinking a
+   * row: 0.58rem on the deck slot index (9.3px), 0.62rem on its badges (9.9px),
+   * 0.64rem on the curve note. `verify:mobile` counts anything that rounds
+   * below 11px and found twelve of them per viewport.
+   *
+   * This is the smallest size the interface is allowed to set, and it is read
+   * as "the smaller of `--fs-xs` and a 0.7rem that cannot go under 11px".
+   * The `max()` is the floor and the reason the token exists; the outer `min()`
+   * is what stops it inverting the hierarchy at the two *downward* interface
+   * steps, where a hard 11px would print a micro label larger than the `--fs-xs`
+   * label beside it. Anything that wants to be smaller than `--fs-xs` uses this;
+   * there is nothing below it.
+   */
+  --fs-micro: min(var(--fs-xs), max(11px, 0.7rem));
   --fs-xs: 0.72rem;
   --fs-sm: 0.84rem;
   --fs-md: 1rem;
@@ -112,6 +137,18 @@
   --ease-snap: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --motion-scale: 1; /* animation-speed setting multiplies this */
+
+  /**
+   * The touch floor, as a value rather than only as a rule.
+   *
+   * Zero on a mouse, 44px on a finger — see §13's block further down. It is
+   * published here so a *container* can honour the same floor: an `<input>`
+   * raised to 44px inside a 36px search field would simply hang out of it, and
+   * a wrapper is not something the element-selector floor can reach. Writing
+   * `height: max(36px, var(--touch-min))` keeps the compact desktop geometry
+   * and grows only where a fingertip is the pointer.
+   */
+  --touch-min: 0px;
 }
 
 /* Accessibility: reduced motion collapses every transition to a fade */
@@ -331,7 +368,23 @@ button {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(140deg, rgba(255, 255, 255, 0.5), transparent 30%, transparent 70%, rgba(181, 108, 255, 0.45));
+  /**
+   * 315deg, not the 140deg this was authored at.
+   *
+   * This is a border-image: the white stop is the lit edge and the violet stop
+   * is the shaded one, so the angle is a statement about where the light is.
+   * At 140deg it lit the bottom-left, disagreeing with every material in
+   * foundation.css and with LIGHT_RIG — the "two suns" defect, in the oldest
+   * stylesheet in the project. tests/one-sun.test.ts now fails on any oblique
+   * gradient that neither derives from the rig nor registers a reason.
+   */
+  background: linear-gradient(
+    var(--light-angle, 315deg),
+    rgba(255, 255, 255, 0.5),
+    transparent 30%,
+    transparent 70%,
+    rgba(181, 108, 255, 0.45)
+  );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -430,36 +483,114 @@ button {
 }
 
 /**
- * §13's 44px touch floor, applied where it actually means something.
+ * §13's 44px touch floor — the third attempt, and the first one that is a floor.
  *
- * `.btn` has carried `min-height: 44px` since the beginning, and that was taken
- * as "44px touch targets are implemented". They were not: every chip-shaped
- * control opted out of `.btn` and landed at 29–33px — the collection's ten
- * Current filters, its four ownership filters, the interface-size steps on the
- * accessibility screen, the mastery tabs. `verify:mobile` counted 93 of them.
+ * The history is the design rationale, so it is written down. Attempt one was
+ * `.btn { min-height: 44px }`, and it was read as "touch targets are done";
+ * every chip-shaped control simply opted out of `.btn` and landed at 29–33px,
+ * and `verify:mobile` counted 93 of them. Attempt two — the block that used to
+ * live here — moved the rule onto bare element selectors under a coarse
+ * pointer, which is a specificity of 0,0,1. Every screen rebuilt during the
+ * visual overhaul then re-broke it *by accident*, because a compact layout
+ * written as `.ds-v2 .deck-slot-actions .btn { min-height: 28px }` scores 0,3,0
+ * and wins without its author ever seeing the rule it beat. Twenty-eight
+ * targets were back under 44px, on a phone, on the screens a player uses most.
  *
- * The floor is scoped to a coarse pointer rather than applied everywhere,
- * because that is the rule: a 44px chip exists so a fingertip can hit it, and
- * forcing the same height on a mouse would only make every filter row a third
- * taller for no one's benefit. `min-height` alone would leave the label
- * off-centre in the taller box, so the flex centring comes with it.
+ * ## Why this is two rules and not one
+ *
+ * The obvious repair is `!important` on the element selectors, and it is wrong,
+ * because **`min-height: 44px` is a setter, not a floor**. It raises a 28px
+ * filter chip and in the same stroke it *lowers* a 138px deck socket, a 76px
+ * PLAY plate and every mode tile in the game to the height of a fingertip.
+ * Measured: `.ds-v2 .deck-socket` went from 138px to 44 the moment the hammer
+ * was applied to `button`. A rule that guarantees a minimum has to be written
+ * as a maximum of two things, and CSS cannot read the value it is overriding.
+ *
+ * So the floor is split by what the selector can promise:
+ *
+ * **Tier 1 — every interactive element, at element specificity.** Deliberately
+ * weak. It must lose to a tile that genuinely asked to be 138px tall, and a
+ * plain `min-height` declaration is the only way that tile has to say so.
+ *
+ * **Tier 2 — the hammer, on the four shapes that are only ever controls.** A
+ * text field, a `<select>`, a `<textarea>` and a `.btn` are never a tile, never
+ * a plate and never a card, so there is no taller intent here for `!important`
+ * to destroy — and every rule that re-broke the floor during the overhaul was
+ * one of these four. The one control in the codebase that is a `.btn` *and*
+ * wants to be taller is `.btn-play`, and it states that through `--min-h`,
+ * which is what the `max()` is for. That is the contract: **the floor owns
+ * `min-height` on a control; "taller than the floor" is spelled `--min-h`.**
+ *
+ * The failure mode this buys is the right way round. Before, a control that
+ * broke the floor looked perfectly fine and was quietly unhittable. Now, a
+ * control that wants to be taller and forgets `--min-h` looks squat, on screen,
+ * immediately — and nothing is ever under 44px.
+ *
+ * Two more things keep the blast radius honest:
+ *
+ * - It is scoped to `pointer: coarse`. A 44px filter chip on a mouse is a third
+ *   taller for nobody's benefit; the whole point of the number is a fingertip.
+ * - `min-height`/`min-width` do nothing to an `inline` box, so a link inside a
+ *   sentence is untouched. Only things laid out as boxes are raised.
+ *
+ * `--touch-min` is published so a *housing* can state the same floor: an
+ * `<input>` raised to 44px inside a 36px search field would hang out of the
+ * bottom of it, and a wrapper is not something an element selector can reach.
+ * `height: max(36px, var(--touch-min))` keeps the compact geometry on a mouse.
  */
+@property --min-h { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --min-w { syntax: "<length>"; inherits: false; initial-value: 0px; }
+
+/* PLAY is a plate rather than a button; it is the one `.btn` in the game that
+   is taller than the touch floor, so it says so in the floor's own language. */
+.btn-play { --min-h: 76px; }
+
 @media (pointer: coarse) {
+  :root {
+    --touch-min: 44px;
+  }
+
+  /* Tier 1. Weak on purpose — see above. */
   button,
-  a[href],
+  a,
   input,
   select,
+  textarea,
+  summary,
+  [role="button"],
   [role="switch"],
   [role="radio"],
-  [role="tab"] {
-    min-height: 44px;
+  [role="checkbox"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"] {
+    min-height: var(--touch-min);
+    /**
+     * Width matters as much as height. A one-character cost filter is 28px
+     * wide, which is a target you miss more often than you hit — and the ten
+     * Current chips sit in a row, so a near-miss lands on the neighbouring
+     * filter rather than on nothing. The deck builder's build-around button
+     * measured 24×24 in the corner of a pool card for the same reason: a
+     * `.db-v2` rule outranked the 44px one already sitting in `screens.css`.
+     */
+    min-width: var(--touch-min);
   }
-  /**
-   * Width matters as much as height. A one-character cost filter is 28px wide,
-   * which is a target you miss more often than you hit — and the ten Current
-   * chips sit in a row, so a near-miss lands on the neighbouring filter rather
-   * than on nothing.
-   */
+
+  /* Tier 2. */
+  .btn,
+  input,
+  select,
+  textarea {
+    /* The `0px` fallbacks are not decoration: without `@property` support an
+       unregistered custom property makes the whole `max()` invalid at
+       computed-value time, and an invalid `min-height` is `auto` — which would
+       delete the floor entirely rather than fail loudly. */
+    min-height: max(var(--touch-min), var(--min-h, 0px)) !important;
+    min-width: max(var(--touch-min), var(--min-w, 0px)) !important;
+  }
+
+  /* `min-height` alone leaves the label at the top of the taller box for
+     anything that is not already centring its own content. */
   .filter-chip,
   .setting-choice,
   .mastery-tab,
@@ -467,7 +598,6 @@ button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 44px;
   }
 }
 

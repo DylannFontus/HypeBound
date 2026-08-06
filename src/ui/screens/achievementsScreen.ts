@@ -19,6 +19,23 @@
  * **A hidden achievement stays hidden, and only until it is found.** The Deep
  * Cuts tab shows "???" and the hint; the moment it unlocks it reads normally,
  * because a secret you have already discovered is not a secret.
+ *
+ * ## What the rebuild changed
+ *
+ * Every achievement's whole visual identity was a point value in a 30px circle,
+ * and every state was the word "Locked", "Unlocked" or "Claimed" in dim grey at
+ * the far right — so a category of eight produced a vertical column of the word
+ * "Locked" repeated eight times. The progress bars at 0% were a 2px hairline at
+ * about 1.1:1, which is to say invisible. And `.ach-row.claimed { opacity: .66 }`
+ * signalled a whole state with alpha, which is both illegible and ambiguous.
+ *
+ * Xbox, PlayStation and Hearthstone all give an achievement an *illustrated
+ * badge*, desaturated when locked and full-colour with a rim light when earned.
+ * There is no art budget and there must never be one, so `achievementBadge.ts`
+ * strikes them: a hexagonal plate whose metal, bevel and studs come from the
+ * point tier, with the number engraved into it, a padlock struck on when it is
+ * not yet earned and a green tick when it has been paid out. Nine bitmaps for
+ * the entire game.
  */
 
 import type { ContentIndex } from "../../engine/types";
@@ -27,93 +44,284 @@ import type { AchievementReward, AchievementView, MilestoneView } from "../../ga
 import { achievementsData } from "../../game/achievements";
 import { achievementBoard, claimAchievement, claimPointMilestone, getProfile } from "../../save/profile";
 import { audio } from "../../audio/audio";
+import { icon } from "../art/uiIcons";
+import { num as formatNumber, percent } from "../format";
+import { motionEnabled, tickerTo } from "../motion";
+import {
+  backButton,
+  coinChip,
+  describeReward,
+  esc,
+  flyReward,
+  patchRow,
+  railHtml,
+  rewardTileHtml,
+  riseIn,
+  syncWallets,
+  tokenHtml,
+  updateWallet,
+  WASH,
+  type CoinKind,
+} from "./rewards/rewardKit";
+import { badgeTierName, type BadgeState } from "./rewards/achievementBadge";
+import {
+  artIsReady,
+  badgeSpec,
+  createPaintQueue,
+  paintRewardArt,
+  resolveArt,
+  type PaintQueue,
+} from "./rewards/rewardArt";
+import { installRewardsTheme } from "./rewards/rewardsTheme";
 
 export interface AchievementsCallbacks {
   onBack: () => void;
   onProfile: () => void;
 }
 
-const esc = (value: string): string =>
-  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-
-/** What a reward says on a row. */
-function rewardLabel(reward: AchievementReward): string {
-  switch (reward.kind) {
-    case "clout":
-      return `<span class="currency-icon clout">◈</span>${reward.amount} Clout`;
-    case "fragments":
-      return `${reward.amount} Signal`;
-    case "cosmetic":
-      return esc(reward.name);
-  }
+/** Which wallet a claimed reward flies into, where there is one. */
+function coinFor(reward: AchievementReward): CoinKind | null {
+  if (reward.kind === "clout") return "clout";
+  if (reward.kind === "fragments") return "shards";
+  return null;
 }
 
-const bar = (have: number, need: number): string =>
-  `<div class="mastery-bar"><span style="width:${need > 0 ? Math.min(100, (have / need) * 100) : 100}%"></span></div>`;
+/** The badge state, from the three booleans the view carries. */
+const badgeStateOf = (view: { unlocked: boolean; claimed: boolean }): BadgeState =>
+  view.claimed ? "claimed" : view.unlocked ? "unlocked" : "locked";
 
 export function createAchievementsScreen(content: ContentIndex, callbacks: AchievementsCallbacks): Screen {
+  installRewardsTheme();
+
   const root = document.createElement("div");
   root.className = "screen achievements-screen";
 
   const categories = achievementsData().categories;
   let tab = categories[0]!.id;
+  /** the last points total the player saw, so the header counts rather than jumps */
+  let seenPoints: number | null = null;
+
+  /** Nothing is rasterised on the navigation frame — see `rewardArt.ts`. */
+  let art: PaintQueue | null = null;
+  let cascaded = false;
+
+  /**
+   * The badge, as a slot that is the right size before it holds anything.
+   *
+   * Nine struck bitmaps for the whole game, and every one of them used to be
+   * drawn inside `render()`: measured at 226ms of blocked main thread on
+   * arrival, which is most of a transition budget spent on pictures the player
+   * cannot see yet because the compositor is frozen. The wrapper reserves the
+   * space so the queue's delivery cannot shift a single row.
+   */
+  const badgeImg = (points: number, state: BadgeState, label: string, style = ""): string => {
+    const spec = badgeSpec(points, state);
+    const ready = artIsReady(spec) ? resolveArt(spec) : "";
+    const inner = ready
+      ? `<img src="${ready}" alt="" decoding="async" draggable="false">`
+      : `<span class="ach-badge-num num">${points}</span>`;
+    return (
+      `<span class="ach-badge"${ready ? "" : ` data-rw-art="${esc(spec)}"`}` +
+      ` title="${esc(label)}"${style ? ` style="${style}"` : ""}>${inner}</span>`
+    );
+  };
 
   const row = (view: AchievementView): string => {
     const { def } = view;
     const name = view.concealed ? "???" : def.name;
     const text = view.concealed ? (def.hint ?? "") : def.text;
+    const state = badgeStateOf(view);
     return `
-      <li class="ach-row ${view.unlocked ? "unlocked" : ""} ${view.claimed ? "claimed" : ""} ${view.concealed ? "concealed" : ""}"
+      <li class="ach-row mat-panel ${view.unlocked ? "unlocked" : ""} ${view.claimed ? "claimed" : ""} ${view.concealed ? "concealed" : ""}"
           data-id="${esc(def.id)}">
-        <div class="ach-points" title="${def.points} achievement points">${def.points}</div>
+        ${badgeImg(def.points, state, `${def.points} points — ${badgeTierName(def.points)}`)}
         <div class="ach-row-body">
           <div class="ach-head">
             <strong class="ach-name">${esc(name)}</strong>
-            <div class="ach-rewards">
-              ${def.rewards.map((reward) => `<span class="ach-reward">${rewardLabel(reward)}</span>`).join("")}
-            </div>
           </div>
-          <p class="ach-text muted">${esc(text)}</p>
+          <p class="ach-text rw-note">${esc(text)}</p>
           ${
             view.deferred
-              ? `<p class="ach-deferred muted">Not earnable yet — ${esc(view.deferred)}.</p>`
-              : `${bar(view.have, view.need)}
-                 <p class="ach-progress muted">${view.have.toLocaleString()} / ${view.need.toLocaleString()}</p>`
+              ? `<p class="ach-deferred">${icon("warning", { size: 14 })} Not earnable yet — ${esc(view.deferred)}.</p>`
+              : `${railHtml({ value: view.have, max: view.need, height: 10, label: `${name} progress` })}
+                 <p class="ach-progress">
+                   <span class="rw-quiet">${formatNumber(def.points)} points</span>
+                   <span class="num">${formatNumber(view.have)} / ${formatNumber(view.need)}</span>
+                 </p>`
           }
         </div>
         <div class="ach-action">
           ${
+            /*
+             * The payout is a column of its own, not a chip inside the title
+             * row.
+             *
+             * It used to sit at the far end of a flex row with `align-items:
+             * baseline` beside the achievement's name — and a 38px plate has no
+             * text baseline, so the browser aligned its *bottom margin edge* to
+             * the name's baseline and hoisted the whole tile above the top of
+             * the row. Photographed across a three-column grid, every reward
+             * chip was floating clear of the card that owned it. It also put the
+             * one thing the player is deciding about — what this pays — as far
+             * as possible from the state that says whether they can have it.
+             */
+            def.rewards
+              .map((reward) => {
+                const visual = describeReward(reward, content);
+                return rewardTileHtml(visual, {
+                  /*
+                   * 38, not 30. The quantity chip hangs off the plate's
+                   * bottom-right corner, and at 30px it covered most of the
+                   * icon underneath it — a Clout payout read as one muddy
+                   * red-purple smudge rather than as a coin with a number on
+                   * it. The chip is a fixed size, so the plate has to be big
+                   * enough to still be a plate beside it.
+                   */
+                  art: 38,
+                  bare: true,
+                  title: visual.qty !== undefined ? `${formatNumber(visual.qty)} ${visual.name}` : visual.name,
+                  className: "ach-reward",
+                });
+              })
+              .join("")
+          }
+          ${
             view.claimed
-              ? `<span class="muted">Claimed</span>`
+              ? tokenHtml("claimed")
               : view.claimable
-                ? `<button class="btn btn-primary ach-claim" data-id="${esc(def.id)}">Claim</button>`
+                ? `<button class="mat-hero act rw-back ach-claim" data-id="${esc(def.id)}">${icon("star-filled")}<span>Claim</span></button>`
                 : view.unlocked
-                  ? `<span class="muted">Unlocked</span>`
-                  : `<span class="muted">Locked</span>`
+                  ? tokenHtml("claimable", "Unlocked")
+                  : /*
+                     * Not a chip. Eight rows in a category, all locked on a new
+                     * account, produced a vertical column of the word LOCKED
+                     * eight times — the exact defect the recon named, moved from
+                     * plain text into a nicer box. The badge to the left of this
+                     * already carries a struck padlock and is desaturated, the
+                     * rail underneath already reads 0 / 1, and the word is here
+                     * for a screen reader. Xbox and PlayStation both show a
+                     * greyed badge and no label at all.
+                     */
+                    `<span class="rw-sr">Locked</span>`
           }
         </div>
       </li>`;
   };
 
-  const milestoneRow = (view: MilestoneView): string => `
-    <li class="ach-milestone ${view.unlocked ? "unlocked" : ""} ${view.claimed ? "claimed" : ""}"
-        data-points="${view.milestone.points}">
-      <div class="ach-milestone-head">
-        <strong>${esc(view.milestone.name)}</strong>
-        <span class="muted">${view.milestone.points} pts</span>
-      </div>
-      ${bar(view.have, view.milestone.points)}
-      <div class="ach-milestone-foot">
-        <span class="ach-reward">${rewardLabel(view.milestone.reward)}</span>
-        ${
-          view.claimed
-            ? `<span class="muted">Claimed</span>`
-            : view.claimable
-              ? `<button class="btn btn-primary ach-claim-milestone" data-points="${view.milestone.points}">Claim</button>`
-              : `<span class="muted">${(view.milestone.points - view.have).toLocaleString()} to go</span>`
+  const milestoneRow = (view: MilestoneView): string => {
+    const state = badgeStateOf(view);
+    const visual = describeReward(view.milestone.reward, content);
+    return `
+      <li class="ach-milestone mat-panel ${view.unlocked ? "unlocked" : ""} ${view.claimed ? "claimed" : ""}"
+          data-points="${view.milestone.points}">
+        ${badgeImg(view.milestone.points, state, `${view.milestone.points} point milestone`)}
+        <div class="ach-milestone-body">
+          <div class="ach-milestone-head">
+            <strong>${esc(view.milestone.name)}</strong>
+            <span class="num">${formatNumber(view.milestone.points)} pts</span>
+          </div>
+          ${railHtml({
+            value: view.have,
+            max: view.milestone.points,
+            height: 10,
+            label: `${view.milestone.name} progress`,
+            fill: "linear-gradient(var(--light-sweep), #ffe6a8 0%, var(--rarity-legendary) 55%, #a86a12 100%)",
+          })}
+          <div class="ach-milestone-foot">
+            ${rewardTileHtml(visual, { art: 34, title: visual.name, className: "ach-reward" })}
+            ${
+              view.claimed
+                ? tokenHtml("claimed")
+                : view.claimable
+                  ? `<button class="mat-hero act rw-back ach-claim-milestone" data-points="${view.milestone.points}">${icon("star-filled")}<span>Claim</span></button>`
+                  : tokenHtml("locked", `${formatNumber(view.milestone.points - view.have)} to go`)
+            }
+          </div>
+        </div>
+      </li>`;
+  };
+
+  /**
+   * Claiming patches the row it happened on, and nothing else.
+   *
+   * Points do not move on a claim — the screen says so in its own copy: "Points
+   * count the moment you do the thing; the Claim button only hands over the
+   * reward." So the only things that change are this row's state, the two
+   * wallet chips and the category tab's waiting badge, and a full `render()` to
+   * deliver three small facts is what threw the list's scroll position away and
+   * restarted every ambient sweep on the screen.
+   */
+  const bindClaim = (button: HTMLElement): void => {
+    button.addEventListener("click", (event) => {
+      const source = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      const id = button.dataset["id"] ?? "";
+      const rewards = achievementBoard(content).views.find((view) => view.def.id === id)?.def.rewards ?? [];
+      const grant = claimAchievement(content, id);
+      if (grant) {
+        audio.play("sfx.pack.rareReveal", { volume: 0.55, rate: 1.05 });
+        if (motionEnabled()) {
+          for (const [index, reward] of rewards.entries()) {
+            const coin = coinFor(reward);
+            if (coin) globalThis.setTimeout(() => flyReward(source, coin, root), index * 90);
+          }
         }
-      </div>
-    </li>`;
+      }
+      const after = achievementBoard(content);
+      const view = after.views.find((entry) => entry.def.id === id);
+      const element = root.querySelector(`.ach-row[data-id="${CSS.escape(id)}"]`);
+      if (view && element) {
+        const replacement = patchRow(element, row(view));
+        if (replacement) {
+          const next = replacement.querySelector<HTMLElement>(".ach-claim");
+          if (next) bindClaim(next);
+          paintRewardArt(replacement, art ?? undefined);
+        }
+      }
+      settle(after);
+    });
+  };
+
+  const bindMilestoneClaim = (button: HTMLElement): void => {
+    button.addEventListener("click", (event) => {
+      const source = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      const points = Number(button.dataset["points"] ?? 0);
+      const reward = achievementBoard(content).milestones.find((view) => view.milestone.points === points)
+        ?.milestone.reward;
+      const grant = claimPointMilestone(content, points);
+      if (grant) {
+        audio.play("sfx.pack.rareReveal", { volume: 0.7, rate: 0.92 });
+        const coin = reward ? coinFor(reward) : null;
+        if (coin && motionEnabled()) flyReward(source, coin, root);
+      }
+      const after = achievementBoard(content);
+      const view = after.milestones.find((entry) => entry.milestone.points === points);
+      const element = root.querySelector(`.ach-milestone[data-points="${points}"]`);
+      if (view && element) {
+        const replacement = patchRow(element, milestoneRow(view));
+        if (replacement) {
+          const next = replacement.querySelector<HTMLElement>(".ach-claim-milestone");
+          if (next) bindMilestoneClaim(next);
+          paintRewardArt(replacement, art ?? undefined);
+        }
+      }
+      settle(after);
+    });
+  };
+
+  /** The three facts a claim changes outside its own row. */
+  const settle = (board: ReturnType<typeof achievementBoard>): void => {
+    const profile = getProfile();
+    updateWallet(root, { clout: profile.clout, shards: profile.shards });
+    for (const tabButton of root.querySelectorAll<HTMLElement>(".mastery-tab")) {
+      const categoryId = tabButton.dataset["tab"] ?? "";
+      const waiting = board.views.filter((view) => view.def.category === categoryId && view.claimable).length;
+      const badge = tabButton.querySelector<HTMLElement>(".rw-badge");
+      if (waiting > 0 && badge) badge.textContent = String(waiting);
+      else if (waiting > 0) tabButton.insertAdjacentHTML("beforeend", `<span class="rw-badge num">${waiting}</span>`);
+      else badge?.remove();
+    }
+    seenPoints = board.points;
+  };
 
   const render = (): void => {
     const profile = getProfile();
@@ -128,9 +336,10 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
     const tabButton = (categoryId: string, label: string): string => {
       const { done, total } = countsFor(categoryId);
       const waiting = board.views.filter((view) => view.def.category === categoryId && view.claimable).length;
-      return `<button class="btn mastery-tab ${tab === categoryId ? "active" : ""}" data-tab="${esc(categoryId)}">
-                ${esc(label)} <span class="muted">${done}/${total}</span>
-                ${waiting > 0 ? `<span class="mastery-badge">${waiting}</span>` : ""}
+      return `<button class="rw-tab mastery-tab mat-panel act" role="tab" aria-selected="${tab === categoryId}" data-tab="${esc(categoryId)}">
+                <span>${esc(label)}</span>
+                <span class="num rw-quiet" style="font-size:var(--fs-xs)">${done}/${total}</span>
+                ${waiting > 0 ? `<span class="rw-badge num">${waiting}</span>` : ""}
               </button>`;
     };
 
@@ -138,42 +347,53 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
     const { done, total } = countsFor(tab);
 
     root.innerHTML = `
-      <div class="ambient-bg"></div>
+      ${WASH}
       <header class="screen-header">
-        <button class="btn btn-ghost" id="ach-back">← Back</button>
+        ${backButton("ach-back")}
         <h1 class="title">Achievements</h1>
-        <div class="mastery-wallet">
-          <div class="currency"><span class="currency-icon clout">◈</span><span class="currency-value">${profile.clout.toLocaleString()}</span></div>
-          <div class="currency"><span class="currency-icon shards">✦</span><span class="currency-value">${profile.shards.toLocaleString()}</span></div>
+        <div class="rw-wallet">
+          ${coinChip("clout", profile.clout)}
+          ${coinChip("shards", profile.shards)}
         </div>
       </header>
 
-      <main class="ach-body">
-        <section class="panel panel-chrome ach-summary">
+      <main class="ach-body rw-ach-body">
+        <section class="ach-summary rw-ach-summary mat-panel">
           <div class="ach-score">
-            <span class="ach-score-value" id="ach-points">${board.points.toLocaleString()}</span>
-            <span class="muted">of ${board.reachable.toLocaleString()} achievement points</span>
+            ${badgeImg(
+              board.points,
+              board.points > 0 ? "unlocked" : "locked",
+              "Your achievement points",
+              "width:86px;height:86px",
+            )}
+            <span class="ach-score-value" id="ach-points">${formatNumber(seenPoints ?? board.points)}</span>
+            <span class="rw-note rw-quiet">of <span class="num" style="min-width:0">${formatNumber(board.reachable)}</span> achievement points</span>
           </div>
-          <p class="mastery-rule">
-            <strong>Earned once, kept forever.</strong> Nothing here rotates, resets or expires, and
-            nothing here can be bought. Points count the moment you do the thing — the Claim button
-            only hands over the reward.
-          </p>
-          <ul class="ach-milestones">${board.milestones.map(milestoneRow).join("")}</ul>
+          <div class="rw-stack">
+            <p class="rw-note" style="font-size:var(--fs-md);margin:0">
+              <strong>Earned once, kept forever.</strong> Nothing here rotates, resets or expires, and
+              nothing here can be bought. Points count the moment you do the thing — the Claim button
+              only hands over the reward.
+            </p>
+            <ul class="ach-milestones">${board.milestones.map(milestoneRow).join("")}</ul>
+          </div>
         </section>
 
-        <nav class="mastery-tabs ach-tabs">
+        <nav class="rw-tabs ach-tabs" role="tablist">
           ${categories.map((entry) => tabButton(entry.id, entry.name)).join("")}
         </nav>
 
-        <section class="panel panel-chrome ach-list-panel">
+        <section class="ach-list-panel mat-panel rw-panel-pad">
           <div class="ach-category-head">
-            <h2 class="ach-category-name">${esc(category.name)}</h2>
-            <span class="muted">${esc(category.blurb)}</span>
-            <span class="ach-category-pct">${total > 0 ? Math.round((done / total) * 100) : 0}%</span>
+            <h2 class="ach-category-name t-heading" style="margin:0">${esc(category.name)}</h2>
+            <span class="rw-note rw-quiet">${esc(category.blurb)}</span>
+            <span class="ach-category-pct">${total > 0 ? percent(done / total) : "0%"}</span>
           </div>
-          <ul class="ach-list" id="ach-list">${shown.map(row).join("")}</ul>
-          <button class="btn btn-ghost" id="ach-profile">Wear what you won →</button>
+          ${railHtml({ value: done, max: Math.max(1, total), height: 10, label: `${category.name} completion` })}
+          <ul class="ach-list" id="ach-list" style="margin-top:var(--sp-3)">${shown.map(row).join("")}</ul>
+          <button class="mat-panel act rw-back" id="ach-profile" style="margin-top:var(--sp-3)">
+            ${icon("profile")}<span>Wear what you won</span>${icon("chevron-right")}
+          </button>
         </section>
       </main>`;
 
@@ -191,19 +411,33 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
       });
     }
     for (const button of root.querySelectorAll<HTMLElement>(".ach-claim")) {
-      button.addEventListener("click", () => {
-        const grant = claimAchievement(content, button.dataset["id"] ?? "");
-        if (grant) audio.play("sfx.ui.confirm");
-        render();
-      });
+      bindClaim(button);
     }
     for (const button of root.querySelectorAll<HTMLElement>(".ach-claim-milestone")) {
-      button.addEventListener("click", () => {
-        const grant = claimPointMilestone(content, Number(button.dataset["points"] ?? 0));
-        if (grant) audio.play("sfx.ui.confirm");
-        render();
-      });
+      bindMilestoneClaim(button);
     }
+
+    art?.stop();
+    art = createPaintQueue();
+    paintRewardArt(root, art);
+
+    if (!cascaded) {
+      cascaded = true;
+      riseIn(root.querySelectorAll(".ach-milestones > li"), { from: 220, step: 40, max: 560 });
+      riseIn(root.querySelectorAll(".ach-list > li"), { from: 300, step: 38, max: 680 });
+    }
+
+    /*
+     * The headline number counts rather than appears. It is the one figure on
+     * this screen a player watches change, and printing it was the difference
+     * between a trophy room and a database view.
+     */
+    const points = root.querySelector<HTMLElement>("#ach-points");
+    if (points && seenPoints !== null && seenPoints !== board.points) tickerTo(points, board.points);
+    else if (points) points.textContent = formatNumber(board.points);
+    seenPoints = board.points;
+
+    syncWallets(root);
   };
 
   render();
@@ -252,6 +486,7 @@ export function createAchievementsScreen(content: ContentIndex, callbacks: Achie
   return {
     root,
     dispose: () => {
+      art?.stop();
       delete (window as unknown as { hypeboundAchievements?: unknown }).hypeboundAchievements;
     },
   };

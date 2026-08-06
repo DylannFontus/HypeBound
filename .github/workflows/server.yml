@@ -35,9 +35,43 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, because wrangler 4 declares `engines.node >= 22.0.0` and refuses
+          # to run on 20 — "Wrangler requires at least Node.js v22.0.0". Only
+          # this job needs it: the Bundle step is the only thing in the
+          # repository that invokes wrangler, and it is the step that proves the
+          # Worker actually builds under esbuild, which the typecheck above
+          # cannot because the two disagree about what a JSON import is.
+          #
+          # deploy.yml is deliberately left on 20. It builds the client, has no
+          # wrangler in it, and changing the runtime of the pipeline that
+          # publishes the game to fix a pipeline that does not is a trade with
+          # nothing on the other side.
+          node-version: 22
           cache: npm
-          cache-dependency-path: server/package-lock.json
+          # Both lockfiles, because both installs happen — see below.
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+
+      # The root install is not redundant, and leaving it out is why this job
+      # failed with eleven errors that all had one cause.
+      #
+      # `server/tsconfig.json` deliberately compiles `../src/engine` — that is the
+      # whole portability guarantee. But those files live at the repository root,
+      # and TypeScript resolves a bare specifier by walking up from the *importing
+      # file's* directory: `src/engine/` -> `src/` -> the root. It never looks in
+      # `server/node_modules`, because the importer is not under `server/`.
+      #
+      # So `zod` — a dependency of both packages — was resolvable only from the
+      # root, which this job never installed. The visible failure was three
+      # `TS2307 Cannot find module 'zod'`, seven `TS7006` implicit-any cascades
+      # from every zod-typed value degrading to `any`, and one `TS2366` in
+      # `roomProtocol.ts` where an exhaustive switch over a zod-derived union
+      # stopped being provably exhaustive. One missing install, eleven errors,
+      # none of them in the code they pointed at.
+      #
+      # It passed locally throughout, because a developer has both installed.
+      - run: npm ci
 
       - run: npm ci
         working-directory: server

@@ -1,0 +1,243 @@
+/**
+ * The frame around the cinematic — and only the frame.
+ *
+ * Everything the player is looking at during the opening is drawn by three.js
+ * into the canvas below. What is left for CSS is the four things that are
+ * genuinely the page's job: putting the canvas over the whole window and above
+ * the app, holding a black plate behind it while the brand artwork decodes,
+ * saying how to skip, and taking the whole layer away at the end.
+ *
+ * ## Why there is a plate behind the canvas at all
+ *
+ * The first-run title cannot start until the two brand PNGs have decoded, and
+ * they are the largest images in the build. AAA bar §3a's "never a blank frame"
+ * applies to the very first frame of the session more than to any other, and the
+ * alternative to a deliberate black hold is the starter picker appearing for two
+ * hundred milliseconds and then being covered by a title sequence — which reads
+ * as a bug, because it is one everywhere else.
+ *
+ * The returning sting has no plate. It is mounted only once the artwork is
+ * already in the browser's cache, and it is over the live lobby by design.
+ *
+ * ## The layer takes clicks, and every click ends it
+ *
+ * `pointer-events: auto` looks wrong for a decorative overlay and is the correct
+ * behaviour here: a click during the title must skip the title, not press
+ * whatever happens to be under it. The listener is on `window` and does not stop
+ * propagation, so the audio system's own unlock-on-first-gesture handler still
+ * fires from the same event — which is the only way sound can legitimately join
+ * a sequence that starts before any interaction has happened.
+ */
+
+.hb-intro {
+  position: fixed;
+  inset: 0;
+  /*
+   * Above `.atmosphere-fore` (60) and above everything inside `#app`, which is
+   * `position: fixed` and therefore its own stacking context. Below
+   * `#rotate-overlay` (9999): being told to turn the phone round has to outrank
+   * a logo.
+   */
+  z-index: 400;
+  overflow: hidden;
+  /**
+   * Transparent to the mouse until the first frame is on screen.
+   *
+   * Bringing a three.js set up costs a few hundred milliseconds of shader
+   * compilation, once, on the first cinematic of a session — and for the
+   * returning sting that lands over a lobby the player can already see. A layer
+   * that takes clicks while it is drawing nothing would swallow a press on PLAY
+   * and give nothing back. `is-live` is set on the frame the picture appears, so
+   * the layer only becomes solid to the pointer once there is something there to
+   * click on.
+   */
+  pointer-events: none;
+  contain: layout paint style;
+  /* Only ever animated on the compositor. */
+  will-change: opacity;
+  opacity: 1;
+  transition: opacity var(--dur-ui, 260ms) var(--ease-leave, cubic-bezier(0.4, 0, 1, 1));
+}
+
+.hb-intro.is-live {
+  pointer-events: auto;
+}
+
+/**
+ * The hold plate. Present for the first-run title, absent for the sting.
+ *
+ * Painted rather than filled, and the reason is a failure mode a flat colour
+ * cannot survive. A WebGL canvas with `preserveDrawingBuffer: false` — which is
+ * every canvas in this game, because preserving it costs a full-buffer copy per
+ * frame — has an *empty* drawing buffer between renders, and a compositor
+ * capture that lands in that window shows the plate on its own. Photographed in
+ * a burst it happened three frames running, and with a flat `#04020a` behind it
+ * the picture went to a black rectangle and back.
+ *
+ * It cannot be prevented from this side and it does not need to be. What it
+ * needs is for the layer underneath to be a *room with the lights off* rather
+ * than a hole: the same 315° key, the same violet, dark enough to be a
+ * backdrop. A dropped frame then reads as the moment before the rig ignites,
+ * which is a thing the sequence genuinely contains, instead of as a fault. §3a's
+ * "never a blank frame" is a rule about what the player sees, and this is the
+ * cheapest possible way of never letting them see nothing.
+ */
+.hb-intro[data-plate="true"] {
+  background:
+    radial-gradient(120% 90% at 22% 8%, rgb(26 14 58 / 0.9), rgb(8 4 22 / 0) 62%),
+    radial-gradient(90% 60% at 50% 78%, rgb(38 12 62 / 0.5), rgb(4 2 10 / 0) 70%),
+    #05020e;
+}
+
+/**
+ * The handover: the layer dissolves *while the picture is still bright*.
+ *
+ * `is-leaving` is the old exit and it is still what a skip and a failure use —
+ * a 260ms fade of whatever happens to be on screen. The ending needs something
+ * different, because the ending has a blow-out in it. Filmed at 1600×900, the
+ * lens peaks at t=4,547 (mean 91.7) and the sequence then rode all the way down
+ * to **8.7** before the game came up at 5,180: 21 frames under 60% of the
+ * settled screen, 290ms, the deepest of them at a ninth of the settled image's
+ * structure. Two dissolves in series with a hole between them.
+ *
+ * `firstRun.ts`'s `FIRST_RUN_HANDOVER` starts this one at the top of the flash
+ * instead, so the alpha ramp and the light's own decay are the *same* dissolve
+ * and the destination — painted and waiting underneath since boot — arrives
+ * through the light. Linear, deliberately: an eased fade holds the layer opaque
+ * through the brightest part and then drops it once the picture behind it has
+ * already gone dark, which is the shape that produced the hole.
+ *
+ * `pointer-events` goes with it. The layer is transparent from here on and a
+ * transparent layer that still eats a click on PLAY is the trap `is-live` was
+ * written to avoid, arriving from the other end.
+ */
+.hb-intro.is-handover {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--hb-handover-ms, 340ms) linear;
+}
+
+.hb-intro.is-leaving {
+  opacity: 0;
+}
+
+.hb-intro-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- the borrowed wordmark ---------------------------------------------- */
+
+/**
+ * While the sting is carrying the brand, the header is not also wearing it.
+ *
+ * The lockup flies to the header rail and parks on top of the lobby's own
+ * wordmark, which is the right ending — but for the two thirds of a second
+ * before it gets there, the same word was drawn twice at two sizes in two
+ * places. See the note on `BRAND_HANDOVER` in `index.ts` for the measurements.
+ *
+ * Two rules and a reach outside this module's own markup, which is worth being
+ * explicit about. `.lobby-wordmark` belongs to the front-door screens; this
+ * changes none of their files and adds nothing to their stylesheet. It states a
+ * single condition — *while the cinematic is holding the brand* — and the
+ * attribute that switches it is removed on every exit the cinematic has,
+ * including the one where it fails to build.
+ *
+ * `.has-brand-wordmark` is in the selector so this outranks the rule that sets
+ * the opacity in the first place, rather than depending on which stylesheet Vite
+ * happened to emit second.
+ *
+ * Instant off, eased back on. Off is invisible because the reveal wipes a
+ * five-times-larger copy across the middle of the screen on the same frame; on
+ * is a 90ms crossfade between two bitmaps that are by then two pixels and no
+ * scale apart, which is the "no cut, nothing to cross-fade" the handover claims.
+ */
+html[data-intro-brand="flight"].has-brand-wordmark .lobby-wordmark {
+  opacity: 0;
+}
+
+html.has-brand-wordmark .lobby-wordmark {
+  transition: opacity 90ms linear;
+}
+
+/* The setting turns decorative motion off; it does not license a doubled logo,
+   so the swap still happens — it just happens without the crossfade. */
+:root[data-reduced-motion="true"] .lobby-wordmark {
+  transition: none;
+}
+
+/* ---- the skip affordance ------------------------------------------------ */
+
+/**
+ * It says what to press, it is out of the composition's way, and it arrives
+ * late.
+ *
+ * Late because the first thing a player should read is the picture. A skip
+ * prompt on frame one tells them the thing they are about to watch is not worth
+ * watching; the same prompt at 1.4s tells them they are in control, which is
+ * the message. It is not shown at all for the returning sting, which is over
+ * before it could be read.
+ */
+.hb-intro-skip {
+  position: absolute;
+  right: clamp(16px, 3.2vw, 44px);
+  bottom: clamp(14px, 3vh, 38px);
+  padding: 6px 12px;
+  border-radius: var(--r-chip, 999px);
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-size: clamp(10px, 1.05vh, 12px);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(238 232 255 / 0.62);
+  background: rgb(6 3 14 / 0.42);
+  /*
+   * A rim on the lit edge and a lip on the unlit one, at chip amplitude — the
+   * same recipe as every other small object in the game. A plain translucent
+   * pill on top of a title sequence is the one thing on screen that would not
+   * have been lit by anybody.
+   */
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    inset 0 -1px 0 rgb(0 0 0 / 0.12);
+  opacity: 0;
+  animation: hb-intro-skip-in 520ms var(--ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 1400ms forwards;
+}
+
+@keyframes hb-intro-skip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/**
+ * Reduced motion: the title card is a still, so its furniture is a still too.
+ * The prompt is present from the first frame because there is no entrance for
+ * it to arrive on and it must not appear from nowhere partway through a hold.
+ */
+:root[data-reduced-motion="true"] .hb-intro-skip,
+:root[data-reduced-motion="true"] .hb-intro-skip {
+  animation: none;
+  opacity: 1;
+}
+
+:root[data-reduced-motion="true"] .hb-intro {
+  transition-duration: 110ms;
+}
+
+/**
+ * High contrast turns the decoration down everywhere else and it does the same
+ * here: the prompt goes to full-strength text on a solid plate rather than a
+ * 62% wash over a moving picture.
+ */
+:root[data-contrast="high"] .hb-intro-skip {
+  color: #ffffff;
+  background: #06030e;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.55);
+}

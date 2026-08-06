@@ -1,0 +1,432 @@
+/**
+ * The screens behind the doors nobody opened.
+ *
+ * Seven routes — the Lab, the Doomscroll, the Custom Lobby, the Remix hub, the
+ * patch notes, the Grand Tour and the weekly boss — were never visited by
+ * `_ic_census.mjs`, which audited twenty-five of the game's forty-nine routes
+ * while being read as if it covered all of them. What the census could not see
+ * did not get migrated: legacy `base.css` panels, flat single-colour fills, and
+ * on `#lab` a screen with zero material surfaces two clicks from PLAY.
+ *
+ * Only the Lab needed a stylesheet. The other six were class swaps in their own
+ * markup — see §2 — so everything below is the Lab's, and the file is named for
+ * the set rather than for the screen so that the next route found behind an
+ * unopened door has somewhere to land.
+ *
+ * ## Why this file exists at all, rather than a block in `screens.css`
+ *
+ * `screens.css` belongs to another owner for the duration of this wave, and
+ * `eventsScreen.ts` records what happens when a screen tries to win a
+ * specificity argument with a file it may not edit: it ends up restating module
+ * A's private tokens, which is a copy of the contract that goes stale the day
+ * the contract is retuned.
+ *
+ * So nothing here fights. Where a rule in `screens.css` painted a surface — a
+ * fill, a border, a radius — **the markup stopped using that class name**, and
+ * the geometry the element still needs is restated below. The surface itself is
+ * always module A's, applied by composition, never re-derived.
+ *
+ * These rules in `screens.css` are consequently dead and can be deleted whenever
+ * that file is next open, and nothing here depends on them going or staying:
+ *
+ *     .lab-group   .lab-side   .lab-side.active   .lab-unit   .lab-op
+ *     .lab-field   .lab-field input, .lab-field select   .lab-field.lab-inline
+ *     .lab-divider
+ *
+ * ## The light
+ *
+ * There is nothing in this file that decides where the light comes from. Every
+ * lit edge here is either a material's own or a `var()` on module A's tokens,
+ * so 315° holds without this file having an opinion about it.
+ */
+
+/* =========================================================================
+   1. The Lab
+   ========================================================================= */
+
+/**
+ * The editor rail scrolls, and it is the only thing on this screen that does.
+ *
+ * `.lab-body` is `height: calc(100% - 90px)` with `min-height: 0`, so the rail
+ * is the overflow container; `fadeOnScroll` adds `.d-fade` and drives the ramp
+ * from the scroll position, which is why there is no permanent mask here. The
+ * trailing padding is not decoration — a plate whose contact shadow is flush
+ * with the scroll edge reads as cut rather than as continuing.
+ */
+.lab-screen .lab-editor {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block-end: var(--sp-4);
+  padding-inline-end: var(--sp-2);
+  scroll-snap-type: y proximity;
+}
+
+.lab-screen .lab-plate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  scroll-snap-align: start;
+  scroll-margin-block-start: var(--sp-2);
+}
+
+/**
+ * One header shape for every group on the screen, in the rail and on the stage.
+ *
+ * The icon is `currentColor` at module C's single stroke weight, so a group
+ * heading is the same object whether it sits over three fields or over a log.
+ */
+.lab-screen .lab-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 26px;
+  color: var(--text-dim);
+}
+
+.lab-screen .lab-group-head > svg,
+.lab-screen .lab-group-head > .hb-icon {
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+
+.lab-screen .lab-head-actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-inline-start: auto;
+}
+
+.lab-screen .lab-turn {
+  margin-inline-start: auto;
+  color: var(--accent-bright);
+}
+
+/* The one action a group is for, full width under its own fields. */
+.lab-screen .lab-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--touch-min, 40px);
+  padding-inline: var(--sp-4);
+  margin-block-start: var(--sp-1);
+  font-weight: 600;
+}
+
+/**
+ * Compact on a mouse, 44px on a fingertip — and **no `min-height` here**.
+ *
+ * The first version of this rule said `min-height: 30px`, and `base.css`'s §13
+ * note describes exactly what that does: the coarse-pointer floor is a
+ * deliberately weak element selector (`button { min-height: var(--touch-min) }`,
+ * 0,0,1) so that a tile which genuinely wants to be 138px can say so — and
+ * `.lab-screen .lab-mini` is 0,2,0, so it silently beat the floor. Measured at
+ * 844×390 with a coarse pointer, all four of these chips came out 30px tall.
+ * Height is left to the padding and to the floor, which is the arrangement in
+ * which a compact control cannot become an unhittable one.
+ */
+.lab-screen .lab-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-block: 6px;
+  padding-inline: var(--sp-3);
+  font-size: var(--fs-xs);
+}
+
+/* ---- the stage ---------------------------------------------------------- */
+
+/**
+ * Three bands rather than a column with a void under it.
+ *
+ * Measured at 1600×900 the stage was 778×735 holding about 300px of content —
+ * §2 asks for four resolvable depth planes and an empty half-screen supplies
+ * none of them. The board is the recessed plane, the desk is the working plane
+ * and the moves fill what is left, so the panel is full at every height it can
+ * be given.
+ */
+.lab-screen .lab-stage {
+  display: grid;
+  grid-template-rows: minmax(180px, 1fr) auto auto;
+  gap: var(--sp-3);
+  min-height: 0;
+}
+
+/**
+ * The board takes the slack, and that is the whole answer to the empty half.
+ *
+ * Everything else on the stage is content-height, so whatever the viewport
+ * gives goes to the two seats. §0a's reading of Hearthstone frame 60 is that
+ * the playfield is *a lit surface* rather than a gap between two rows of
+ * controls, and a sandbox board that grows with the window is the cheapest
+ * honest version of that: the seats are wells, they are the largest objects on
+ * the stage, and the dead space that used to sit under the move list is now
+ * inside them.
+ */
+.lab-screen .lab-board {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  min-height: 0;
+}
+
+.lab-screen .lab-rule {
+  opacity: 0.75;
+}
+
+.lab-screen .lab-seat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--sp-2) var(--sp-3);
+  transition: box-shadow var(--dur-micro) var(--ease-arrive);
+}
+
+/**
+ * Whose turn it is, said three ways.
+ *
+ * §6 forbids signalling by colour alone, and the previous version signalled by
+ * colour alone twice over — an accent border and a flat `--glass` fill. The
+ * fill is gone; what marks the active seat now is a lit rim in the accent, a
+ * solid bar down its leading edge and the words "to act" in the header. Remove
+ * the colour entirely and the bar and the label still answer the question.
+ */
+.lab-screen .lab-seat.active {
+  box-shadow:
+    var(--mat-cast),
+    inset 3px 0 0 var(--accent-bright),
+    0 0 0 1px color-mix(in srgb, var(--accent) 46%, transparent);
+}
+
+.lab-screen .lab-active-tag {
+  color: var(--accent-bright);
+}
+
+.lab-screen .lab-side-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.lab-screen .lab-seat-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  color: var(--text);
+}
+
+.lab-screen .lab-leader {
+  font-weight: 600;
+}
+
+.lab-screen .lab-hp {
+  color: var(--accent-hot);
+  font-weight: 700;
+}
+
+.lab-screen .lab-vitals {
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
+.lab-screen .lab-units {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-2);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/**
+ * A unit on the sandbox board.
+ *
+ * The Current is a lit bar on the leading edge rather than a tint of the whole
+ * chip: eight Currents tinting eight fills would make the board a paint chart,
+ * and §6 wants saturation spent on the thing that matters. The bar is the
+ * card's own palette key, so the Lab and the real board agree.
+ */
+.lab-screen .lab-tok {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 4px var(--sp-3) 4px calc(var(--sp-3) + 3px);
+  font-size: var(--fs-sm);
+  box-shadow: var(--mat-cast), inset 3px 0 0 var(--c, var(--accent));
+}
+
+.lab-screen .lab-tok > b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* ---- the desk: log on the left, scenario on the right ------------------- */
+
+.lab-screen .lab-desk {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+.lab-screen .lab-desk-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.lab-screen .lab-log-pane,
+.lab-screen .lab-op-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 132px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--sp-2);
+  font-size: var(--fs-xs);
+}
+
+.lab-screen .lab-op-pane {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: var(--sp-1) var(--sp-2);
+}
+
+.lab-screen .lab-op-row {
+  font-size: var(--fs-xs);
+  padding: 3px var(--sp-3);
+}
+
+.lab-screen .lab-log-line {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 2px var(--sp-2);
+  color: var(--text-dim);
+  border-radius: var(--r-field);
+}
+
+.lab-screen .lab-log-line:nth-child(odd) {
+  background: rgb(255 255 255 / 0.022);
+}
+
+.lab-screen .lab-log-n {
+  color: var(--text-faint);
+  min-width: 1.6em;
+  text-align: right;
+}
+
+.lab-screen .lab-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* ---- legal moves -------------------------------------------------------- */
+
+.lab-screen .lab-moves {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-height: 0;
+}
+
+.lab-screen .lab-move-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: var(--sp-2);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.lab-screen .lab-move {
+  font-size: var(--fs-sm);
+  padding: 7px var(--sp-3);
+}
+
+/**
+ * The empty states, and why they are a class rather than a `.muted` span.
+ *
+ * §5: "Empty states are designed too." A sandbox spends most of its life empty
+ * — no setup, no moves, an empty board — so this is a long-lived state, not an
+ * edge case. It stays quiet and it says what to do next.
+ */
+.lab-screen .lab-none {
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  font-style: italic;
+  padding: var(--sp-1) 0;
+}
+
+/* An empty seat is the state this screen opens in, so it is centred in its own
+   well and says what to do rather than reporting a fact. */
+.lab-screen .lab-none-board {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: auto;
+}
+
+@media (max-width: 900px) {
+  .lab-screen .lab-desk {
+    grid-template-columns: 1fr;
+  }
+}
+
+/**
+ * A phone held sideways keeps the two columns.
+ *
+ * `screens.css` stacks the Lab below 900px and caps the rail at `34vh`, which
+ * is the right call for a narrow portrait window and the wrong one for
+ * 844×390: 34vh is **132px**, so the rail showed one field of the first plate
+ * and the whole screen became a scroll. Width is not what is scarce there —
+ * height is. So the two columns stay, the rail narrows to what a `<select>`
+ * needs, and the board gives up its minimum because on a 390px-tall viewport
+ * the seats are the layer that can afford to be thin.
+ */
+@media (max-width: 900px) and (min-width: 660px) and (orientation: landscape) {
+  .lab-screen .lab-body {
+    grid-template-columns: minmax(190px, 236px) 1fr;
+  }
+
+  .lab-screen .lab-editor {
+    max-height: none;
+  }
+
+  .lab-screen .lab-stage {
+    grid-template-rows: minmax(84px, 1fr) auto auto;
+  }
+
+  .lab-screen .lab-log-pane,
+  .lab-screen .lab-op-pane {
+    max-height: 84px;
+  }
+}
+
+/* =========================================================================
+   2. The other five screens need nothing here, and that is worth writing down
+   =========================================================================
+   The Custom Lobby, the Doomscroll, the Remix hub, the patch notes and the
+   Grand Tour were already on the type roles, the icon set and the form kit;
+   what each still carried was a `base.css` `.panel` under it. Swapping that for
+   `.mat-panel r-panel` in the markup was the whole change, because every rule
+   `screens.css` has for those sections — `.custom-panel`, `.doom-setup-panel`,
+   `.doom-record`, `.remix-current`, `.patch-versions`, `.patch-release`,
+   `.tour-intro`, `.tour-reward` — is padding and flex, with no fill, no border
+   and no radius to argue with.
+
+   There is deliberately no block here for them. A rule written "for symmetry"
+   against a class the markup does not use is dead the day it is committed, and
+   this file already exists because of a stylesheet nobody could safely prune. */

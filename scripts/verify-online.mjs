@@ -64,7 +64,7 @@ const shaky = (m) => {
 const browser = await chromium.launch({
   executablePath: CHROME,
   headless: true,
-  args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--no-sandbox"],
+  args: ["--enable-unsafe-swiftshader", "--no-sandbox"],
 });
 
 /** One player: their own context, so their own localStorage and their own session. */

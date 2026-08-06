@@ -24,7 +24,7 @@ const CHROME = [
 const browser = await chromium.launch({
   executablePath: CHROME,
   headless: true,
-  args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--no-sandbox"],
+  args: ["--enable-unsafe-swiftshader", "--no-sandbox"],
 });
 
 let failures = 0;

@@ -177,6 +177,43 @@ export const paletteFor = (mode: ColorblindMode): Record<CurrentId, string> => C
 
 export const COLORBLIND_MODES: ColorblindMode[] = ["off", "protanopia", "deuteranopia", "tritanopia"];
 
+/**
+ * A stable ordinal per faction.
+ *
+ * Only the procedural crest needs it — it picks a petal count — but three
+ * modules draw that crest and each of them was keeping its own copy of the
+ * table, so a faction added to one of them was silently a different emblem in
+ * the other two.
+ */
+export const FACTION_INDEX: Record<string, number> = {
+  "neon-idols": 0,
+  "gothic-royalty": 1,
+  "viral-influencers": 2,
+  "corporate-creators": 3,
+  "digital-demons": 4,
+  "cosplay-champions": 5,
+  "afterparty-crew": 6,
+  "touch-grass-order": 7,
+  "algorithm-syndicate": 8,
+  "meme-collective": 9,
+  neutral: 10,
+};
+
+/** The short code printed in the collector line. */
+export const FACTION_CODE: Record<FactionId, string> = {
+  "neon-idols": "IDL",
+  "gothic-royalty": "GTH",
+  "viral-influencers": "VRL",
+  "corporate-creators": "CRP",
+  "digital-demons": "DMN",
+  "cosplay-champions": "CSP",
+  "afterparty-crew": "AFT",
+  "touch-grass-order": "TGO",
+  "algorithm-syndicate": "ALG",
+  "meme-collective": "MEM",
+  neutral: "NTL",
+};
+
 export const FACTION_COLOR: Record<FactionId, string> = {
   "neon-idols": "#ff5fa2",
   "gothic-royalty": "#b8548a",
@@ -191,18 +228,221 @@ export const FACTION_COLOR: Record<FactionId, string> = {
   neutral: "#8f8aa8",
 };
 
+/**
+ * Rarity, as a frame rather than as a colour.
+ *
+ * The old version of this table was a hex value and a pip count, and the pips
+ * were eleven-pixel diamonds hard on the bottom edge of the card where the
+ * collection grid's own count pill sits directly over them. On the one screen
+ * where a player compares rarities, the only rarity signal was fully occluded —
+ * so eleven legendaries and eleven commons photographed identically.
+ *
+ * Rarity now changes the *object*: how wide the rim is, what metal it is made
+ * of, whether the corners carry ornaments, how hard the frame glows, and what
+ * mark sits in the name plate's left cap. Colour is the last of five channels
+ * rather than the only one, which is what §9 of the accessibility contract asks
+ * for and what makes a legendary legible in a photograph of a stream.
+ *
+ * ## The ladder is a value ladder, which means it cannot be a hue mix
+ *
+ * The previous table blended a rarity *hue* into the Current's — `mixInto` at
+ * 0.44 of Epic's violet over Halo's gold — and that inverted the hierarchy the
+ * bar asks for. Two saturated colours a half-turn apart average to grey: held to
+ * one Current, Halo epic rendered as a desaturated grey-beige beside a Halo
+ * common in rich gold, so the more valuable card was visibly the *cheaper*
+ * object. No value of `mixInto` fixes that; the mix is the defect.
+ *
+ * So the frame metal now only ever climbs. `chroma` multiplies the Current's
+ * saturation and `lift` raises its lightness, so each tier is strictly more
+ * saturated and brighter than the one below it *on the same Current*, and
+ * `gild` — a warm metal, reserved for legendary, the one place a hue shift is
+ * worth its cost — arrives on top of that rather than instead of it.
+ *
+ * Rarity's own colour has not gone anywhere. It is the keyline, the corner caps,
+ * the mark in the name plate's cap and the word in the collector line: four
+ * accents laid *over* the Current's metal instead of stirred into it, which is
+ * the same division Hearthstone makes between a gild and a class colour.
+ */
 export interface RarityStyle {
   color: string;
   label: string;
-  /** number of gem facets drawn — an accessible, non-colour rarity signal */
+  /** number of marks in the name plate's rarity cap — a non-colour signal */
   gems: number;
+  /** the metal the rarity mark and the corner caps are cut from */
+  metal: { hi: string; key: string; lo: string };
+  /** multiplier on the Current's saturation in the frame band; never below 1 above common */
+  chroma: number;
+  /** added to the Current's lightness in the frame band */
+  lift: number;
+  /** how much warm gild is laid over the result — legendary's alone */
+  gild: number;
+  /**
+   * Thickness of the frame band, in card-space pixels.
+   *
+   * The one rarity channel that survives *any* amount of downsampling, because it
+   * changes the card's silhouette rather than anything drawn inside it. A 21px
+   * band and a 31px band are 6.9 and 10.2 device pixels on a 168px tile — a
+   * difference you can see across a room, and the reason a legendary in
+   * Hearthstone's collection reads as heavier before you can make out a single
+   * ornament on it.
+   */
+  band: number;
+  /** width of the second inset rim line, in the rarity's own colour; 0 draws none */
+  innerRim: number;
+  /** reach of the corner ornaments in card-space pixels; 0 draws none */
+  ornament: number;
+  /** strength of the frame's own bloom, and of the specular band that crawls it */
+  glow: number;
+}
+
+/** The warm metal a legendary is gilded with, and nothing else is. */
+export const GILD = "#e8b74a";
+
+/** The hue of a hex colour in degrees, or 0 for a grey. */
+function hueOf(hex: string): number {
+  const value = parseInt(hex.replace("#", ""), 16);
+  const r = ((value >> 16) & 255) / 255;
+  const g = ((value >> 8) & 255) / 255;
+  const b = (value & 255) / 255;
+  const max = Math.max(r, g, b);
+  const delta = max - Math.min(r, g, b);
+  if (delta < 1e-6) return 0;
+  let h = max === r ? ((g - b) / delta) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+  h *= 60;
+  return h < 0 ? h + 360 : h;
+}
+
+/**
+ * Lay the legendary gild over a colour **by how much gold that colour can take**.
+ *
+ * The note over `RARITY_STYLE` claims this inversion was eliminated. It was
+ * moved. Blending 54% of `#e8b74a` into a saturated Tide blue produces
+ * `rgb(174,182,157)` — a desaturated sage-olive whose hue has rotated a hundred
+ * and thirty degrees into the greens — so Cassia Cache, a Tide legendary, printed
+ * a visibly *cheaper* frame than a Tide common. The cause is not the amount. Two
+ * saturated colours a half-turn apart average to mud at any mix, and gold is a
+ * half-turn from every cool Current in the game.
+ *
+ * So the mix is scaled by how near the colour's hue already is to gold's. Halo
+ * and Cinder take the gild at nearly full strength, which is what makes a warm
+ * legendary read as struck metal; Tide, Gale, Pulse and Veil take a sixth of it,
+ * which warms the frame without moving it off its own hue. The tier does not go
+ * missing on those Currents — it is carried by a wider band, more chroma, a gold
+ * keyline, four gold-set bosses and a gold star in the name plate's cap, none of
+ * which have to be mixed into anything to stay gold.
+ */
+export function gildInto(hex: string, amount: number): string {
+  if (amount <= 0) return hex;
+  return mix(hex, nobleFor(hex), amount * 0.15);
+}
+
+/**
+ * The cold noble metal, for the four Currents gold cannot reach.
+ *
+ * `#dfe6f5` rather than a neutral grey: platinum in the world is very slightly
+ * blue, and a highlight that is *exactly* achromatic on a violet frame reads as
+ * a blown-out gradient rather than as a different substance.
+ */
+export const PLATINUM = "#dfe6f5";
+
+/**
+ * Which noble metal a hue can actually be alloyed with.
+ *
+ * `gildInto` scaled the *amount* of gold by hue proximity, which stopped Tide
+ * turning to sage-olive and then produced the defect underneath it: a Pulse or
+ * Veil legendary took a sixth of the gild and came out as the Current's own hue
+ * at slightly more chroma — a tint, not an alloy — so the top tier on a cool
+ * Current photographed cheaper than a Cinder common. Scaling the amount can only
+ * ever choose between mud and nothing, because the problem was never how much
+ * gold there was; it was that gold is the wrong metal for half the wheel.
+ *
+ * So the *metal itself* rotates. Warm hues alloy toward the gild, cool hues
+ * toward platinum, and the crossfade between the two is smooth in hue distance
+ * so no Current sits on a discontinuity. Both are then applied at full strength,
+ * which means every legendary in the game climbs the same distance above its
+ * epic — a cold silver-platinum Veil rather than a pink one, and the ladder is a
+ * ladder on all eight Currents instead of on four.
+ */
+export function nobleFor(hex: string): string {
+  const delta = Math.abs(((hueOf(hex) - hueOf(GILD) + 540) % 360) - 180);
+  const near = Math.max(0, 1 - delta / 110);
+  return mix(PLATINUM, GILD, near * near);
+}
+
+/**
+ * Alloy a colour with whichever noble metal its hue can take.
+ *
+ * Unlike {@link gildInto} the amount is exactly the amount: a caller asking for
+ * 0.6 gets 0.6 of the right metal, on every hue.
+ */
+export function alloyInto(hex: string, amount: number): string {
+  if (amount <= 0) return hex;
+  return mix(hex, nobleFor(hex), Math.min(1, amount));
 }
 
 export const RARITY_STYLE: Record<Rarity, RarityStyle> = {
-  common: { color: "#b8b2cc", label: "COMMON", gems: 1 },
-  rare: { color: "#4d9fff", label: "RARE", gems: 2 },
-  epic: { color: "#c168ff", label: "EPIC", gems: 3 },
-  legendary: { color: "#ffb43d", label: "LEGENDARY", gems: 4 },
+  common: {
+    color: "#b8b2cc",
+    label: "COMMON",
+    gems: 1,
+    metal: { hi: "#e6e2f2", key: "#9a93b4", lo: "#3a3450" },
+    chroma: 0.52,
+    lift: -0.1,
+    gild: 0,
+    band: 21,
+    innerRim: 0,
+    ornament: 0,
+    glow: 0.4,
+  },
+  rare: {
+    color: "#6fb6ff",
+    label: "RARE",
+    gems: 2,
+    metal: { hi: "#e2efff", key: "#78a6dc", lo: "#26374f" },
+    chroma: 1,
+    lift: 0.03,
+    gild: 0,
+    band: 24,
+    /**
+     * Wide enough to survive the grid, which is the whole point of the tier.
+     *
+     * A rare and a common on the same Current were frame-identical at 168px: the
+     * keyline was 1.6px in card space, which is half a device pixel once a 512px
+     * card lands in a tile, and the corner caps were anchored on a corner that
+     * Tide's 30px fillet had already rounded away, so the outer clip ate them.
+     * 3.2px and a cap that starts inside the fillet are both readable at tile
+     * size, and they are the two channels a player can see without leaning in.
+     */
+    innerRim: 3.4,
+    ornament: 34,
+    glow: 0.6,
+  },
+  epic: {
+    color: "#c987ff",
+    label: "EPIC",
+    gems: 3,
+    metal: { hi: "#f2d9ff", key: "#a86ce0", lo: "#361c52" },
+    chroma: 1.34,
+    lift: 0.1,
+    gild: 0,
+    band: 27,
+    innerRim: 4.4,
+    ornament: 43,
+    glow: 0.85,
+  },
+  legendary: {
+    color: "#ffc257",
+    label: "LEGENDARY",
+    gems: 4,
+    metal: { hi: "#fff3cd", key: "#dfa63a", lo: "#4e3208" },
+    chroma: 1.2,
+    lift: 0.15,
+    gild: 0.6,
+    band: 31,
+    innerRim: 5.2,
+    ornament: 54,
+    glow: 1,
+  },
 };
 
 /**
@@ -210,28 +450,139 @@ export const RARITY_STYLE: Record<Rarity, RarityStyle> = {
  * art is full-bleed: it fills the whole card and the UI is overlaid on top.
  * Drop art at public/assets/art/<card-id>.png at this size.
  */
+/**
+ * The metal a frame band is made of: the Current, ranked by rarity.
+ *
+ * Every tier is the Current's own hue at a different chroma and value, so the
+ * ladder can only climb — see the note over `RARITY_STYLE` for what happened
+ * when it was a hue mix instead.
+ *
+ * ## The alloy rotates with the hue, and the gild alone did not
+ *
+ * `gildInto` scaled the amount of *gold* by how near the Current already was to
+ * it, which kept Tide out of the olives and, measured, left a Veil legendary at
+ * thirteen per cent of a mix it could barely see. Held against a Cinder
+ * legendary, the one came out as convincing metal and the other as lavender at
+ * slightly more chroma — a tint. `alloyInto` fixes the direction rather than the
+ * dose: warm Currents alloy toward the gild, cool ones toward platinum, both at
+ * full strength, so the distance from epic to legendary is the same on all
+ * eight. What is still weighted toward the lit end is *where* the alloy lands —
+ * a highlight is where a noble metal shows, and there is no light in an abyss
+ * for anything to be bright in.
+ *
+ * It lives here rather than in `renderCard.ts` because the leader plaque asks
+ * for it too, at the legendary rank: a leader is the one card in a deck that
+ * outranks every other, and it used to fill its band with the raw palette hue
+ * while the cards under it wore a ranked alloy. Two metals on one board.
+ */
+export function frameMetal(
+  current: CurrentId,
+  rarity: Rarity
+): { hi: string; key: string; lo: string; abyss: string } {
+  const palette = CURRENT_PALETTE[current];
+  const style = RARITY_STYLE[rarity];
+  const rank = (hex: string, extraLift: number, alloy: number): string =>
+    alloyInto(saturate(hex, style.chroma, style.lift + extraLift), style.gild * alloy);
+  return {
+    hi: rank(palette.hi, 0.02, 1),
+    key: rank(palette.key, 0, 0.52),
+    lo: rank(palette.lo, -0.01, 0.16),
+    abyss: mix(rank(palette.abyss, -0.02, 0.05), "#000000", 0.35),
+  };
+}
+
+/**
+ * How hard a tier's frame catches the key light directly, and in what colour.
+ *
+ * Separate from the metal because a specular is a *reflection of the source*
+ * rather than a property of the surface: it is near-white on gold and near-white
+ * on platinum, and the small amount of the alloy that survives in it is what
+ * tells the two apart. Common gets none — a common frame is base metal and base
+ * metal is diffuse — and the tiers above it climb, which is a fifth non-colour
+ * channel on the ladder and the one that reads at a glance across a room.
+ */
+export function frameSpecular(hi: string, rarity: Rarity): { strength: number; tint: string } | null {
+  const strength = { common: 0, rare: 0.16, epic: 0.26, legendary: 0.44 }[rarity];
+  if (strength <= 0) return null;
+  return { strength, tint: mix(hi, "#ffffff", 0.62) };
+}
+
 export const CARD_W = 512;
 export const CARD_H = 680;
 
 /**
  * Layout in card-space. With full-bleed art every element sits over the
  * artwork, so each one carries its own scrim or plate for legibility.
+ *
+ * ## The bleed is transparent margin, and it is load-bearing
+ *
+ * It used to be 8px, which is less than the frame's own glow — so a 24px bloom
+ * drawn on a stroke 8px from the canvas edge lost two thirds of itself to the
+ * clip and terminated in a hard straight line with square corners on all four
+ * sides. Several Current silhouettes were worse off than that: Cinder's flame
+ * peaks reached 15px past the rect and Pulse's circuit steps 12px, so the two
+ * most distinctive outlines in the game were the two that got sliced flat.
+ *
+ * 20px of margin, silhouette features capped at 9px and a tight 11px rim glow
+ * now all fit inside the canvas with room to fade. The big neon bloom stays
+ * where it belongs — on the DOM tile and in the board's bloom pass, on a layer
+ * larger than the card — because baking a large glow into a fixed-size bitmap
+ * is what caused the clip in the first place.
+ *
+ * ## The top band holds two objects, not three
+ *
+ * Cost on the left, Current on the right, both centred on y=66. The faction
+ * crest moved down into the name plate's right cap, which is what a printed card
+ * does with a set symbol and what stopped three unrelated objects from sitting
+ * on three baselines six pixels apart. The rarity mark takes the matching left
+ * cap, where the collection grid's count pill can never reach it.
  */
 export const LAYOUT = {
-  bleed: 8,
+  bleed: 20,
+  /** thickness of the frame band, inward from the silhouette */
+  frame: 24,
   /** the art fills the entire card, clipped to the Current frame silhouette */
   art: { x: 0, y: 0, w: CARD_W, h: CARD_H },
   /** darkening bands that keep overlaid text readable over any artwork */
-  topScrim: { x: 0, y: 0, w: CARD_W, h: 132 },
-  bottomScrim: { x: 0, y: 356, w: CARD_W, h: CARD_H - 356 },
-  namePlate: { x: 30, y: 392, w: CARD_W - 60, h: 50 },
+  topScrim: { x: 0, y: 0, w: CARD_W, h: 152 },
+  bottomScrim: { x: 0, y: 340, w: CARD_W, h: CARD_H - 340 },
+  namePlate: { x: 52, y: 384, w: CARD_W - 104, h: 54 },
+  /** the square caps at each end of the name plate: rarity left, faction right */
+  plateCap: 54,
   /** the type line sits in the gap between the name banner and the text box */
-  typeLineY: 460,
-  textBox: { x: 30, y: 476, w: CARD_W - 60, h: 142 },
-  costGem: { cx: 56, cy: 58, r: 38 },
-  badge: { x: 292, y: 26, w: 190, h: 52 },
-  attackChip: { cx: 60, cy: 636, r: 38 },
-  healthChip: { cx: CARD_W - 60, cy: 636, r: 38 },
+  typeLineY: 456,
+  /**
+   * The rules box at its *largest*. It shrinks to its text — see
+   * `renderCard::textBoxRect` — because a fixed 112px box holding one line of
+   * rules is ninety pixels of nothing, and on the cards with the least to say it
+   * was the single biggest black mass on the face.
+   */
+  textBox: { x: 52, y: 470, w: CARD_W - 104, h: 112 },
+  /** ...and at its smallest, so a one-word Action still has a plate under it. */
+  textBoxMin: 54,
+  /**
+   * The collector line. It sits between the two stat gems, so it has 252px of
+   * clear width and not a pixel more — see `renderCard::drawFooter` for how it
+   * gets all four of its fields into that, which it previously did not.
+   */
+  footerY: 604,
+  costGem: { cx: 78, cy: 66, r: 36 },
+  badge: { x: 318, y: 47, w: 144, h: 38 },
+  /**
+   * The stat gems, and the ten pixels they had to come up.
+   *
+   * They sat at cy 632 with r 40, and a shield's blade point is `r × 1.17 ×
+   * 1.06` below its centre once the socket mount is counted — 681.6 on a canvas
+   * 680 tall. Measured, row 679 of every card carried an alpha of 215–220 at
+   * x 75–80 against 1–14 on the other three edges: the tip of the attack gem and
+   * the card's own drop shadow, both terminating in a hard straight line. The
+   * bleed went 8 → 20 on the other three edges last round and this one never got
+   * it, because the bleed is a property of the canvas and the clipping was a
+   * property of the furniture. 622 puts the tip at 671 and its shadow inside the
+   * margin, which is what the top edge has had all along.
+   */
+  attackChip: { cx: 78, cy: 622, r: 40 },
+  healthChip: { cx: CARD_W - 78, cy: 622, r: 40 },
   /**
    * Board cards use these instead — see `statEmphasis` in renderCard.
    *
@@ -242,17 +593,53 @@ export const LAYOUT = {
    * hard in the bottom corners so the enlargement eats artwork rather than the
    * name plate.
    */
-  boardAttackChip: { cx: 64, cy: 620, r: 54 },
-  boardHealthChip: { cx: CARD_W - 64, cy: 620, r: 54 },
+  boardAttackChip: { cx: 84, cy: 604, r: 54 },
+  boardHealthChip: { cx: CARD_W - 84, cy: 604, r: 54 },
   /**
-   * ...and the rules box gives up the height they need. Gems that size cannot
-   * fit below a full-height text box without running off the card, and on the
-   * board the stats are what you read while the rules text is what you
-   * press-and-hold to read. Shrinking the box is the cheaper loss.
+   * ...and the rules text goes entirely.
+   *
+   * A board card is displayed at about 121px, which is a 4.2:1 downsample of the
+   * face. At that size three lines of 17px rules text are a grey smear with a
+   * plate under them — a *designed-looking* block of noise, which is worse than
+   * an empty band, and it was eating 40% of the unit. Hearthstone shows a board
+   * minion its art, its name, its attack and its health and nothing else;
+   * HYPEBOUND was shipping the whole card face at a quarter scale.
+   *
+   * So the board face keeps the art (a much larger window, because the scrim can
+   * start far lower), a full-width name at a fixed size, a single line of
+   * keywords in caps, and the two gems. Everything a player needs to count a
+   * trade, and nothing they would have to lean in for. The complete face is
+   * still one press-and-hold away, rendered at 420px where every word of it is
+   * legible.
    */
-  boardTextBox: { x: 30, y: 476, w: CARD_W - 60, h: 84 },
-  rarityGem: { cx: CARD_W / 2, cy: 644, r: 14 },
-  crest: { cx: CARD_W / 2, cy: 56, r: 22 },
+  boardScrimY: 452,
+  /**
+   * Wider than the collection face's name plate, because it can be.
+   *
+   * The board face has no rarity cap, no faction crest and no rules box, so the
+   * only thing competing with the name for horizontal room is the frame band —
+   * and the plate was nonetheless inset by the same 44px the portrait face uses
+   * for furniture it does not have. 30px gives the name 452 pixels of clear
+   * width instead of 396, which is the difference between the longest names in
+   * the game fitting on the middle step and dropping to the bottom one.
+   */
+  boardNamePlate: { x: 30, y: 476, w: CARD_W - 60, h: 58 },
+  boardKeywordY: 552,
+  /**
+   * How much room the keyword row actually has, and why it is not the card.
+   *
+   * `drawBoardKeywords` set two keywords at a fixed 28px with 3px of tracking
+   * and no clamp at all, so 'AFTERPARTY · COMEBACK' measured x 35 → 477 of a 512
+   * canvas: out to both frame rims and straight under the health chip at cx 428,
+   * r 54. At the real 121px board size that is a smear behind a gem. The row's
+   * stated job is 'does this thing have Spotlight', and the space between the
+   * two stat gems is exactly the space that job is allowed.
+   */
+  boardKeywordWidth: CARD_W - 2 * 160,
+  /** the rarity mark, in the name plate's left cap where nothing can occlude it */
+  rarityGem: { cx: 79, cy: 411, r: 17 },
+  /** the faction crest, in the matching right cap, seated in a recessed medallion */
+  crest: { cx: CARD_W - 79, cy: 411, r: 20 },
 } as const;
 
 export function hexToRgba(hex: string, alpha: number): string {
@@ -262,6 +649,63 @@ export function hexToRgba(hex: string, alpha: number): string {
   const g = (value >> 8) & 255;
   const b = value & 255;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Push a colour along the two axes that rarity is allowed to move it on.
+ *
+ * Mixing toward a rarity hue was the mechanism the ladder used, and it inverted
+ * the value hierarchy the moment the two hues disagreed: Epic's `#a86ce0` blended
+ * 44% over Halo's `#ffd86b` is a grey-beige, so Employee of the Year (Halo epic)
+ * photographed *cheaper* than Lobby Greeter (Halo common). Two saturated colours
+ * on opposite sides of the wheel average to mud — that is not a tuning mistake,
+ * it is what a linear RGB mix does, and no choice of `mixInto` avoids it.
+ *
+ * So rarity moves saturation and lightness and leaves the hue to the Current.
+ * `factor` multiplies chroma and `lift` adds to lightness, both clamped, so a
+ * step up the ladder can only ever make a frame *more* saturated and brighter
+ * than the tier below it on the same Current. Colour still carries rarity — in
+ * the keyline, the corner caps, the nameplate mark and the printed word — but it
+ * carries it as an accent laid over the metal rather than mixed into it.
+ */
+export function saturate(hex: string, factor: number, lift = 0): string {
+  const value = parseInt(hex.replace("#", ""), 16);
+  const r = ((value >> 16) & 255) / 255;
+  const g = ((value >> 8) & 255) / 255;
+  const b = (value & 255) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const delta = max - min;
+
+  let h = 0;
+  if (delta > 1e-6) {
+    if (max === r) h = ((g - b) / delta) % 6;
+    else if (max === g) h = (b - r) / delta + 2;
+    else h = (r - g) / delta + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const s = delta < 1e-6 ? 0 : delta / (1 - Math.abs(2 * l - 1));
+
+  const s2 = Math.max(0, Math.min(1, s * factor));
+  const l2 = Math.max(0, Math.min(1, l + lift));
+
+  const c = (1 - Math.abs(2 * l2 - 1)) * s2;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l2 - c / 2;
+  const sector = Math.floor(h / 60) % 6;
+  const rgb: [number, number, number] =
+    sector === 0 ? [c, x, 0]
+    : sector === 1 ? [x, c, 0]
+    : sector === 2 ? [0, c, x]
+    : sector === 3 ? [0, x, c]
+    : sector === 4 ? [x, 0, c]
+    : [c, 0, x];
+
+  const byte = (v: number): number => Math.max(0, Math.min(255, Math.round((v + m) * 255)));
+  return `#${((byte(rgb[0]) << 16) | (byte(rgb[1]) << 8) | byte(rgb[2])).toString(16).padStart(6, "0")}`;
 }
 
 /** Blend two hex colours; t = 0 returns a, t = 1 returns b. */

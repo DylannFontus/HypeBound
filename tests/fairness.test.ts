@@ -162,8 +162,24 @@ describe("privacy, legal and support", () => {
   });
 
   it("separates what ships to a player from what only builds the game", () => {
+    /*
+     * `postprocessing` counts, and the deciding question was whether a lazily
+     * imported package ships to a player.
+     *
+     * It does. `scene.ts` reaches it through `await import("postprocessing")`
+     * rather than a top-level import, so it lands in its own chunk instead of
+     * the entry bundle — but any player who opens a battle downloads and runs
+     * it. Deferring when a dependency arrives does not change whether it
+     * arrives, and this list exists to tell somebody what code runs on their
+     * machine, not what the bundler did with it.
+     *
+     * `runtime` is derived in policies/index.ts from package.json's
+     * `dependencies`, so the attribution entry did not get to make this claim on
+     * its own; the honest options were to credit it here or to move it to
+     * devDependencies and stop shipping it.
+     */
     const runtime = attributions().filter((entry) => entry.runtime).map((entry) => entry.package);
-    expect(runtime).toEqual(["three", "zod"]);
+    expect(runtime).toEqual(["postprocessing", "three", "zod"]);
   });
 
   /**

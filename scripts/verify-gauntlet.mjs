@@ -34,7 +34,7 @@ const CHROME = [
 const browser = await chromium.launch({
   executablePath: CHROME,
   headless: true,
-  args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--no-sandbox"],
+  args: ["--enable-unsafe-swiftshader", "--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 const errors = [];
@@ -63,10 +63,26 @@ await settleOn(".play-screen");
 const card = page.locator(".mode-card", { hasText: "The Gauntlet" });
 if ((await card.count()) === 0) fail("Mode Select has no Gauntlet card");
 else {
-  const status = (await card.first().locator(".mode-status").textContent())?.trim();
+  /**
+   * A silent status is the correct state, and this used to wait thirty seconds
+   * for it.
+   *
+   * `playScreen.ts::statusOf` returns "" for an available mode on purpose: READY
+   * was printed on every playable tile, which made it the most repeated word on
+   * the screen and the least informative, and twelve identical green accents is
+   * the opposite of the one-hero-accent rule. The Gauntlet only speaks when it
+   * has something to say — "Resume — pick 4", "Resume — 2–1".
+   *
+   * So the tile is allowed to carry no status line at all, and reading one
+   * unconditionally turned a passing screen into a `locator.textContent`
+   * timeout. What this step is actually for is that the mode is listed and
+   * clickable; the status text is reported when present and is not the claim.
+   */
+  const statusNode = card.first().locator(".mode-status");
+  const status = (await statusNode.count()) > 0 ? (await statusNode.textContent())?.trim() : "";
   const disabled = await card.first().isDisabled();
   if (disabled) fail("the Gauntlet card is disabled");
-  else ok(`Mode Select shows it as "${status}" and it is clickable`);
+  else ok(`Mode Select lists it${status ? ` as "${status}"` : " with no run in progress"} and it is clickable`);
   await card.first().click();
   await page.waitForTimeout(500);
   const landed = await page.evaluate(() => window.location.hash);

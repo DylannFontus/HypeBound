@@ -32,6 +32,13 @@ import { loanerDeckFor, tourOpponentDeck } from "./game/progression/grandTour";
 import { tutorialConfig } from "./game/progression/data";
 import { autoBuildDeck } from "./engine/deck";
 import { Shell, watchOrientation } from "./ui/shell";
+import { mountAtmosphere } from "./ui/atmosphere";
+import { startIntro } from "./ui/intro";
+import {
+  setMatchBillingProvider,
+  type MatchBilling,
+  type MatchSide,
+} from "./ui/intro/matchCurtain";
 import { createLobbyScreen } from "./ui/screens/lobbyScreen";
 import { createPlayScreen } from "./ui/screens/playScreen";
 import { createShopScreen } from "./ui/screens/shopScreen";
@@ -93,7 +100,7 @@ import { createPrivacyScreen } from "./ui/screens/privacyScreen";
 import { createLegalScreen } from "./ui/screens/legalScreen";
 import { createSupportScreen } from "./ui/screens/supportScreen";
 import { createA11yScreen } from "./ui/screens/a11yScreen";
-import type { AiDifficulty, ContentIndex, DeckList, FactionId } from "./engine/types";
+import type { AiDifficulty, CardDef, ContentIndex, DeckList, FactionId } from "./engine/types";
 
 /** Clout per tutorial stage, per docs/design/09-game-modes.md section 2.3. */
 const TUTORIAL_CLOUT_PER_STAGE = 100;
@@ -148,9 +155,269 @@ function showFatalError(error: unknown): void {
     </div>`;
 }
 
+/**
+ * Take down the boot plate, whatever else happened.
+ *
+ * `index.html` opens with `<html class="hb-boot">` and a full-bleed
+ * `#hb-boot-plate` at `z-index: 1`, so the first paint is a composed dark field
+ * with the wordmark on it rather than a flash of unstyled void. Its own comment
+ * says "main.ts drops the class" — and main.ts never did. The only code that
+ * cleared it lived on the opening cinematic's completion path.
+ *
+ * That is fine exactly when the cinematic plays and catastrophic when it does
+ * not, and `src/ui/intro/index.ts` lists four reasons it legitimately might not:
+ * a deep link to anything that is not the front door, `?nointro`, a browser
+ * with no WebGL, and a missing brand asset. In every one of those the plate
+ * stayed up forever, covering a game that had booted perfectly well underneath
+ * it. Reloading into `#collection` showed a wordmark and nothing else.
+ *
+ * So the teardown belongs here, on the one path that always runs, rather than
+ * inside the feature that is allowed to opt out. `finally` because a screen that
+ * fails to mount still has to reveal the error it wants to show, and a plate
+ * over a stack trace is worse than either alone.
+ *
+ * ## It is called at every exit from `boot()`, and it has to be
+ *
+ * "The one path that always runs" was `void shell.start().finally(...)`, and
+ * `boot()` has two `return`s above that line. Both were live:
+ *
+ * - A content-validation failure builds its report and returns. The plate then
+ *   covered the report, which is the precise outcome the paragraph above says
+ *   is worse than either alone.
+ * - **A brand-new account is sent to `#starter` and returns.** Filmed on a
+ *   genuine cold boot with storage cleared: at 6.4 seconds `#hb-boot-plate` was
+ *   still at `opacity: 1` over a mounted starter picker. That is the *first
+ *   launch* — the one the opening cinematic exists for. The title played, the
+ *   title ended, and what it handed over to was a dark field with a breathing
+ *   wordmark on it and no way out.
+ *
+ * Neither shows up in a harness, because every screenshot script in this repo
+ * either seeds an account or deep-links a route, and both of those take the
+ * third exit. It only appears if you clear storage and watch the thing boot.
+ */
+function clearBootPlate(): void {
+  document.documentElement.classList.remove("hb-boot");
+  // The CSS transitions opacity for 420ms and then this removes the node, so a
+  // late-arriving layer cannot end up stacked underneath a spent cover.
+  window.setTimeout(() => document.getElementById("hb-boot-plate")?.remove(), 600);
+}
+
+/**
+ * Answer "who would this hash deal?" for the curtain that covers a match load.
+ *
+ * `src/ui/intro/matchCurtain.ts` draws the two leaders on the closed panels and
+ * explains at length why it cannot look them up itself: the shell raises the
+ * curtain *before* it calls the route's factory, so at the moment the cover
+ * exists the battle screen does not and nobody has chosen an opponent. This file
+ * is the only one that holds the content index and all ten battle routes'
+ * deck-selection rules at once, so this is where the question is answered.
+ *
+ * **Nothing here may have a side effect**, and that is the constraint that
+ * decides how much each route can say. `#battle` and `#boss` pick their decks
+ * from pure reads and can be billed completely. `#gauntletfight` and
+ * `#doomfight` only learn their opponent from `enterFight`/`startFight`, which
+ * *advance the run* — calling either here would count a fight that the player
+ * might never enter — so they bill the player's own side and the mode, and the
+ * away plate is simply absent. A half-billed curtain is a lit, roomed cover with
+ * one leader and a mode rule on it; the alternative was 6.4 seconds of black.
+ *
+ * Every branch is inside one `try`. A billing card is decoration and a provider
+ * that throws must not be able to stop somebody entering a match — `billingFor`
+ * catches too, and this is the belt to its braces so a single bad route id
+ * cannot cost the other nine their portraits.
+ */
+function registerMatchBilling(content: ContentIndex): void {
+  const leaderCard = (id: string | null | undefined): CardDef | null =>
+    id ? (content.leaders[id] ?? content.cards[id] ?? null) : null;
+
+  /** The deck this account would actually be dealt, without touching the save. */
+  const ownDeck = (): DeckList => playableDeck(content, selectableLeaders(content)[0]?.id ?? "");
+
+  const side = (card: CardDef | null, label: string, detail?: string): MatchSide | null =>
+    card ? { card, label, ...(detail !== undefined && detail !== "" ? { detail } : {}) } : null;
+
+  const homeSide = (deck: DeckList, label = "YOUR LEADER"): MatchSide | null =>
+    side(leaderCard(deck.leaderCardId), label, deck.name);
+
+  /** The same "a different leader from the same pool" rule the routes use. */
+  const rivalLeader = (mineId: string): CardDef | null => {
+    const ids = selectableLeaders(content).map((leader) => leader.id);
+    return leaderCard(ids.find((id) => id !== mineId) ?? mineId);
+  };
+
+  const stageOf = (encounterId: string, index: number) => {
+    const encounter = getEncounters(new Set(Object.keys(content.cards)))[encounterId];
+    const stage = encounter?.stages[index];
+    return encounter && stage ? { encounter, stage } : null;
+  };
+
+  setMatchBillingProvider((routeId, params): MatchBilling | null => {
+    try {
+      switch (routeId) {
+        case "battle": {
+          const difficulty = params.get("difficulty") ?? "casual";
+          const tourFaction = params.get("tour") as FactionId | null;
+          const loaner = tourFaction ? loanerDeckFor(content, tourFaction) : null;
+          /**
+           * Narrowed on `tourFaction` itself, not on `loaner`.
+           *
+           * `loaner !== null` implies a faction to a reader and nothing at all
+           * to the compiler, so the two calls below were being handed
+           * `FactionId | null`. Asking the question directly costs a comparison
+           * and makes the narrowing real.
+           */
+          const touring =
+            tourFaction !== null && loaner !== null && !getProfile().unlockedFactions.includes(tourFaction);
+          // Read, never consumed: the factory below is the one that claims it.
+          const draft = params.get("test") === "1" ? testDeck : null;
+          const deck = draft ?? (touring ? loaner : null) ?? ownDeck();
+          // `touring` is a boolean, so it narrows nothing here — the faction has
+          // to be re-asked for the compiler's benefit even though it is implied.
+          const away =
+            touring && tourFaction
+              ? leaderCard(tourOpponentDeck(content, tourFaction)?.leaderCardId) ??
+                rivalLeader(deck.leaderCardId)
+              : rivalLeader(deck.leaderCardId);
+          return {
+            away: side(away, touring ? "TOUR RIVAL" : "RIVAL"),
+            home: homeSide(deck, touring ? "LOANER DECK" : draft ? "TEST DECK" : "YOUR LEADER"),
+            mode: touring ? "GRAND TOUR" : `${difficulty.toUpperCase()} MATCH`,
+          };
+        }
+
+        case "tutorial": {
+          const found = stageOf("tutorial", Math.max(0, Number(params.get("stage") ?? "1") - 1));
+          if (!found) return null;
+          const rival = found.encounter.decks[found.stage.decks[1] ?? ""];
+          return {
+            away: side(leaderCard(rival?.leaderCardId), "TRAINER", found.stage.title),
+            home: homeSide(ownDeck()),
+            mode: "TUTORIAL",
+          };
+        }
+
+        case "puzzle": {
+          const index = Math.max(0, Number(params.get("n") ?? "1") - 1);
+          const found = stageOf("puzzles", index);
+          if (!found) return null;
+          const mine = found.encounter.decks[found.stage.decks[0] ?? ""];
+          const rival = found.encounter.decks[found.stage.decks[1] ?? ""];
+          return {
+            away: side(leaderCard(rival?.leaderCardId), "THE PROBLEM", found.stage.title),
+            home: side(leaderCard(mine?.leaderCardId), "YOU PLAY", `Puzzle ${index + 1}`),
+            mode: "PUZZLE RUSH",
+          };
+        }
+
+        case "boss": {
+          const now = Date.now();
+          const boss = bossById(params.get("boss"), now);
+          const tier = tierById(params.get("tier") ?? "normal");
+          return {
+            away: side(leaderCard(boss.leaderCardId), "THIS WEEK'S BOSS", boss.name),
+            home: homeSide(ownDeck()),
+            mode: `WEEKLY BOSS — ${tier.label.toUpperCase()}`,
+          };
+        }
+
+        case "remix": {
+          const modifier = modifierById(params.get("rule"), Date.now());
+          const deck = ownDeck();
+          return {
+            away: side(rivalLeader(deck.leaderCardId), "REMIX RIVAL", modifier.name),
+            home: homeSide(deck),
+            mode: "REMIX",
+          };
+        }
+
+        case "custombattle": {
+          if (!customSettings) return null;
+          const { settings, deckIndex } = customSettings;
+          const deck = getProfile().decks[deckIndex] ?? ownDeck();
+          const other =
+            settings.opponent === "hotseat" ? getProfile().decks[deckIndex === 0 ? 1 : 0] : null;
+          return {
+            away: other
+              ? side(leaderCard(other.leaderCardId), "PLAYER TWO", other.name)
+              : side(rivalLeader(deck.leaderCardId), "RIVAL"),
+            home: homeSide(deck, settings.opponent === "hotseat" ? "PLAYER ONE" : "YOUR LEADER"),
+            mode: "CUSTOM MATCH",
+          };
+        }
+
+        case "storybattle": {
+          const pending = pendingBattle();
+          const found = pending ? findEpisode(content, pending.chapterId, pending.episodeId) : null;
+          const step = found && pending ? found.episode.steps[pending.pc] : null;
+          if (!pending || !found || !step || step.s !== "battle") return null;
+          const setup = storyMatchSetup(content, step.battle, { assist: pending.assist });
+          return {
+            away: side(leaderCard(setup.aiDeck.leaderCardId), "OPPONENT", found.episode.title),
+            home: homeSide(setup.playerDeck),
+            mode: found.chapter.title.toUpperCase(),
+          };
+        }
+
+        /**
+         * The two run modes bill one side.
+         *
+         * `enterFight` and `startFight` are what name the opponent, and both
+         * write to the run — so asking them here would count an entry against a
+         * curtain the player has not finished walking through.
+         */
+        case "gauntletfight": {
+          const run = activeGauntlet();
+          if (!run?.leaderCardId) return null;
+          return {
+            away: side(leaderCard(run.pending?.enemyLeaderCardId), "NEXT UP"),
+            home: side(leaderCard(run.leaderCardId), "YOUR DRAFT", `Round ${(run.wins ?? 0) + 1}`),
+            mode: "GAUNTLET",
+          };
+        }
+
+        case "doomfight": {
+          const run = activeRun();
+          if (!run?.leaderCardId) return null;
+          return {
+            away: null,
+            // `actIndex`, not `depth` — a run tracks which act it is in and the
+            // doomscroll screens count acts from one when they show them.
+            home: side(leaderCard(run.leaderCardId), "YOUR RUN", `Act ${run.actIndex + 1}`),
+            mode: "DOOMSCROLL",
+          };
+        }
+
+        /** Nobody is dealt yet — the server picks the opponent while this holds. */
+        case "online":
+          return { away: null, home: homeSide(activeDeck() ?? ownDeck()), mode: "ONLINE MATCH" };
+
+        default:
+          return null;
+      }
+    } catch (error) {
+      console.warn("[main] could not bill a match", error);
+      return null;
+    }
+  });
+}
+
 function boot(): void {
   applySettings();
   watchOrientation();
+  /**
+   * The world goes up before anything else does.
+   *
+   * It is mounted outside `#app`, so it is the one layer no screen and no
+   * navigation can ever take away — which is what lets the transitions in
+   * `transitions.css` fade an outgoing screen all the way to zero without
+   * anybody having to prove the incoming one has already covered the hole.
+   *
+   * Before the content check rather than after it, deliberately: a validation
+   * failure is the one screen a player might sit and read for a while, and it
+   * should be a room with the lights on rather than a slab on black. The call
+   * is idempotent, so the Shell asking for it again below costs nothing.
+   */
+  mountAtmosphere();
   /**
    * Probe the interface icons. Fire-and-forget: each one that exists exposes
    * itself to CSS, each one that does not leaves the glyph in place, and
@@ -158,12 +425,34 @@ function boot(): void {
    */
   installIconStyles();
 
+  /**
+   * The opening cinematic, over the top of everything below.
+   *
+   * Started here — after the world exists and before a single line of content is
+   * parsed — for two reasons. It is the earliest point at which the layer can go
+   * up, which matters because the alternative to covering the boot is showing
+   * the player half of it; and it is *before* the content check, so the two
+   * competing failure modes cannot collide. A content-validation failure needs
+   * to be readable, and `playIntro` ends the moment the route changes or the
+   * player touches anything, so the report is one keypress away rather than
+   * behind a five-second title.
+   *
+   * Nothing here is awaited and nothing below depends on it. `startIntro`
+   * decides for itself whether this launch gets the long title, the short sting
+   * or neither — a deep link, a `?nointro`, a browser with no WebGL and a
+   * missing brand asset all resolve to "neither", and in every one of those
+   * cases the boot underneath is bit-for-bit the boot that already existed.
+   */
+  startIntro();
+
   let content: ContentIndex;
   try {
     content = getContent();
   } catch (error) {
     console.error(error);
     showFatalError(error);
+    // The report is the only thing on screen now, so nothing is left to cover.
+    clearBootPlate();
     return;
   }
 
@@ -182,6 +471,8 @@ function boot(): void {
   if (!host) throw new Error("#app host element is missing");
 
   const shell = new Shell(host).setFallback("lobby");
+
+  registerMatchBilling(content);
 
   /**
    * A brand-new account has no cards at all until it picks a starting faction,
@@ -340,7 +631,10 @@ function boot(): void {
    * unreachable rather than broken.
    */
   shell.register("signin", () =>
-    createSignInScreen({
+    // `content` so the screen can stand the player's own leader on its stage —
+    // the same portrait the lobby and the queue show, rather than a form
+    // floating in a void.
+    createSignInScreen(content, {
       onBack: () => shell.navigate("play"),
       onSignedIn: () => void afterSignIn(),
     })
@@ -1039,6 +1333,8 @@ function boot(): void {
 
   shell.register("lab", () => createLabScreen(content, { onBack: () => shell.navigate("lobby") }));
 
+  shell.register("uikit", async () => (await import("./ui/screens/uiKitScreen")).createUiKitScreen());
+
   shell.register("replays", () =>
     createReplayScreen(content, {
       onBack: () => shell.navigate("lobby"),
@@ -1313,10 +1609,19 @@ function boot(): void {
    */
   if (needsStarterChoice()) {
     shell.navigate("starter");
+    /**
+     * Immediately, and not after the mount, because there is nothing to wait
+     * for: `navigate` sets the hash and the hashchange handler builds the
+     * picker in the next task, while the plate takes 420ms to fade. That is the
+     * same trade `shell.start()` already makes on a bare URL — it navigates and
+     * resolves without awaiting a screen — so the two front doors come up the
+     * same way rather than one of them not coming up at all.
+     */
+    clearBootPlate();
     return;
   }
 
-  void shell.start();
+  void shell.start().finally(clearBootPlate);
 
   /**
    * Sync the save, if and only if somebody is signed in.

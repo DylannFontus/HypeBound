@@ -1,0 +1,1001 @@
+/**
+ * The furniture on the match curtain — and only the furniture.
+ *
+ * `transitions.css` owns the curtain itself: the two panels, their close, their
+ * part, the seam and the surface they are painted on. This file owns what
+ * `matchCurtain.ts` puts *on* them, and it lives beside that module rather than
+ * in the stylesheet for the same reason the module lives beside the intro: a
+ * billing card is a cinematic, and the router should not have to know what a
+ * leader portrait is.
+ *
+ * Everything here animates `transform`, `opacity` and nothing else, because
+ * every frame it is on screen for is a frame the main thread is inside a battle
+ * constructor. A single paint property animating across these elements would be
+ * exactly the mistake that halved the lobby's frame rate with a sheen.
+ *
+ * ## What this file is answering
+ *
+ * "Two unframed portrait cut-outs on a flat purple radial gradient, with the
+ * deck subtitle printed raw over hair, and it holds near-static for ~2.8
+ * seconds." Four separate failures, and they are fixed in four separate places
+ * below:
+ *
+ *  - **§2 the frame.** Each leader is a lacquered medallion — bezel, recess,
+ *    lip, cast — rather than a feathered oval. §1 asks for an edge treatment and
+ *    the previous version deliberately had no edges.
+ *  - **§3 the plate.** The name is on its own surface directly under its own
+ *    face, not floating over the art with a text-shadow. §4: type over imagery
+ *    gets a scrim, a shadow *or a plate*, and a shadow that only works when the
+ *    pixel behind it happens to be dark is not one of the three.
+ *  - **§4 the mark.** A struck VS disc on the seam with the mode as a chip under
+ *    it, in place of a caption pill. Hearthstone puts a coin in this exact spot.
+ *  - **§6 the hold.** Five composited loops on four different periods, so a
+ *    wait that the machine cannot shorten at least has something happening in
+ *    it. All of them run through a blocked main thread; that is the whole reason
+ *    they are transforms.
+ */
+
+/* -------------------------------------------------------------------------
+   1. The two halves
+   -------------------------------------------------------------------------
+
+   ## Each face keeps its own name, and that is a correction
+
+   The first version put the away portrait at the top-**left** and the away name
+   plate at the top-**right**, the home portrait bottom-right and the home name
+   bottom-left. Photographed at 1600x900 that is four unrelated objects: each
+   name sat roughly nine hundred pixels from its own face across empty
+   near-black, about 60% of the frame carried nothing at all, and there was no
+   way to tell by looking which name belonged to which fighter.
+
+   Hearthstone puts the hero's name directly under the hero, in a plate that
+   belongs to that hero, and never anywhere else. So does this — and now the
+   plate is literally the next element in the same flex column as the frame, so
+   the pairing is structural rather than two `position: absolute` rules that
+   have to be kept in step by hand. That is what deleted the illegible name: the
+   plate cannot land on the art because it is not over the art.
+
+   `.match-side` is the whole panel rather than 78% of it, because the anchor
+   that matters is the seam — `bottom: 0` on the top half and `top: 0` on the
+   bottom half put both figures against the light. */
+
+.match-side {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 100%;
+  pointer-events: none;
+  /* Below the seam's own glow, above the panel's specular crawl. */
+  z-index: 1;
+  /**
+   * Nothing inside a half may contribute overflow to anything outside it.
+   *
+   * Measured once at 844x390 with the billing attached: a 246px-tall canvas
+   * inside a 203px panel took the *curtain's own origin* with it, the seam
+   * ended up at 24% of the height instead of 50%, and 102 pixels of live
+   * mulligan showed through a cover the code believed was closed. There are
+   * three independent guarantees against that now — this clip, `overflow:
+   * hidden` on the panel in `transitions.css`, and `position: fixed` on the
+   * curtain — because any one of them alone is a thing the next person can undo
+   * by accident.
+   */
+  overflow: hidden;
+  /**
+   * The one number the whole card is sized from.
+   *
+   * Height-led, not width-led, because the constraint is always the panel: each
+   * is 52% of the viewport and the billing has to fit a frame *and* a name plate
+   * inside it. 34vh of frame at 1600x900 is 306px wide, 363 tall with its bezel,
+   * and 433 with the plate under it — against a 432px half, which is the whole
+   * of the space and is meant to be: the first draft used 28vh and photographed
+   * as two small pictures in a large empty room, which is the same "60% of the
+   * frame carries nothing" the layout was rearranged to fix in the first place.
+   * If a long name pushes past the half, the frame is the flexible item and the
+   * art gives up the pixels.
+   */
+  --match-w: min(30vw, 34vh);
+}
+
+/**
+ * The away half stops at the *bottom panel's* top edge, not at its own.
+ *
+ * The two panels are 52% tall each so that they overlap by 4% of the viewport
+ * and no rounding error can open a one-pixel line at the seam — and the bottom
+ * one comes second in the document, so it paints over that overlap. Anchoring
+ * the away side at `bottom: 0` therefore put the last 4vh of it underneath an
+ * opaque rectangle: filmed at 1600×900, the rival's name read "DJ Last Call"
+ * with its lower half sliced off along a perfectly straight horizontal line, on
+ * the one card in the game whose whole job is to tell you who you are playing.
+ *
+ * The home side needs no such correction. It is the panel doing the covering.
+ */
+.match-side.is-away {
+  bottom: 4vh;
+  height: calc(100% - 4vh);
+}
+
+.match-side.is-home {
+  top: 0;
+}
+
+/**
+ * A wrapper that does nothing but breathe.
+ *
+ * `inset: 0` inside `.match-side`, so it changes no geometry and every rule
+ * below still positions against the same box it always did. The only thing it
+ * owns is the idle, and it owns it so that the *entrance* can have the
+ * compositor to itself — see the note at `match-breathe-away`.
+ */
+.match-figure {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/**
+ * Frame and name plate, one object, pinned to the seam.
+ *
+ * A column rather than two absolutes: the plate is always exactly as wide as
+ * the frame and always exactly under it, by construction, at every viewport,
+ * with no second set of offsets to keep in step. Both halves put the plate
+ * *below* the frame — the away pair reads downward into the light and the home
+ * pair reads downward away from it — because a name under a face is a caption
+ * and a name over a face is a mistake, and mirroring the rule to preserve
+ * symmetry is what put "DJ Kilowatt" across a hairline in the first place.
+ *
+ * `min-height: 0` on both flex items is what lets the frame give up height on a
+ * short viewport instead of overflowing the panel. The art is the thing that
+ * yields; the name never is.
+ */
+.match-billing {
+  position: absolute;
+  width: var(--match-w);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(5px, 0.9vh, 9px);
+  min-height: 0;
+}
+
+.is-away .match-billing {
+  bottom: 0;
+  left: 15%;
+}
+
+.is-home .match-billing {
+  top: 0;
+  right: 15%;
+}
+
+/**
+ * The light each fighter is standing in.
+ *
+ * A pool roughly two and a half times the width of the frame, in the room's own
+ * colour, behind the billing and well outside it. It is doing composition work
+ * rather than decoration: two objects on a diagonal across a 16:9 frame leave
+ * two large empty corners however big you make them, and the answer to an empty
+ * corner is light, not another object. MTG Arena lights its two duellists out of
+ * the environment for the same reason.
+ *
+ * Under the frame's own cast (`z-index: -1`) so it reads as the panel being lit
+ * rather than as a halo pasted behind the picture, and it inherits the
+ * `.match-figure` breathe above it, so the pool swells with the figure standing
+ * in it instead of holding still while its subject moves.
+ */
+.match-billing::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  width: 320%;
+  height: 210%;
+  transform: translate3d(-50%, -50%, 0);
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--room-key, #ff5fa2) 30%, transparent),
+    color-mix(in srgb, var(--room-key, #ff5fa2) 11%, transparent) 48%,
+    transparent 76%
+  );
+}
+
+/* -------------------------------------------------------------------------
+   2. The frame
+   -------------------------------------------------------------------------
+   A bezel with the art recessed into it, which is the whole of what "framed"
+   means and the whole of what §1 was asking for. Read the box-shadow list top
+   to bottom as light falling from 315°: lit rim on the top edge, a weaker one
+   down the left, the unlit lip along the bottom, a weaker one on the right, a
+   soft drop, then the tight contact that stops it floating.
+
+   The bezel gradient, the two edge alphas and the throw ratio are all module A's
+   own numbers at panel rank — this is the same substance the HUD plates and the
+   modals are cut from, which is the point of the wave. It is written out rather
+   than composed because `.mat-panel` is only reachable by putting the class in
+   the markup, and `matchCurtain.ts` builds this element before `foundation.css`
+   has anything to say about it. */
+
+.match-frame {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  padding: clamp(4px, 0.7vh, 7px);
+  border-radius: var(--r-panel, 18px);
+  overflow: hidden;
+  opacity: 0;
+  will-change: opacity, transform;
+
+  background-color: transparent;
+  background-image:
+    var(--tex-grain-mid, none),
+    linear-gradient(var(--light-sweep, 135deg), rgb(58 43 96 / 0.97) 0%, rgb(22 15 40 / 0.98) 100%);
+  background-size: var(--tex-grain-mid-size, auto), 100% 100%;
+  background-repeat: repeat, no-repeat;
+  background-origin: border-box;
+
+  border-style: solid;
+  border-width: 1px;
+  border-color:
+    rgb(255 255 255 / 0.085)
+    rgb(0 0 0 / 0.35)
+    rgb(0 0 0 / 0.63)
+    rgb(255 255 255 / 0.042);
+
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.047),
+    inset 1px 0 0 rgb(255 255 255 / 0.024),
+    inset 0 -1px 0 rgb(0 0 0 / 0.35),
+    inset -1px 0 0 rgb(0 0 0 / 0.19),
+    9px 15px 38px -8px rgb(0 0 0 / 0.62),
+    2px 3px 4px -1px rgb(0 0 0 / 0.55);
+}
+
+/**
+ * The recess the art sits in.
+ *
+ * `flex: 1 1 auto` with `min-height: 0` so this is the part that gives way when
+ * the panel is short — the bottom of a portrait is the scrim, and losing some of
+ * it costs nothing a viewer will notice, where losing a name costs the card its
+ * only job.
+ */
+.match-frame-art {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: calc(var(--r-panel, 18px) - clamp(4px, 0.7vh, 7px));
+  background: rgb(6 4 14);
+}
+
+.match-portrait {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/**
+ * The lip of the recess, drawn *over* the art rather than under it.
+ *
+ * `box-shadow: inset` paints above an element's own background and **below its
+ * children**, so an inset on `.match-frame-art` would be hidden by the canvas
+ * the moment the painting decoded — the recess would stop existing wherever it
+ * was occupied, which on a portrait is everywhere. The same trap module A
+ * documents for `.mat-well` and progress rails. A pseudo-element is a child, so
+ * its own inset shadow lands on top of the art, which is where a lip goes.
+ */
+.match-frame-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 2px 7px -2px rgb(0 0 0 / 0.85),
+    inset 2px 0 7px -4px rgb(0 0 0 / 0.6),
+    inset 0 -1px 0 rgb(255 255 255 / 0.05);
+}
+
+/**
+ * ...and light crosses the glass while you wait.
+ *
+ * The same specular band module A puts on every raised material, at the same
+ * geometry: 40% of the plate wide, travelling 150% of its own width so it goes
+ * flush-left to flush-right and can never overhang a corner, on `translate`
+ * because a `background-position` sweep is a repaint and this one runs while the
+ * main thread is gone. Above the art rather than below it, because on a framed
+ * picture the highlight is on the *glass*.
+ *
+ * The two halves are given different periods in §5 so the pair never flashes
+ * together.
+ */
+.match-frame::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    var(--light-sweep, 135deg),
+    transparent 0%,
+    rgb(255 255 255 / 0.11) 50%,
+    transparent 100%
+  );
+  /* The band's iso-lines run at 45°, so its own vertical box edges are not
+     transparent at two of the four corners and a large plate shows a straight
+     step where the light stops. Feathered here for the same reason and by the
+     same amount as the modal stock in `screens.css` §O1. */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
+}
+
+/* -------------------------------------------------------------------------
+   3. The name plate
+   -------------------------------------------------------------------------
+   Exactly as wide as the frame it belongs to, immediately under it, with its
+   own material. Chip rank rather than panel rank: it is a small object lying on
+   the card, one step nearer the light than the bezel, and the value structure
+   only works if a chip is lighter than the panel it sits beside. */
+
+.match-plate {
+  flex: 0 0 auto;
+  position: relative;
+  padding: clamp(4px, 0.8vh, 8px) clamp(6px, 1vw, 12px) clamp(5px, 0.9vh, 9px);
+  border-radius: var(--r-tile, 14px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1px;
+  opacity: 0;
+  will-change: opacity, transform;
+
+  background-color: transparent;
+  background-image:
+    var(--tex-grain-chip, none),
+    linear-gradient(var(--light-sweep, 135deg), rgb(72 55 116 / 0.95) 0%, rgb(30 21 54 / 0.97) 100%);
+  background-size: var(--tex-grain-chip-size, auto), 100% 100%;
+  background-repeat: repeat, no-repeat;
+  background-origin: border-box;
+
+  border-style: solid;
+  border-width: 1px;
+  border-color:
+    rgb(255 255 255 / 0.06)
+    rgb(0 0 0 / 0.14)
+    rgb(0 0 0 / 0.25)
+    rgb(255 255 255 / 0.03);
+
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.032),
+    inset 0 -1px 0 rgb(0 0 0 / 0.14),
+    4px 6px 16px -6px rgb(0 0 0 / 0.6),
+    1px 2px 3px -1px rgb(0 0 0 / 0.45);
+}
+
+/* A hairline of the room's own colour along the top of the plate, which is the
+   join between the plate and the frame above it. §7: the divider fades at both
+   ends rather than butting into the corners. */
+.match-plate::before {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--room-key, #ff5fa2) 42%, transparent) 30%,
+    color-mix(in srgb, var(--room-key, #ff5fa2) 42%, transparent) 70%,
+    transparent
+  );
+}
+
+.match-role {
+  font-size: clamp(8px, 1.05vh, 11px);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 700;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--room-key, #ff5fa2) 52%, #efe7ff);
+}
+
+/**
+ * The name is on a plate now, so it no longer needs a shadow to survive a light
+ * patch of hair — it is standing on a surface whose value we chose. What it
+ * keeps is one pixel of black underneath, which is a letterpress cut rather
+ * than a blur: it sharpens the letterform against the plate instead of
+ * admitting the contrast is short.
+ *
+ * Two lines are allowed and one is normal. A leader with a long name gets a
+ * taller plate and the frame above gives up the height, which is the whole
+ * reason the frame is the flexible item and this is not.
+ */
+.match-name {
+  font-size: clamp(14px, 2.3vh, 26px);
+  line-height: 1.08;
+  letter-spacing: -0.012em;
+  font-weight: 800;
+  color: #f6f1ff;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.55);
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/**
+ * The deck line, which is the clause the critic quoted: "the deck subtitle
+ * printed raw over hair". It is on the plate with everything else now, so 78%
+ * of a near-white over a plate we chose the value of is a perfectly good
+ * secondary rank — the rank comes from size and weight, which it already had,
+ * rather than from an alpha that only worked when the art behind it was dark.
+ */
+.match-detail {
+  font-size: clamp(9px, 1.35vh, 13px);
+  line-height: 1.25;
+  color: rgb(226 216 255 / 0.82);
+}
+
+/* -------------------------------------------------------------------------
+   4. The mark on the seam
+   -------------------------------------------------------------------------
+   On the curtain rather than in a panel, because the panels travel in opposite
+   directions and a label cut in half is not a label. */
+
+.match-vs {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.8vw, 24px);
+  width: min(680px, 70vw);
+  transform: translate3d(-50%, -50%, 0);
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity, transform;
+}
+
+.match-vs-rule {
+  position: relative;
+  flex: 1 1 auto;
+  height: 1px;
+  overflow: hidden;
+  /* §7: dividers fade at the ends rather than butting into anything. */
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--nav-seam, #d9a5ff) 55%, transparent));
+}
+
+.match-vs-rule:last-child {
+  background: linear-gradient(270deg, transparent, color-mix(in srgb, var(--nav-seam, #d9a5ff) 55%, transparent));
+}
+
+/* A short bright segment running out along each rule, away from the medallion.
+   It is the cheapest possible statement that the seam is a live thing rather
+   than a drawn line, and it is one composited translate per side. */
+.match-vs-rule::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 26%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--nav-seam, #d9a5ff) 92%, white),
+    transparent
+  );
+  opacity: 0;
+}
+
+.match-vs-mark {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+/**
+ * The disc. A struck object rather than a pill: circular, lit from the top-left
+ * like everything else, with the room's own colour warming the plate so the
+ * mark belongs to the venue rather than to the stylesheet.
+ */
+.match-vs-medal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(52px, 9.4vh, 90px);
+  height: clamp(52px, 9.4vh, 90px);
+  border-radius: 50%;
+  background-image:
+    var(--tex-grain-chip, none),
+    radial-gradient(
+      86% 86% at 30% 24%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 26%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(var(--light-sweep, 135deg), rgb(64 46 104 / 0.96) 0%, rgb(16 10 30 / 0.97) 100%);
+  background-size: var(--tex-grain-chip-size, auto), auto, 100% 100%;
+  background-repeat: repeat, no-repeat, no-repeat;
+  background-origin: border-box;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-bottom-color: rgb(0 0 0 / 0.5);
+  border-right-color: rgb(0 0 0 / 0.3);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.13),
+    inset 0 -1px 0 rgb(0 0 0 / 0.42),
+    6px 9px 22px -6px rgb(0 0 0 / 0.7),
+    1px 2px 3px -1px rgb(0 0 0 / 0.55),
+    0 0 26px -4px color-mix(in srgb, var(--room-key, #ff5fa2) 40%, transparent);
+}
+
+/* The static collar, and the light that goes round it. Two rings rather than
+   one so the travelling arc has something to travel *on* — a lone rotating arc
+   on nothing reads as a loading spinner, which §7 bans by name; an arc running
+   round a fixed collar reads as charge. */
+.match-vs-ring {
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--room-key, #ff5fa2) 26%, transparent);
+}
+
+.match-vs-orbit {
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  border-top-color: color-mix(in srgb, var(--room-key, #ff5fa2) 88%, white);
+  border-right-color: color-mix(in srgb, var(--room-key, #ff5fa2) 34%, transparent);
+  will-change: transform;
+}
+
+.match-vs-glyph {
+  font-family: var(--font-display);
+  font-size: clamp(18px, 3.3vh, 32px);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  color: #f7f0ff;
+  text-shadow:
+    0 1px 0 rgb(0 0 0 / 0.6),
+    0 0 14px color-mix(in srgb, var(--room-key, #ff5fa2) 60%, transparent);
+}
+
+/* The mode is a caption, so it goes where a caption goes: under the mark, in a
+   chip, out of the way of the word the card is actually about. */
+.match-vs-mode {
+  position: absolute;
+  top: calc(100% + clamp(7px, 1.2vh, 12px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 11px;
+  white-space: nowrap;
+  border-radius: var(--r-chip, 999px);
+  background-image:
+    var(--tex-grain-chip, none),
+    linear-gradient(var(--light-sweep, 135deg), rgb(34 24 58 / 0.94), rgb(12 8 24 / 0.94));
+  background-size: var(--tex-grain-chip-size, auto), 100% 100%;
+  background-repeat: repeat, no-repeat;
+  background-origin: border-box;
+  border: 1px solid rgb(255 255 255 / 0.055);
+  border-bottom-color: rgb(0 0 0 / 0.32);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.055),
+    3px 5px 12px -5px rgb(0 0 0 / 0.6);
+  color: #efe7ff;
+}
+
+.match-vs-icon {
+  color: color-mix(in srgb, var(--room-key, #ff5fa2) 70%, #efe7ff);
+}
+
+.match-vs-text {
+  font-size: clamp(8px, 1.05vh, 11px);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* -------------------------------------------------------------------------
+   5. Entrances
+   -------------------------------------------------------------------------
+
+   The card assembles behind the closed panels, staggered, and then holds for
+   however long the constructor takes.
+
+   ## Nothing here starts at zero, and that is not a taste decision
+
+   Every one of these keyframes used to open on `opacity: 0`, with delays of
+   40–340ms in front of them so that nothing began until the 170ms close had
+   landed. Both halves of that are right about a page that is *awake*, and
+   together they made the card invisible for the whole of the wait it exists to
+   fill.
+
+   The mechanism is worth stating exactly, because it is the same one three
+   other files in this project have been caught by from different angles.
+   `shell.ts` dresses the curtain and then spends two frames getting it
+   composited before it calls the battle factory — and a composited animation
+   survives the block that follows, which is the whole design. But **an element
+   at `opacity: 0` is not painted at all**, so those two frames recorded no
+   content for the portraits, the plates or the mode chip: with
+   `animation-fill-mode: both` and a delay still running, the backwards fill held
+   every one of them at zero. The compositor was handed an animation and no
+   pixels to run it on. Then the main thread disappeared into the constructor for
+   five seconds, and nothing could be painted until it came back.
+
+   Filmed at 1600×900 on a warm entry, before that change: the plates faded up at
+   t≈939ms, and the two leader portraits — the best-looking thing in the game,
+   correctly drawn, sitting in the DOM the whole time — first reached the glass
+   at **t≈5.2s of a 5.4s hold**, about two hundred milliseconds before the
+   mulligan replaced them.
+
+   So each element opens at a low but *paintable* opacity, and the delays are
+   short enough that the close can still lead them. */
+
+.nav-curtain[data-billing="live"] .match-frame {
+  animation: match-frame-in 620ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 0ms both;
+}
+
+.nav-curtain[data-billing="live"] .is-home .match-frame {
+  animation-name: match-frame-in-home;
+  animation-delay: 90ms;
+}
+
+.nav-curtain[data-billing="live"] .match-plate {
+  animation: match-plate-in 480ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 200ms both;
+}
+
+.nav-curtain[data-billing="live"] .is-home .match-plate {
+  animation-delay: 290ms;
+}
+
+.nav-curtain[data-billing="live"] .match-vs {
+  animation: match-vs-in 520ms var(--nav-ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1)) 130ms both;
+}
+
+/**
+ * 0.16 rather than 0. Under a 4% rise and a 3% scale nobody can name the
+ * difference between a fade from nothing and a fade from a sixth — the travel
+ * is what the eye reads as arrival — and it is the difference between a layer
+ * the compositor can carry through a blocked thread and one it cannot.
+ */
+@keyframes match-frame-in {
+  from {
+    opacity: 0.16;
+    transform: translate3d(0, 4%, 0) scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes match-frame-in-home {
+  from {
+    opacity: 0.16;
+    transform: translate3d(0, -4%, 0) scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* The plate slides out from under its own frame, which is where it lives. */
+@keyframes match-plate-in {
+  from {
+    opacity: 0.12;
+    transform: translate3d(0, -34%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes match-vs-in {
+  from {
+    opacity: 0.12;
+    transform: translate3d(-50%, -50%, 0) scaleX(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(-50%, -50%, 0) scaleX(1);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   6. The hold
+   -------------------------------------------------------------------------
+
+   ## It is not still any more, and this is the section that says so
+
+   A six-second wait behind a card that has finished assembling is the same
+   defect measured from a different angle: filmed before the billing existed at
+   all, the screen held at mean luminance 12.5/255 for 6.7 seconds with 0.3% of
+   pixels moving. The billing fixed the luminance and left the motion at a pair
+   of 1.5% breathes that a frame-differencer could find and a person could not.
+
+   Five loops now, on five periods that share no short multiple — 8s, 4.6s, 5.9s,
+   3.4s, 3.2s and 5.4s — so no two of them ever peak together and the card never
+   settles into a rhythm. Every one is `transform` or `opacity` on an element the
+   compositor already owns, which is the only reason any of them run at all: the
+   main thread is inside a battle constructor for the whole of this card's life.
+
+   ## On wrappers, because two animations on one element is none on the
+   compositor
+
+   The breathes used to be the second half of a two-animation shorthand on the
+   portrait itself, alongside the entrance. Blink refuses to run an animation on
+   the compositor when another animation on the same element claims the same
+   property — and it refuses for *both*, not just the second — so the entrance
+   was silently demoted to the main thread. Filmed at 1600×900: the portraits
+   opened at their first keyframe and then crept, reaching roughly 40% by t=1.8s
+   and full strength only when the build let go at t≈5.1s.
+
+   One animation per element. `.match-figure` breathes, `.match-frame` arrives,
+   `.match-frame::after` rakes, and the three parts of the medallion each own
+   one. */
+
+.nav-curtain[data-billing="live"][data-phase="close"] .match-figure.is-away {
+  animation: match-breathe-away 8s var(--nav-ease-glide, cubic-bezier(0.65, 0, 0.35, 1)) 700ms infinite;
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+
+.nav-curtain[data-billing="live"][data-phase="close"] .match-figure.is-home {
+  animation: match-breathe-home 8s var(--nav-ease-glide, cubic-bezier(0.65, 0, 0.35, 1)) 4.7s infinite;
+  transform-origin: 50% 0%;
+  will-change: transform;
+}
+
+/*
+ * Transform only, and the opacity that used to be in here is the reason the
+ * billing flashed at the moment the curtain parted.
+ *
+ * The breathe is the last animation to touch `opacity` on these elements, so
+ * its fill was what held them visible during the hold — which meant the exit
+ * rule below had to write `opacity: 1` back on when it cancelled it, and a
+ * portrait caught mid-entrance was brightened to full white on the frame the
+ * panels started moving, over a board that was already showing through. Leaving
+ * opacity to the entrance's own fill means the exit has nothing to restore.
+ *
+ * 2.2% of scale rather than the old 1.5%: on a frame with a hard bezel the
+ * silhouette itself moves, so the amplitude is legible where it was not on a
+ * feathered oval, and it is still well under the threshold at which anybody
+ * looks at it directly.
+ */
+@keyframes match-breathe-away {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -0.7%, 0) scale(1.022);
+  }
+}
+
+@keyframes match-breathe-home {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.022);
+  }
+  50% {
+    transform: translate3d(0, 0.7%, 0) scale(1);
+  }
+}
+
+/* The rake across each frame's glass, counter-phased and on periods that do not
+   divide into each other. `hb-sheen-pass` is module A's keyframe — 0 → 150% of
+   the band's own width with an opacity envelope at each end — so the light
+   arrives and leaves rather than switching on at the edge. */
+.nav-curtain[data-billing="live"][data-phase="close"] .is-away .match-frame::after {
+  animation: hb-sheen-pass 4.6s var(--ease-sweep, cubic-bezier(0.36, 0.1, 0.64, 0.9)) 900ms infinite;
+  will-change: transform, opacity;
+}
+
+.nav-curtain[data-billing="live"][data-phase="close"] .is-home .match-frame::after {
+  animation: hb-sheen-pass 5.9s var(--ease-sweep, cubic-bezier(0.36, 0.1, 0.64, 0.9)) 1.9s infinite;
+  will-change: transform, opacity;
+}
+
+/* The arc round the collar. Linear on purpose — it is light travelling at a
+   constant rate, and an eased rotation reads as a thing being pushed. */
+.nav-curtain[data-billing="live"][data-phase="close"] .match-vs-orbit {
+  animation: match-orbit 3.4s linear 200ms infinite;
+}
+
+@keyframes match-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ...and the disc itself swells against it, slowly, on a period that shares no
+   short multiple with the arc going round it. */
+.nav-curtain[data-billing="live"][data-phase="close"] .match-vs-medal {
+  animation: match-medal-pulse 3.2s var(--nav-ease-glide, cubic-bezier(0.65, 0, 0.35, 1)) 400ms infinite;
+  will-change: transform;
+}
+
+@keyframes match-medal-pulse {
+  0%,
+  100% { transform: scale(1); }
+  50% { transform: scale(1.038); }
+}
+
+/* The gleam running out along each half of the seam, away from the mark. */
+.nav-curtain[data-billing="live"][data-phase="close"] .match-vs-rule::after {
+  animation: match-rule-gleam 5.4s var(--ease-sweep, cubic-bezier(0.36, 0.1, 0.64, 0.9)) 600ms infinite;
+  will-change: transform, opacity;
+}
+
+.nav-curtain[data-billing="live"][data-phase="close"] .match-vs-rule:first-child::after {
+  animation-name: match-rule-gleam-out;
+  animation-delay: 1.4s;
+}
+
+@keyframes match-rule-gleam {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  22% { opacity: 0.9; }
+  78% { opacity: 0.9; }
+  100% { transform: translate3d(285%, 0, 0); opacity: 0; }
+}
+
+/* The left-hand rule runs the other way, so both gleams travel outward from the
+   medallion rather than both sweeping left to right across it. */
+@keyframes match-rule-gleam-out {
+  0% { transform: translate3d(285%, 0, 0); opacity: 0; }
+  22% { opacity: 0.9; }
+  78% { opacity: 0.9; }
+  100% { transform: translate3d(0, 0, 0); opacity: 0; }
+}
+
+/* -------------------------------------------------------------------------
+   7. The exit
+   -------------------------------------------------------------------------
+   The card leaves before the panels do.
+
+   If the billing were still fully lit when the halves parted, the player would
+   watch two leader portraits slide off the top and bottom of a board those same
+   two leaders are standing on — the object existing twice, which §3a bans
+   between two screens and which is no more excusable between a cover and what it
+   covers. Fading over the first 90ms of a 210ms part means the panels come away
+   empty and the board arrives with nothing doubled on it. */
+
+.nav-curtain[data-phase="open"] .match-side,
+.nav-curtain[data-phase="open"] .match-vs {
+  animation: none;
+  opacity: 0;
+  transition: opacity 130ms var(--nav-ease-leave, cubic-bezier(0.4, 0, 1, 1));
+}
+
+/* -------------------------------------------------------------------------
+   8. Reduced motion, and the still path
+   ------------------------------------------------------------------------- */
+
+/**
+ * The card, composed, with nothing having moved to get there. Every entrance
+ * above is gated on `[data-billing="live"]`, which `matchCurtain.ts` only writes
+ * when `motionEnabled()`; this is the resting state the still path lands on.
+ */
+.nav-curtain[data-billing="still"] .match-frame,
+.nav-curtain[data-billing="still"] .match-plate,
+.nav-curtain[data-billing="still"] .match-vs {
+  opacity: 1;
+  animation: none;
+  transform: none;
+}
+
+.nav-curtain[data-billing="still"] .match-vs {
+  transform: translate3d(-50%, -50%, 0);
+}
+
+:root[data-reduced-motion="true"] .match-frame,
+:root[data-reduced-motion="true"] .match-plate,
+:root[data-reduced-motion="true"] .match-vs,
+:root[data-reduced-motion="true"] .match-figure,
+:root[data-reduced-motion="true"] .match-frame::after,
+:root[data-reduced-motion="true"] .match-vs-orbit,
+:root[data-reduced-motion="true"] .match-vs-medal,
+:root[data-reduced-motion="true"] .match-vs-rule::after {
+  animation: none !important;
+}
+
+:root[data-reduced-motion="true"] .match-frame,
+:root[data-reduced-motion="true"] .match-plate,
+:root[data-reduced-motion="true"] .match-vs {
+  opacity: 1;
+}
+
+:root[data-reduced-motion="true"] .match-vs {
+  transform: translate3d(-50%, -50%, 0);
+}
+
+/* The orbit is the one decorative loop that leaves a visible artefact when it
+   stops — an arc frozen at a random angle — so under reduced motion the collar
+   simply closes into a full ring. Functional layer kept, decorative layer
+   killed, which is §3's actual requirement. */
+:root[data-reduced-motion="true"] .match-vs-orbit {
+  border-color: color-mix(in srgb, var(--room-key, #ff5fa2) 50%, transparent);
+}
+
+/* -------------------------------------------------------------------------
+   9. The small screen
+   -------------------------------------------------------------------------
+   844x390 landscape. The portraits are **kept**, and that is a decision against
+   the obvious alternative of dropping them below this height: the small screen
+   gets the same two fighters the large one does, because that is the entire
+   point of a versus card.
+
+   What changes is where the name plate stands. Stacked under the frame it costs
+   about fifty pixels of a 187px half, and a frame with fifty pixels taken out of
+   it is 90px wide — two thumbnails, which is not a versus card either. So on a
+   short viewport the plate moves *onto* the bottom of the frame, over the band
+   of art the painter already scrims at 0.32, exactly where Hearthstone puts a
+   hero's name. It costs no height at all, the frame goes back to filling its
+   half, and the plate is still a plate: this is not the old defect coming back,
+   because the old defect was type on a *shadow* over an unknown pixel and this
+   is type on an opaque surface whose value we chose.
+
+   Every other declaration here follows from that one move. */
+
+@media (max-height: 460px) {
+  .match-side {
+    --match-w: min(30vw, 38vh);
+  }
+
+  .match-plate {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 0 0 calc(var(--r-panel, 18px) - 1px) calc(var(--r-panel, 18px) - 1px);
+    /* No cast: it is lying in the frame now, not under it. */
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 -4px 12px -4px rgb(0 0 0 / 0.7);
+    border-width: 1px 0 0;
+  }
+
+  /* The frame owns the whole column again, and it must not clip the plate that
+     is now sitting inside it. */
+  .match-billing {
+    gap: 0;
+  }
+
+  .match-vs {
+    width: min(520px, 76vw);
+  }
+
+  .match-vs-medal {
+    width: clamp(38px, 11vh, 52px);
+    height: clamp(38px, 11vh, 52px);
+  }
+
+  .match-vs-glyph {
+    font-size: clamp(14px, 4vh, 19px);
+  }
+
+  .match-name {
+    font-size: clamp(12px, 3.4vh, 18px);
+  }
+
+  .match-detail {
+    font-size: clamp(9px, 2.2vh, 11px);
+  }
+}

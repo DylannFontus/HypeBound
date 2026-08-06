@@ -20,8 +20,27 @@ import { createMatch } from "../../engine/state";
 import { applyIntent, beginScriptedMatch } from "../../engine/reducer";
 import { resolveMatchContent } from "../../engine/content";
 import { getProfile, REPLAYABLE_HISTORY, type MatchHistoryEntry } from "../../save/profile";
-import { CURRENT_PALETTE } from "../cardRenderer/palette";
+import { CURRENT_PALETTE, FACTION_COLOR } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
+import {
+  chip,
+  colourFor,
+  count,
+  countUp,
+  crestMark,
+  disposeBag,
+  enter,
+  esc,
+  fadeOnScroll,
+  icon,
+  artAttr,
+  logStamp,
+  modeName,
+  quantify,
+  paintArt,
+  rankMark,
+  rovingList,
+} from "./data/kit";
 
 export interface ReplayCallbacks {
   onBack: () => void;
@@ -36,7 +55,23 @@ interface HistoryFilter {
   result: string;
 }
 
-const DATE = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+/**
+ * The Archive's blue, for the one thing the room cannot light: a canvas.
+ *
+ * The room itself is `shell.ts::dressScreen`'s and its accent comes from the
+ * `ROOMS` table, so nothing here writes `--hall-accent`. The ladder plate on the
+ * empty state is a `data:` URI rasterised by `art.ts` from a hex passed as an
+ * argument, which no custom property can reach — the recipe is resolved off the
+ * mounting frame, on a tree that has no computed style yet. So this one literal
+ * survives, and it is the Archive's key because that is the room #replays is in.
+ *
+ * `#7d92c8`, read back off the mounted screen rather than typed from memory —
+ * the value that used to be here was `#7fa6e8`, a blue this route had invented
+ * for itself and passed to the old `room()` helper, and it is not the Archive's.
+ * Statistics, Profile, Mastery and Missions are all in the same room; the plate
+ * on this one's empty state is now painted in the same light as they are.
+ */
+const ARCHIVE_ACCENT = "#7d92c8";
 
 /** One board snapshot per intent, plus the opening position. */
 interface Frame {
@@ -113,41 +148,146 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
   const history = getProfile().history;
 
   const root = document.createElement("div");
-  root.className = "screen replay-screen";
+  const bag = disposeBag();
+
+  /**
+   * With nothing on record, the two-pane workbench is not the screen.
+   *
+   * A 300px sidebar holding one sentence beside an 1150×740 panel holding
+   * another is what the recon measured, and it reads as content that failed to
+   * load rather than as a state anybody designed. §2 calls an unresolved
+   * composition exactly that. So the split only exists once there is something to
+   * split.
+   *
+   * ## And the plate that replaced it was the same mistake one size down
+   *
+   * The first repair made the empty route "one plate, centred, on the key art
+   * the rest of the domain uses". Measured at 1600×900 that plate is 800px wide
+   * in a 1600px frame — **400px of dead background on each side, the widest
+   * margins anywhere in the game** — on a route reachable from the lobby, from
+   * Statistics and from the end of every match. A centred card in a void is what
+   * §2 reads as an unresolved composition, and making the card prettier does not
+   * resolve it.
+   *
+   * So the empty state is now the *shape* of the screen it stands in for: a
+   * full-width band across the top and a row of plates under it, in the hall, on
+   * the same room every sibling route uses. §5 asks an empty state to be a
+   * designed moment; the three plates are the three things the workbench would
+   * have told you and one of them — that none of this leaves the device — is the
+   * reason the feature exists and was a subordinate clause.
+   */
+  const virgin = history.length === 0;
+  /*
+   * `.d-hall` only when there is nothing on record. The workbench is a list pane
+   * beside a stage — the two-column arrangement the hall exists to impose,
+   * arrived at independently and tuned to a workbench rather than to a rail —
+   * and wrapping it in a second grid wins nothing. The empty state has no
+   * workbench to preserve, so it takes the room's own geometry.
+   */
+  root.className = `screen replay-screen${virgin ? " d-hall d-hall-solo" : ""}`;
+
   root.innerHTML = `
-    <div class="ambient-bg"></div>
     <header class="sub-header">
-      <button class="btn btn-ghost" id="replay-back">← Lobby</button>
+      <button class="btn btn-ghost" id="replay-back">${icon("arrow-left", 16)} Lobby</button>
       <h1 class="title">Match History</h1>
-      <div class="sub-header-meta muted">${history.length} match${history.length === 1 ? "" : "es"} on record</div>
+      <div class="sub-header-meta">${quantify(history.length, "match", "matches")} on record</div>
     </header>
-    <div class="replay-filters" id="replay-filters"></div>
-    <div class="replay-body">
-      <aside class="replay-list scroll" id="replay-list"></aside>
-      <section class="replay-stage panel" id="replay-stage"></section>
-    </div>`;
+    ${
+      virgin
+        ? '<main class="replay-virgin-body data-body"></main>'
+        : `<div class="replay-filters d-chips" id="replay-filters"></div>
+           <div class="replay-body">
+             <aside class="replay-list" id="replay-list"></aside>
+             <section class="replay-stage mat-panel" id="replay-stage"></section>
+           </div>`
+    }`;
+
+  if (virgin) {
+    const stagePlate = root.querySelector(".replay-virgin-body")!;
+    /*
+     * The plate is 1,400 wide now rather than 800, so the ladder is drawn at the
+     * width it will be shown at. `artAttr` is a *recipe*, resolved off the
+     * mounting frame by `paintArt`, and the numbers in it are the canvas the
+     * generator rasterises — a 1,280px drawing stretched across 1,400 is the
+     * blurry-chart defect `drawSized` exists to stop, arrived at from the other
+     * direction.
+     */
+    stagePlate.innerHTML = `
+      <section class="mat-panel d-hero d-enter replay-virgin-hero">
+        <div class="d-key replay-virgin-key" ${artAttr("ladder", [1400, 280, ARCHIVE_ACCENT])}
+             style="--key-aspect:5/1" aria-hidden="true">
+          <div class="d-key-scrim"></div>
+        </div>
+        <div class="empty replay-virgin-text">
+          ${icon("mode-replays", 44)}
+          <h3 class="t-heading">No matches on record</h3>
+          <p class="t-body">
+            This is the archive. Every match this device plays is written into it the moment it ends,
+            and it is read from here — never from anywhere else.
+          </p>
+          <button type="button" class="mat-hero act r-chip" id="replay-play">${icon("play", 16)} Play a match</button>
+        </div>
+      </section>
+
+      <div class="d-band replay-virgin-band">
+        <section class="mat-panel d-enter replay-virgin-card">
+          ${icon("list", 22)}
+          <h3 class="t-heading">Everything, every time</h3>
+          <p>
+            The deck, the opponent, the mode, the length, the result and the peak Obsession — kept for
+            every match, however old, and filterable by all three.
+          </p>
+        </section>
+        <section class="mat-panel d-enter replay-virgin-card">
+          ${icon("mode-replays", 22)}
+          <span class="replay-virgin-figure num">${count(REPLAYABLE_HISTORY)}</span>
+          <h3 class="t-heading">keep the board itself</h3>
+          <p>
+            The most recent ${quantify(REPLAYABLE_HISTORY, "match", "matches")} keep every intent, so the
+            whole game can be rebuilt and scrubbed turn by turn. Older ones keep their figures.
+          </p>
+        </section>
+        <section class="mat-panel d-enter replay-virgin-card">
+          ${icon("lock", 22)}
+          <h3 class="t-heading">None of it leaves</h3>
+          <p>
+            The archive is this device's storage and nothing else. There is no upload, no account
+            behind it, and it reads exactly the same with the network switched off.
+          </p>
+        </section>
+      </div>`;
+    root.querySelector("#replay-play")?.addEventListener("click", () => {
+      audio.play("sfx.ui.confirm");
+      callbacks.onBack();
+    });
+    root.querySelector("#replay-back")!.addEventListener("click", () => callbacks.onBack());
+    enter(root, ".d-enter", 40);
+    return { root, dispose: () => bag.run() };
+  }
 
   const list = root.querySelector("#replay-list")!;
   const stage = root.querySelector("#replay-stage")!;
 
-  if (history.length === 0) {
-    stage.innerHTML = `<div class="replay-empty muted">Play a match and it will appear here.</div>`;
-  }
-
-  const showEmptyPrompt = (): void => {
-    stage.innerHTML = `<div class="replay-empty muted">Pick a match on the left.</div>`;
+  /**
+   * The one empty the workbench can still reach: every filter excludes everything.
+   *
+   * "No matches on record" now owns the whole route before the first match (see
+   * `virgin` above) and never appears here. This one is only ever true because
+   * the player asked for it, so it names the cause and the cure.
+   */
+  const showFilteredOut = (): void => {
+    stage.innerHTML = `
+      <div class="empty d-enter replay-empty">
+        ${icon("filter", 40)}
+        <h3 class="t-heading">No match fits</h3>
+        <p class="t-body">Every match on record is filtered out. Loosen one of the filters above and the board comes back.</p>
+      </div>`;
   };
-  if (history.length > 0) showEmptyPrompt();
 
   const open = (entry: MatchHistoryEntry): void => {
     const { frames, error } = buildFrames(entry, content);
 
-    if (frames.length === 0) {
-      stage.innerHTML = `<div class="replay-empty muted">${error ?? "Nothing to show."}</div>`;
-      return;
-    }
-
-    let index = frames.length - 1;
+    let index = Math.max(0, frames.length - 1);
 
     /**
      * "Run it back" is offered only for practice matches, and that is not a
@@ -159,34 +299,179 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
     const rematchDifficulty = entry.mode.startsWith("ai-") ? entry.mode.slice(3) : null;
     const opponentName = content.leaders[entry.opponentLeaderCardId]?.name ?? "—";
 
+    const myFaction = content.leaders[entry.leaderCardId]?.faction ?? "neutral";
+    const accent = FACTION_COLOR[myFaction as never] ?? "#b56cff";
+
+    /**
+     * The scrubber, drawn rather than inherited.
+     *
+     * It was a bare `<input type="range">` whose only rule was `flex: 1 1 auto`,
+     * so it rendered as Chrome's #007AFF track and blue knob — a colour that
+     * appears nowhere else in the palette, 900px wide, and therefore the most
+     * saturated object on a magenta-and-violet screen. §7 calls an OS scrollbar
+     * in a fantasy card game a tear in the world; an OS slider is the same sin
+     * and louder.
+     *
+     * `.slider` is module A's control, so this now shares its groove, its
+     * chamfered thumb and all six of its states with the settings audio rail.
+     * `--slider-fill` is the property that module A's track reads to paint the
+     * filled portion, and it is kept in step by the `input` handler below.
+     * `--ticks` puts a mark at every turn boundary, so the timeline reads as
+     * turns rather than as a volume control.
+     */
     stage.innerHTML = `
       <div class="replay-head">
-        <div>
-          <div class="eyebrow">${entry.mode} · ${DATE.format(new Date(entry.playedAt))}</div>
-          <h2 class="title">${entry.deckName}</h2>
-          <div class="muted">vs ${opponentName} · ${entry.turns} turns${
-            entry.summary
-              ? ` · peak Obsession ${entry.summary.peakObsession} · ${entry.summary.cardsPlayed} cards played`
-              : ""
-          }</div>
+        ${rankMark(
+          { tier: entry.result === "win" ? 4 : entry.result === "draw" ? 2 : 1, tiers: 5, colour: accent },
+          56
+        )}
+        <div class="replay-head-text">
+          <div class="t-label">${esc(modeName(entry.mode))} · ${esc(logStamp(entry.playedAt))}</div>
+          <h2 class="title t-display">${esc(entry.deckName)}</h2>
+          <div class="replay-head-meta">
+            vs ${esc(opponentName)} · ${quantify(entry.turns, "turn")}${
+              entry.summary
+                ? ` · peak Obsession <span class="num">${count(entry.summary.peakObsession)}</span> · <span class="num">${count(
+                    entry.summary.cardsPlayed
+                  )}</span> cards played`
+                : ""
+            }
+          </div>
         </div>
         <div class="replay-head-actions">
-          ${rematchDifficulty ? `<button class="btn btn-ghost" id="replay-rematch">Run it back</button>` : ""}
+          ${
+            rematchDifficulty
+              ? `<button type="button" class="mat-chip act r-chip" id="replay-rematch">${icon(
+                  "refresh",
+                  14
+                )} Run it back</button>`
+              : ""
+          }
           <div class="replay-result replay-${entry.result}">${entry.result.toUpperCase()}</div>
         </div>
       </div>
-      ${error ? `<div class="replay-warning">Replay stopped early: ${error}</div>` : ""}
-      <div class="replay-board" id="replay-board"></div>
-      <div class="replay-caption" id="replay-caption"></div>
-      <div class="replay-controls">
-        <button class="btn btn-ghost" id="replay-first" aria-label="First">⏮</button>
-        <button class="btn btn-ghost" id="replay-prev" aria-label="Previous">◀</button>
-        <input type="range" id="replay-scrub" min="0" max="${frames.length - 1}" value="${index}"
-               aria-label="Timeline" />
-        <button class="btn btn-ghost" id="replay-next" aria-label="Next">▶</button>
-        <button class="btn btn-ghost" id="replay-last" aria-label="Last">⏭</button>
-        <span class="replay-counter muted" id="replay-counter"></span>
-      </div>`;
+      ${
+        error && frames.length > 0
+          ? `<div class="replay-warning">${icon("warning", 15)} Replay stopped early: ${esc(error)}</div>`
+          : ""
+      }
+      ${
+        /*
+         * A match with no record still has a match in it.
+         *
+         * Older entries drop their replay to keep the save small, and the old
+         * screen answered that by disabling the row outright — so the majority of
+         * a long history could not be *clicked*, and the stage beside it stayed
+         * an 1100×730 rectangle with one grey sentence in it. The result, the
+         * deck, the opponent, the length and the Obsession peak all survive
+         * whether or not the intents do, and those are most of what somebody
+         * opens this screen for. So every row opens, the header above is always
+         * drawn, and only the board and the scrubber are replaced by a state that
+         * says which part is missing and why.
+         */
+        frames.length === 0
+          ? /*
+             * What is left of a match whose intents have been dropped.
+             *
+             * The old answer was one 460px plate floating in the middle of a
+             * 1030×740 stage, captioned "the result above is the whole of what
+             * this match left behind" — and that sentence was **not true**. A
+             * `MatchSummary` survives the record: cards played, characters
+             * defeated, damage to the enemy leader, Confluences, perfect
+             * Resonances and the Obsession peak. Six real numbers about the
+             * match, discarded, while the screen said there was nothing left and
+             * left two-thirds of its largest object empty. §2 reads an
+             * unresolved lower half as content that failed to load; here it was
+             * content that had loaded and was not being drawn.
+             *
+             * Only the entries with no summary at all — the oldest, from before
+             * the deriver existed — reach the bare empty state now.
+             */
+            `${
+              entry.summary
+                ? `<div class="replay-recap d-enter">
+                     <h3 class="t-label">What this match left behind</h3>
+                     <dl class="d-stats replay-recap-stats">
+                       <div class="d-stat"><dt>Cards played</dt><dd class="num" data-count="${
+                         entry.summary.cardsPlayed
+                       }" data-digits="3">0</dd></div>
+                       <div class="d-stat"><dt>Characters defeated</dt><dd class="num" data-count="${
+                         entry.summary.charactersDefeated
+                       }" data-digits="3">0</dd></div>
+                       <div class="d-stat"><dt>Damage to their leader</dt><dd class="num" data-count="${
+                         entry.summary.damageToEnemyLeader
+                       }" data-digits="3">0</dd></div>
+                       <div class="d-stat"><dt>Peak Obsession</dt><dd class="num" data-count="${
+                         entry.summary.peakObsession
+                       }" data-digits="2">0</dd></div>
+                       <div class="d-stat"><dt>Confluences</dt><dd class="num" data-count="${
+                         entry.summary.confluencesActivated
+                       }" data-digits="2">0</dd></div>
+                       <div class="d-stat"><dt>Perfect Resonances</dt><dd class="num" data-count="${
+                         entry.summary.perfectResonances
+                       }" data-digits="2">0</dd></div>
+                     </dl>
+                   </div>`
+                : ""
+            }
+            <div class="replay-noboard">
+               <div class="d-key replay-noboard-key" ${artAttr("ladder", [1100, 340, accent])}
+                    style="--key-aspect:3.4/1" aria-hidden="true">
+                 <div class="d-key-scrim"></div>
+               </div>
+               <div class="empty d-enter replay-noreplay">
+                 ${icon("mode-replays", 40)}
+                 <h3 class="t-heading">The board is not kept for this one</h3>
+                 <p class="t-body">Only the ${quantify(
+                   REPLAYABLE_HISTORY,
+                   "most recent match",
+                   "most recent matches"
+                 )} keep the full turn-by-turn record${
+                   entry.summary ? ", so there is no board to scrub — the figures above are what survives" : ""
+                 }.</p>
+               </div>
+             </div>`
+          : `<div class="replay-board" id="replay-board"></div>
+             <div class="replay-caption" id="replay-caption"></div>
+             <div class="replay-controls">
+               <button type="button" class="mat-chip act r-chip replay-step" id="replay-first" aria-label="First frame">${icon(
+                 "skip-start",
+                 16
+               )}</button>
+               <button type="button" class="mat-chip act r-chip replay-step" id="replay-prev" aria-label="Previous frame">${icon(
+                 "chevron-left",
+                 16
+               )}</button>
+               <input class="slider replay-scrub" type="range" id="replay-scrub" min="0" max="${frames.length - 1}"
+                      value="${index}" aria-label="Timeline"
+                      style="--ticks:${Math.max(1, frames.length - 1)}" />
+               <button type="button" class="mat-chip act r-chip replay-step" id="replay-next" aria-label="Next frame">${icon(
+                 "chevron-right",
+                 16
+               )}</button>
+               <button type="button" class="mat-chip act r-chip replay-step" id="replay-last" aria-label="Last frame">${icon(
+                 "skip-end",
+                 16
+               )}</button>
+               <span class="replay-counter num" id="replay-counter"></span>
+             </div>`
+      }`;
+
+    // The detail pane is written straight into `stage` rather than through the
+    // screen's own render, so it never passes `enter()` — and `enter()` is where
+    // the deferred pictures are kicked off. Without this the result crest in the
+    // header would sit in its empty socket forever. `countUp` for the same
+    // reason: the recap's six figures would print as a row of zeroes.
+    paintArt(stage);
+    enter(stage, ".d-enter", 34);
+    countUp(stage);
+
+    stage.querySelector("#replay-rematch")?.addEventListener("click", () => {
+      audio.play("sfx.ui.click");
+      callbacks.onRematch(rematchDifficulty!);
+    });
+
+    if (frames.length === 0) return;
 
     const board = stage.querySelector("#replay-board")!;
     const caption = stage.querySelector("#replay-caption")!;
@@ -202,7 +487,7 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
           const palette = CURRENT_PALETTE[c!.current];
           return `<span class="replay-unit" style="--c:${palette.key}">
             ${content.cards[c!.cardId]?.name ?? c!.cardId}
-            <b>${c!.attack}/${c!.health}</b>
+            <b class="num">${count(c!.attack)}/${count(c!.health)}</b>
           </span>`;
         })
         .join("");
@@ -210,8 +495,12 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
         <div class="replay-side">
           <div class="replay-side-head">
             <span class="replay-leader">${leader?.name ?? "—"}</span>
-            <span class="replay-hp">${player.leaderHealth} HP</span>
-            <span class="muted">${player.hype}/${player.hypeMax} Hype · ${player.obsession} Obs · ${player.hand.length} in hand</span>
+            <span class="replay-hp"><span class="num">${count(player.leaderHealth)}</span> HP</span>
+            <span class="muted"><span class="num">${count(player.hype)}</span>/<span class="num">${count(
+              player.hypeMax
+            )}</span> Hype · <span class="num">${count(player.obsession)}</span> Obs · <span class="num">${count(
+              player.hand.length
+            )}</span> in hand</span>
           </div>
           <div class="replay-units">${units || '<span class="muted">empty board</span>'}</div>
         </div>`;
@@ -221,8 +510,16 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
       const frame = frames[index]!;
       board.innerHTML = side(frame.state, 1) + '<div class="replay-divider"></div>' + side(frame.state, 0);
       caption.textContent = frame.label;
-      counter.textContent = `${index} / ${frames.length - 1}`;
+      counter.textContent = `${count(index)} / ${count(frames.length - 1)}`;
       scrub.value = String(index);
+      /*
+       * `shell.ts` syncs `--slider-fill` on `input`, which covers a drag and
+       * does not cover the four step buttons — they set `.value` from script and
+       * no event fires. Without this line the track's filled portion stays where
+       * the last drag left it while the thumb walks away from it.
+       */
+      const span = frames.length - 1;
+      scrub.style.setProperty("--slider-fill", `${span > 0 ? ((index / span) * 100).toFixed(2) : "0"}%`);
     };
 
     const go = (next: number): void => {
@@ -230,10 +527,6 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
       render();
     };
 
-    stage.querySelector("#replay-rematch")?.addEventListener("click", () => {
-      audio.play("sfx.ui.click");
-      callbacks.onRematch(rematchDifficulty!);
-    });
     stage.querySelector("#replay-first")!.addEventListener("click", () => go(0));
     stage.querySelector("#replay-prev")!.addEventListener("click", () => go(index - 1));
     stage.querySelector("#replay-next")!.addEventListener("click", () => go(index + 1));
@@ -264,40 +557,57 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
   const renderFilters = (): void => {
     const modes = [...new Set(history.map((entry) => baseMode(entry.mode)))].sort();
     const factions = [...new Set(history.map((entry) => factionOf(entry.leaderCardId)).filter(Boolean))].sort();
-    const group = (key: keyof HistoryFilter, options: { id: string; label: string }[]): string =>
-      options
-        .map(
-          (option) =>
-            `<button class="btn mastery-tab ${filter[key] === option.id ? "active" : ""}"
-                     data-filter="${key}" data-value="${option.id}">${option.label}</button>`
-        )
-        .join("");
+
+    /**
+     * One chip component, one active state.
+     *
+     * The result group used to render its selection as a solid filled pill and
+     * the mode group two centimetres away rendered its selection as an outline —
+     * two answers to "what does selected look like" in the same 40px row, which
+     * means a player cannot learn either. And the mode chips printed the raw
+     * engine ids, so this screen said "ai" while the statistics screen one click
+     * away said "Practice" about the same matches.
+     */
+    const group = (
+      key: keyof HistoryFilter,
+      label: string,
+      options: { id: string; label: string; accent?: string }[]
+    ): string => `
+      <div class="replay-filter-group" role="radiogroup" aria-label="${esc(label)}">
+        <span class="t-label replay-filter-label">${esc(label)}</span>
+        ${options
+          .map((option) =>
+            chip({
+              label: option.label,
+              value: option.id,
+              active: filter[key] === option.id,
+              key: "value",
+              accent: option.accent,
+            }).replace("<button ", `<button data-filter="${key}" `)
+          )
+          .join("")}
+      </div>`;
 
     filterBar.innerHTML = `
-      <div class="replay-filter-group">
-        ${group("result", [
-          { id: "all", label: "All" },
-          { id: "win", label: "Wins" },
-          { id: "loss", label: "Losses" },
-        ])}
-      </div>
-      <div class="replay-filter-group">
-        ${group("mode", [
-          { id: "all", label: "All modes" },
-          ...modes.map((id) => ({ id, label: id })),
-        ])}
-      </div>
+      ${group("result", "Result", [
+        { id: "all", label: "All" },
+        { id: "win", label: "Wins" },
+        { id: "loss", label: "Losses" },
+      ])}
+      ${group("mode", "Mode", [
+        { id: "all", label: "All modes" },
+        ...modes.map((id) => ({ id, label: modeName(id) })),
+      ])}
       ${
         factions.length > 1
-          ? `<div class="replay-filter-group">
-               ${group("factionId", [
-                 { id: "all", label: "All factions" },
-                 ...factions.map((id) => ({
-                   id,
-                   label: content.factions[id as keyof typeof content.factions]?.name ?? id,
-                 })),
-               ])}
-             </div>`
+          ? group("factionId", "Faction", [
+              { id: "all", label: "All factions" },
+              ...factions.map((id) => ({
+                id,
+                label: content.factions[id as keyof typeof content.factions]?.name ?? id,
+                accent: colourFor(id),
+              })),
+            ])
           : ""
       }`;
 
@@ -313,57 +623,97 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
   };
 
   function renderList(): void {
+    bag.run();
     list.innerHTML = "";
     const shown = matching();
 
     if (shown.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "muted replay-note";
-      empty.textContent =
-        history.length === 0 ? "Play a match and it will appear here." : "No matches match those filters.";
+      const empty = document.createElement("div");
+      empty.className = "empty d-enter replay-list-empty";
+      empty.innerHTML = `${icon(
+        "filter",
+        32
+      )}<h3 class="t-heading">No match fits</h3><p class="t-body">Loosen a filter above.</p>`;
       list.appendChild(empty);
-      showEmptyPrompt();
+      showFilteredOut();
       return;
     }
 
     shown.forEach((entry, i) => {
       const button = document.createElement("button");
-      button.className = `replay-entry replay-${entry.result}`;
+      button.className = `replay-entry mat-panel act d-enter replay-${entry.result}${
+        entry.record ? "" : " is-recordless"
+      }`;
       button.type = "button";
       const replayable = Boolean(entry.record);
-      button.disabled = !replayable;
       const opponent = content.leaders[entry.opponentLeaderCardId]?.name ?? "—";
+      const faction = content.leaders[entry.leaderCardId]?.faction ?? "neutral";
+      button.style.setProperty("--row-accent", colourFor(faction));
       // the Obsession peak §4.5.5 asks for, on the matches that recorded it
-      const obsession = entry.summary ? ` · Obs ${entry.summary.peakObsession}` : "";
+      const obsession = entry.summary ? ` · Obs <span class="num">${count(entry.summary.peakObsession)}</span>` : "";
+      /*
+       * The Obsession peak moves to the *third* line, not the second.
+       *
+       * Both meta lines are `text-overflow: ellipsis` on one line. Line two is
+       * the longest thing on the row — "vs Prioress Juniper Vale · 12 turns" is
+       * already 35 characters — so appending "· Obs 5" to it ellipsised the
+       * *opponent's name*, which is the one thing on the row a player is
+       * scanning for. Line three is a mode and a short date and has room.
+       */
       button.innerHTML = `
-        <span class="replay-entry-result">${entry.result[0]!.toUpperCase()}</span>
+        ${crestMark(faction, 34)}
         <span class="replay-entry-body">
-          <span class="replay-entry-deck">${entry.deckName}</span>
-          <span class="replay-entry-meta muted">vs ${opponent} · ${entry.turns} turns${obsession}</span>
-          <span class="replay-entry-meta muted">${entry.mode} · ${DATE.format(new Date(entry.playedAt))}${
-            replayable ? "" : " · not replayable"
-          }</span>
-        </span>`;
+          <span class="replay-entry-deck">${esc(entry.deckName)}</span>
+          <span class="replay-entry-meta">vs ${esc(opponent)} · ${quantify(entry.turns, "turn")}</span>
+          <span class="replay-entry-meta">${esc(modeName(entry.mode))} · ${esc(
+            logStamp(entry.playedAt)
+          )}${obsession}</span>
+        </span>
+        ${
+          /*
+           * "Not replayable" is a *tag*, not the tail of a sentence.
+           *
+           * It used to be appended to the mode-and-date line, which is
+           * `text-overflow: ellipsis` on one line — so on 8 of 9 visible rows at
+           * 1600×900 it ellipsised to "not…" or "not re…", hiding the only
+           * qualifier on the row that changes what clicking it does. A tag in
+           * its own column cannot be truncated by the line beside it.
+           */
+          replayable
+            ? ""
+            : `<span class="replay-entry-tag">${icon("lock", 12)}<span>No replay</span></span>`
+        }
+        <span class="replay-entry-result" aria-label="${entry.result}">${entry.result[0]!.toUpperCase()}</span>`;
       button.addEventListener("click", () => {
         audio.play("sfx.ui.click");
-        list.querySelectorAll(".replay-entry").forEach((n) => n.classList.remove("selected"));
+        list.querySelectorAll(".replay-entry").forEach((n) => {
+          n.classList.remove("selected");
+          n.removeAttribute("aria-current");
+        });
         button.classList.add("selected");
+        button.setAttribute("aria-current", "true");
         open(entry);
       });
       list.appendChild(button);
-      if (i === 0 && replayable) button.click();
+      /*
+       * Always open the newest row, replayable or not.
+       *
+       * The old guard was `if (i === 0 && replayable)`, and since only the eight
+       * newest matches keep a record, any filter that landed on an older match
+       * left the stage holding an empty prompt beside a full list — which reads
+       * as a broken screen rather than as a choice. Every row opens now, so the
+       * stage always has the match the list says is selected.
+       */
+      if (i === 0) button.click();
     });
 
-    if (history.length > REPLAYABLE_HISTORY) {
-      const note = document.createElement("p");
-      note.className = "muted replay-note";
-      note.textContent = `Only the ${REPLAYABLE_HISTORY} most recent matches keep a full replay.`;
-      list.appendChild(note);
-    }
+    enter(list, ".d-enter", 26);
+    bag.add(rovingList(list as HTMLElement, ".replay-entry"));
   }
 
   renderFilters();
   renderList();
+  bag.add(fadeOnScroll(list as HTMLElement));
 
   root.querySelector("#replay-back")!.addEventListener("click", () => callbacks.onBack());
 
@@ -378,5 +728,5 @@ export function createReplayScreen(content: ContentIndex, callbacks: ReplayCallb
     },
   };
 
-  return { root };
+  return { root, dispose: () => bag.run() };
 }

@@ -29,128 +29,313 @@ import { runStart } from "../../game/events";
 import { DEFERRED_EVENTS } from "../../game/events";
 import { buyEventItem, claimEventMission, eventViews, settleEvents } from "../../save/profile";
 import { audio } from "../../audio/audio";
+import {
+  artAttr,
+  count,
+  countUp,
+  disposeBag,
+  enter,
+  esc,
+  icon,
+  meter,
+  modeAction,
+  quantify,
+  /**
+   * `room` only. The kit also exports a `railCard`, and this screen has had a
+   * local function of that name — an event tile for the calendar — since long
+   * before the kit had one. Importing both would shadow the local one silently.
+   */
+  room,
+  rovingList,
+  stamp,
+  tokenMark,
+  unspec,
+} from "./data/kit";
 
 export interface EventsCallbacks {
   onBack: () => void;
   onPlayMode: (modeId: string) => void;
 }
 
-const esc = (value: string): string =>
-  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-
 /**
- * A real datetime, written out.
+ * "3 days, 4 hours" — a gap, never a countdown that outlives its window.
  *
- * Long-form and local, because "ends 2026-08-07T00:00:00Z" is technically the
- * honest answer and practically an unreadable one — and an honest timer nobody
- * can read is not much of a promise.
+ * `quantify` rather than a hand-rolled `n === 1 ? "" : "s"`, because the same
+ * hand-rolled test was written five times in this domain and got it wrong twice
+ * ("1 turns" shipped in two places).
  */
-const stamp = (at: number): string =>
-  new Date(at).toLocaleString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-/** "3 days, 4 hours" — a gap, never a countdown that outlives its window. */
 function distance(from: number, to: number): string {
   const ms = Math.max(0, to - from);
   const hours = Math.floor(ms / 3_600_000);
   const days = Math.floor(hours / 24);
-  if (days >= 1) return `${days} day${days === 1 ? "" : "s"}, ${hours % 24} hour${hours % 24 === 1 ? "" : "s"}`;
-  if (hours >= 1) return `${hours} hour${hours === 1 ? "" : "s"}`;
-  const minutes = Math.max(1, Math.floor(ms / 60_000));
-  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  if (days >= 1) return `${quantify(days, "day")}, ${quantify(hours % 24, "hour")}`;
+  if (hours >= 1) return quantify(hours, "hour");
+  return quantify(Math.max(1, Math.floor(ms / 60_000)), "minute");
 }
+
+/**
+ * How far through its run an event is, 0–1.
+ *
+ * Drawn as a ring around the banner's corner badge, so "ends Thursday" also has
+ * a shape. An honest timer is §14's rule; making it legible at a glance is §4's.
+ */
+function elapsed(view: EventView, now: number): number {
+  const end = view.endsAt;
+  if (!end) return 0;
+  const start = view.event.runs.map(runStart).find((at) => at <= now && now <= end);
+  if (start === undefined || end <= start) return 0;
+  return Math.max(0, Math.min(1, (now - start) / (end - start)));
+}
+
+/**
+ * What a banner plate looks like before its picture has been drawn.
+ *
+ * `paintArt` resolves key art off the mounting frame and only within 400px of
+ * the fold, which is right — the alternative measured 385ms of frozen
+ * compositor on arrival at this screen. The cost is that the two rail banners
+ * sit below that margin at 1600×900 and hold their pending state indefinitely,
+ * and the pending state was `rooms.css`'s `background-color: #07040f`: two
+ * 549×309 rectangles of one solid colour, which §1 bans outright on anything
+ * larger than an icon. The census counted both.
+ *
+ * So the socket is lit while it waits, out of the same two ingredients
+ * `art.ts` starts every plate with — a two-stop base along the key vector and a
+ * shaft entering from the top-left corner, in the event's own accent. It goes
+ * into `--key-art` rather than into `background-image` on purpose: that is the
+ * property `paintArt` writes, on this same element's inline style, so the real
+ * banner replaces the placeholder instead of losing a specificity argument with
+ * it. There is no grain here because `.d-key` sizes every layer `cover` and a
+ * grain tile stretched to 549px is not grain; the drawing that lands carries
+ * module B's, which is the version anybody looks at for longer than a frame.
+ */
+const KEY_PENDING =
+  "--key-art:" +
+  "radial-gradient(120% 92% at 12% 0%," +
+  " color-mix(in srgb, var(--event-accent, var(--accent)) 24%, transparent) 0%," +
+  " transparent 62%)," +
+  "linear-gradient(var(--light-sweep)," +
+  " color-mix(in srgb, var(--event-accent, var(--accent)) 18%, rgb(28 19 52)) 0%," +
+  " rgb(7 4 15) 100%)";
+
+/**
+ * The three sections under the banner are plates, and this is what it costs to
+ * say so from here.
+ *
+ * They were `.event-panel .panel` and the census counted all three, but the
+ * class was not what was drawing them: `rooms.css` answers `.events-screen
+ * .event-panel` with `border: none; background: none`, so measured, every one
+ * rendered a background-colour of rgba(0, 0, 0, 0) with a border width of 0.
+ * Event missions and Reward shop were headings with tiles floating under them
+ * on the page background — no group, no plane, and a run of shop rows with
+ * nothing behind them. Mastery's own "Closest rewards" is exactly this shape
+ * and it is a `.mat-panel` holding `.mat-panel` rows; two screens in the same
+ * hub disagreeing about whether a headed group has a surface is the seam this
+ * wave exists to close.
+ *
+ * Adding the class alone does not work, and the failure is worse than the
+ * original: `.mat-panel` is one class, `.events-screen .event-panel` is two, so
+ * `background: none` and `border: none` still win and the section keeps nothing
+ * but the material's cast — a drop shadow with no highlight, which §1 bans by
+ * name. `rooms.css` is another owner's file this wave, so the two cancellations
+ * are answered where they can be answered from here.
+ *
+ * Everything below is a `var()` on module A's own tokens, never a literal, so
+ * the high-contrast and colour-blind modes still reach these surfaces and a
+ * retune of the panel rank still moves them. `background: none` resets the
+ * whole shorthand, which is why size, repeat and origin are restated; `border:
+ * none` resets style, width and colour; and the radius is here because
+ * `screens.css` gives `.event-panel` a 12px one that out-specifies the
+ * material's 18. **Delete this constant the day `rooms.css` drops those two
+ * declarations** — nothing else here depends on it.
+ */
+const EVENT_PLATE =
+  "background-image:var(--mat-grain),var(--mat-fill);" +
+  "background-size:var(--mat-grain-size),100% 100%;" +
+  "background-repeat:repeat,no-repeat;" +
+  "background-origin:border-box;" +
+  "border-style:solid;border-width:1px;" +
+  "border-color:rgb(255 255 255 / var(--rim-a))" +
+  " rgb(0 0 0 / calc(var(--lip-a) * 0.55))" +
+  " rgb(0 0 0 / var(--lip-a))" +
+  " rgb(255 255 255 / calc(var(--rim-a) * 0.5));" +
+  "border-radius:var(--r-panel)";
 
 export function createEventsScreen(callbacks: EventsCallbacks): Screen {
   const root = document.createElement("div");
-  root.className = "screen events-screen";
+  /**
+   * The Feed, laid out as a hall.
+   *
+   * The two calendar sections were already called rails and were already
+   * *shaped* like rails — a heading over a narrow grid of cards — and they were
+   * still stacked under the running event as two more full-width slabs, which is
+   * how a screen with a genuine hero and a genuine sidebar ends up reading as a
+   * report. Coming up and Archive move to the wall; the running event keeps the
+   * main column and is the only thing on the screen at hero rank.
+   */
+  root.className = "screen events-screen d-hall";
 
   /** which event's rules popup is open, if any */
   let rulesFor: string | null = null;
   /** the last thing that happened, echoed under the event it happened to */
   let notice: { eventId: string; text: string; good: boolean } | null = null;
+  const bag = disposeBag();
+
+  /**
+   * The event's own currency, as a struck token.
+   *
+   * `data/events.json` authors this as a Unicode character — `◈`, `✸` and, for
+   * Glowsticks, `❘`, which is a vertical bar and rendered on screen as a thin
+   * line in whatever face the OS happened to have. That is the exact failure
+   * module C exists to end: a code point used as an icon, at the wrong weight
+   * and the wrong optical size, and tofu wherever the font has no glyph. The
+   * mark is now drawn from the event's own emblem shape and accent, so it is a
+   * picture of a coin rather than a character that stands for one.
+   *
+   * The authored symbol survives as the accessible name, because a currency
+   * needs a spoken label and "◈" is the one the data file gave it.
+   */
+  const currencyMark = (view: EventView, size = 16): string =>
+    tokenMark(view.event.emblem, view.event.accent, size);
 
   function activeCard(view: EventView, now: number): string {
     const { event } = view;
+    const key = artAttr("key", [event.accent, 1024, 384, event.id, event.emblem, 0, 0.07]);
+    const through = elapsed(view, now);
+
     return `
       <article class="event-card is-live" data-event="${esc(event.id)}" style="--event-accent:${esc(event.accent)}">
-        <div class="event-key" aria-hidden="true"><span class="event-emblem">${esc(event.currency.symbol)}</span></div>
-        <div class="event-body">
-          <div class="event-title-row">
-            <h2 class="event-name">${esc(event.name)}</h2>
-            <span class="event-tag event-tag-live">Running now</span>
+        <div class="d-key event-key" ${key} style="--key-aspect:3.5/1;${KEY_PENDING}">
+          <div class="d-key-scrim"></div>
+          <div class="d-key-caption">
+            <span class="event-tag event-tag-live">${icon("live", 13)} Running now</span>
+            <h2 class="event-name t-display">${esc(event.name)}</h2>
+            <p class="event-blurb">${esc(event.blurb)}</p>
           </div>
-          <p class="event-blurb muted">${esc(event.blurb)}</p>
+          <div class="event-key-clock" aria-hidden="true">
+            <span class="event-key-ring" style="--through:${(through * 100).toFixed(1)}%"></span>
+            ${currencyMark(view, 34)}
+          </div>
+        </div>
+
+        <div class="event-body">
           <p class="event-timer" id="ev-timer-${esc(event.id)}">
-            Ends <strong>${esc(stamp(view.endsAt ?? now))}</strong> — ${esc(distance(now, view.endsAt ?? now))} left
+            ${icon("timer", 15)} Ends <strong>${esc(stamp(view.endsAt ?? now))}</strong>
+            <span class="event-timer-left">${esc(distance(now, view.endsAt ?? now))} left</span>
           </p>
           <div class="event-balance">
-            <span class="event-symbol">${esc(event.currency.symbol)}</span>
-            <strong>${view.balance}</strong>
-            <span class="muted">${esc(event.currency.name)}</span>
-            <span class="muted event-earned">· ${view.earned} earned in total</span>
+            ${currencyMark(view, 22)}
+            <strong class="num" data-count="${view.balance}" data-digits="4">${count(view.balance)}</strong>
+            <span class="event-currency-name">${esc(event.currency.name)}</span>
+            <span class="event-earned">${count(view.earned)} earned in total</span>
           </div>
+          <!--
+            One hero, and it belongs to the event.
+
+            This was three co-equal .mat-hero pills — Practice match / Boss
+            fight / Puzzle run — under a teal HYPECON banner, in a magenta that
+            appears nowhere else in the event's palette. §6 allows one hero
+            accent per screen and this was three, sharing the row with a fourth
+            control; at a squint the brightest mass on the page was a hat-trick
+            of identical lozenges saying three different things of equal weight.
+
+            The event's *first* featured mode is the play button and it stays a
+            hero — the screen exists to be played — but it is ringed and lit in
+            the event's own accent, so the brightest object on the page is tied
+            to the banner above it. The alternates become row-level .d-go
+            marks in the same accent: still one tap, no longer three heroes.
+          -->
           <div class="event-actions">
-            <button class="btn btn-ghost btn-sm" data-rules="${esc(event.id)}">Event rules</button>
             ${event.featuredModes
-              .map(
-                (mode) =>
-                  `<button class="btn btn-ghost btn-sm" data-mode="${esc(mode)}">Play ${esc(mode)}</button>`
+              .map((mode, index) =>
+                index === 0
+                  ? `<button type="button" class="mat-hero act r-chip event-play is-primary" data-mode="${esc(mode)}">
+                       ${icon("play", 14)} ${esc(modeAction(mode))}
+                     </button>`
+                  : `<button type="button" class="d-go event-play" data-mode="${esc(mode)}">
+                       ${icon("play", 14)} ${esc(modeAction(mode))} ${icon("chevron-right", 15, "d-go-arrow")}
+                     </button>`
               )
               .join("")}
+            <button type="button" class="mat-chip act r-chip event-rules" data-rules="${esc(event.id)}">
+              ${icon("info", 14)} Event rules
+            </button>
           </div>
         </div>
       </article>
 
-      <section class="event-panel">
-        <div class="eyebrow">Event missions</div>
-        <p class="muted event-completion">
-          ${view.claimedCount} of ${view.missionsRequired} claimed toward the ${esc(event.name)} frame${
-            view.completionGranted ? " — earned" : ""
-          }
-        </p>
+      <!-- See EVENT_PLATE for why the material arrives half in a class and
+           half in a style attribute. -->
+      <section class="event-panel mat-panel" style="${EVENT_PLATE}">
+        <div class="event-panel-head">
+          <h3 class="t-heading">Event missions</h3>
+          <p class="event-completion">
+            <span class="num">${count(view.claimedCount)}</span> of
+            <span class="num">${count(view.missionsRequired)}</span> claimed toward the
+            ${esc(event.name)} frame${view.completionGranted ? " — earned" : ""}
+          </p>
+        </div>
+        <ul class="event-missions">
         ${view.missions
           .map(
             (mission) => `
-          <div class="event-mission ${mission.claimed ? "is-claimed" : ""}" data-mission="${esc(mission.id)}">
+          <li class="event-mission mat-panel d-enter ${mission.claimed ? "is-claimed" : ""}" data-mission="${esc(mission.id)}">
             <div class="event-mission-head">
               <span class="event-mission-name">${esc(mission.name)}</span>
-              <span class="event-mission-reward">${esc(event.currency.symbol)} ${mission.reward}</span>
+              <span class="event-mission-reward">${currencyMark(view)}<span class="num">${count(
+                mission.reward
+              )}</span></span>
             </div>
-            <p class="muted event-mission-text">${esc(mission.text)}</p>
-            <div class="event-bar"><i style="width:${Math.round(mission.fraction * 100)}%"></i></div>
-            ${
-              mission.claimed
-                ? `<span class="event-claimed muted">Claimed</span>`
-                : mission.claimable
-                  ? `<button class="btn btn-primary btn-sm" data-claim="${esc(event.id)}|${esc(mission.id)}">Claim ${event.currency.symbol} ${mission.reward}</button>`
-                  : `<span class="muted event-progress">${Math.round(mission.fraction * 100)}%</span>`
-            }
-          </div>`
+            <p class="event-mission-text">${esc(mission.text)}</p>
+            ${meter({ value: mission.fraction, steps: 0, colour: event.accent, animate: true })}
+            <div class="event-mission-foot">
+              ${
+                mission.claimed
+                  ? `<span class="event-claimed">${icon("check", 14)} Claimed</span>`
+                  : mission.claimable
+                    ? /*
+                       * A claim is a reward, and rewards are struck in gold
+                       * everywhere else in the product — `.d-badge`, the
+                       * mastery rungs, the pass. Four of these used to be
+                       * `.mat-hero`, which put four more magenta pills on a
+                       * screen that already had three.
+                       */
+                      `<button type="button" class="d-claim mat-chip act r-chip event-claim" data-claim="${esc(event.id)}|${esc(
+                        mission.id
+                      )}">${icon("chest", 14)} Claim ${currencyMark(view, 14)} <span class="num">${count(
+                        mission.reward
+                      )}</span></button>`
+                    : `<span class="event-progress num">${Math.round(mission.fraction * 100)}%</span>`
+              }
+            </div>
+          </li>`
           )
           .join("")}
+        </ul>
       </section>
 
-      <section class="event-panel">
-        <div class="eyebrow">Reward shop</div>
+      <section class="event-panel mat-panel" style="${EVENT_PLATE}">
+        <div class="event-panel-head">
+          <h3 class="t-heading">Reward shop</h3>
+          <p class="event-completion">Stock comes back when the event does.</p>
+        </div>
+        <ul class="event-shop">
         ${view.shop
           .map(
             (row) => `
-          <div class="event-shop-row ${row.soldOut ? "is-sold-out" : ""}">
+          <li class="event-shop-row mat-panel d-enter ${row.soldOut ? "is-sold-out" : ""}">
             <span class="event-shop-name">${esc(row.entry.name)}</span>
-            <span class="event-shop-stock muted">${row.soldOut ? "Sold out" : `${row.left} left`}</span>
-            <span class="event-shop-cost">${esc(event.currency.symbol)} ${row.entry.cost}</span>
-            <button class="btn btn-ghost btn-sm" data-buy="${esc(event.id)}|${esc(row.entry.id)}" ${
-              row.affordable ? "" : "disabled"
-            }>Buy</button>
-          </div>`
+            <span class="event-shop-stock">${row.soldOut ? "Sold out" : `${count(row.left)} left`}</span>
+            <span class="event-shop-cost">${currencyMark(view)}<span class="num">${count(
+              row.entry.cost
+            )}</span></span>
+            <!-- One per shop row, five rows: a chip, not a hero. -->
+            <button type="button" class="mat-chip act r-chip event-buy" data-buy="${esc(event.id)}|${esc(
+              row.entry.id
+            )}" ${row.affordable && !row.soldOut ? "" : "disabled"}>Buy</button>
+          </li>`
           )
           .join("")}
+        </ul>
       </section>
 
       ${
@@ -159,49 +344,70 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
           : ""
       }
 
-      <section class="event-panel event-locked">
-        <div class="eyebrow">Event leaderboard</div>
-        <p class="muted">${esc(DEFERRED_EVENTS.get("Event leaderboards") ?? "Needs a server.")}</p>
+      <section class="event-panel event-locked mat-panel" style="${EVENT_PLATE}">
+        <div class="event-panel-head">
+          <h3 class="t-heading">Event leaderboard</h3>
+        </div>
+        <p class="t-body">${esc(unspec(DEFERRED_EVENTS.get("Event leaderboards") ?? "Needs a server."))}</p>
       </section>
     `;
   }
 
+  /**
+   * An event that is not running.
+   *
+   * Same generator as the live banner, three-quarters as lit, so the archive
+   * reads as the same place with the house lights down rather than as a
+   * different component. The vertical 84px gradient strip these used to carry
+   * was replaced for the same reason the live one was: it was not a picture.
+   */
   function railCard(view: EventView, now: number, kind: "upcoming" | "archive"): string {
     const { event } = view;
     const returns = view.returnsAt;
+    const key = artAttr("key", [event.accent, 640, 360, `${event.id}:${kind}`, event.emblem, 0, 0.05]);
     return `
-      <article class="event-card is-${kind}" data-event="${esc(event.id)}" style="--event-accent:${esc(event.accent)}">
-        <div class="event-key" aria-hidden="true"><span class="event-emblem">${esc(event.currency.symbol)}</span></div>
+      <article class="event-card is-${kind} d-enter" data-event="${esc(event.id)}" style="--event-accent:${esc(
+        event.accent
+      )}">
+        <div class="d-key event-key" ${key} style="--key-aspect:16/9;${KEY_PENDING}">
+          <div class="d-key-scrim"></div>
+          ${currencyMark(view, 26)}
+        </div>
         <div class="event-body">
           <div class="event-title-row">
-            <h3 class="event-name">${esc(event.name)}</h3>
+            <h3 class="event-name t-heading">${esc(event.name)}</h3>
             <span class="event-tag">${kind === "upcoming" ? "Coming up" : "Ended"}</span>
           </div>
-          <p class="event-blurb muted">${esc(event.blurb)}</p>
+          <p class="event-blurb">${esc(event.blurb)}</p>
           <p class="event-timer">
             ${
               returns
-                ? `${kind === "upcoming" ? "Opens" : "Returns"} <strong>${esc(stamp(returns))}</strong> — in ${esc(distance(now, returns))}`
+                ? `${icon("timer", 14)} ${kind === "upcoming" ? "Opens" : "Returns"} <strong>${esc(
+                    stamp(returns)
+                  )}</strong> <span class="event-timer-left">in ${esc(distance(now, returns))}</span>`
                 : "No further runs are scheduled."
             }
           </p>
           ${
             kind === "archive"
-              ? `<p class="muted event-rerun">Reruns are guaranteed. ${
+              ? `<p class="event-rerun">Reruns are guaranteed. ${
                   view.balance > 0
-                    ? `${view.balance} ${esc(event.currency.name)} are still banked and will be waiting.`
+                    ? `${count(view.balance)} ${esc(event.currency.name)} are still banked and will be waiting.`
                     : `Your ${esc(event.currency.name)} progress and shop stock come back exactly as you left them.`
                 }</p>`
               : ""
           }
           <div class="event-actions">
-            <button class="btn btn-ghost btn-sm" data-rules="${esc(event.id)}">Event rules</button>
+            <button type="button" class="mat-chip act r-chip" data-rules="${esc(event.id)}">
+              ${icon("info", 14)} Event rules
+            </button>
           </div>
         </div>
       </article>`;
   }
 
   function render(): void {
+    bag.run();
     /**
      * Settle first, then draw.
      *
@@ -218,52 +424,90 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
     const archived = views.filter((view) => view.phase === "ended");
     const popup = rulesFor ? views.find((view) => view.event.id === rulesFor) : null;
 
+    /**
+     * The room takes the running event's own accent.
+     *
+     * §6 asks for one hero accent per screen and this is the screen where the
+     * answer changes by the week: HYPECON is teal, the next event is not. The
+     * alcove, the horizon line and the hero specular all read from
+     * `--hall-accent`, so the whole room re-lights itself around whatever is
+     * running without a second stylesheet knowing the event exists.
+     */
+    const roomAccent = live[0]?.event.accent ?? upcoming[0]?.event.accent;
+
     root.innerHTML = `
-      <div class="ambient-bg"></div>
+      ${room({ ...(roomAccent ? { accent: roomAccent } : {}), lit: 0.9 })}
       <header class="screen-header">
-        <button class="btn btn-ghost" id="ev-back">← Lobby</button>
+        <button class="btn btn-ghost" id="ev-back">${icon("arrow-left", 16)} Lobby</button>
         <h1 class="title">Event Hub</h1>
-        <span class="muted">${live.length} running · ${upcoming.length} coming up · ${archived.length} archived</span>
+        <span class="events-count">
+          <span class="num">${count(live.length)}</span> running ·
+          <span class="num">${count(upcoming.length)}</span> coming up ·
+          <span class="num">${count(archived.length)}</span> archived
+        </span>
       </header>
 
-      <div class="events-body">
+      <div class="events-body data-body">
         ${
           live.length > 0
             ? live.map((view) => activeCard(view, now)).join("")
-            : `<p class="muted events-empty" id="ev-none">
-                 Nothing is running right now. Every event below returns on a published date —
-                 nothing here is missable.
-               </p>`
+            : `<div class="empty d-enter" id="ev-none">
+                 ${icon("events", 40)}
+                 <h3 class="t-heading">The hall is dark tonight</h3>
+                 <p class="t-body">Every event below returns on a published date. Nothing here is missable, and nothing here expires while it still owes you something.</p>
+               </div>`
         }
 
-        ${
-          upcoming.length > 0
-            ? `<section class="event-rail" id="ev-upcoming">
-                 <div class="eyebrow">Coming up</div>
-                 ${upcoming.map((view) => railCard(view, now, "upcoming")).join("")}
-               </section>`
-            : ""
-        }
-
-        ${
-          archived.length > 0
-            ? `<section class="event-rail" id="ev-archive">
-                 <div class="eyebrow">Archive</div>
-                 ${archived.map((view) => railCard(view, now, "archive")).join("")}
-               </section>`
-            : ""
-        }
       </div>
+
+      ${
+        /*
+         * The calendar goes on the wall.
+         *
+         * These two were already a `.event-rails` band of two columns, which was
+         * the right instinct and the wrong axis: they still sat *under* the
+         * running event, so the screen was hero-then-two-slabs and a player
+         * checking when something returns had to scroll away from the thing they
+         * were reading. Against the rail they are a standing calendar — always
+         * in view, never competing for the width the hero needs.
+         */ ""
+      }
+      ${
+        upcoming.length > 0 || archived.length > 0
+          ? `<section class="d-rail" aria-label="Event calendar">
+               ${
+                 upcoming.length > 0
+                   ? `<section class="event-rail d-enter" id="ev-upcoming">
+                        <h2 class="d-rail-label">Coming up</h2>
+                        <div class="event-rail-grid">${upcoming
+                          .map((view) => railCard(view, now, "upcoming"))
+                          .join("")}</div>
+                      </section>`
+                   : ""
+               }
+               ${
+                 archived.length > 0
+                   ? `<section class="event-rail d-enter" id="ev-archive">
+                        <h2 class="d-rail-label">Archive</h2>
+                        <div class="event-rail-grid">${archived
+                          .map((view) => railCard(view, now, "archive"))
+                          .join("")}</div>
+                      </section>`
+                   : ""
+               }
+             </section>`
+          : ""
+      }
 
       ${
         popup
           ? `<div class="overlay" id="ev-rules-overlay">
-               <div class="overlay-panel" role="dialog" aria-label="${esc(popup.event.name)} rules">
+               <div class="overlay-panel mat-panel" role="dialog" aria-label="${esc(popup.event.name)} rules">
                  <h2 class="title">${esc(popup.event.name)}</h2>
                  <ul class="event-rules-list">
-                   ${popup.event.rules.map((rule) => `<li>${esc(rule)}</li>`).join("")}
+                   ${popup.event.rules.map((rule) => `<li>${esc(unspec(rule))}</li>`).join("")}
                  </ul>
-                 <button class="btn btn-primary" id="ev-rules-close">Close</button>
+                 <button type="button" class="mat-hero act r-chip" id="ev-rules-close">Close</button>
                </div>
              </div>`
           : ""
@@ -319,6 +563,10 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
         render();
       });
     }
+
+    enter(root);
+    countUp(root);
+    bag.add(rovingList(root.querySelector<HTMLElement>(".event-rail-grid"), ".event-card"));
   }
 
   render();
@@ -342,6 +590,7 @@ export function createEventsScreen(callbacks: EventsCallbacks): Screen {
     root,
     resume: render,
     dispose: () => {
+      bag.run();
       delete (window as unknown as { hypeboundEvents?: unknown }).hypeboundEvents;
     },
   };

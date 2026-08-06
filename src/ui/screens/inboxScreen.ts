@@ -37,16 +37,42 @@ import {
   type MailView,
 } from "../../save/profile";
 import { audio } from "../../audio/audio";
+import {
+  cloutIcon,
+  count,
+  countUp,
+  disposeBag,
+  enter,
+  esc,
+  fadeOnScroll,
+  icon,
+  quantify,
+  rovingList,
+  shortDate,
+  unspec,
+} from "./data/kit";
 
 export interface InboxCallbacks {
   onBack: () => void;
   onOpen: (screen: MailRoute, param?: string) => void;
 }
 
-const esc = (value: string): string =>
-  value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-
-const SENT = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
+/**
+ * A drawn mark per sender, so the list is not five rows of the word "System".
+ *
+ * The topic is the only thing distinguishing one message from another before its
+ * subject is read, and it was carried by a small grey caption. An icon at the
+ * head of the row does that job in the width the unread dot was already taking.
+ */
+const TOPIC_ICON: Record<MailTopic, Parameters<typeof icon>[0]> = {
+  welcome: "profile",
+  season: "hype-wave",
+  banner: "merch-drop",
+  checkin: "campfire",
+  returning: "hype-wave",
+  news: "info",
+  event: "events",
+};
 
 /** What each topic is called on a row, so the sender line is never just "System". */
 const TOPIC_LABEL: Record<MailTopic, string> = {
@@ -60,7 +86,7 @@ const TOPIC_LABEL: Record<MailTopic, string> = {
 };
 
 const rewardLabel = (reward: MailReward): string =>
-  `<span class="currency-icon clout">◈</span>${reward.amount.toLocaleString()} Clout`;
+  `${cloutIcon(15)}<span class="num">${count(reward.amount)}</span> Clout`;
 
 /** "clears in 12 days", or the promise that it will not. */
 function retentionLine(message: MailMessage, claimable: boolean, now: number): string {
@@ -77,8 +103,10 @@ export function createInboxScreen(content: ContentIndex, callbacks: InboxCallbac
 
   /** Which message is open. Null until the first render picks the newest. */
   let openId: string | null = null;
+  const bag = disposeBag();
 
   const render = (): void => {
+    bag.run();
     const now = Date.now();
     let views = inboxViews(content, now);
 
@@ -100,29 +128,47 @@ export function createInboxScreen(content: ContentIndex, callbacks: InboxCallbac
     const waiting = views.filter((view) => view.claimable).length;
     const open: MailView | null = views.find((view) => view.message.id === openId) ?? null;
 
+    /**
+     * A message row, as a focusable button.
+     *
+     * It was an `<li>` with a click listener and an `aria-hidden` 6px dot, so an
+     * inbox was neither reachable by keyboard nor readable by a screen reader —
+     * and read and unread were the same announcement. Now: a real control, a
+     * `sr-only` "Unread", and a weight change on the subject so the state
+     * survives greyscale as well as a missing colour channel.
+     */
     const listRow = (view: MailView): string => {
       const { message } = view;
+      const open = message.id === openId;
       return `
-        <li class="mail-row ${view.read ? "" : "unread"} ${message.id === openId ? "active" : ""}"
-            data-id="${esc(message.id)}">
-          <span class="mail-dot" aria-hidden="true"></span>
-          <span class="mail-row-body">
-            <span class="mail-row-head">
-              <span class="mail-sender">${esc(TOPIC_LABEL[message.topic])}</span>
-              <span class="mail-date muted">${SENT.format(new Date(message.sentAt))}</span>
+        <li>
+          <button type="button"
+                  class="mail-row d-row mat-panel act d-enter ${view.read ? "" : "unread is-unread"} ${
+                    open ? "active is-open" : ""
+                  }"
+                  data-id="${esc(message.id)}" ${open ? `aria-current="true"` : ""}>
+            ${view.read ? "" : `<span class="sr-only">Unread</span>`}
+            <span class="mail-topic" aria-hidden="true">${icon(TOPIC_ICON[message.topic], 18)}</span>
+            <span class="d-row-body">
+              <span class="mail-row-head">
+                <span class="mail-sender">${esc(TOPIC_LABEL[message.topic])}</span>
+                <span class="mail-date">${esc(shortDate(message.sentAt))}</span>
+              </span>
+              <span class="d-row-title mail-subject">${esc(message.subject)}</span>
+              ${view.claimable ? `<span class="mail-flag">${icon("chest", 12)} Attachment waiting</span>` : ""}
             </span>
-            <span class="mail-subject">${esc(message.subject)}</span>
-            ${view.claimable ? `<span class="mail-flag">Attachment waiting</span>` : ""}
-          </span>
+            <span class="d-dot" aria-hidden="true"></span>
+          </button>
         </li>`;
     };
 
     const reader = (view: MailView | null): string => {
       if (!view) {
         return `
-          <div class="mail-empty">
-            <h2 class="profile-section-title">Nothing in here</h2>
-            <p class="muted">
+          <div class="empty d-enter mail-empty">
+            ${icon("inbox", 40)}
+            <h3 class="t-heading">Nothing in here</h3>
+            <p class="t-body">
               Mail clears itself after ${RETENTION_DAYS} days, so an empty inbox means the last
               month has been quiet rather than that something went missing. Anything holding a
               reward stays until you take it.
@@ -133,38 +179,49 @@ export function createInboxScreen(content: ContentIndex, callbacks: InboxCallbac
       return `
         <article class="mail-reading" data-id="${esc(message.id)}">
           <header class="mail-reading-head">
-            <div class="eyebrow">${esc(TOPIC_LABEL[message.topic])} · ${SENT.format(new Date(message.sentAt))}</div>
-            <h2 class="mail-reading-subject">${esc(message.subject)}</h2>
+            <span class="mail-reading-mark" aria-hidden="true">${icon(TOPIC_ICON[message.topic], 22)}</span>
+            <div class="mail-reading-titles">
+              <div class="t-label">${esc(TOPIC_LABEL[message.topic])} · ${esc(shortDate(message.sentAt))}</div>
+              <h2 class="mail-reading-subject t-display">${esc(message.subject)}</h2>
+            </div>
           </header>
-          <div class="mail-reading-body">
+          <div class="mail-reading-body" id="mail-reading-body">
             ${message.body.map((paragraph) => `<p>${esc(paragraph)}</p>`).join("")}
           </div>
           ${
             message.attachment && message.attachment.length > 0
-              ? `<div class="mail-attachment ${view.claimed ? "claimed" : ""}">
-                   <div class="eyebrow">Attached</div>
+              ? `<div class="mail-attachment mat-well ${view.claimed ? "claimed" : ""}">
+                   <div class="t-label">Attached</div>
                    <div class="mail-attachment-items">
                      ${message.attachment.map((reward) => `<span class="mail-reward">${rewardLabel(reward)}</span>`).join("")}
                    </div>
                    ${
                      view.claimed
-                       ? `<span class="muted">Taken.</span>`
-                       : `<button class="btn btn-primary" id="mail-claim">Take it</button>`
+                       ? `<span class="mail-taken">${icon("check", 14)} Taken</span>`
+                       : `<button type="button" class="mat-hero act r-chip" id="mail-claim">Take it</button>`
                    }
                  </div>`
               : ""
           }
           <footer class="mail-reading-foot">
-            <p class="faint">${esc(retentionLine(message, view.claimable, now))}</p>
+            <p class="mail-retention">${icon("timer", 13)} ${esc(retentionLine(message, view.claimable, now))}</p>
             <div class="mail-actions">
               ${
                 message.link
-                  ? `<button class="btn btn-ghost" id="mail-link" data-screen="${esc(message.link.screen)}"
-                             ${message.link.param ? `data-param="${esc(message.link.param)}"` : ""}>${esc(message.link.label)} →</button>`
+                  ? `<button type="button" class="mat-hero act r-chip" id="mail-link" data-screen="${esc(
+                      message.link.screen
+                    )}"
+                             ${message.link.param ? `data-param="${esc(message.link.param)}"` : ""}>${esc(
+                               message.link.label
+                             )} ${icon("chevron-right", 13)}</button>`
                   : ""
               }
-              <button class="btn btn-ghost" id="mail-delete"
-                      ${view.claimable ? 'disabled title="Take the attachment first — it cannot be thrown away by accident"' : ""}>Delete</button>
+              <button type="button" class="mat-chip act r-chip" id="mail-delete"
+                      ${
+                        view.claimable
+                          ? `disabled title="Take the attachment first — it cannot be thrown away by accident"`
+                          : ""
+                      }>${icon("trash", 13)} Delete</button>
             </div>
           </footer>
         </article>`;
@@ -174,43 +231,55 @@ export function createInboxScreen(content: ContentIndex, callbacks: InboxCallbac
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="inbox-back">← Back</button>
+        <button class="btn btn-ghost" id="inbox-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Inbox</h1>
         <div class="mastery-wallet">
-          <div class="currency"><span class="currency-icon clout">◈</span><span class="currency-value" id="inbox-clout">${profile.clout.toLocaleString()}</span></div>
+          <div class="currency">${cloutIcon(15)}<span class="currency-value num" id="inbox-clout">${count(
+            profile.clout
+          )}</span></div>
         </div>
       </header>
 
-      <main class="inbox-body">
-        <section class="panel panel-chrome inbox-list-panel">
+      <main class="inbox-body data-body data-wide">
+        <section class="mat-panel inbox-list-panel">
           <div class="inbox-list-head">
             <div>
-              <div class="eyebrow">System mail</div>
-              <div class="muted" id="inbox-counts">
-                ${views.length} message${views.length === 1 ? "" : "s"} ·
-                <span id="inbox-unread">${unread}</span> unread${waiting > 0 ? ` · ${waiting} with something attached` : ""}
+              <div class="t-label">System mail</div>
+              <div class="inbox-counts" id="inbox-counts">
+                ${quantify(views.length, "message")} ·
+                <span id="inbox-unread" class="num">${count(unread)}</span> unread${
+                  waiting > 0 ? ` · ${count(waiting)} with something attached` : ""
+                }
               </div>
             </div>
             <div class="inbox-list-actions">
-              <button class="btn btn-ghost btn-sm" id="inbox-read-all" ${unread === 0 ? "disabled" : ""}>Mark all read</button>
-              <button class="btn btn-ghost btn-sm" id="inbox-clear" ${views.every((view) => !view.read || view.claimable) ? "disabled" : ""}>Clear read</button>
+              <button type="button" class="mat-chip act r-chip" id="inbox-read-all" ${
+                unread === 0 ? "disabled" : ""
+              }>${icon("check", 13)} Mark all read</button>
+              <button type="button" class="mat-chip act r-chip" id="inbox-clear" ${
+                views.every((view) => !view.read || view.claimable) ? "disabled" : ""
+              }>${icon("trash", 13)} Clear read</button>
             </div>
           </div>
           <ul class="mail-list" id="mail-list">${views.map(listRow).join("")}</ul>
         </section>
 
-        <section class="panel panel-chrome inbox-reader" id="inbox-reader">${reader(open)}</section>
+        <section class="mat-panel inbox-reader" id="inbox-reader">${reader(open)}</section>
 
-        <section class="panel panel-chrome inbox-deferred">
-          <h3 class="profile-section-title">Who cannot write to you yet</h3>
-          <p class="muted">
-            Offline, the game itself is the only sender. These are the others §4.5.3 describes,
-            and why each one is silent — listed rather than hidden, because a quiet inbox and a
-            broken one look identical from the outside.
+        <section class="mat-panel inbox-deferred">
+          <h3 class="t-heading">Who cannot write to you yet</h3>
+          <p class="t-body">
+            Offline, the game itself is the only sender. Everyone else is listed here with the
+            reason they are silent — listed rather than hidden, because a quiet inbox and a broken
+            one look identical from the outside.
           </p>
           <ul class="mail-deferred-list">
             ${[...DEFERRED_SENDERS]
-              .map(([sender, reason]) => `<li><strong>${esc(sender)}</strong><span class="muted"> — ${esc(reason)}.</span></li>`)
+              .map(
+                ([sender, reason]) =>
+                  `<li class="mat-panel mail-deferred d-enter">${icon("lock", 14)}
+                     <span><strong>${esc(sender)}</strong> — ${esc(unspec(reason))}.</span></li>`
+              )
               .join("")}
           </ul>
         </section>
@@ -253,6 +322,11 @@ export function createInboxScreen(content: ContentIndex, callbacks: InboxCallbac
       const screen = target.dataset["screen"] as MailRoute | undefined;
       if (screen) callbacks.onOpen(screen, target.dataset["param"]);
     });
+
+    enter(root);
+    countUp(root);
+    bag.add(rovingList(root.querySelector<HTMLElement>("#mail-list"), ".mail-row"));
+    bag.add(fadeOnScroll(root.querySelector<HTMLElement>("#mail-list")));
   };
 
   render();
@@ -306,6 +380,7 @@ export function createInboxScreen(content: ContentIndex, callbacks: InboxCallbac
   return {
     root,
     dispose: () => {
+      bag.run();
       delete (window as unknown as { hypeboundInbox?: unknown }).hypeboundInbox;
     },
   };

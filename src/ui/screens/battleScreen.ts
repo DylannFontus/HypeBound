@@ -33,12 +33,13 @@ import { legalChooseTargets } from "../../engine/effects";
 import { BattleView } from "../battle/battleView";
 import { BattleHud } from "../battle/hud";
 import { HandBar } from "../battle/handBar";
+import { motionEnabled } from "../motion";
 import { BattlePresenter } from "../battle/presenter";
 import { audio } from "../../audio/audio";
 import { getSettings, updateSettings } from "../../save/settings";
 import { emoteWheel, wearing } from "../../save/profile";
 import { cosmeticById } from "../../game/cosmetics";
-import { setPlayerCardBack } from "../battle/cardMesh";
+import { cardBackStyleFor, setPlayerCardBack } from "../battle/cardMesh";
 import { getAiProfile } from "../../ai/profiles";
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
@@ -311,6 +312,34 @@ export class BattleScreen {
     const back = (deckBack?.kind === "cardBack" ? deckBack : null) ?? wearing(this.content, "cardBack");
     setPlayerCardBack(back && back.emblem ? { color: back.color, emblem: back.emblem } : null);
 
+    /**
+     * And a readout of what the board *actually* holds, taken from this file's
+     * own import of `cardMesh`.
+     *
+     * `verify:decks` step 12 has reported "could not read the board's card back"
+     * for two waves, and reproduced on both entry routes, with every input
+     * verifiably correct: `activeDeckIndex 0`, `cardBackId
+     * "cardBack:award:gauntlet"`, `cosmeticById` resolving it to
+     * `{color:"#e0b45c", emblem:"bracket"}`, and the call three lines above this
+     * one demonstrably running with those values. The feature was never broken.
+     * The *measurement* was: every one of those scripts read the value with
+     *
+     *     const { cardBackStyleFor } = await import("/src/ui/battle/cardMesh.ts");
+     *
+     * and a Vite dev server that has served an HMR update holds that module in
+     * its graph as `/src/ui/battle/cardMesh.ts?t=1785953576506`. A bare specifier
+     * is a *different URL*, so the browser instantiates a second copy of the
+     * module with its own module-scope `playerCardBack`, still at its initial
+     * `null`. Measured directly: the app's instance reported id `ovpwxdg16y` and
+     * the probe's `zey294vx04`, and a marker written through the probe's copy
+     * survived a whole match untouched.
+     *
+     * The eighth instrument in this project to return a confident wrong answer,
+     * so it gets closed the way the others were: a handle onto the live value,
+     * reachable without importing anything. Scripts read `hypeboundCardBack()`.
+     */
+    (window as unknown as { hypeboundCardBack?: unknown }).hypeboundCardBack = () => cardBackStyleFor(0);
+
     const quality = getSettings().quality;
     this.view = new BattleView(
       this.boardHost,
@@ -320,6 +349,9 @@ export class BattleScreen {
         onInspect: (card) => this.showCardDetail(card),
         onPeek: (card) => this.peekCardDetail(card),
         onNeedsTargets: (instanceId, slot) => this.openTargetFlow(instanceId, slot),
+        // The board lights the socket; this is the same answer on the card the
+        // cursor is actually looking at.
+        onDropFeedback: (state) => this.handBar.setDragValidity(state),
       },
       quality === "auto" ? undefined : quality
     );
@@ -327,7 +359,7 @@ export class BattleScreen {
     this.handBar = new HandBar(this.root, this.content, {
       onDragStart: (instanceId) => this.view.externalDragStart(instanceId),
       onDragMove: (_id, x, y) => this.view.externalDragMove(x, y),
-      onDragEnd: (_id, x, y) => this.view.externalDragEnd(x, y),
+      onDragEnd: (_id, x, y, ghost) => this.view.externalDragEnd(x, y, ghost),
       onInspect: (card) => this.showCardDetail(card),
       onPeek: (card) => this.peekCardDetail(card),
     });
@@ -954,10 +986,27 @@ export class BattleScreen {
    * indication of why, until they happened to Tab back onto the right element.
    * `verify:keyboard` caught it on the very first Tab after the mulligan.
    */
-  private dismissOverlay(): void {
-    this.overlay?.remove();
+  private dismissOverlay(exitMs = 0): void {
+    const overlay = this.overlay;
     this.overlay = null;
     if (!this.ended) this.root.focus();
+    if (!overlay) return;
+    /**
+     * `exitMs` is opt-in because most dismissals want the overlay gone now — a
+     * chooser closing, a settings panel, the handoff screen. Only the mulligan
+     * asks for an exit, and it asks for one because that dismissal is a screen
+     * transition rather than a panel closing.
+     *
+     * It stops taking clicks on the same tick it starts leaving. A dead panel
+     * that still swallows the first click on the board is worse than a hard cut.
+     */
+    if (exitMs <= 0 || !motionEnabled()) {
+      overlay.remove();
+      return;
+    }
+    overlay.style.pointerEvents = "none";
+    overlay.classList.add("leaving");
+    window.setTimeout(() => overlay.remove(), exitMs);
   }
 
   /** Opening mulligan: click cards to mark them for replacement. */
@@ -968,21 +1017,40 @@ export class BattleScreen {
 
     const panel = document.createElement("div");
     panel.className = "mulligan-panel panel panel-chrome";
+    /**
+     * The rule and the head share one wrapper, and the wrapper is the reason a
+     * finger can start a match.
+     *
+     * They are prose; the cards and Confirm are the task. When the panel is
+     * taller than the screen — 160% text on a 390px phone carries 262px of
+     * type before a single card is drawn, and a Remix rule is 87px of that —
+     * something has to give, and it must not be the thing you tap. One wrapper
+     * makes them a single flexible, scrollable band that `battle.css` can
+     * squeeze ahead of everything else, instead of two rigid siblings that
+     * pushed Confirm 109px past the bottom of the viewport with nothing in the
+     * chain able to scroll to it.
+     *
+     * Nothing else about them changes: `.mulligan-rule-name` and
+     * `.mulligan-rule-text` are what `verify-remix.mjs` reads, and both are
+     * still exactly where they were.
+     */
     panel.innerHTML = `
-      ${
-        this.options.ruleNote
-          ? `<div class="mulligan-rule" id="mulligan-rule">
-               <span class="mulligan-rule-name">${this.options.ruleNote.name}</span>
-               <span class="mulligan-rule-text">${this.options.ruleNote.text}</span>
-             </div>`
-          : ""
-      }
-      <div class="mulligan-head">
-        <div class="eyebrow">Opening Hand</div>
-        <h2 class="title">Choose cards to replace</h2>
-        <p class="muted">Selected cards are shuffled back and replaced. You go ${
-          view.activeSeat === view.seat ? "first" : "second — you start with an extra card and Borrowed Clout"
-        }.</p>
+      <div class="mulligan-brief">
+        ${
+          this.options.ruleNote
+            ? `<div class="mulligan-rule" id="mulligan-rule">
+                 <span class="mulligan-rule-name">${this.options.ruleNote.name}</span>
+                 <span class="mulligan-rule-text">${this.options.ruleNote.text}</span>
+               </div>`
+            : ""
+        }
+        <div class="mulligan-head">
+          <div class="eyebrow">Opening Hand</div>
+          <h2 class="title">Choose cards to replace</h2>
+          <p class="muted">Selected cards are shuffled back and replaced. You go ${
+            view.activeSeat === view.seat ? "first" : "second — you start with an extra card and Borrowed Clout"
+          }.</p>
+        </div>
       </div>`;
 
     const cardRow = document.createElement("div");
@@ -1013,8 +1081,38 @@ export class BattleScreen {
     const confirm = document.createElement("button");
     confirm.className = "btn btn-primary";
     confirm.textContent = "Confirm";
+    /**
+     * The one moment §3a singles out by name — "entering the game: the big one.
+     * It should feel like a curtain going up, not a route change" — and it was
+     * the hardest cut in the build. Measured by screencast: clicking Confirm left
+     * the panel completely unchanged for 627ms with no press state and no exit,
+     * and then the board appeared fully settled — hand fanned, leaders in place,
+     * everything at rest — in the very next 30ms frame at t=657. Zero overlap,
+     * zero stagger, 627ms of dead air in front of a hard cut.
+     *
+     * The panel now leaves *while* the board arrives. The curtain starts on the
+     * same tick as the click, so the leaders are already rising behind a panel
+     * that is still shrinking, and the intent is submitted immediately rather
+     * than after the animation — a transition must never delay input.
+     */
+    /**
+     * …and even that left 229ms in which the screen was pixel-identical.
+     *
+     * Re-measured on a 60fps screencast: after Confirm, nothing changed for
+     * 229ms, and *then* the 92ms of correct curtain overlap began. The overlap
+     * is right and stays; the dead air in front of it was the button never
+     * painting a press state, so the frames between the click and the first
+     * layout work had nothing in them. §5 asks for 80–140ms of micro-feedback
+     * and the only moment that can deliver it is `pointerdown`, before the
+     * handler that causes the wait has been entered.
+     */
+    confirm.addEventListener("pointerdown", () => confirm.classList.add("pressed"));
+    for (const event of ["pointerup", "pointercancel", "pointerleave"] as const) {
+      confirm.addEventListener(event, () => confirm.classList.remove("pressed"));
+    }
     confirm.addEventListener("click", () => {
-      this.dismissOverlay();
+      this.view.playCurtain();
+      this.dismissOverlay(200);
       void this.submit({ type: "mulligan", seat: view.seat, replaceInstanceIds: [...selected] });
     });
     actions.appendChild(confirm);
@@ -1364,8 +1462,23 @@ export class BattleScreen {
     return new Promise((resolve) => {
       const overlay = this.mountOverlay("confirm-overlay");
       const panel = document.createElement("div");
-      panel.className = "panel panel-chrome confirm-panel";
-      panel.innerHTML = `<h3 class="title">${title}</h3><p class="muted">${body}</p>`;
+      /**
+       * The two questions the game stops for, on the material everything else
+       * is on.
+       *
+       * This is the End Turn confirm and, through the same method, the concede
+       * confirm — the only two modals a player sees mid-match, and both were
+       * still `base.css`'s `.panel`: a flat glass fill, one 1px border and one
+       * inset highlight, floating over a board built entirely out of
+       * `foundation.css` materials. `battle.css` had already been written as if
+       * this were a material — the rule above it sets `--cast-lift: 3.2` on
+       * `.confirm-panel`, which is a knob only a `mat-*` surface reads — so the
+       * panel was quietly ignoring the one thing its own stylesheet asked it
+       * for. `r-panel` rather than a literal, because a modal is a panel and
+       * `.panel`'s `--radius-lg` was a different number from the material's 18.
+       */
+      panel.className = "mat-panel r-panel confirm-panel";
+      panel.innerHTML = `<h3 class="t-heading">${title}</h3><p class="t-body">${body}</p>`;
 
       const actions = document.createElement("div");
       actions.className = "row center";

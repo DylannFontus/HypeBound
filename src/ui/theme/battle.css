@@ -4,13 +4,31 @@
 
 .battle-screen { background: var(--bg-void); }
 
-/* The board reserves the upper area; the hand owns the strip beneath it, so
-   the play area is never covered by the player's own cards. */
 /* The board fills the whole screen. The hand OVERLAPS its lower margin rather
    than occupying a reserved strip — exactly as the reference does — and the
-   cards hang off the bottom edge, small until hovered. */
+   cards hang off the bottom edge, small until hovered.
+
+   `--board-inset-top` and `--board-inset-bottom` are written onto :root by
+   scene.ts on every resize. They are the bands the camera framing deliberately
+   keeps clear of the leaders, so anything the HUD floats over the board can be
+   positioned against the real numbers instead of a guess. They are absent until
+   a board exists, so every use needs a fallback.
+
+   Every drop shadow below is offset 4.4:7.1 rather than straight down, because
+   the key light is at 315° everywhere in this game and a card in the hand is
+   two inches from a card on the mat. See LIGHT_RIG / shadowOffset in
+   src/ui/art/texture.ts — this is the same ratio, spelled out in CSS. */
 :root {
   --hand-card-height: 17.5vh;
+  /* Mirrored in scene.ts as HAND_HOVER_SCALE, which is what the camera reserves
+     the bottom inset against. The two must move together or the hand starts
+     covering the player's own leader again — see insetsFor(). */
+  --hand-hover-scale: 1.3;
+  /* A deal is longer than a UI transition and shorter than a set-piece: the
+     card has to cross most of the mat and turn over on the way, and it happens
+     several times a turn. Derived from the shared token so the reduced-motion
+     override in base.css takes it down with everything else. */
+  --dur-deal: calc(var(--dur-med) * 1.6);
 }
 
 .battle-board-host {
@@ -39,17 +57,56 @@
 
 .hand-card {
   position: absolute;
-  /* hangs off the bottom edge, so only the upper part of a resting card shows */
-  bottom: calc(var(--hand-card-height) * -0.14);
+  /* Nothing in the hand is ever below the fold.
+     At -0.14 the whole lower stat row of every card was off screen, so a
+     ten-card hand showed cost gems and art and nothing you plan a turn with.
+     `--fan-drop` is written by handBar.layout() and is the exact number of
+     pixels the fan's outermost tilted corner reaches below an untilted card,
+     so the strip sits on top of its own deepest point rather than on a
+     hand-guessed offset that is right at one card size. */
+  bottom: var(--fan-drop, 0px);
   cursor: grab;
   transform-origin: 50% 100%;
-  transform: rotate(var(--tilt, 0deg)) translateY(var(--lift, 0px));
+  /* `--spread-x/y` is the shove a neighbour takes when the card next to it is
+     read. It is applied before the fan rotation so it travels in screen space:
+     the card beside the read goes sideways, not sideways-along-its-own-tilt. */
+  /* `--ready` is the fan's answer to "can I play this", and it is a POSITION
+     rather than a colour. The gold rim below says the same thing in hue, and
+     hue on its own is banned as a signal; a card that can be played standing
+     seven pixels proud of one that cannot is readable in greyscale, at 844px
+     wide, and by somebody who cannot tell the rim from the frame. */
+  transform: translate(var(--spread-x, 0px), var(--spread-y, 0px)) rotate(var(--tilt, 0deg))
+    translateY(calc(var(--lift, 0px) + var(--ready, 0px)));
   transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast) var(--ease-out);
-  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.65));
-  /* `backwards`, NOT `both`: with `both` the finished animation keeps applying
-     its final keyframe, and because CSS animations outrank normal declarations
-     that permanently defeats the :hover transform below. */
-  animation: hand-card-in var(--dur-med) var(--ease-out) backwards;
+  filter: drop-shadow(4.4px 7.1px 18px rgba(0, 0, 0, 0.65));
+  /**
+   * The entrance runs on `translate`/`scale`, not on `transform`.
+   *
+   * They are separate animatable properties and they compose *before*
+   * `transform`, so a keyframe can carry a card in from the deck without ever
+   * having to restate the fan's rotation, the neighbour shove or the hover —
+   * which is what the old `backwards` note below was working around. Nothing
+   * the entrance does can now defeat `:hover`, because they are not writing to
+   * the same property at all.
+   *
+   * `animation-delay` reads `--enter-delay`, which is what `stagger()` has been
+   * writing all along. Before this line the property was written by
+   * `handBar.sync` and `battleView.playCurtain`, computed correctly, and read
+   * by nothing: `grep -n enter-delay src/ui/theme/battle.css` returned zero
+   * hits and six cards logged `animationstart` at an identical millisecond.
+   * §3a names a 30–60ms cascade as the single biggest perceived-quality gap
+   * between a hobby menu and a shipped one, and this is the line that was
+   * missing.
+   */
+  animation: hand-card-in var(--dur-deal) var(--ease-out) var(--enter-delay, 0ms) backwards;
+}
+
+/* The turn is the inner wrapper's job; the fan is the outer element's. */
+.hand-card-flip {
+  display: block;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: hand-card-turn var(--dur-deal) var(--ease-out) var(--enter-delay, 0ms) backwards;
 }
 
 .hand-card canvas {
@@ -57,41 +114,180 @@
   width: auto;
   height: var(--hand-card-height);
   border-radius: 10px;
+  backface-visibility: hidden;
 }
 
+/* The other side of the same object: `renderCardBack` on a canvas, taken to a
+   data URI once per session by `handBar.ts`, so seven cards turning over cost
+   one decode rather than seven card renders. */
+.hand-card-back {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background-position: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  backface-visibility: hidden;
+  transform: rotateY(180deg);
+}
+
+/**
+ * A card comes out of the deck, face down, and turns over on the way.
+ *
+ * `--from-x`/`--from-y` are written by `handBar.aimAtPile()` from the deck
+ * stack's projected screen position — the plinth is a real object on the mat and
+ * `BattleView` publishes where it is — so the travel is a straight line from the
+ * pile the player can watch draining, not a 40px rise out of thin air. The
+ * midpoint pulls the path off that line so it arcs, and the scale ramp does the
+ * perspective: a card at the far end of the mat is small.
+ *
+ * The fallback keeps a hand working before the board has projected anything
+ * (the first sync, and every test without a GPU): 40px and no lateral travel,
+ * which is exactly the entrance this replaces.
+ */
 @keyframes hand-card-in {
-  from { opacity: 0; transform: translateY(40px) scale(0.9); }
-  to { opacity: 1; }
+  0% {
+    opacity: 0;
+    translate: var(--from-x, 0px) var(--from-y, 40px);
+    scale: 0.38;
+  }
+  14% {
+    opacity: 1;
+  }
+  58% {
+    translate: calc(var(--from-x, 0px) * 0.3) calc(var(--from-y, 40px) * 0.3 - 26px);
+    scale: 0.84;
+  }
+  100% {
+    opacity: 1;
+    translate: none;
+    scale: 1;
+  }
+}
+
+@keyframes hand-card-turn {
+  0% {
+    transform: perspective(760px) rotateY(176deg) rotateZ(-10deg);
+  }
+  58% {
+    transform: perspective(760px) rotateY(74deg) rotateZ(-4deg);
+  }
+  100% {
+    transform: perspective(760px) rotateY(0deg) rotateZ(0deg);
+  }
 }
 
 /* Hover enlarges dramatically and straightens the card — this is how the
    reference keeps a small resting hand fully readable on demand. */
+/* The lift is now small because the card barely hangs off the edge at all, and
+   the scale is capped at the number the camera reserves space for. At 1.85 the
+   focused card measured 220x291 at 1600x900 and covered the player's own leader
+   medallion outright; the full-size read lives in press-and-hold and
+   right-click, neither of which is on top of the board. */
 .hand-card:hover {
-  /* Scaling alone is not enough: the origin is the card bottom, which sits
-     BELOW the viewport, so a pure scale keeps the stat chips off-screen. Lift
-     it just enough to clear the edge -- but only that much, because a large
-     translate moves the card out from under the cursor and hover oscillates. */
-  transform: rotate(0deg) translateY(calc(var(--hand-card-height) * -0.3)) scale(1.85);
+  transform: rotate(0deg) translateY(calc(var(--hand-card-height) * -0.06)) scale(var(--hand-hover-scale));
   z-index: 200 !important;
-  filter: drop-shadow(0 22px 38px rgba(0, 0, 0, 0.85));
+  filter: drop-shadow(9.6px 15.6px 38px rgba(0, 0, 0, 0.85));
+}
+
+/* The hovered card's own spread is dropped: it is the thing being made room
+   for, and it straightens rather than sliding. */
+.hand-card:hover {
+  --spread-x: 0px;
+  --spread-y: 0px;
+}
+
+/**
+ * ## Light the ones you can play; do not put the others out
+ *
+ * This pair used to be the wrong way round, and it made the hand the darkest
+ * object on the screen for the whole opening of every match. An unaffordable
+ * card wore `grayscale(0.55) brightness(0.55)`, and on turn one that is six of
+ * seven cards: the play surface behind them measures L*≈80 and the row of cards
+ * lying over it came back at roughly a third of that, so the single thing the
+ * player is supposed to be reading was a strip of near-black under a lit board.
+ * The reference does not do this. Frames 60 and 150 of `hearthstone_frames/`
+ * both show a hand at 0/6 mana — nothing playable at all — and every card in it
+ * is at full brightness and full saturation. What changes there is that the
+ * affordable ones gain a glow, not that the rest lose their light.
+ *
+ * So: the playable card is the lit one. It carries the rim, an outward bloom and
+ * `--ready`, which stands it proud of the fan. The unaffordable one keeps its
+ * artwork, keeps its text legible, and simply has none of that — the difference
+ * between a card and the same card wearing three extra things, which is a much
+ * larger read than it sounds and costs no contrast at all.
+ *
+ * ## ...and the light it is lit with is a colour this game actually owns
+ *
+ * This was `rgba(150, 255, 190, …)` — a saturated lime at hue 145° — and green
+ * is not in HYPEBOUND's board vocabulary anywhere else. The mat is violet, the
+ * player's rim light and leader ring are `--accent-hot`, the rival's are
+ * `--accent-cool`, the Hype crystals are cyan and the legendary furniture is
+ * gold. Five to seven lime outlines along the bottom of that were the only
+ * object on the board wearing a hue with no relatives, and at seven cards it is
+ * the most repeated colour on the screen — which is §6's "the most saturated
+ * thing on screen should be the thing that matters most" spent on a hue that
+ * means nothing here.
+ *
+ * Warm, because that is what the reference does: frames 60 and 150 of
+ * `hearthstone_frames/` light an affordable card with a warm gold-white halo,
+ * not with a status green. `--current-halo` (#ffd86b) carries the rim and
+ * `--accent-gold` (#ffcc66) the bloom — the same two tokens the legendary
+ * furniture and the Halo Current are drawn from, written as literals here
+ * because these are `outline`/`box-shadow` colour stops and battle.css states
+ * its colours the same way throughout.
+ *
+ * The dark hairline under the rim moved with it: it was a dark *green*
+ * (`rgba(8,40,24)`), which is what stops a bright rim from vibrating against
+ * the card's own frame, and a warm rim wants a warm shadow or the join reads as
+ * two different lights.
+ */
+.hand-card.playable {
+  --ready: -7px;
+  filter: drop-shadow(4.4px 7.1px 18px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 10px rgba(255, 204, 102, 0.32));
 }
 
 .hand-card.playable canvas {
-  outline: 2px solid rgba(125, 255, 176, 0.85);
+  outline: 2px solid rgba(255, 216, 107, 0.94);
   outline-offset: -2px;
-  box-shadow: 0 0 20px rgba(125, 255, 176, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(44, 25, 4, 0.6),
+    0 0 26px rgba(255, 204, 102, 0.46);
 }
 
+/**
+ * The unaffordable card is *recessive*, and there is deliberately no
+ * `brightness()` in it at all.
+ *
+ * Any multiplier under 1 costs contrast, and it costs it on exactly the text a
+ * player squints at: the ratio between light rules text and its dark plate goes
+ * as `(kL₁+0.05)/(kL₂+0.05)`, so a card whose text renders at a lawful 4.5:1
+ * lands at 4.36:1 under `brightness(0.9)` and at **3.63:1** under the 0.55 this
+ * replaces. §9 does not have a clause for "only on the cards you cannot afford".
+ * Saturation is the one knob that recedes a card without moving its luminance —
+ * the frame and the art desaturate, the near-neutral type does not — and the
+ * rest of the signal is carried by what the card is *missing*: no rim, no bloom,
+ * and no `--ready`, so it sits at the fan's own baseline seven pixels below the
+ * ones you can play. That half survives greyscale, which is the point.
+ */
 .hand-card.unplayable {
   cursor: default;
-  filter: grayscale(0.55) brightness(0.55) drop-shadow(0 8px 14px rgba(0, 0, 0, 0.6));
+  filter: saturate(0.82) drop-shadow(3.5px 5.7px 14px rgba(0, 0, 0, 0.62));
 }
 
 /* An unaffordable card still enlarges on hover — you need to read the cards you
-   cannot pay for yet. It stays desaturated and refuses to drag instead. */
+   cannot pay for yet. It comes fully back to colour while it is being read, and
+   refuses to drag instead. */
 .hand-card.unplayable:hover {
-  transform: rotate(0deg) translateY(calc(var(--hand-card-height) * -0.3)) scale(1.8);
-  filter: grayscale(0.45) brightness(0.78) drop-shadow(0 20px 34px rgba(0, 0, 0, 0.8));
+  transform: rotate(0deg) translateY(calc(var(--hand-card-height) * -0.06)) scale(var(--hand-hover-scale));
+  filter: saturate(1) drop-shadow(8.8px 14.1px 34px rgba(0, 0, 0, 0.8));
+}
+
+/* `.hand-card.playable` and `.hand-card:hover` have identical specificity and
+   the playable rule is written later, so without this the lit card would keep
+   its resting shadow while every other card in the fan grew one. */
+.hand-card.playable:hover {
+  filter: drop-shadow(9.6px 15.6px 38px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 14px rgba(255, 204, 102, 0.36));
 }
 
 .hand-card.dragging {
@@ -100,12 +296,42 @@
 }
 
 .hand-card.leaving {
-  animation: hand-card-out var(--dur-med) var(--ease-in-out) both;
+  animation: hand-card-out var(--dur-deal) var(--ease-in-out) both;
   pointer-events: none;
 }
 
+.hand-card.leaving .hand-card-flip {
+  animation: hand-card-away var(--dur-deal) var(--ease-in-out) both;
+}
+
+/**
+ * ...and a card that leaves goes to the discard tray, which is a real object on
+ * the mat with a height that grows as it fills.
+ *
+ * `translateY(-70px)` sent every discard straight up off the top of the screen,
+ * towards nothing — the mirror image of cards materialising 40px below where
+ * they land. `--exit-x/y` are the discard pile's projected screen position,
+ * written by `handBar.aimAtPile()`; the same fallback applies when there is no
+ * board to project from.
+ */
 @keyframes hand-card-out {
-  to { opacity: 0; transform: translateY(-70px) scale(0.85); }
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: var(--exit-x, 0px) var(--exit-y, -70px);
+    scale: 0.4;
+  }
+}
+
+@keyframes hand-card-away {
+  0% {
+    transform: perspective(760px) rotateY(0deg);
+  }
+  100% {
+    transform: perspective(760px) rotateY(112deg);
+  }
 }
 
 /* the card that follows the cursor while dragging */
@@ -115,21 +341,185 @@
   top: 0;
   z-index: 300;
   pointer-events: none;
-  filter: drop-shadow(0 22px 34px rgba(0, 0, 0, 0.75));
+  filter: drop-shadow(9.6px 15.6px 34px rgba(0, 0, 0, 0.75));
 }
 
+/**
+ * ## Carried is its own state, and it used to be the smallest of the three
+ *
+ * The ghost rendered at `--hand-card-height - 20px` — smaller than a resting
+ * card and far smaller than the 1.3x hover — and wore `rgba(125,255,176,0.9)`,
+ * which is `.hand-card.playable`'s outline to within five per cent of alpha. So
+ * rest, hover and *held* were three states with two appearances, and the one
+ * the player was actively doing was the one that looked like it had shrunk.
+ *
+ * Held is now the largest, and it is lit rather than outlined.
+ *
+ * It used to be told apart from the resting card by *hue* — warm here, green
+ * there. The resting card is warm now too (see `.hand-card.playable`), so the
+ * separation is carried by **rank** instead, which is the same argument
+ * `foundation.css` makes for its materials: hero 1.0, panel 0.55, chip 0.35 are
+ * one material at three amplitudes, not three materials. So the ladder up from
+ * the mat is one light getting stronger — gold rim at 0.94 on a resting card,
+ * near-white at 0.96 with twice the bloom on the one in your hand, at 1.4x the
+ * size, with a ground shadow that has visibly left the floor. Three of those
+ * four differences survive greyscale.
+ *
+ * What stays a *hue* change is the answer to a different question: green and
+ * red below are "this will land here" / "it will not", and they agree with the
+ * pool `vfx.ts` paints on the mat directly under the card.
+ */
 .hand-drag-ghost canvas {
   display: block;
   width: auto;
-  height: calc(var(--hand-card-height) - 20px);
+  height: calc(var(--hand-card-height) * var(--hand-hover-scale) * 1.08);
   border-radius: 12px;
-  outline: 2px solid rgba(125, 255, 176, 0.9);
-  outline-offset: -2px;
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(255, 247, 231, 0.96),
+    0 0 34px rgba(255, 204, 102, 0.5);
+  transition:
+    box-shadow var(--dur-fast) var(--ease-out),
+    scale var(--dur-fast) var(--ease-snap);
+  scale: 0.86;
 }
 
-:root[data-reduced-motion="true"] .hand-card {
+/* One frame after pickup: the card rises. `scale` rather than `transform`
+   because the ghost's transform is the pointer follow plus the swing, and the
+   two must not fight over the same property sixty times a second. */
+.hand-drag-ghost.lifted canvas {
+  scale: 1;
+}
+
+/**
+ * The ground shadow, separating.
+ *
+ * Its own composited layer under the card rather than a `drop-shadow` on it,
+ * because a filter shadow is welded to its object: it can soften but it cannot
+ * move away, so lifting a card looked exactly like sliding one. This starts
+ * tight and dark under the card and, over the same 160ms the card scales up,
+ * grows, drops and fades — which is the whole read of an object coming off a
+ * surface. A pre-blurred radial gradient scaled by the compositor, so there is
+ * no blur radius being re-rasterised while the pointer moves.
+ */
+.hand-drag-shadow {
+  position: absolute;
+  left: 50%;
+  top: 78%;
+  width: calc(var(--hand-card-height) * 0.9);
+  height: calc(var(--hand-card-height) * 0.3);
+  margin-left: calc(var(--hand-card-height) * -0.45);
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(3, 1, 8, 0.72), rgba(3, 1, 8, 0.28) 58%, transparent 100%);
+  transform: translate3d(0, 0, 0) scale(0.6);
+  opacity: 0.9;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+
+.hand-drag-ghost.lifted .hand-drag-shadow {
+  transform: translate3d(6%, 34%, 0) scale(1.25);
+  opacity: 0.5;
+}
+
+/**
+ * The card answers the same question the floor under it is answering. A drop
+ * that will be refused has to look refused at the cursor, because that is where
+ * the player is looking — an illegal drag and a legal one were pixel-identical
+ * before this, on both the card and the board.
+ *
+ * ## This is the one green left in the hand, and it is a token
+ *
+ * `--success` (#4ade80), not the invented `rgba(150,255,195)` pale lime that
+ * used to be here — the refusal below is already `--danger` (#ff4d6a) under a
+ * lighter ring. Legality is a *binary answer to a question the player has just
+ * asked*, it is on screen only while a card is being carried, and green-yes /
+ * red-no is what `base.css` keeps that pair of tokens for. That is a different
+ * job from the resting hand's "you can afford this", which was wearing the same
+ * hue for five to seven cards at a time and is now warm — see
+ * `.hand-card.playable`.
+ *
+ * Not colour alone: `.drop-blocked` also greys and dims the whole ghost, and the
+ * board answers underneath at the same time.
+ *
+ * Two other places on the board answer this question and they do not agree with
+ * each other: `board.ts` lights its drop pool violet (`0x9a6cff`) and `vfx.ts`
+ * spills the old lime (`0x7dffb0`). Both are outside this file's ownership;
+ * whoever holds them next should bring them onto these two tokens.
+ */
+.hand-drag-ghost.drop-valid canvas {
+  box-shadow:
+    0 0 0 2px rgba(74, 222, 128, 1),
+    0 0 34px rgba(74, 222, 128, 0.62);
+}
+
+.hand-drag-ghost.drop-blocked {
+  filter: grayscale(0.7) brightness(0.72) drop-shadow(9.6px 15.6px 34px rgba(0, 0, 0, 0.75));
+}
+
+.hand-drag-ghost.drop-blocked canvas {
+  box-shadow:
+    0 0 0 2px rgba(255, 120, 145, 0.98),
+    0 0 26px rgba(255, 77, 106, 0.55);
+}
+
+/* While it flies to the slot it must not take the pointer or repaint its
+   shadow: the whole animation is transform and opacity so it composites. */
+.hand-drag-ghost.flying {
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/*
+ * The frame between letting go and the token existing.
+ *
+ * The ghost stops being a card being dragged and becomes a card that has been
+ * put down, so the two things that said "I am in your hand" — the legality
+ * outline and the big lifted drop shadow — come off. Underneath it the real
+ * board token is being placed at the same point at the same apparent size, and
+ * the pair cross-fade over 90ms; the closer the ghost looks to the token during
+ * that window, the less there is to notice.
+ */
+.hand-drag-ghost.handed-off {
+  pointer-events: none;
+  filter: drop-shadow(3px 5px 10px rgba(0, 0, 0, 0.55));
+  will-change: opacity;
+}
+.hand-drag-ghost.handed-off canvas {
+  box-shadow: none;
+}
+
+/* The card has been put down, so it is not lifted off anything any more. */
+.hand-drag-ghost.handed-off .hand-drag-shadow {
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.7);
+}
+
+:root[data-reduced-motion="true"] .hand-card,
+:root[data-reduced-motion="true"] .hand-card-flip,
+:root[data-reduced-motion="true"] .hand-card.leaving,
+:root[data-reduced-motion="true"] .hand-card.leaving .hand-card-flip {
   animation: none;
   transition: none;
+}
+
+/* ...and the card is face-up and where it belongs, rather than parked at
+   whatever the first keyframe happened to be. */
+:root[data-reduced-motion="true"] .hand-card {
+  translate: none;
+  scale: 1;
+}
+
+:root[data-reduced-motion="true"] .hand-card-flip {
+  transform: none;
+}
+
+:root[data-reduced-motion="true"] .hand-drag-ghost canvas,
+:root[data-reduced-motion="true"] .hand-drag-shadow {
+  transition: none;
+  scale: 1;
 }
 
 @media (max-height: 620px) {
@@ -180,28 +570,126 @@
 
 /* ---- leader plates ------------------------------------------------------ */
 
+/*
+ * The plate is `.mat-panel` (see hud.ts) — the 315° gradient, the lit rim, the
+ * unlit lip, the soft drop, the 2px contact shadow and the grain all arrive
+ * with the class. What is left here is the shape and the fact that it is a
+ * button. It carried `background: var(--glass-strong); border: 1px solid
+ * var(--glass-border)` and nothing else, which is §1's banned pair, and which
+ * put a second sun ten pixels from the action log's top-lit panel.
+ *
+ * ## Why it is no longer a pill
+ *
+ * It wore `--r-chip`, which the foundation reserves for "pills and chips only",
+ * and the cost of that was visible the moment the two rails were stacked into
+ * columns: dial at 18px, plate at 999px, ability tiles at 14px — three radii
+ * down one 214px-wide edge, which is §7's first craft line failed in the place
+ * it is easiest to see. A leader plate is structural furniture: it is a panel,
+ * at the panel's radius and the panel's amplitude.
+ */
 .leader-plate {
   position: absolute;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-2);
-  border-radius: var(--radius-pill);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(14px);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
   cursor: pointer;
-  transition: border-color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
-  max-width: 340px;
+  transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast) var(--ease-out);
+  /* 340px at the default size — see the rail width note above for why a cap on
+     something made of text is written in rem. */
+  max-width: min(21.25rem, 34vw);
 }
-.leader-plate:hover { border-color: var(--leader-color, var(--accent)); transform: translateX(-50%) translateY(-2px); }
+/* A leftover from when both plates were centre-anchored: `translateX(-50%)` on
+   hover threw the plate half its own width to the left. Neither is centred any
+   more, and the lift is the interaction. */
 
-/* Plates anchor beside their 3D podiums (board left) so the hand fan below
-   and the character rows in the middle both stay completely unobstructed. */
-/* Anchored within the board area, which stops above the hand bar. */
-.leader-plate-enemy { top: var(--sp-3); left: var(--sp-4); }
-.leader-plate-player { bottom: var(--sp-3); left: var(--sp-4); }
-.leader-plate:hover { transform: translateY(-2px); }
+/*
+ * The bottom-left corner is ONE column, and it is a real one now.
+ *
+ * The three blocks — Obsession dial, leader plate, ability rail — were each
+ * absolutely positioned against the same corner and separated by two measured
+ * constants, `--rail-h: 104px` and `--plate-h: 84px`. Constants are correct at
+ * exactly one text size: at `--ui-scale: 1.4` the rail grew past its 104px and
+ * the "Drop the Bass" panel's top edge cut through the plate's meta row, so the
+ * player's own hand, deck and discard counts were unreadable — and the 3D
+ * medallion, the only other place that information appears, sits behind the
+ * hand. A flex column packs itself at every scale and cannot drift.
+ *
+ * `align-items: flex-start` rather than `stretch`, because the dial and the rail
+ * are different widths on purpose and stretching would tie them together.
+ */
+.hud-corner {
+  position: absolute;
+  left: var(--sp-4);
+  bottom: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  max-height: calc(100% - var(--sp-6));
+}
+/*
+ * Named rather than `> *`, and that is a specificity fix rather than a style.
+ * `.obsession-dial { position: absolute }` is declared further down this file,
+ * so a bare `.hud-corner > *` loses to it on source order and the dial went on
+ * painting itself in the corner underneath the plate.
+ */
+.hud-corner > .leader-plate,
+.hud-corner > .obsession-dial,
+.hud-corner > .ability-bar {
+  position: static;
+  transform: none;
+}
+
+/*
+ * The rival's rail is the player's, on the other edge of the same axis.
+ *
+ * Both columns paint dial-above-plate, so the pair the player is being asked to
+ * compare is the same two objects in the same order in both places rather than
+ * one on the centre line above the rival's medallion and one buried under the
+ * player's own ability buttons. `column-reverse` rather than a second DOM order,
+ * because a screen reader should hear "who, then how obsessed they are" on both
+ * sides and only the painting is flipped.
+ */
+.hud-corner-rival {
+  top: var(--sp-3);
+  bottom: auto;
+  flex-direction: column-reverse;
+}
+
+/*
+ * One width for everything in a rail, so the rail has an edge.
+ *
+ * The dial was 214px and the plate was whatever its leader's name came to, which
+ * left four blocks down the left of the screen with four different right-hand
+ * edges — the "unrelated rectangles pinned to corners" reading, in miniature.
+ * A shared width turns the stack into one column with a silhouette. Guarded to
+ * viewports tall enough to stack, because the short layout lays the rival's rail
+ * on its side and the plate has to be free to be as wide as its name there.
+ *
+ * ## Why it is a rem and not the 214px it was
+ *
+ * A column width in device pixels is only correct at one text size, and this one
+ * holds two things that are made of text. Measured at `--ui-scale: 1.4` with the
+ * rail pinned at 214px: "DJ Last Call" needed 125px inside a 118px box and lost
+ * its last glyph, and the leader ability's own description needed 417px inside
+ * the same 166px and printed "Deal 2 damage to a charact…" — a control whose
+ * entire job is to say what it does, saying a third of it. 13.375rem is the same
+ * 214px at the default size and grows with the type; the `vw` term is what stops
+ * a 1280-wide window handing a fifth of itself to the rail.
+ */
+@media (min-height: 521px) {
+  .hud-corner > .leader-plate,
+  .hud-corner > .obsession-dial,
+  .hud-corner > .ability-bar {
+    width: var(--rail-w, min(13.375rem, 20vw));
+    box-sizing: border-box;
+  }
+}
+.leader-plate:hover { transform: translateY(-2px) scale(1.015); --rim-boost: 2; }
+.leader-plate:active { transform: scale(0.99); --cast-lift: 0; }
 
 .leader-orb {
   position: relative;
@@ -233,7 +721,16 @@
   text-shadow: 0 2px 4px rgba(0,0,0,0.9);
 }
 .leader-orb-value .hp { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700; }
-.leader-orb-value .armor { font-size: var(--fs-xs); color: var(--accent-cool); }
+/* The shield is module C's drawing now, not U+26CA, so it needs an optical size
+   and a baseline of its own rather than a font's opinion of both. */
+.leader-orb-value .armor {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: var(--fs-xs);
+  color: var(--accent-cool);
+}
+.leader-orb-value .armor svg { width: 11px; height: 11px; flex: none; }
 
 .leader-info { min-width: 0; }
 .leader-name { font-family: var(--font-display); font-weight: 600; font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -244,18 +741,18 @@
 
 /* ---- obsession dials ---------------------------------------------------- */
 
+/* `.mat-panel` in hud.ts carries the surface; this is the shape and the size. */
 .obsession-dial {
   position: absolute;
   width: 214px;
   padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(12px);
-  transition: border-color var(--dur-med), box-shadow var(--dur-med);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
+  transition: box-shadow var(--dur-med);
 }
+/* The rival's dial lives in `.hud-corner-rival` now (see hud.ts). This is the
+   fallback for any host that mounts the dial outside a rail. */
 .obsession-enemy { top: var(--sp-3); left: 50%; transform: translateX(-50%); }
-.obsession-player { bottom: 84px; left: var(--sp-4); }
 
 .obsession-dial.danger {
   border-color: var(--danger);
@@ -275,12 +772,21 @@
 .obs-value { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; }
 .obs-max { font-size: var(--fs-xs); color: var(--text-faint); font-weight: 400; }
 
-.obs-track { display: flex; gap: 3px; margin-top: 5px; }
+/* The track is a cut recess (`.mat-well`), so the pips read as light sitting
+   inside it rather than as ten rectangles printed on a panel. */
+.obs-track {
+  display: flex;
+  gap: 3px;
+  margin-top: 5px;
+  padding: 2px;
+  border-radius: var(--r-field, 6px);
+  --r-self: var(--r-field, 6px);
+}
 .obs-pip {
   flex: 1;
   height: 10px;
   border-radius: 2px;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.08);
   border: 1px solid transparent;
   transition: background var(--dur-fast), box-shadow var(--dur-fast);
 }
@@ -290,32 +796,114 @@
 .obs-pip.fix { border-bottom: 3px solid var(--accent-cool); }
 .obs-pip.ult { border-bottom: 3px solid var(--accent-gold); }
 
-.obs-warning { margin-top: 4px; font-size: var(--fs-xs); color: var(--danger); font-weight: 600; letter-spacing: 0.04em; }
+.obs-warning {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  color: var(--danger);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.obs-warning svg { width: 13px; height: 13px; flex: none; }
 
 /* ---- hype crystals ------------------------------------------------------ */
 
+/*
+ * ---- the Hype tray -------------------------------------------------------
+ *
+ * The game's primary resource used to be a 50x50 cluster of 15x21 hexagons
+ * sitting raw on the backdrop photograph, over the brightest orange rooftop
+ * lights in the art, with `flex-wrap` waiting to reflow it onto two lines at
+ * ten crystals — and `renderHype` only drew as many sockets as you had earned,
+ * so on turn one the whole resource was **one dot**. §4 says text over imagery
+ * always has a plate; §5 says empty states are designed; §6 says saturation is
+ * a resource.
+ *
+ * Now it is a tray. `.mat-well` (hud.ts) cuts it into the frame, all ten
+ * sockets are present from the first turn so the ramp teaches itself, the
+ * crystals are two-thirds larger, and nothing wraps.
+ */
 .hype-wrap {
   position: absolute;
   right: var(--sp-4);
   bottom: var(--sp-3);
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
+  /*
+   * A darker cut than the stock well, for one measured reason: this tray is the
+   * only surface in the game that sits directly over the brightest pixels in
+   * the backdrop art — the orange rooftop lights in the bottom-right corner —
+   * and at the stock 0.72/0.5 the recess disappeared into them. Same recipe,
+   * same light direction, deeper cut. It is a tint, not a second material.
+   */
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(2 1 6 / 0.93) 0%, rgb(20 14 40 / 0.78) 100%);
 }
-.hype-label { font-size: var(--fs-xs); letter-spacing: 0.16em; color: var(--text-faint); margin-top: 3px; }
-.hype-row { display: flex; align-items: center; gap: 4px; justify-content: flex-end; flex-wrap: wrap; max-width: 320px; }
+.hype-label { color: var(--text-dim); align-self: flex-end; }
+.hype-row { display: flex; align-items: center; gap: var(--sp-2); justify-content: flex-end; flex-wrap: nowrap; }
+.hype-sockets { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
 
 .hype-crystal {
-  width: 15px; height: 21px;
+  width: 22px; height: 30px;
   clip-path: polygon(50% 0%, 100% 30%, 100% 70%, 50% 100%, 0% 70%, 0% 30%);
-  background: rgba(255,255,255,0.12);
-  transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
+  /* An empty socket inside your current maximum: a cut, lit from the
+     bottom-right like every other recess in the game. It has to read against
+     the tray it is cut into, which is nearly black, so the lower rim carries
+     most of the shape. */
+  background: linear-gradient(var(--light-angle, 315deg), rgba(0,0,0,0.7) 0%, rgba(94,132,190,0.34) 100%);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
+  transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-med) var(--ease-snap);
 }
 .hype-crystal.filled {
-  background: linear-gradient(180deg, #bfe9ff, #2f93ff 55%, #0f3f8a);
-  box-shadow: 0 0 10px rgba(58, 167, 255, 0.75);
+  background: linear-gradient(var(--light-angle, 315deg), #d6f2ff, #2f93ff 55%, #0f3f8a);
+  box-shadow: 0 0 12px rgba(58, 167, 255, 0.7);
+  animation: hype-fill var(--dur-med) var(--ease-snap) backwards;
 }
-.hype-count { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700; margin-left: var(--sp-2); font-variant-numeric: tabular-nums; }
+/*
+ * Beyond what you have earned. Flatter, darker and *smaller* than an empty
+ * socket you can still fill this turn, so "spent" and "not yet yours" are two
+ * different shapes rather than two shades of the same one — §6's rule that
+ * nothing signals by colour alone applies to a resource meter more than to
+ * anything else on the screen.
+ */
+.hype-crystal.locked {
+  background: linear-gradient(var(--light-angle, 315deg), rgba(0,0,0,0.55) 0%, rgba(255,255,255,0.12) 100%);
+  box-shadow: none;
+  transform: scale(0.66);
+}
+
+@keyframes hype-fill {
+  from { transform: scale(0.5); filter: brightness(2.2); }
+  to   { transform: none; filter: none; }
+}
+:root[data-reduced-motion="true"] .hype-crystal.filled { animation: none; }
+
+.hype-count { font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 700; line-height: 1; }
 .hype-of { font-size: var(--fs-sm); color: var(--text-faint); font-weight: 400; }
-.hype-locked { margin-left: var(--sp-2); font-size: var(--fs-sm); color: var(--warning); }
+.hype-locked-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: var(--r-chip, 999px);
+  --r-self: var(--r-chip, 999px);
+  font-size: var(--fs-xs);
+  color: var(--warning);
+}
+.hype-locked-chip svg { width: 13px; height: 13px; display: block; }
+
+@media (max-height: 520px) {
+  .hype-crystal { width: 15px; height: 21px; }
+  .hype-wrap { padding: 4px var(--sp-2); }
+  .hype-count { font-size: var(--fs-md); }
+}
 
 /* ---- end turn + timer --------------------------------------------------- */
 
@@ -325,46 +913,304 @@
   right: var(--sp-5);
   top: 50%;
   transform: translateY(-50%);
+  /* the collar below sits at `z-index: -1`, which needs a stacking context here
+     or it drops behind the whole HUD instead of behind the ring */
+  isolation: isolate;
 }
 
+/*
+ * The timer ring is a TRACK with an arc on it, and the seam is gone.
+ *
+ * The old ring was one `conic-gradient` from `var(--accent)` to a flat 8% white
+ * with its stop at exactly 360deg, which antialiases into a visible notch at 12
+ * o'clock — and with the timer label sitting in the gap it read as a rendering
+ * artifact on the most important control on the screen. Now the track is drawn
+ * once as its own recessed ring, and the elapsed arc is a separate masked layer
+ * over it, so a full ring is genuinely full and there is nothing to seam.
+ */
 .timer-ring {
   position: relative;
   width: 132px; height: 132px;
   border-radius: 50%;
   display: grid;
   place-items: center;
+  padding: var(--ring-band, 6px);
+  /*
+   * The FULL ring is painted by a plain gradient, and the conic only ever
+   * subtracts.
+   *
+   * That inversion is the whole seam fix. `conic-gradient(colour 360deg,
+   * transparent 0)` is a complete disc on paper and a disc with a hairline notch
+   * at twelve o'clock in practice — the last stop and the first antialias
+   * against one another, and no epsilon reliably closes it. With the arc drawn
+   * as the *spent* part instead, a full ring has no colour stop anywhere in it,
+   * so there is nothing to seam; the boundary only exists once a clock is
+   * genuinely running, where it is an edge the player is meant to see.
+   *
+   * Lit along the 315° vector like everything else, rather than being one
+   * uniform brightness the whole way round.
+   */
   background:
-    conic-gradient(var(--accent) calc(var(--timer, 1) * 360deg), rgba(255,255,255,0.08) 0);
-  padding: 5px;
-  transition: background 900ms linear;
+    radial-gradient(closest-side, transparent calc(100% - 7px), transparent calc(100% - 7px)),
+    linear-gradient(var(--light-angle, 315deg), var(--accent-bright), var(--accent) 55%, #3a1f68);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.7),
+    0 1px 0 rgba(255, 255, 255, 0.07),
+    0 6px 18px rgba(0, 0, 0, 0.55);
 }
-.timer-ring.rope { background: conic-gradient(var(--danger) calc(var(--timer, 1) * 360deg), rgba(255,255,255,0.08) 0); }
 
+/*
+ * The collar the ring is set into, and why the hero action needed one.
+ *
+ * Photographed at 3x against the rooftop art, the control read as a lavender
+ * disc laid on a photograph: a bright ring at one brightness the whole way
+ * round, no seat, no shadow of its own reaching the surface behind it. §1 calls
+ * a glow with no corresponding shadow out by name, and §2 is the real charge —
+ * the most-clicked object in the game belonged to no depth plane. All three
+ * reference games attach it: Gwent clips a brass tab into the mat's edge,
+ * Hearthstone carves the plate into the board frame.
+ *
+ * So the disc now sits in a hole. The collar is a wider ring behind it carrying
+ * a dark recessed channel, a lit lip on the 315° side, an unlit one opposite and
+ * a real cast onto whatever is behind — which on this screen is the venue. It is
+ * a `::after` rather than a wrapper so nothing about the layout, the tutorial's
+ * spotlight rect or the small-viewport rules has to know it exists.
+ */
+.turn-wrap::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--collar, 13px) * -1);
+  border-radius: 50%;
+  z-index: -1;
+  background:
+    var(--tex-grain-chip, none),
+    radial-gradient(
+      closest-side,
+      rgba(9, 5, 20, 0) 62%,
+      rgba(9, 5, 20, 0.62) 74%,
+      rgba(24, 14, 46, 0.92) 86%,
+      rgba(46, 28, 78, 0.86) 100%
+    ),
+    linear-gradient(var(--light-angle, 315deg), rgba(186, 156, 246, 0.62), rgba(46, 30, 78, 0.72) 34%, rgba(8, 5, 18, 0.94) 76%);
+  background-size: var(--tex-grain-chip-size, auto), 100% 100%, 100% 100%;
+  /*
+   * Four edges, in the order §1 lists them: the lit lip on the 315° side, the
+   * unlit one opposite, the machined channel the disc drops into, and a cast
+   * that reaches the venue behind rather than a glow with no shadow under it.
+   */
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.22),
+    inset 2px 0 0 rgba(255, 255, 255, 0.1),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.82),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 2px 0 rgba(0, 0, 0, 0.6),
+    4.4px 7.1px 30px rgba(0, 0, 0, 0.7),
+    4.4px 7.1px 2px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+/* the spent part of the clock, subtracted from the ring above */
+.timer-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /*
+   * The clock empties clockwise from twelve, and its edge is lit.
+   *
+   * It used to run `conic-gradient(transparent calc(--timer * 360deg), dark 0)`,
+   * which puts the spent arc *between* the remaining time and twelve o'clock —
+   * so the ring darkened backwards into the top, and two seconds into a turn the
+   * whole visible effect was a 10x6px dark chip immediately anticlockwise of
+   * twelve. Photographed at 3x, that is precisely the "stray grey notch clipped
+   * by the ring at 12 o'clock" this control has been failed for: it was not an
+   * artefact, it was the clock, running the wrong way and with nothing to say it
+   * was a clock.
+   *
+   * Now the spent arc grows clockwise from twelve like every dial anyone has
+   * ever read, and the boundary carries a specular cap so the eye reads a hand
+   * travelling round a track rather than a bite taken out of a plate. Two layers
+   * on one element, both conic, both composited.
+   */
+  --spent: calc((1 - var(--timer, 1)) * 360deg);
+  background:
+    conic-gradient(
+      transparent calc(var(--spent) - 5deg),
+      rgba(255, 240, 205, 0.28) calc(var(--spent) - 3.4deg),
+      rgba(255, 244, 214, 0.8) calc(var(--spent) - 1.2deg),
+      rgba(255, 244, 214, 0.8) var(--spent),
+      transparent var(--spent)
+    ),
+    conic-gradient(rgba(11, 5, 26, 0.86) var(--spent), transparent 0);
+  /*
+   * It is confined to the ring's own band, and this is not tidiness.
+   *
+   * `inset: 0` makes the layer a full disc and it is positioned, so it paints
+   * *over* the statically-positioned button inside it. Photographed at 3x, the
+   * first few seconds of a turn put a dark wedge and a cream tick across the top
+   * of the hero plate's face — read, correctly, by three reviews as a stray
+   * notch clipped by the ring at twelve o'clock. It is the clock, drawn where a
+   * clock has no business being. The mask cuts everything inside the track away,
+   * so the arc can only ever exist in the band it belongs to.
+   */
+  --track-in: calc(100% - var(--ring-band, 6px) - 1px);
+  -webkit-mask-image: radial-gradient(closest-side, transparent var(--track-in), #000 calc(var(--track-in) + 1px));
+  mask-image: radial-gradient(closest-side, transparent var(--track-in), #000 calc(var(--track-in) + 1px));
+  /*
+   * And it is not drawn at all until there is enough of it to read as a dial.
+   *
+   * The previous multiplier reached full opacity 2.5% into the turn, which on a
+   * thirty-second clock is nine degrees of arc: a 12x8px chip, indistinguishable
+   * from a rendering fault and photographed as one. A dial has to be a dial. The
+   * layer now stays at zero for the first ~6% and is fully present by ~16%, by
+   * which point the arc is fifty-odd degrees and unmistakably a clock hand. The
+   * transition means the crossing is a fade rather than a pop (§7).
+   */
+  opacity: clamp(0, calc((1 - var(--timer, 1)) * 10 - 0.6), 1);
+  transition: opacity var(--dur-slow, 420ms) var(--ease-out);
+}
+.timer-ring.rope { background-image: none; background-color: var(--danger); }
+
+/*
+ * The button itself is `.mat-hero .act` (see hud.ts) — the gradient, the lit rim
+ * at the top-left, the unlit lip at the bottom-right, the soft drop, the 2px
+ * contact shadow, the grain and all six interaction states come from the
+ * foundation. What is left here is the shape, the type and the fact that the
+ * hero plate only appears when there is actually a turn to end.
+ */
 .end-turn-btn {
   width: 100%; height: 100%;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #2a1f4a, #120b22);
-  border: 2px solid var(--glass-border);
+  --r-self: 50%;
+  /* A stacked icon over a label, not a line of prose. The gap is what stops the
+     two reading as one lump at 132px. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   font-family: var(--font-display);
   font-size: var(--fs-md);
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: var(--text-faint);
-  transition: all var(--dur-fast) var(--ease-out);
+  /* The hero tile is authored for a wide plate; on a 120px disc it reads as
+     speckle rather than as surface. The chip rank is the same generator at the
+     amplitude a small object wants. */
+  --mat-grain: var(--tex-grain-chip, none);
+  --mat-grain-size: var(--tex-grain-chip-size, auto);
+  /* The parked sheen band is 40% of the plate wide, which on a circle is a
+     stripe straight down the middle rather than a highlight along an edge. The
+     resting amplitude comes down to the panel's; the hover catch keeps the
+     hero's, because a band travelling across a disc reads correctly. */
+  --sheen-alpha: 0.04;
 }
-.end-turn-btn.ready {
-  color: #fff;
-  border-color: var(--accent);
-  background: radial-gradient(circle at 35% 30%, #4a2a7a, #1c0f38);
-  box-shadow: 0 0 26px rgba(181,108,255,0.55), inset 0 2px 8px rgba(255,255,255,0.14);
-  animation: end-turn-ready 2.4s var(--ease-in-out) infinite;
-}
-.end-turn-btn.ready:hover { transform: scale(1.05); box-shadow: 0 0 38px rgba(181,108,255,0.8); }
+
+/*
+ * Waiting on the rival: the plate goes cold rather than merely dim.
+ *
+ * `.act:disabled` in the foundation changes fill AND border AND icon — never
+ * opacity alone — so this only has to say which fill, and the contrast floor
+ * comes with it.
+ */
 .end-turn-btn:disabled { cursor: default; }
 
+/*
+ * The mark, and why it is drawn rather than typed.
+ *
+ * The disc carried no icon at all — the one control the player uses more than
+ * any other, identified by two words of body text. This is module C's
+ * `chevron-right` at its own 1.75px stroke in `currentColor`, so it inherits the
+ * plate's ink and its disabled state instead of being a second colour decision.
+ * Rotated a quarter turn: the turn passes *across* the table to the rival, and
+ * on a board whose rival sits at the top of the screen that direction is up.
+ */
+.end-turn-icon {
+  display: block;
+  width: 26px; height: 26px;
+  transform: rotate(-90deg);
+  opacity: 0.9;
+  /* The same cut as the letters below. */
+  filter: drop-shadow(1px 1px 0 rgba(255, 255, 255, 0.34));
+}
+.end-turn-icon svg { width: 100%; height: 100%; display: block; }
+/*
+ * The label is CUT INTO the plate, not printed on it.
+ *
+ * At 3x the disc's whole tell was here: dark letterforms sitting perfectly flat
+ * on a lit surface, the one object on a screen where every other edge has a rim
+ * and a lip. Engraving costs one shadow and it is the shadow's *direction* that
+ * does the work — the key light is at 315°, so the wall of the groove that
+ * catches it is the far one, down and to the right of each stroke. Offsetting
+ * the highlight the other way (or straight down, which is the web default) puts
+ * a second sun on the most-looked-at control in the game.
+ *
+ * Suppressed under high contrast, where a light halo around dark text is a
+ * legibility cost rather than a material.
+ */
+.end-turn-btn .end-turn-text {
+  /* `.t-label`'s tracking on a 132px disc needs the trailing space trimmed or
+     the word sits visibly right of centre. */
+  margin-right: -0.08em;
+  font-size: var(--fs-sm);
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.38);
+}
+:root[data-contrast="high"] .end-turn-btn .end-turn-text,
+:root[data-contrast="high"] .end-turn-icon {
+  text-shadow: none;
+  filter: none;
+}
+
+/*
+ * The press, on the same frame as the pointer going down.
+ *
+ * `.act:active` exists in the foundation and is the right thing, but a click
+ * whose handler then spends 130ms opening a dialogue never renders it — the
+ * browser coalesces the state change with the work that follows. Setting a class
+ * on `pointerdown` (see hud.ts) gets the acknowledgement onto the screen before
+ * any of that starts. 80ms, which is the floor §5 asks for.
+ */
+.end-turn-btn.pressed {
+  transform: scale(0.955);
+  --rim-boost: 0.6;
+  --cast-lift: 0;
+  filter: brightness(0.88);
+  transition: transform 80ms var(--ease-out), filter 80ms var(--ease-out);
+}
+.end-turn-btn.pressed .end-turn-icon { transform: rotate(-90deg) translateX(2px); }
+
+/*
+ * A breathing glow on the primary action, at an amplitude that can be measured.
+ *
+ * The old pulse moved a box-shadow only: measured over nine seconds of idle the
+ * button's own luminance range was 4.2 out of a mean of 134.8 — 3.1%, which is
+ * inside the JPEG noise floor, so §3a's "breathing glow on the primary action"
+ * was effectively absent even with motion fully enabled.
+ *
+ * The first attempt at fixing it moved `--rim-boost` and `--cast-lift`, and
+ * re-measured at 4.3 of 133.3 — no better, for a reason worth writing down: both
+ * of those knobs live on the *edge* of the plate and on the shadow outside it,
+ * so on a 120px disc they move perhaps two hundred pixels out of eleven
+ * thousand. A face has to breathe for a breath to be visible, so the face
+ * breathes: `filter: brightness()` is one composited property that moves every
+ * pixel of the plate, and the rim, the shadow and the halo ride along with it.
+ */
+.end-turn-btn.ready {
+  animation: end-turn-ready 2.8s var(--ease-in-out) infinite;
+}
+
 @keyframes end-turn-ready {
-  0%, 100% { box-shadow: 0 0 22px rgba(181,108,255,0.45), inset 0 2px 8px rgba(255,255,255,0.12); }
-  50% { box-shadow: 0 0 36px rgba(181,108,255,0.75), inset 0 2px 8px rgba(255,255,255,0.18); }
+  0%, 100% {
+    --rim-boost: 1;
+    --cast-lift: 0.2;
+    filter: brightness(0.94);
+    box-shadow: var(--mat-cast), 0 0 18px rgba(181,108,255,0.35);
+  }
+  50% {
+    --rim-boost: 2.1;
+    --cast-lift: 0.8;
+    filter: brightness(1.09);
+    box-shadow: var(--mat-cast), 0 0 44px rgba(217,165,255,0.85);
+  }
 }
 
 :root[data-reduced-motion="true"] .end-turn-btn.ready { animation: none; }
@@ -448,23 +1294,157 @@
 
 /* ---- history panel ------------------------------------------------------ */
 
+/*
+ * The log hangs off the bottom of the control cluster, and says so.
+ *
+ * `.battle-controls` sits at `--sp-3` and its buttons carry the 44px touch
+ * floor, so the first pixel below it is a number this file can compute rather
+ * than one somebody has to remember. It used to be typed twice — 74px here and
+ * 52px in the short-viewport block — and the second one was wrong: measured at
+ * 844x390, the log's top edge crossed the emote/settings/concede row by 4px at
+ * every text size, which is two HUD panels sharing pixels, the exact failure the
+ * corner-pinned absolutes were rebuilt to stop.
+ */
+.battle-hud { --controls-bottom: calc(var(--sp-3) + 44px); }
+
+/**
+ * The log is a material, and it was the last surface in the game that was not.
+ *
+ * It took `.panel` — `base.css`'s glass: one flat fill, one pale hairline on all
+ * four edges, one inset highlight and a 20px radius no other object on this
+ * screen uses. Ten pixels from a leader plate whose bottom edge terminates in
+ * shadow, that reads as a second sun on the one screen a player spends a whole
+ * match looking at.
+ *
+ * ## What used to be here, and why it is gone
+ *
+ * When the rest of this HUD was migrated, `hud.ts` belonged to another owner, and
+ * **a material cannot be applied to a selector you do not control** —
+ * `.mat-panel` is reachable only by writing the class into the markup. So the
+ * whole of `foundation.css` §3's recipe was copied into this file and pinned to
+ * `.history-panel`: fill, grain, `background-origin`, the four-sided border, the
+ * five-layer cast, and a second copy of the specular band on `::after`. Ninety
+ * lines that could not drift in *colour*, because every value was read from
+ * module A's tokens, but could drift in *shape* the moment §3's recipe changed —
+ * and the note that shipped with it said the real fix was one line in `hud.ts`.
+ *
+ * That line is now written: the element is `history-panel mat-panel`, and the
+ * copy has been deleted rather than left as a second opinion about what a panel
+ * is. The **census now reads zero plain panels across all forty-nine routes**,
+ * which is what this was the last one blocking.
+ *
+ * ## What is left, and why each of the four survives
+ *
+ *  - **Position, size and the collapse transition.** Layout is never a material's.
+ *  - **`--cast-lift: 1.6`.** The log floats over a live 3D board rather than
+ *    lying on a page, and the drop and the contact shadow are the only things
+ *    that say which of the two is nearer. The dialogues use 2.1 for the same
+ *    reason; a HUD widget is not as far off the page as a modal.
+ *  - **`backdrop-filter: none`.** Turned off rather than inherited. The plate is
+ *    95% opaque and it sits over a WebGL canvas that redraws every frame, so
+ *    `blur(18px) saturate(1.3)` buys a picture nobody can see and costs a
+ *    viewport readback per frame of the one route whose frame budget is already
+ *    spoken for.
+ *  - **The band's phase.** See the note on `::after` below.
+ *
+ * `--r-self: var(--r-panel)` is *not* here any more, because it is now the
+ * default: `.mat-panel` sets exactly that. It was measured off the live board
+ * rather than chosen — the leader plate, the Obsession dial and the Hype well all
+ * compute to 18px and only the ability tiles are 14px, so the HUD has two radii
+ * and the log used to be a third at 20px.
+ */
 .history-panel {
   position: absolute;
   right: var(--sp-4);
-  top: 74px;
+  top: calc(var(--controls-bottom) + var(--sp-3));
   width: 250px;
   max-height: 210px;
   display: flex;
   flex-direction: column;
   padding: var(--sp-2) var(--sp-3);
   transition: max-height var(--dur-med) var(--ease-out);
+
+  --cast-lift: 1.6;
+
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
+
+/**
+ * ...and it is alive between actions, on module A's own band.
+ *
+ * §3a: "the screen is alive at rest", and a log with nothing new in it is at rest
+ * for most of a turn. Everything about the band — the 40% width, the 150% travel
+ * that keeps it from overhanging a corner, the opacity envelope, the `translate`
+ * that keeps it off the main thread — now comes from `.mat-panel::after` and is
+ * not restated here. One longhand is.
+ *
+ * The delay is negative on purpose, and it is *this* number on purpose. A
+ * negative delay drops the band into a cycle that is already running, so the
+ * first frame of a match is mid-sweep rather than parked at the keyframe. -5100ms
+ * is deliberately not the -3400ms `screens.css` §O hands the dialogues: the
+ * mulligan sheet and the log are on screen together at the start of every match,
+ * and two plates sweeping in step is one flash rather than light crossing a room.
+ * The default it replaces is `--cascade-i`-derived, and `--cascade-i` is written
+ * by `shell.ts` onto a screen root's grandchildren — which this is not, so
+ * unstated it would be 0 and the two plates would sweep together.
+ *
+ * Overriding the longhand rather than restating the shorthand is what makes this
+ * three words instead of a second copy: `.mat-panel::after` and this rule have
+ * the same specificity, `battle.css` is imported after `base.css`, so the later
+ * longhand replaces that one component of the earlier shorthand and leaves the
+ * duration, the curve and the iteration count where they were declared.
+ * Reduced motion is not restated for the same reason — foundation.css already
+ * turns every material's band off, and out-specifying that would be a bug.
+ */
+.history-panel::after { animation-delay: -5100ms; }
+
+/* Collapsed, the log is a 40px header with the list clipped behind it. The band
+   is clipped with it, which is correct — it is light on the plate, and the plate
+   is the part still on screen. */
 .history-panel.collapsed { max-height: 40px; overflow: hidden; }
-.history-head { display: flex; align-items: center; justify-content: space-between; }
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Opaque, and above the list, so a line scrolling under the header is
+     covered rather than guillotined mid-glyph — which is what the captures
+     showed at the top of the panel in every full-board shot. */
+  position: relative;
+  z-index: 1;
+}
 .history-toggle { min-height: 26px; min-width: 26px; padding: 0; font-size: var(--fs-xs); }
-.history-list { flex: 1 1 auto; font-size: var(--fs-xs); display: flex; flex-direction: column; gap: 2px; padding-right: 4px; }
+.history-list {
+  flex: 1 1 auto;
+  font-size: var(--fs-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 4px;
+  overflow-y: auto;
+  /* §7: the list fades into its own edges instead of being cut by them. */
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 14px, #000 calc(100% - 10px), transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 14px, #000 calc(100% - 10px), transparent);
+}
 .history-entry { color: var(--text-dim); line-height: 1.35; animation: history-in var(--dur-fast) var(--ease-out) both; }
 .history-entry.damage { color: #ffb0b8; }
+/*
+ * A turn marker is a heading, not a line of body text with an em dash in front
+ * of it. §4 asks for a real hierarchy and the log had exactly one role for
+ * every line it prints; this is the one division a player actually navigates
+ * by, so it gets the label role and a rule that fades at both ends (§7).
+ */
+.history-entry.turn {
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  color: var(--text);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-top: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.18) 22%, rgba(255,255,255,0.18) 78%, transparent) 1;
+}
+.history-entry.turn:first-child { margin-top: 0; padding-top: 0; border-image: none; }
 
 @keyframes history-in {
   from { opacity: 0; transform: translateX(-6px); }
@@ -473,15 +1453,26 @@
 
 /* ---- trigger rail ------------------------------------------------------- */
 
+/*
+ * Off the board, into the left column.
+ *
+ * At `left: 50%; top: 30%` the trigger chip landed squarely on the rival's row —
+ * measured, a "Stan Account · Viral" pill faded in over the enemy's card 777ms
+ * after the player's own card had disappeared, which is the worst possible place
+ * and the worst possible moment for it. A nameplate is a caption; it belongs
+ * beside the play, not on top of it. The rail also grows downward from a fixed
+ * top so a cascade of three triggers stacks predictably instead of pushing the
+ * first one off centre.
+ */
 .trigger-rail {
   position: absolute;
-  left: 50%;
-  top: 30%;
-  transform: translateX(-50%);
+  left: var(--sp-4);
+  top: 28%;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  align-items: center;
+  align-items: flex-start;
+  max-width: 280px;
   pointer-events: none;
 }
 
@@ -490,10 +1481,9 @@
   align-items: center;
   gap: var(--sp-2);
   padding: 5px var(--sp-4);
-  border-radius: var(--radius-pill);
-  background: var(--glass-strong);
-  border: 1px solid var(--accent);
-  box-shadow: var(--glow-accent);
+  border-radius: var(--r-chip, var(--radius-pill));
+  --r-self: var(--r-chip, var(--radius-pill));
+  box-shadow: var(--mat-cast), var(--glow-accent);
   font-size: var(--fs-sm);
   animation: trigger-in var(--dur-fast) var(--ease-snap) both;
 }
@@ -521,10 +1511,9 @@
   flex-direction: column;
   gap: 2px;
   padding: var(--sp-2);
-  border-radius: var(--radius);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(14px);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
+  z-index: 2;
 }
 .emote-menu.open { display: flex; }
 .emote-item { padding: 7px var(--sp-4); border-radius: var(--radius-sm); font-size: var(--fs-sm); text-align: left; white-space: nowrap; }
@@ -532,39 +1521,72 @@
 
 /* ---- turn banner & toasts ----------------------------------------------- */
 
+/*
+ * A ribbon along the mat's seam, not a plate parked on the play area.
+ *
+ * The old banner was a dark rounded rectangle at the centre of the board for
+ * 1.1s plus a 320ms fade, and there were two of them plus a card nameplate on
+ * every handover: measured, three and a half seconds per turn during which the
+ * middle of the board could not be read. §3a budgets a transition at 260-420ms.
+ *
+ * What replaces it is a wipe. The strip is the full width of the frame, 34px
+ * tall, transparent at both ends and never opaque anywhere, and it grows out of
+ * the centre line rather than fading in on top of it — so the eye reads it as
+ * the same event the 3D half-mat wash is drawing underneath, rather than as a
+ * second, competing announcement. The board keeps saying whose turn it is after
+ * the ribbon has gone; that is the 3D layer's job (see board.setActiveSide).
+ */
 .turn-banner {
   position: absolute;
-  left: 50%; top: 42%;
-  transform: translate(-50%, -50%) scale(0.9);
-  padding: var(--sp-3) var(--sp-7);
-  border-radius: var(--radius-lg);
+  left: 0; right: 0;
+  top: calc(var(--board-inset-top, 60px) + (100% - var(--board-inset-top, 60px) - var(--board-inset-bottom, 200px)) * 0.44);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  height: 34px;
   font-family: var(--font-display);
-  font-size: var(--fs-2xl);
+  font-size: var(--fs-md);
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border-bright);
-  backdrop-filter: blur(16px);
   opacity: 0;
-  transition: opacity var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-snap);
+  transform: scaleX(0.35);
+  transform-origin: 50% 50%;
+  transition: opacity 150ms var(--ease-in-out), transform 150ms var(--ease-out);
   pointer-events: none;
+  /* Both ends taper to nothing, per §7 — a strip that butts into the frame edge
+     is the divider defect at full width. */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
 }
-.turn-banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-.turn-banner.yours { color: #fff; box-shadow: 0 0 44px rgba(181,108,255,0.6); border-color: var(--accent); }
-.turn-banner.theirs { color: var(--accent-cool); box-shadow: 0 0 44px rgba(82,200,255,0.4); border-color: var(--accent-cool); }
+.turn-banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--turn-tint, rgba(181,108,255,0.34)) 30%, var(--turn-tint, rgba(181,108,255,0.34)) 70%, transparent);
+  /* A hairline of light along the top edge only — the 315° key, at ribbon scale. */
+  border-top: 1px solid rgba(255,255,255,0.16);
+  border-bottom: 1px solid rgba(0,0,0,0.4);
+}
+.turn-banner.show { opacity: 1; transform: scaleX(1); }
+.turn-banner-text,
+.turn-banner-num { position: relative; text-shadow: 0 2px 6px rgba(0,0,0,0.85); }
+.turn-banner-num { opacity: 0.65; font-size: var(--fs-sm); }
+.turn-banner.yours { color: #fff; --turn-tint: rgba(181,108,255,0.4); }
+.turn-banner.theirs { color: #eaf6ff; --turn-tint: rgba(82,200,255,0.32); }
+
+:root[data-reduced-motion="true"] .turn-banner { transition: opacity 90ms linear; transform: none; }
 
 .toast-layer { position: absolute; left: 50%; bottom: calc(var(--hand-card-height) + 90px); transform: translateX(-50%); display: flex; flex-direction: column; gap: var(--sp-2); align-items: center; pointer-events: none; }
 .toast {
   padding: var(--sp-2) var(--sp-5);
-  border-radius: var(--radius-pill);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border-bright);
-  backdrop-filter: blur(14px);
+  border-radius: var(--r-chip, var(--radius-pill));
+  --r-self: var(--r-chip, var(--radius-pill));
   font-size: var(--fs-sm);
   animation: toast-in var(--dur-fast) var(--ease-snap) both;
 }
-.toast-error { border-color: var(--danger); color: #ffc0c8; }
+.toast-error { color: #ffc0c8; box-shadow: var(--mat-cast), 0 0 18px rgba(255,77,106,0.45); }
 .toast.out { animation: toast-out var(--dur-med) var(--ease-in-out) both; }
 
 @keyframes toast-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
@@ -606,6 +1628,155 @@
   100% { opacity: 0; }
 }
 
+/* ---- the targeting arrow's motion --------------------------------------- */
+
+/**
+ * ## The arrow was a still image, held for as long as the player held the drag
+ *
+ * Measured by keeping an attack arrow perfectly motionless for two seconds and
+ * diffing the corridor between attacker and target: the ribbon, the arrowhead,
+ * the target's ring and the damage chip were **pixel-identical** between t=5ms
+ * and t=970ms. Everything that changed in the crop was the mat's own ambient
+ * sweep behind them. `targeting.ts` declared `transition: opacity 120ms` and no
+ * keyframe named `arrow-*` existed in any stylesheet in the project.
+ *
+ * A targeting arrow is the only object on screen whose entire job is to say
+ * "this is about to happen to that". Hearthstone's arrow has a charge running up
+ * it and a rotating rune under the target; Gwent pulses the whole target row;
+ * MTGA runs an animated dashed line. A still arrow states it in the past tense.
+ *
+ * Everything below is `stroke-dashoffset`, `transform` and `opacity` on five
+ * SVG nodes — one ribbon spine, one head, two reticle rings, four ticks — which
+ * is the budget §3 leaves once "never a paint property on many elements at
+ * once" has been honoured. All of it is gated on `.is-live`, so an arrow that
+ * is not being aimed costs nothing at all.
+ */
+.targeting-layer .arrow-flow {
+  stroke-width: 5;
+  stroke-dasharray: 13 27;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+  mix-blend-mode: screen;
+}
+
+.targeting-layer.is-live .arrow-flow {
+  opacity: 0.85;
+  animation: arrow-charge 700ms linear infinite;
+}
+
+/* Negative offset walks the dashes along increasing path length, i.e. from the
+   attacker toward the target. 40 is one full dash + gap, so the loop is seamless
+   at any arrow length — the charge travels at a constant speed rather than
+   taking 700ms to cross whatever distance it happens to be. */
+@keyframes arrow-charge {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+.targeting-layer .arrow-cast {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.targeting-layer.is-live .arrow-cast {
+  opacity: 1;
+}
+
+.targeting-layer .arrow-head {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.targeting-layer.is-live .arrow-head {
+  animation: arrow-head-pulse 700ms var(--ease-in-out) infinite;
+}
+
+@keyframes arrow-head-pulse {
+  0%,
+  100% {
+    scale: 1;
+  }
+  46% {
+    scale: 1.13;
+  }
+}
+
+.targeting-layer .arrow-reticle {
+  transition: opacity 120ms ease-out;
+}
+
+.targeting-layer .arrow-reticle-outer {
+  stroke: var(--arrow-key, #ff4d6a);
+  opacity: 0.9;
+}
+
+.targeting-layer .arrow-reticle-inner {
+  stroke: #f6f1ff;
+  opacity: 0.55;
+}
+
+.targeting-layer .arrow-reticle-tick {
+  stroke: var(--arrow-key, #ff4d6a);
+  opacity: 0.8;
+}
+
+/* Counter-rotating, because two rings turning the same way is one ring with a
+   gap in it. The ticks stay square to the screen so the mark keeps an up. */
+.targeting-layer.is-live .arrow-reticle-spin {
+  animation: arrow-reticle-turn 5.2s linear infinite;
+}
+
+.targeting-layer.is-live .arrow-reticle-inner {
+  animation: arrow-reticle-turn-back 3.4s linear infinite;
+  transform-origin: 0 0;
+}
+
+.targeting-layer.is-live .arrow-reticle-tick {
+  animation: arrow-reticle-breathe 1.4s var(--ease-in-out) infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+@keyframes arrow-reticle-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes arrow-reticle-turn-back {
+  to {
+    rotate: -360deg;
+  }
+}
+
+@keyframes arrow-reticle-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    scale: 1;
+  }
+  50% {
+    opacity: 1;
+    scale: 1.3;
+  }
+}
+
+/* Reduced motion keeps the arrow — it is functional, it says what is about to
+   be attacked — and parks every decorative loop on it. The charge stays visible
+   as a dashed line so the direction of travel is still drawn, it simply stops
+   travelling. */
+:root[data-reduced-motion="true"] .targeting-layer.is-live .arrow-flow,
+:root[data-reduced-motion="true"] .targeting-layer.is-live .arrow-head,
+:root[data-reduced-motion="true"] .targeting-layer.is-live .arrow-reticle-spin,
+:root[data-reduced-motion="true"] .targeting-layer.is-live .arrow-reticle-inner,
+:root[data-reduced-motion="true"] .targeting-layer.is-live .arrow-reticle-tick {
+  animation: none;
+}
+
 /* ---- damage preview badge ----------------------------------------------- */
 
 /* An author `display` rule beats the [hidden] attribute's UA `display: none`,
@@ -622,17 +1793,17 @@
   flex-direction: column;
   gap: 2px;
   padding: var(--sp-2) var(--sp-4);
-  border-radius: var(--radius);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border-bright);
-  backdrop-filter: blur(14px);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
   font-size: var(--fs-xs);
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: var(--shadow);
 }
 .dp-damage { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 800; color: #ff5f7a; }
-.dp-bonus { color: var(--accent-gold); font-weight: 600; }
+/* The mark is module C's drawing rather than U+25B2 (see targeting.ts), so it
+   needs an optical size and a baseline rather than a font's opinion of both. */
+.dp-bonus { color: var(--accent-gold); font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.dp-bonus svg { width: 13px; height: 13px; flex: none; }
 .dp-kill { color: #ff9a5f; }
 .dp-counter { color: var(--text-dim); }
 .dp-risk { color: var(--warning); }
@@ -641,21 +1812,456 @@
 
 /* ---- overlays ----------------------------------------------------------- */
 
+/**
+ * The board's own scrim, cut from the stock in `screens.css` §O2.
+ *
+ * It was `rgba(3, 2, 8, 0.78)` and a plain 12px blur: a flat fill across the
+ * whole viewport, which is §1's first ban at the largest size the game has, and
+ * separation carried by *value alone*, which §2 says is stacking rather than
+ * depth. What replaces it is the same three-layer recipe every other scrim in
+ * the game now uses — the room's own light pooling where the plate will stand,
+ * module B's finest grain so the cover is not mathematically smooth, and the
+ * separation carried by desaturation with the darkening only supporting it.
+ *
+ * `--ov-scrim` is the knob. The hotseat cover takes it to opaque; the End Turn
+ * confirm takes it almost to nothing; everything else sits here.
+ */
 .battle-overlay {
   position: absolute;
   inset: 0;
   z-index: 70;
   display: grid;
   place-items: center;
-  background: rgba(3, 2, 8, 0.78);
-  backdrop-filter: blur(12px);
-  animation: screen-in var(--dur-fast) var(--ease-out) both;
+  --ov-scrim: 0.76;
+  background-color: transparent;
+  background-image:
+    var(--tex-grain-well, none),
+    radial-gradient(
+      92% 78% at 50% 46%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 12%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(
+      var(--light-sweep),
+      rgb(9 5 20 / var(--ov-scrim)),
+      rgb(3 2 8 / var(--ov-scrim))
+    );
+  background-size: var(--tex-grain-well-size, auto), auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat;
+  backdrop-filter: blur(12px) saturate(0.55) brightness(0.72);
+  -webkit-backdrop-filter: blur(12px) saturate(0.55) brightness(0.72);
+  /* A full-viewport cover does not rise; `screen-in`'s 10px lift on a fixed
+     rectangle is a shift nobody asked for. It resolves in place. */
+  animation: hb-ov-scrim-in var(--dur-fast) var(--ease-arrive) both;
 }
 
-.mulligan-panel { padding: var(--sp-5); max-width: min(1180px, 94vw); display: flex; flex-direction: column; gap: var(--sp-4); align-items: center; }
+/*
+ * The curtain's outgoing half.
+ *
+ * The scrim and its blur come off together while the panel drops and shrinks —
+ * two curves, not one, so the room behind resolves before the panel has finished
+ * leaving and the board is visible for most of the exit rather than after it.
+ * `filter` and `opacity` only, and `transform` on the panel, so the whole thing
+ * composites and cannot cost the board a frame on the low tier.
+ */
+.battle-overlay.leaving {
+  animation: battle-overlay-out 200ms var(--ease-leave) forwards;
+}
+
+.battle-overlay.leaving > * {
+  animation: battle-panel-out 200ms var(--ease-leave) forwards;
+}
+
+/*
+ * Opacity alone, and dropping the `backdrop-filter` half of this was a repair.
+ *
+ * An element's own `opacity` already fades the result of its backdrop-filter —
+ * the filter is applied inside the element's group and the group is what the
+ * opacity multiplies — so the second property was buying nothing and costing a
+ * viewport-sized backdrop readback on every frame of the exit, over a WebGL
+ * board that is redrawing anyway. `opacity` composites; `backdrop-filter` does
+ * not, and §3a's "only transform, opacity and filter" is about exactly this.
+ */
+@keyframes battle-overlay-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes battle-panel-out {
+  from { transform: none; opacity: 1; }
+  to   { transform: translateY(26px) scale(0.94); opacity: 0; }
+}
+
+:root[data-reduced-motion="true"] .battle-overlay.leaving,
+:root[data-reduced-motion="true"] .battle-overlay.leaving > * {
+  animation: none;
+  opacity: 0;
+}
+
+/* ---- the opening hand --------------------------------------------------- */
+
+/**
+ * The first thing a player sees in every match, and it was the flattest object
+ * in the game.
+ *
+ * The critic's words: "a solid dark rounded rectangle with no gradient, texture,
+ * rim or contact shadow, which is exactly what section 1 bans, and it is the
+ * first thing you see in every match." All four of those come from the stock in
+ * `screens.css` §O1 now — the plate is a material like every other surface in
+ * the game, lit from 315° with the rest of it.
+ *
+ * What is left for this file is the *furniture*, and the furniture is where
+ * Hearthstone actually wins this screen. It does not deal a mulligan onto a
+ * panel; it deals it onto a **lit table**, and the cards sit in the table with
+ * the table's own shadow falling across their tops. Ours floated six card
+ * canvases in the middle of a rectangle with nothing under them, so the only
+ * thing saying "these are objects you can pick up" was the art on their faces.
+ *
+ * So the row becomes a recess (`.mulligan-cards` below), the cards get a
+ * contact shadow so they are lying *in* it, and the head gets a divider that
+ * fades at both ends rather than a gap.
+ */
+.mulligan-panel {
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  max-width: min(1180px, 94vw);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  align-items: center;
+  /* One rank prouder than the other dialogues. This one is a set-piece the
+     curtain opens onto rather than a question asked over a screen, and it is
+     the only modal in the game with no competition for the eye. */
+  --cast-lift: 2.7;
+}
+
+/* =========================================================================
+   THE ACTION IS REACHABLE
+
+   The most serious defect nine waves of automated checking never saw, and the
+   reason it was never seen is worth stating before the rules that fix it.
+
+   `.battle-overlay` is `display: grid; place-items: center` over a screen whose
+   ancestors are `overflow: hidden`. A centred grid item that is taller than its
+   area overflows *both* ends and nothing can scroll to either, because there is
+   no scroller in the chain — only clipping. So the panel simply grew off the top
+   and bottom of the viewport, taking Confirm with it.
+
+   Measured, before this block, with the accessibility screen's own size control
+   and the game's own routes:
+
+     route            viewport  scale   Confirm's bottom edge
+     battle?seed=4    844x390   160%    396 in 390  —  6px past the fold
+     battle (2nd seat) 844x390  160%    422 in 390  — 32px past the fold
+     remix            844x390   100%    422 in 390  — 32px past the fold
+     remix            844x390   140%    473 in 390  — 83px past the fold
+     remix            844x390   160%    499 in 390  — 109px past the fold
+     remix           1280x720   160%    727 in 720  —  7px past the fold
+
+   The last row is the one that should have ended the argument: 1280x720 is a
+   floor the bar names in §9, not an exotic phone.
+
+   Those numbers move between deals and the range is the honest form of them.
+   The opening-hand sentence is "You go first" or "You go second — you start
+   with an extra card and Borrowed Clout", and the second wraps to a line more:
+   forty pixels of panel that depend on a coin toss. So the same viewport
+   measured 10px past the fold in one run and 32 in another, and `#remix` seeds
+   from the wall clock and cannot be pinned at all. Every figure above is one
+   observed deal, and the repair is built against the tall one.
+
+   A real `mouse.wheel(0, 400)` moved it 0px. A real touch swipe moved it 0px.
+   Every automated check passed anyway, because `locator.click()` calls
+   `scrollIntoViewIfNeeded` first and an `overflow: hidden` box *is*
+   programmatically scrollable — so the harness scrolled the button into view
+   through a route no finger has, clicked it, and reported success. The gesture
+   proof for this repair is `scripts/_w9mull_gesture.mjs`, which dispatches raw
+   CDP pointer events at the button's own viewport coordinates and never asks a
+   locator for anything.
+
+   The repair is the deck builder's, which had the same defect at the same
+   viewport: content that sizes to content, one region that gives way, and a
+   footer that cannot be squeezed off the bottom. The order of who gives way is
+   the whole design, and the first attempt got it backwards — it let the panel
+   scroll with Confirm sticky over the top, which fitted the button perfectly
+   and buried the entire hand under the sticky plate. A mulligan you cannot see
+   is not better than a mulligan you cannot confirm.
+
+   So, exactly three of the four children have a fixed size and exactly one
+   flexes, and which one that is *is* the design:
+
+     1. **Confirm never moves.** `flex: 0 0 auto`, last child of a panel that is
+        capped to the viewport, so it is inside the screen by construction.
+     2. **The hand never gives either.** The tray is `flex: 0 0 auto`. What
+        decides its height on a short screen is one explicit cap on the card
+        canvas, and that cap reads `--ui-scale`: 40vh at 100% down to 29.2vh at
+        160%, because a player who asked for bigger text asked for room to read
+        and the only place that room exists is the hand.
+     3. **The prose gives, and it is the only thing that does.** The rule and
+        the head share one wrapper — `.mulligan-brief`, built in
+        `battleScreen.ts` — and that band is the single scroll region on the
+        sheet. Whatever will not fit comes off the sentence you have already
+        read, and nothing in it is lost, so §12's "the rule is stated in full on
+        the mulligan" still holds at every size.
+     4. The panel keeps `overflow-y: auto` and the footer keeps `position:
+        sticky` behind all of that, as the guarantee rather than the mechanism.
+        The net cannot be reached by arithmetic — tray, footer and the panel's
+        own padding come to 280px against 374 of room at 844x390, and 413
+        against 704 at 1280x720 — and it is measured, not assumed: across
+        twelve configurations `panel.scrollHeight > panel.clientHeight` was
+        false in all twelve. It is there so that a future change to any of
+        those numbers degrades into a scroll rather than back into an
+        unreachable button.
+
+   Nothing here changes a pixel where the sheet already fitted. At 1280x720 and
+   100% the panel is 522px tall and Confirm's bottom edge is at 604 — the same
+   two numbers as before the repair, to the pixel.
+   ========================================================================= */
+
+/* The plate stands *in* the room rather than against its walls, so its cast and
+   its lit edge survive at the size where the panel is as tall as the viewport. */
+.battle-overlay.mulligan-overlay {
+  padding: var(--sp-2);
+}
+
+.mulligan-panel {
+  /*
+   * `min-height: 0` is not belt-and-braces. A grid item's automatic minimum
+   * size is content-based, `min-height` is applied *after* `max-height`, and a
+   * content minimum of 492px would therefore beat the cap outright and leave
+   * this whole block doing nothing. Making the panel a scroll container already
+   * zeroes that automatic minimum; stating it as well means the cap cannot be
+   * silently disarmed by someone removing the overflow later.
+   */
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  /* A swipe that runs out of panel must not start scrolling the board behind
+     it — the board is the thing this sheet exists to hide. */
+  overscroll-behavior: contain;
+}
+
+/*
+ * The prose band: the one thing on this sheet that is allowed to scroll.
+ *
+ * It is the only flexible child of the panel, which is the whole priority
+ * expressed in one declaration: whatever will not fit comes off the sentence
+ * you have already read, never off the hand you are choosing from and never off
+ * the button you are reaching for. It scrolls, so nothing in it is lost — the
+ * Remix rule in particular is stated in full, which §12 requires.
+ *
+ * The gap is the panel's own, moved inside, so a sheet with no rule note looks
+ * exactly as it did before this wrapper existed.
+ *
+ * **A keyboard can reach it, and that was checked rather than hoped.** A scroll
+ * region with no focusable child inside it is the classic way to hide text from
+ * everyone who does not own a mouse. Measured on `#remix` at 844x390 and 160%,
+ * where the band genuinely overflows (scrollHeight 225 in a 156px box): it
+ * appears in the tab order between the HUD's ghost buttons and the first card,
+ * despite `tabIndex` reading -1, and two ArrowDowns move `scrollTop` from 0 to
+ * 69. That is Chrome's keyboard-focusable-scroll-containers behaviour, which
+ * only enters the tab order when the box actually scrolls — so no extra tab
+ * stop appears on the eleven configurations where it does not.
+ */
+.mulligan-brief {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  /*
+   * Both of these restore what the panel used to give these two children for
+   * free. `align-self: stretch` puts the band's scrollbar against the panel's
+   * own padding rather than beside a centred column; `align-items: center`
+   * hands the rule and the head back the shrink-to-fit width they had as direct
+   * children of a centred panel. Without the second line the Remix rule became
+   * a full-width banner across the top of every Remix mulligan — a change
+   * nobody asked for, smuggled in behind a layout repair.
+   */
+  align-items: center;
+}
+
+/* Inside the band nothing gives; the band gives. */
+.mulligan-rule,
+.mulligan-head {
+  flex: 0 0 auto;
+}
+
+/*
+ * The hand never gives, and the version of this that let it give is worth
+ * recording because it looked correct and measured wrong.
+ *
+ * The first attempt made the tray `flex: 0 1 auto`, stretched the card buttons
+ * to it and capped the canvas at `max-height: min(100%, 40vh)` so the cards
+ * would shrink with the row. Measured at 844x390 and 160%, that tray came back
+ * **232px tall around a 156px card** — sixty pixels of empty tray — because
+ * `100%` of a height that flexbox has not resolved yet is not a number, so the
+ * canvas contributed a nonsense intrinsic height to the very layout that was
+ * supposed to constrain it. The panel then took those sixty pixels off the
+ * prose band, which fell to 44px. Circular percentage, confident wrong answer,
+ * no error anywhere.
+ *
+ * So the tray keeps its natural height and the cap that decides that height is
+ * an explicit one (see the short-screen block below). The arithmetic that makes
+ * this safe: tray, footer and the panel's own padding come to 280px at 844x390
+ * and 413px at 1280x720, against 374 and 704 of usable room.
+ */
+.mulligan-cards {
+  flex: 0 0 auto;
+}
+
+/*
+ * The footer that cannot be squeezed off.
+ *
+ * `flex: 0 0 auto` is the load-bearing half: the row is the last child of the
+ * panel and it never shrinks, so once the panel is capped to the viewport the
+ * button is inside it by construction.
+ *
+ * `position: sticky` is the second half, and it deliberately paints nothing.
+ * The first version gave it an opaque plate so cards scrolling under it would
+ * not show through — correct in principle, and measured at 1280x720 it laid a
+ * visible dark band across the bottom of every mulligan in the game: rgb(22,
+ * 15, 39) against the panel's own rgb(38, 28, 65), sampled down the column at
+ * x=300. A scrim for a state that never happens, on a screen every player sees
+ * at the start of every match, is a bad trade.
+ *
+ * It never happens because the prose band gives way first: across twelve
+ * configurations — two routes, two viewports, three interface sizes —
+ * `panel.scrollHeight > panel.clientHeight` was **false in all twelve**. The
+ * tray, the footer and the panel's own padding come to 280px at 844x390 and
+ * 413px at 1280x720, against 374 and 704 of room, so the panel has no way to
+ * overflow while the band can still shrink. `sticky` is therefore the
+ * degradation path and not the mechanism: if some future change does make the
+ * panel scroll, the button rides the bottom edge instead of leaving the screen,
+ * and *that* is the moment to give it a plate.
+ *
+ * No `backdrop-filter` as an alternative, for the reason stated twice already
+ * in this file: the board underneath is a WebGL surface redrawing every frame,
+ * and a continuously-changing backdrop costs a full-screen readback per frame.
+ */
+.mulligan-actions {
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  justify-content: center;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+}
+
+/**
+ * The head, and the rule under it.
+ *
+ * §7 asks for dividers that fade at the ends rather than butting hard into a
+ * panel edge, and the head previously ended in whitespace, so the eyebrow, the
+ * question and the row of cards were three unrelated blocks stacked at equal
+ * spacing with nothing saying which was the subject. A tapered hairline the
+ * width of the head — not the width of the panel — makes the head a caption for
+ * the table underneath it.
+ *
+ * `::after` on the head is free: `.mulligan-panel::after` is the material's
+ * specular band and `.panel-chrome::before` is the edge, and neither of them is
+ * this element.
+ */
+.mulligan-head {
+  position: relative;
+  padding-bottom: var(--sp-3);
+}
+
+.mulligan-head::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--hairline-lit) 22%,
+    var(--hairline-lit) 78%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+/*
+ * Confirm answers the pointer going down, 229ms before it used to answer at all.
+ *
+ * Everything from the click onward — building the curtain, submitting the
+ * mulligan, mounting the board — happens inside one task, so the browser has no
+ * frame in which to paint a `:active` state. The class is set on `pointerdown`
+ * (battleScreen.ts) and this is what it looks like.
+ */
+.mulligan-actions .btn.pressed {
+  transform: scale(0.96) translateY(1px);
+  filter: brightness(0.9);
+  transition: transform 80ms var(--ease-out), filter 80ms var(--ease-out);
+}
 .mulligan-head { text-align: center; }
 .mulligan-head .title { margin: var(--sp-1) 0; }
-.mulligan-cards { display: flex; gap: var(--sp-3); flex-wrap: wrap; justify-content: center; }
+/*
+ * One row, always.
+ *
+ * `flex-wrap: wrap` broke a six-card opening hand 5+1 at 1600px, leaving one
+ * orphan on a second line with Confirm crammed underneath it — a CSS default
+ * deciding the layout of the first thing a player ever sees in a match. The
+ * reference deals its mulligan as a single row on a lit table at every hand
+ * size. The compression comes from the cards giving up width together rather
+ * than from one of them falling off the end.
+ */
+/**
+ * ...and the row they sit in is a table, not a gap.
+ *
+ * `.mat-well` is the foundation's recess and this is it, inlined: the inner
+ * shadow at the top-left where the lip of the tray blocks the key, the faint rim
+ * light along the bottom-right where the floor of it catches, the well's own
+ * quiet grain, and no cast, because a hole does not have a shadow. In
+ * `hearthstone_frames/frame_00003` the mana crystals sit *in* their tray with
+ * the tray's shadow crossing their tops; that is the whole difference between
+ * furniture and a background colour, and it is the reason six cards floating on
+ * a flat plate read as a web page.
+ *
+ * `padding` is what makes the tray visible around the hand — without it the
+ * cards cover their own recess and the effect stops existing at exactly the
+ * moment it is needed. `align-items: flex-end` stays: the cards stand on the
+ * floor of the tray.
+ */
+.mulligan-cards {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: flex-end;
+  max-width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  --mat-amp: var(--amp-well);
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+  background-color: transparent;
+  background-image: var(--tex-grain-well, none), var(--fill-well);
+  background-size: var(--tex-grain-well-size, auto), 100% 100%;
+  background-repeat: repeat, no-repeat;
+  background-origin: border-box;
+  border-style: solid;
+  border-width: 1px;
+  /* Inverted against the raised materials: dark on the two edges the lip
+     shades, lit on the two the floor catches. */
+  border-color:
+    rgb(0 0 0 / 0.75)
+    rgb(255 255 255 / 0.042)
+    rgb(255 255 255 / 0.085)
+    rgb(0 0 0 / 0.41);
+  box-shadow:
+    inset 0 3px 7px -1px rgb(0 0 0 / calc(0.62 * var(--mat-amp))),
+    inset 3px 0 7px -4px rgb(0 0 0 / calc(0.45 * var(--mat-amp))),
+    inset 0 -1px 0 rgb(255 255 255 / 0.047),
+    inset -1px 0 0 rgb(255 255 255 / 0.024);
+}
+
+.mulligan-card { flex: 0 1 auto; min-width: 0; }
+.mulligan-card canvas { max-width: 100%; height: auto; }
 
 .mulligan-card {
   position: relative;
@@ -663,24 +2269,151 @@
   background: none;
   border: none;
   border-radius: 10px;
+  /**
+   * The contact shadow that makes it an object.
+   *
+   * `filter: drop-shadow` rather than `box-shadow` because the shadow has to
+   * follow the *canvas's* own rounded silhouette, not the button's box — a card
+   * frame with 10px corners casting a square shadow is the tell §1 names in its
+   * last bullet. Two of them, per the recipe: a soft 18px drop that says how far
+   * off the tray the card is, and a tight 2px contact that says it is touching.
+   * Both throw down and to the right at 0.62 of the drop, which is
+   * `SHADOW_THROW_RATIO` and the same 315° key as everything else.
+   */
+  filter:
+    drop-shadow(3px 5px 12px rgb(0 0 0 / 0.55))
+    drop-shadow(1px 2px 2px rgb(0 0 0 / 0.7));
   transition: transform var(--dur-fast) var(--ease-snap), filter var(--dur-fast);
 }
-.mulligan-card:hover { transform: translateY(-10px) scale(1.04); }
+/* Lifted off the tray: the drop lengthens and softens, the contact tightens
+   rather than following it up — which is what a shadow does when the object
+   above it rises. */
+.mulligan-card:hover {
+  transform: translateY(-10px) scale(1.04);
+  filter:
+    drop-shadow(7px 12px 24px rgb(0 0 0 / 0.62))
+    drop-shadow(1px 2px 2px rgb(0 0 0 / 0.5));
+}
 .mulligan-card canvas { display: block; border-radius: 10px; }
+/* Marked for replacement: pushed back down into the tray as well as greyed, so
+   the state reads at a glance from the *silhouette* and not from colour alone.
+   MTG Arena does the same thing — dims the card and drops it back toward the
+   deck — and it is the difference between "this one is different" and "this one
+   is leaving". */
+.mulligan-card.selected {
+  transform: translateY(4px) scale(0.97);
+  filter: drop-shadow(1px 2px 4px rgb(0 0 0 / 0.6));
+}
+.mulligan-card.selected:hover {
+  transform: translateY(-2px) scale(1.0);
+  filter: drop-shadow(4px 7px 14px rgb(0 0 0 / 0.6));
+}
 .mulligan-card.selected canvas { filter: grayscale(0.7) brightness(0.6); }
+:root[data-reduced-motion="true"] .mulligan-card { transition: filter 90ms linear; }
+
+/**
+ * ...and it fits on a phone, which it did not before this wave and does not by
+ * accident now.
+ *
+ * `renderCardToCanvas(card, 180)` produces a 252px-tall card. Stack the panel's
+ * 48px of padding, a three-line head at about 78, two 16px gaps and a 44px
+ * action row on top of that and the opening hand wants **454 pixels of a 390px
+ * viewport** — measured at 844x390, where the top of the panel and the Confirm
+ * button were both off the screen. That is a pre-existing failure of §9's hard
+ * constraint rather than something the tray introduced, but the tray's own
+ * padding made it 36px worse, so fixing it belongs in the same change.
+ *
+ * The card is what gives way. `max-height` with `width: auto` on a canvas with
+ * intrinsic dimensions scales both axes together, so 44vh of card at 390 is 172
+ * tall and the whole panel comes to about 321 — and at 1280x720, where the
+ * media query does not apply at all, nothing moves.
+ */
+@media (max-height: 560px) {
+  .mulligan-panel {
+    padding: var(--sp-3);
+    gap: var(--sp-2);
+  }
+  /* The band carries the panel's gap now, so it has to follow it down. */
+  .mulligan-brief { gap: var(--sp-2); }
+  /*
+   * "OPENING HAND" over "Choose cards to replace" says one thing twice, and on
+   * a 390px screen the twenty-five pixels it costs are the difference between
+   * the instruction being the first thing in the band and the instruction being
+   * the first thing you have to scroll for. Measured at 160%: with the eyebrow,
+   * the band's 144 visible pixels ended halfway through the title.
+   */
+  .mulligan-head .eyebrow { display: none; }
+  .mulligan-head { padding-bottom: var(--sp-2); }
+  .mulligan-head .title { font-size: var(--fs-lg); }
+  .mulligan-head p { font-size: var(--fs-xs); }
+  .mulligan-cards {
+    padding: var(--sp-2) var(--sp-3);
+    gap: var(--sp-2);
+  }
+  .mulligan-card canvas {
+    /*
+     * 44vh fitted and left the plate flush against both edges of a 390px
+     * viewport, which costs it the cast that makes it an object. 40 leaves it
+     * standing in the room.
+     *
+     * The scale term is the reachability repair's, and it is the one number in
+     * this file that reads `--ui-scale` directly. A player who has asked for
+     * 160% text has asked for the *text*, and on a 390px screen the only place
+     * that room can come from is the hand: 40vh at 100%, 32.8 at 140%, 29.2 at
+     * 160%, which is a 114px card — still a readable object, and it hands 42px
+     * back to the sentence that tells you what you are choosing. Measured
+     * without it, the prose band was 94px at 160%; with it, 136.
+     *
+     * A media query cannot ask about the interface size, so this is `calc()`
+     * rather than a fourth breakpoint, and it is clamped at *both* ends. The
+     * floor stops a future scale step driving the hand to nothing. The ceiling
+     * is 40vh, the number that was here before, because the ladder runs down to
+     * 80% as well as up to 160% and the term is linear: without it, 80% would
+     * have quietly grown the card to 43.6vh and changed a size nobody asked to
+     * change.
+     */
+    max-height: clamp(96px, calc(40vh - (var(--ui-scale, 1) - 1) * 18vh), 40vh);
+    width: auto;
+  }
+  /* Still over the 44px touch floor with the panel's own scale applied, and the
+     only control on this screen. */
+  .mulligan-actions .btn { min-height: 44px; }
+}
+/*
+ * A stamped seal, not a magenta bar across the card's name.
+ *
+ * It was `inset: auto 0 40% 0` filled with `var(--danger)` — a full-bleed,
+ * hard-cornered rectangle laid over the name plate of a card whose frame is
+ * rounded, so its square corners stuck out past the card's own silhouette and
+ * the one piece of information you need to decide a mulligan was destroyed by
+ * the mark that says you are discarding it. §1 bans a solid fill at that size
+ * and §7 asks for consistent corners.
+ *
+ * Hearthstone turns the card face-down; MTG Arena dims it and drops it back
+ * toward the deck. Both keep the card readable while marked. This is the same
+ * idea at the cost of a rotate: a seal in the lower corner, clear of the name,
+ * inside the card's radius, over a scrim that darkens the whole card evenly.
+ */
 .mulligan-mark {
   position: absolute;
-  inset: auto 0 40% 0;
-  padding: 4px;
-  background: var(--danger);
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  padding: 4px var(--sp-3);
+  border-radius: var(--r-chip, 999px);
+  background: linear-gradient(var(--light-angle, 315deg), #ff8fa3, var(--danger) 60%, #8d0f28);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.34), inset 0 -1px 0 rgba(0,0,0,0.5), 0 3px 10px rgba(0,0,0,0.6);
   color: #fff;
   font-size: var(--fs-xs);
   font-weight: 800;
   letter-spacing: 0.12em;
   opacity: 0;
-  transition: opacity var(--dur-fast);
+  transform: rotate(-7deg) scale(0.7);
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-snap);
 }
-.mulligan-card.selected .mulligan-mark { opacity: 1; }
+.mulligan-card.selected .mulligan-mark { opacity: 1; transform: rotate(-7deg) scale(1); }
+:root[data-reduced-motion="true"] .mulligan-mark { transition: opacity 90ms linear; transform: rotate(-7deg); }
 
 .chooser-panel, .confirm-panel, .settings-quick {
   padding: var(--sp-5);
@@ -688,6 +2421,151 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
+}
+
+/* ---- "end your turn?" is asked at the rail, not behind a curtain -------- */
+
+/*
+ * Measured on a 60fps screencast of a handover: from t+59ms to t+367ms the
+ * centre of the play area was under `rgba(3,2,8,0.78)` and a 12px blur, for a
+ * routine, reversible, one-key-to-undo question. That is three hundred
+ * milliseconds a turn in which the board the question is *about* cannot be
+ * read — you are being asked whether you have spent your Hype while the Hype
+ * tray, your hand and your row are all behind a blackout.
+ *
+ * MTG Arena never covers the battlefield for this; it puts the warning beside
+ * the pass button. Hearthstone does not ask at all. So the panel moves onto the
+ * End Turn rail — the object the question is about and the object that answers
+ * it — and the scrim becomes a radial falloff anchored there: dark enough at
+ * the rail to seat the panel, and barely present over the mat, which stays
+ * legible and stays lit.
+ *
+ * Still modal, deliberately: it is a yes/no the game is waiting on, so the rest
+ * of the board must not take a click that would be lost. What changes is that
+ * you can see what you are answering about.
+ */
+/*
+ * ## And it stopped taking 57% of the light off the thing it is asking about
+ *
+ * Measured on the settled frame: the play area went from a mean luminance of
+ * **84.0 to 35.9** with this overlay up — a 57% cut — for a routine, reversible,
+ * one-key-to-undo question. The panel had already moved off the middle of the
+ * board in an earlier pass, which was the right move, and then the scrim it
+ * brought with it still blacked out the mat: 0.34 alpha over the centre and 0.14
+ * at the far edge is not "barely present", it is a stop and a half.
+ *
+ * The fix is two layers rather than one, and separating them is the whole trick.
+ * A **local pool** does the seating: 46% of the viewport wide, so it has fallen
+ * to nothing well before the middle of the mat instead of reaching all the way
+ * across it — that reach was the actual defect, not the peak alpha, because a
+ * `radial-gradient`'s stops are percentages of the *ray*, and at 128% of the
+ * width the old gradient's "0.34 at 56%" landed at 0.44 over the far row. Then a
+ * **flat 0.10 veil** over everything says the game is waiting, which is a job
+ * that wants uniformity rather than a spotlight.
+ *
+ * Measured on a matched seed over the play area, 1600x900: **78.7 unobscured,
+ * 56.7 under the old scrim (a 28% cut on this rectangle, 57% on the critic's
+ * larger one), and 65.8 under this one — a 16% cut.** Over the hand, which is
+ * literally what the sentence "you still have 1 playable card" is about, the
+ * same three readings are 69.6, 55.0 and 61.7: an 11% cut against 21%.
+ *
+ * MTG Arena never covers the battlefield for this at all; it puts the warning
+ * beside the pass button. Hearthstone does not ask. The pool of room light in
+ * the second layer is what replaces the missing darkness — the panel is seated
+ * by being *lit*, which is cheaper in contrast than digging a hole for it.
+ *
+ * ## What is deliberately still wrong here
+ *
+ * The scrim covers the viewport and eats every click, including the ones far
+ * from the panel. Keeping it that way is the lesser of the two evils available
+ * from CSS: making it click-through would let a stray click play a card while a
+ * yes/no the game is blocked on is still on screen. The right fix is four lines
+ * in `battleScreen.ts` — resolve the promise `false` when the scrim itself is
+ * clicked, which is what "reversible" ought to mean — and that file belongs to
+ * somebody else this wave.
+ */
+.battle-overlay.confirm-overlay {
+  place-items: center end;
+  padding-right: calc(var(--sp-5) + 132px + var(--sp-5));
+  background-color: transparent;
+  background-image:
+    var(--tex-grain-well, none),
+    radial-gradient(
+      30% 60% at 90% 50%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 16%, transparent),
+      transparent 78%
+    ),
+    radial-gradient(
+      46% 96% at 92% 50%,
+      rgb(3 2 8 / 0.72) 0%,
+      rgb(3 2 8 / 0.56) 42%,
+      rgb(3 2 8 / 0.2) 76%,
+      rgb(3 2 8 / 0) 100%
+    ),
+    linear-gradient(rgb(3 2 8 / 0.1), rgb(3 2 8 / 0.1));
+  background-size: var(--tex-grain-well-size, auto), auto, auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  /* No backdrop blur. The board underneath is a WebGL surface redrawing every
+     frame, and a continuously-changing backdrop-filter costs a full-screen
+     readback per frame for a panel that is on screen for a third of a second. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* It floats further than the other dialogues because it has almost no scrim
+   under it to separate it from the board — the cast is doing the whole job. */
+.battle-overlay.confirm-overlay .confirm-panel {
+  --cast-lift: 3.2;
+}
+
+.battle-overlay.confirm-overlay .confirm-panel {
+  min-width: min(330px, 42vw);
+  /* It arrives from the rail it belongs to rather than fading in from nowhere,
+     which is what makes it read as the button's own answer sheet. */
+  animation: confirm-in var(--dur-fast) var(--ease-snap) both;
+}
+
+@keyframes confirm-in {
+  from { opacity: 0; transform: translateX(26px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+:root[data-reduced-motion="true"] .battle-overlay.confirm-overlay .confirm-panel { animation: none; }
+
+/*
+ * Below the rail's own width there is nowhere beside the button to stand, so
+ * the panel goes to the bottom edge instead — still off the rows, still not on
+ * top of the cards the question is about.
+ */
+@media (max-width: 1080px), (max-height: 560px) {
+  .battle-overlay.confirm-overlay {
+    place-items: end center;
+    padding: 0 var(--sp-4) var(--sp-4);
+    background-image:
+      var(--tex-grain-well, none),
+      radial-gradient(
+        56% 22% at 50% 100%,
+        color-mix(in srgb, var(--room-key, #ff5fa2) 16%, transparent),
+        transparent 78%
+      ),
+      radial-gradient(
+        86% 40% at 50% 100%,
+        rgb(3 2 8 / 0.74) 0%,
+        rgb(3 2 8 / 0.5) 44%,
+        rgb(3 2 8 / 0) 100%
+      ),
+      linear-gradient(rgb(3 2 8 / 0.1), rgb(3 2 8 / 0.1));
+    background-size: var(--tex-grain-well-size, auto), auto, auto, auto;
+    background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  }
+  .battle-overlay.confirm-overlay .confirm-panel {
+    min-width: min(420px, 92vw);
+    animation-name: confirm-in-up;
+  }
+  @keyframes confirm-in-up {
+    from { opacity: 0; transform: translateY(22px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+  }
 }
 .chooser-title { font-family: var(--font-display); margin: 0; }
 .chooser-list { display: flex; flex-direction: column; gap: var(--sp-2); }
@@ -714,16 +2592,35 @@
    * the blur it replaces.
    */
   backdrop-filter: none;
-  background: rgba(3, 2, 8, 0.88);
+  -webkit-backdrop-filter: none;
+  --ov-scrim: 0.88;
 }
 .detail-panel { display: flex; gap: var(--sp-5); align-items: flex-start; max-width: min(940px, 94vw); }
-.detail-panel canvas { border-radius: 14px; box-shadow: var(--shadow-lg); }
+/*
+ * The card is an object standing in front of the scrim, so it casts like one:
+ * a soft drop that says how far, a tight contact that says it is real, both
+ * throwing down and right from the same 315° key. `filter` rather than
+ * `box-shadow` so the cast follows the frame's own rounded silhouette instead
+ * of a rectangle around it — `var(--shadow-lg)` was drawing a square shadow
+ * behind a card with 14px corners on the biggest card image in the game.
+ */
+.detail-panel canvas {
+  border-radius: 14px;
+  box-shadow: none;
+  filter:
+    drop-shadow(9px 15px 34px rgb(0 0 0 / 0.62))
+    drop-shadow(1px 2px 3px rgb(0 0 0 / 0.7));
+}
 .detail-info { padding: var(--sp-5); max-width: 380px; }
 .detail-name { font-family: var(--font-display); font-size: var(--fs-xl); margin: var(--sp-1) 0 var(--sp-2); }
 
 /* ---- victory / defeat --------------------------------------------------- */
 
-.end-overlay { background: rgba(3, 2, 8, 0.9); }
+/* The deepest scrim in the game — the match is over and nothing behind it is
+   worth reading — but still the room rather than a black rectangle: the same
+   stock at 0.92, with the pool of light under the title where the eye is going
+   anyway. */
+.end-overlay { --ov-scrim: 0.92; }
 .end-panel { text-align: center; display: flex; flex-direction: column; gap: var(--sp-3); align-items: center; }
 
 .end-title {
@@ -759,13 +2656,71 @@
 /* ---- responsive tightening for small landscape phones ------------------- */
 
 @media (max-height: 520px) {
-  .history-panel { max-height: 140px; width: 210px; }
-  .obsession-dial { width: 170px; }
-  .timer-ring { width: 104px; height: 104px; }
+  /*
+   * The log and the End Turn ring stopped sharing a corner.
+   *
+   * Measured at 844x390 with bounding rects: `.history-panel` spanned
+   * x 618-828 / y 74-214 and `.turn-wrap` spanned x 720-824 / y 143-247, so a
+   * hundred pixels of the most important control on the screen sat underneath
+   * a scrolling text panel. §9 makes the phone size a hard constraint, and two
+   * HUD elements occupying the same pixels is the corner-pinned-absolutes
+   * failure the recon named as the worst thing here.
+   *
+   * The log is docked directly under the control cluster and stops above the
+   * ring's top edge; the ring comes down to 84px, which still clears the 44px
+   * touch target with room over. Nothing is layered on anything.
+   */
+  /* 84px rather than 92px: the log now starts 8px lower, and the End Turn ring's
+     top edge at this height is the floor it has to stay off. */
+  .history-panel { top: calc(var(--controls-bottom) + 2px); max-height: 84px; width: 186px; }
+  .obsession-dial { width: 152px; }
+  .timer-ring { width: 84px; height: 84px; --ring-band: 5px; }
+  /* The collar scales with the disc — at 13px around an 84px ring it would be a
+     third of the object's diameter and the seat would read as the button. */
+  .turn-wrap { --collar: 8px; }
+  .end-turn-icon { width: 18px; height: 18px; }
+  .end-turn-btn .end-turn-text { font-size: var(--fs-xs); letter-spacing: 0.02em; }
   .leader-orb { width: 46px; height: 46px; }
   .confluence-bar { max-width: 230px; }
   .conf-text { display: none; }
+  /* The corner column packs itself, so a short viewport only has to say that
+     the blocks inside it are allowed to sit closer together. */
+  .hud-corner { gap: 4px; }
+
+  /*
+   * The rival's rail lies down when there is no height for it to stand up in.
+   *
+   * At 844x390 the two players' columns would want 106px and 135px out of 390,
+   * which is two thirds of the screen given to chrome. Stacking is only how the
+   * mirror is *drawn* — what has to hold is that both players' plate and dial are
+   * one object anchored to their own edge of the board, and a row does that in
+   * 60px instead of 106. The player's column stays vertical because it has the
+   * ability buttons under it and they cannot go beside anything.
+   *
+   * (The rival's dial used to be on the centre line here, where it covered
+   * roughly 55% of the enemy leader medallion — the object the whole match is
+   * about. `insetsFor()` in scene.ts drops the top reserve from 84px to 46px
+   * below 500px of height on the grounds that the dial is out of the way, and
+   * this is what actually puts it there.)
+   */
+  .hud-corner-rival {
+    flex-direction: row-reverse;
+    align-items: flex-start;
+  }
+  .hud-corner-rival > .obsession-dial { width: 152px; }
+
+  /*
+   * "RIVAL · OBSESSION" wrapped to two lines inside a 136px dial and took the
+   * value off its own baseline with it, so the two dials — which exist to be
+   * compared with each other at a glance — read as different objects on a
+   * phone. The label is one short phrase; it is allowed to shrink rather than
+   * break.
+   */
+  .obs-label { font-size: 0.62rem; letter-spacing: 0.06em; }
 }
+
+/* A resource label never wraps: the pair only works if both read identically. */
+.obs-label { white-space: nowrap; }
 
 /* ---- coach overlay (tutorial, puzzles, story) ---------------------------- */
 
@@ -805,12 +2760,9 @@
   bottom: 20vh;
   width: min(360px, 32vw);
   padding: var(--sp-4) var(--sp-5);
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border-bright);
   border-left: 3px solid var(--accent);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(10px);
+  border-radius: var(--r-panel, var(--radius));
+  --r-self: var(--r-panel, var(--radius));
   pointer-events: auto;
   display: flex;
   flex-direction: column;
@@ -903,38 +2855,30 @@
  * meter read together.
  */
 .ability-bar {
-  position: absolute;
-  bottom: var(--sp-3);
-  left: var(--sp-4);
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
-  width: 230px;
+  width: min(14.375rem, 22vw);
 }
 
+/* `.mat-panel .act` in hud.ts: surface and six states from the foundation. */
 .ability-btn {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-2);
   text-align: left;
-  border-radius: var(--radius);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-strong);
-  backdrop-filter: blur(10px);
+  border-radius: var(--r-tile, var(--radius));
+  --r-self: var(--r-tile, var(--radius));
   color: var(--text-dim);
   cursor: not-allowed;
-  transition: border-color var(--dur-fast), transform var(--dur-fast) var(--ease-snap);
 }
 
 .ability-btn.ready {
   color: var(--text);
-  border-color: var(--accent);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: var(--mat-cast), 0 0 16px color-mix(in srgb, var(--accent) 35%, transparent);
   cursor: pointer;
 }
-
-.ability-btn.ready:hover { transform: translateY(-2px); border-color: var(--accent-bright); }
 
 .ability-cost {
   flex: 0 0 auto;
@@ -952,12 +2896,26 @@
 
 .ability-body { display: flex; flex-direction: column; min-width: 0; }
 .ability-name { font-size: var(--fs-sm); font-weight: 600; }
+/*
+ * Two lines, because one was never enough for a sentence.
+ *
+ * `white-space: nowrap` plus an ellipsis inside a 166px box printed "Deal 2
+ * damage to a charact…" for a 298px string at the default size and lost two
+ * thirds of it at `--ui-scale: 1.4`. The rail is the only place a leader's
+ * ability is written down during a match — the 3D medallion carries none of it —
+ * so the text is allowed the second line rather than the button being allowed to
+ * eat the sentence. Clamped rather than unbounded so a long ability can never
+ * push the rail into the hand.
+ */
 .ability-text {
   font-size: var(--fs-xs);
+  line-height: 1.3;
   color: var(--text-faint);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 /* hidden until the Obsession lesson introduces it */
@@ -965,7 +2923,7 @@
 .tutorial-active.reveal-obsession .ability-bar { display: flex; }
 
 @media (max-height: 620px) {
-  .ability-bar { width: 190px; }
+  .ability-bar { width: min(11.875rem, 24vw); }
   .ability-text { display: none; }
 }
 
@@ -1088,9 +3046,33 @@
  * hides the hand is the failure this feature exists to prevent, and the browser
  * check now asserts near-total opacity rather than merely "not transparent".
  */
+/*
+ * The one scrim in the game that keeps an opaque `background-color`, and it is
+ * not a style choice: `verify-custom.mjs` reads `getComputedStyle(overlay)
+ * .backgroundColor` and fails the hotseat outright below 0.98 alpha. Every other
+ * scrim here paints its fill as a `background-image` layer, which computes as
+ * `rgba(0,0,0,0)` for that check — correct for a translucent cover, and exactly
+ * the wrong answer for the one that must not be translucent at all. So the base
+ * colour stays a colour, and the room is painted on top of it.
+ *
+ * Fully opaque either way: every stop below is alpha 1, so the hand is as hidden
+ * as it was, and the cover is a lit room rather than a flat #050409 rectangle
+ * held in the player's hands while the device changes hands.
+ */
 .battle-overlay.handoff-overlay {
-  background: #050409;
+  background-color: #050409;
+  background-image:
+    var(--tex-grain-well, none),
+    radial-gradient(
+      104% 64% at 50% 106%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 20%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(var(--light-sweep), #171029 0%, #0b0817 58%, #06040e 100%);
+  background-size: var(--tex-grain-well-size, auto), auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat;
   backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   opacity: 1;
 }
 

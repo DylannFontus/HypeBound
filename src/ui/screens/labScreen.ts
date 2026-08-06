@@ -11,6 +11,25 @@
  * bonus you forgot turns a one-answer puzzle into a two-answer one — so the Lab
  * exports the scenario block ready to paste into `data/encounters/`, having
  * proven it deals what you think it deals.
+ *
+ * ## Why the surfaces changed, and why the stage grew a second row
+ *
+ * This screen is two clicks from PLAY and it was the pre-overhaul game intact:
+ * zero `mat-*` surfaces, five flat `rgba(28,20,48,.62)` fills over 120×60px —
+ * §1 bans a solid fill on anything larger than an icon — and a legacy
+ * `base.css` `.panel` around the stage. It scored 0 materials in the census
+ * that finally visited it. The fills are gone; every surface here is now one of
+ * module A's four, at the rank the thing actually is: the editor groups and the
+ * stage are panels, the board seats are wells because a board is *recessed*
+ * ground, and the units, the ops and the legal moves are chips.
+ *
+ * The Scenario group moved out of the left rail and into the stage, and that is
+ * a layout fix rather than a decorative one. At 1280×720 the rail held four
+ * groups totalling ~1,160px inside a 630px column, which put the "Add to board"
+ * hero exactly across the cut — a primary action sliced in half at rest, with
+ * nothing to say the column scrolled. Three groups fit (270 + 296 + gap = 582 <
+ * 630), so the hero is whole, the cut now falls on a group boundary, and the
+ * stage — 780×735 with 300px of content in it — has something to hold.
  */
 
 import type {
@@ -29,6 +48,8 @@ import { enumerateLegalIntents } from "../../engine/intents";
 import { selectableLeaders } from "../../engine/content";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { audio } from "../../audio/audio";
+import { count, disposeBag, enter, fadeOnScroll, icon } from "./data/kit";
+import "./sideDoors.css";
 
 export interface LabCallbacks {
   onBack: () => void;
@@ -95,73 +116,119 @@ export function createLabScreen(content: ContentIndex, callbacks: LabCallbacks):
   root.innerHTML = `
     <div class="ambient-bg"></div>
     <header class="sub-header">
-      <button class="btn btn-ghost" id="lab-back">← Lobby</button>
+      <button class="btn btn-ghost" id="lab-back">${icon("arrow-left", 16)} Lobby</button>
       <h1 class="title">The Lab</h1>
       <div class="sub-header-meta muted">Deterministic sandbox · you control both seats</div>
     </header>
-    <div class="lab-body">
-      <aside class="lab-editor scroll">
-        <section class="lab-group">
-          <div class="eyebrow">Match</div>
-          <label class="lab-field">Seed <input type="number" id="lab-seed" value="${seed}" /></label>
-          <label class="lab-field">Leader A <select id="lab-leader-a"></select></label>
-          <label class="lab-field">Leader B <select id="lab-leader-b"></select></label>
+    <div class="lab-body data-body">
+      <aside class="lab-editor" id="lab-editor">
+        ${/*
+           * The form kit, rather than five bespoke controls.
+           *
+           * These were bare `<input>` and `<select>` under a `.lab-field` rule in
+           * `screens.css` that gave them a flat `--bg-panel` fill and a 1px border
+           * — §1 bans both — and no hover, press, focus or disabled state of any
+           * kind. They are `field-group` / `t-label` / `.field` / `.select` /
+           * `.checkbox` now, which is module A's kit, so the Lab's controls are
+           * the same objects as the Custom Lobby's and the Settings rail's rather
+           * than a third opinion. The class is dropped from the wrapper as well as
+           * added to the control: `.lab-field input` is a more specific selector
+           * than `.field`, so as long as a control was *inside* one, the old flat
+           * fill won.
+           */ ""}
+        <section class="lab-plate mat-panel r-panel d-enter">
+          <div class="lab-group-head">${icon("mode-lab", 15)}<span class="t-label">Match</span></div>
+          <label class="field-group">
+            <span class="t-label">Seed</span>
+            <input class="field num" type="number" id="lab-seed" value="${seed}" />
+          </label>
+          <label class="field-group">
+            <span class="t-label">Leader A</span>
+            <select class="select" id="lab-leader-a"></select>
+          </label>
+          <label class="field-group">
+            <span class="t-label">Leader B</span>
+            <select class="select" id="lab-leader-b"></select>
+          </label>
         </section>
 
-        <section class="lab-group">
-          <div class="eyebrow">Add a character</div>
-          <label class="lab-field">Card <select id="lab-card"></select></label>
-          <label class="lab-field">Side
-            <select id="lab-side"><option value="0">A (you)</option><option value="1">B (rival)</option></select>
+        <section class="lab-plate mat-panel r-panel d-enter">
+          <div class="lab-group-head">${icon("plus", 15)}<span class="t-label">Add a character</span></div>
+          <label class="field-group">
+            <span class="t-label">Card</span>
+            <select class="select" id="lab-card"></select>
           </label>
-          <label class="lab-field lab-inline">
-            <span>Ready</span><input type="checkbox" id="lab-ready" checked />
+          <label class="field-group">
+            <span class="t-label">Side</span>
+            <select class="select" id="lab-side"><option value="0">A (you)</option><option value="1">B (rival)</option></select>
           </label>
-          <button class="btn btn-primary" id="lab-add">Add to board</button>
+          <label class="field-row lab-check">
+            <input class="checkbox" type="checkbox" id="lab-ready" checked />
+            <span>Enters ready</span>
+          </label>
+          <button type="button" class="mat-panel act r-chip lab-action" id="lab-add">${icon("plus", 15)} Add to board</button>
         </section>
 
-        <section class="lab-group">
-          <div class="eyebrow">Set a value</div>
-          <label class="lab-field">What
-            <select id="lab-what">
+        <section class="lab-plate mat-panel r-panel d-enter">
+          <div class="lab-group-head">${icon("settings", 15)}<span class="t-label">Set a value</span></div>
+          <label class="field-group">
+            <span class="t-label">What</span>
+            <select class="select" id="lab-what">
               <option value="leaderHealth">Leader health</option>
               <option value="obsession">Obsession</option>
-              <option value="armor">Armor</option>
+              <option value="armor">Armour</option>
               <option value="turn">Turn (sets Hype)</option>
             </select>
           </label>
-          <label class="lab-field">Side
-            <select id="lab-vside"><option value="0">A (you)</option><option value="1">B (rival)</option></select>
+          <label class="field-group">
+            <span class="t-label">Side</span>
+            <select class="select" id="lab-vside"><option value="0">A (you)</option><option value="1">B (rival)</option></select>
           </label>
-          <label class="lab-field">Value <input type="number" id="lab-value" value="10" /></label>
-          <button class="btn" id="lab-set">Apply</button>
-        </section>
-
-        <section class="lab-group">
-          <div class="eyebrow">Scenario</div>
-          <div class="lab-ops scroll" id="lab-ops"></div>
-          <div class="row">
-            <button class="btn btn-ghost" id="lab-undo-op">Remove last</button>
-            <button class="btn btn-ghost" id="lab-clear">Clear all</button>
-          </div>
-          <button class="btn btn-primary" id="lab-export">Copy encounter JSON</button>
-          <p class="muted lab-hint" id="lab-hint">Paste straight into <code>data/encounters/</code>.</p>
+          <label class="field-group">
+            <span class="t-label">Value</span>
+            <input class="field num" type="number" id="lab-value" value="10" />
+          </label>
+          <button type="button" class="mat-panel act r-chip lab-action" id="lab-set">Apply</button>
         </section>
       </aside>
 
-      <section class="lab-stage panel">
-        <div class="lab-board" id="lab-board"></div>
-        <div class="lab-log-head">
-          <span class="eyebrow">Intent log</span>
-          <div class="row">
-            <button class="btn btn-ghost" id="lab-undo">Undo</button>
-            <button class="btn btn-ghost" id="lab-reset">Reset</button>
-          </div>
+      <section class="lab-stage mat-panel r-panel">
+        <div class="lab-board mat-well r-tile" id="lab-board"></div>
+
+        <div class="lab-desk">
+          <section class="lab-desk-col d-enter">
+            <div class="lab-group-head">
+              ${icon("log", 15)}<span class="t-label">Intent log</span>
+              <div class="lab-head-actions">
+                <button type="button" class="mat-chip act r-chip lab-mini" id="lab-undo">${icon("back", 14)} Undo</button>
+                <button type="button" class="mat-chip act r-chip lab-mini" id="lab-reset">${icon("refresh", 14)} Reset</button>
+              </div>
+            </div>
+            <div class="lab-log-pane mat-well r-tile" id="lab-log"></div>
+          </section>
+
+          <section class="lab-desk-col d-enter">
+            <div class="lab-group-head">
+              ${icon("deck", 15)}<span class="t-label">Scenario</span>
+              <div class="lab-head-actions">
+                <button type="button" class="mat-chip act r-chip lab-mini" id="lab-undo-op">Remove last</button>
+                <button type="button" class="mat-chip act r-chip lab-mini" id="lab-clear">Clear all</button>
+              </div>
+            </div>
+            <div class="lab-op-pane mat-well r-tile" id="lab-ops"></div>
+            <button type="button" class="mat-hero act r-chip lab-action" id="lab-export">
+              ${icon("edit", 15)} Copy encounter JSON
+            </button>
+            <p class="t-body lab-hint" id="lab-hint">Paste straight into <code>data/encounters/</code>.</p>
+          </section>
         </div>
-        <div class="lab-log scroll" id="lab-log"></div>
+
         <div class="lab-moves">
-          <div class="eyebrow">Legal moves — <span id="lab-turn-owner"></span></div>
-          <div class="lab-move-list scroll" id="lab-moves"></div>
+          <div class="lab-group-head">
+            ${icon("crosshair", 15)}<span class="t-label">Legal moves</span>
+            <span class="lab-turn t-label" id="lab-turn-owner"></span>
+          </div>
+          <div class="lab-move-list" id="lab-moves"></div>
         </div>
       </section>
     </div>`;
@@ -230,6 +297,16 @@ export function createLabScreen(content: ContentIndex, callbacks: LabCallbacks):
     }
   };
 
+  /**
+   * One seat, as a recessed plate.
+   *
+   * `.num` on every figure here and not only on the health, because all four are
+   * read while comparing two seats side by side — A4 calls that reading under
+   * pressure, and a Hype total that shifts a pixel when it gains a digit is the
+   * defect the role exists to prevent. The active seat is marked by a lit rim
+   * and a left bar rather than by a fill, so "whose turn" is not carried by
+   * colour alone (§6) and the two plates stay the same material.
+   */
   const renderSide = (seat: Seat): string => {
     const player = state.players[seat];
     const leader = content.leaders[player.leaderCardId];
@@ -237,34 +314,50 @@ export function createLabScreen(content: ContentIndex, callbacks: LabCallbacks):
       .filter((c) => c !== null)
       .map(
         (c) =>
-          `<span class="lab-unit" style="--c:${CURRENT_PALETTE[c!.current].key}">${
+          `<span class="lab-tok mat-chip r-chip" style="--c:${CURRENT_PALETTE[c!.current].key}">${
             content.cards[c!.cardId]?.name ?? c!.cardId
-          } <b>${c!.attack}/${c!.health}</b></span>`
+          } <b class="num">${count(c!.attack)}/${count(c!.health)}</b></span>`
       )
       .join("");
+    const active = state.activeSeat === seat;
     return `
-      <div class="lab-side${state.activeSeat === seat ? " active" : ""}">
+      <div class="lab-seat mat-well r-tile${active ? " active" : ""}">
         <div class="lab-side-head">
-          <span><b>${seat === 0 ? "A" : "B"}</b> ${leader?.name ?? "—"}</span>
-          <span class="lab-hp">${player.leaderHealth} HP</span>
-          <span class="muted">${player.hype}/${player.hypeMax} Hype · ${player.obsession} Obs${
-            player.armor > 0 ? ` · ${player.armor} Armor` : ""
-          }</span>
+          <span class="lab-seat-label t-label">${seat === 0 ? "A" : "B"}</span>
+          <span class="lab-leader t-body">${leader?.name ?? "—"}</span>
+          ${active ? '<span class="lab-active-tag t-label">to act</span>' : ""}
+          <span class="lab-hp"><span class="num">${count(player.leaderHealth)}</span> HP</span>
+          <span class="lab-vitals t-body">
+            <span class="num">${count(player.hype)}</span>/<span class="num">${count(player.hypeMax)}</span> Hype
+            · <span class="num">${count(player.obsession)}</span> Obs${
+              player.armor > 0 ? ` · <span class="num">${count(player.armor)}</span> Armour` : ""
+            }
+          </span>
         </div>
-        <div class="lab-units">${units || '<span class="muted">empty</span>'}</div>
+        <div class="lab-units">${
+          units ||
+          `<span class="lab-none lab-none-board t-body">${icon(
+            "plus",
+            15
+          )} No characters on this side — add one from the rail</span>`
+        }</div>
       </div>`;
   };
 
   const render = (): void => {
-    $("lab-board").innerHTML = renderSide(1) + '<div class="lab-divider"></div>' + renderSide(0);
+    $("lab-board").innerHTML = renderSide(1) + '<div class="hairline lab-rule"></div>' + renderSide(0);
 
     $("lab-ops").innerHTML =
-      setup.map((op) => `<div class="lab-op">${describeOp(op)}</div>`).join("") ||
-      '<div class="muted">No setup yet.</div>';
+      setup.map((op) => `<div class="lab-op-row mat-chip r-chip">${describeOp(op)}</div>`).join("") ||
+      '<div class="lab-none t-body">No setup yet — the board is whatever a fresh match deals.</div>';
 
     $("lab-log").innerHTML =
-      intents.map((i, n) => `<div class="lab-log-line">${n + 1}. ${describeIntent(i)}</div>`).join("") ||
-      '<div class="muted">No moves yet.</div>';
+      intents
+        .map(
+          (i, n) =>
+            `<div class="lab-log-line"><span class="lab-log-n num">${count(n + 1)}</span> ${describeIntent(i)}</div>`
+        )
+        .join("") || '<div class="lab-none t-body">No moves yet — play one below.</div>';
 
     const owner = state.winner !== null ? "match over" : `seat ${state.activeSeat === 0 ? "A" : "B"} to act`;
     $("lab-turn-owner").textContent = owner;
@@ -276,7 +369,8 @@ export function createLabScreen(content: ContentIndex, callbacks: LabCallbacks):
     list.innerHTML = "";
     for (const intent of moves) {
       const button = document.createElement("button");
-      button.className = "btn btn-ghost lab-move";
+      button.type = "button";
+      button.className = "lab-move mat-chip act r-chip d-enter";
       button.textContent = describeIntent(intent);
       button.addEventListener("click", () => {
         try {
@@ -289,6 +383,15 @@ export function createLabScreen(content: ContentIndex, callbacks: LabCallbacks):
       });
       list.appendChild(button);
     }
+    if (moves.length === 0) {
+      list.innerHTML = `<div class="lab-none t-body">${
+        state.winner !== null ? "The match is over. Undo a move, or reset." : "No legal move for this seat."
+      }</div>`;
+    }
+
+    // §3a: the moves are a list, and a list arrives on a cascade rather than
+    // all at once. `enter` is a no-op under reduced motion.
+    enter(list, ".lab-move", 26);
   };
 
   // ---- editing --------------------------------------------------------------
@@ -389,6 +492,23 @@ export function createLabScreen(content: ContentIndex, callbacks: LabCallbacks):
 
   render();
 
+  /**
+   * The three things a shipped menu does that this one did not (§3a).
+   *
+   * `enter` gives the editor its cascade — panels arriving in reading order on a
+   * 44ms step rather than the whole rail appearing in one frame. The two
+   * `fadeOnScroll` calls put a ramp on the edge of anything that actually
+   * overflows and, importantly, take it away again when it does not: a
+   * permanent fade dims the last line of a list that has already ended and says
+   * "there is more" when there is not. The rail is the one that matters — at
+   * 1280×720 it is the column that scrolls.
+   */
+  const bag = disposeBag();
+  bag.add(enter(root, ".lab-plate, .lab-desk-col", 44));
+  bag.add(fadeOnScroll($("lab-editor")));
+  bag.add(fadeOnScroll($("lab-log")));
+  bag.add(fadeOnScroll($("lab-ops")));
+
   // automation handle: the Lab's whole contract is that what you see is what
   // the exported scenario deals
   (window as unknown as { hypeboundLab?: unknown }).hypeboundLab = {
@@ -398,5 +518,11 @@ export function createLabScreen(content: ContentIndex, callbacks: LabCallbacks):
     exportScenario: () => buildConfig(),
   };
 
-  return { root };
+  return {
+    root,
+    dispose: () => {
+      bag.run();
+      delete (window as unknown as { hypeboundLab?: unknown }).hypeboundLab;
+    },
+  };
 }

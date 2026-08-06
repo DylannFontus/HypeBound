@@ -1,0 +1,2152 @@
+/**
+ * The data-and-system screens, as one place rather than twenty-three.
+ *
+ * Twenty-three routes — profile, mastery, statistics, leaderboards, match
+ * history, news, patch notes, inbox, events, the four mode hubs, the lab, the
+ * custom lobby, settings, and the six policy screens — were audited twice and
+ * scored 4.5 and 4. Both audits landed on the same root cause and it was not a
+ * missing gradient: **each screen had decided everything for itself.** Three
+ * different page containers inside one domain, two different active-chip styles
+ * in the same 40px row, list rows that were `<li>` on four screens and
+ * `<button>` on a fifth, and eight row types with no hover at all.
+ *
+ * This file is that decision made once. It sits *on top of* `foundation.css`
+ * rather than beside it: every surface in here is a `.mat-*` material, every
+ * radius is a role token, every duration and easing is a `--dur-*`/`--ease-*`,
+ * and the only things declared are the ones the foundation cannot know —
+ * how a mastery tile is laid out, what a reward rung looks like, where the key
+ * art goes.
+ *
+ * ## Four rules it holds to
+ *
+ * **One measure.** `.data-body` is the container for all twenty-three. A player
+ * walking profile → statistics → events used to watch the text column jump from
+ * 1580px to 1180px to the full 1600px with no gutter at all, which reads as
+ * three different applications. One max-width, one `clamp()` gutter, one scroll
+ * treatment, one bottom fade.
+ *
+ * **The light is at 315°, so every gradient here is either the rig axis or
+ * exactly square to the viewport.** There is no third case in this file.
+ *
+ * **Nothing signals by colour alone.** The faction crest carries a *shape*; the
+ * result pips carry a *direction*; the rank ladder carries pip *count*. Colour
+ * is always the second channel.
+ *
+ * **The decorative layer dies under reduced motion and the functional one does
+ * not.** Every animation in here is listed in §9 and switched off there, and
+ * every one of them animates `transform`, `opacity` or `filter` only — the
+ * lobby lost half its frame rate to one `background-position` and that lesson
+ * is written into `foundation.css` in forty lines. Not repeating it.
+ */
+
+/* -------------------------------------------------------------------------
+   1. One page container
+   ------------------------------------------------------------------------- */
+
+/**
+ * `.data-body` is composed onto whatever bespoke body class a screen already
+ * has, so a screen keeps its own grid and inherits the measure. The selector is
+ * `.screen .data-body` rather than `.data-body` on purpose: `screens.css` is
+ * another module's file and states `padding: var(--sp-3) 0` on `.events-body`
+ * at equal specificity, so this has to win on weight rather than on the load
+ * order of two stylesheets nobody should have to reason about.
+ */
+.screen .data-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  width: 100%;
+  max-width: var(--data-measure, 1220px);
+  margin-inline: auto;
+  padding-block: var(--sp-5) var(--sp-8);
+  padding-inline: clamp(16px, 3.4vw, 48px);
+}
+
+/** The two-column reading screens want more room than a single stack does. */
+.screen .data-body.data-wide {
+  --data-measure: 1440px;
+}
+
+/**
+ * ...and the documents want less.
+ *
+ * Three measures, not three accidents. A grid of tiles wants 1220; a two-pane
+ * reader wants 1440; a **single column of prose or of form rows** wants the
+ * measure prose has always wanted, and giving it 1220 does not widen the text —
+ * it widens the *panel* and leaves the right third of the largest object on the
+ * screen holding nothing, which is what the privacy, legal, fairness and support
+ * screens all shipped. It also let Settings pick its own 980 and Accessibility,
+ * the screen one click inside it, keep 1220, so a player watched the column jump
+ * between two halves of the same settings tree.
+ *
+ * `.data-doc` is that third measure, named once and applied to all six. Wide
+ * tables inside it scroll horizontally rather than forcing the page sideways —
+ * see the `.d-table` rules in `rooms.css`.
+ */
+.screen .data-body.data-doc {
+  --data-measure: 980px;
+}
+
+/**
+ * A panel inside a scrolling column may grow and must never shrink.
+ *
+ * This is one line and it is load-bearing. Most of these bodies are
+ * `flex-direction: column`, and a flex item whose own `overflow` is not
+ * `visible` has an automatic minimum size of **zero** rather than of its
+ * content — so the moment the profile's hero panel was given `overflow: hidden`
+ * to clip its light wash, flexbox squashed it from 210px to 60px and the panel
+ * below climbed on top of it. The panel is not the bug; the default is. Grid
+ * children ignore `flex-shrink` entirely, so the two-column reading screens are
+ * unaffected.
+ */
+.screen .data-body > * {
+  flex-shrink: 0;
+}
+
+/**
+ * Padding, for a `.panel` that nobody remembered to name.
+ *
+ * `.panel` in `base.css` is background + border + radius + blur + shadow and no
+ * padding whatsoever; `screens.css` grants it through an explicit list of forty
+ * screen-specific class names, which is a contract guaranteed to drift the
+ * moment a sixteenth builder adds a screen. It drifted: the Remix Queue's four
+ * panels were all missing from the list, so the heading sat *on* the border, the
+ * left accent rule cut through the text, and the primary CTA had its left cap
+ * clipped off the panel entirely.
+ *
+ * The real fix is padding on the primitive, which is module A's file. This is
+ * the composable version for this domain — a class a screen can name, so a panel
+ * is never one hand-maintained selector list away from having none.
+ */
+.screen .d-pad {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.screen .d-pad.d-pad-flush {
+  padding: 0;
+}
+
+/**
+ * A scroll that ends in a fade rather than in a cut word.
+ *
+ * At 1280×720 the news article was clipped through the middle of "all it does."
+ * with no gradient and no affordance, which is the clearest possible signal that
+ * nobody opened the build at the minimum supported size. The mask ramps over the
+ * last 40px so text visibly continues, and only at the end that really does
+ * continue: `fadeOnScroll` in `kit.ts` writes `--fade-a` and `--fade-b` per edge.
+ *
+ * **The two variables mean "opaque here", and the mask has to read them that
+ * way round.** They were negated — `calc(1 - var(--fade-a))` — against a helper
+ * that already writes 1 for solid and 0 for fade, so every list in the domain
+ * did the exact opposite of what it was for: at `scrollTop: 0`, `--fade-a`
+ * resolved to 1 and the 0px stop to alpha *zero*, so the top row of a list that
+ * had nothing above it was the dimmest thing on screen, while the bottom edge
+ * stayed fully opaque and guillotined a line of text mid-word. Measured on
+ * `#news` with 282px of overflow, and visible on the Replay list where the top
+ * row is also the *selected* one. One negation, ten screens, exactly backwards.
+ */
+.d-fade {
+  --fade-a: 1;
+  --fade-b: 1;
+  mask-image: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, var(--fade-a)) 0,
+    #000 40px,
+    #000 calc(100% - 40px),
+    rgba(0, 0, 0, var(--fade-b)) 100%
+  );
+}
+
+/* -------------------------------------------------------------------------
+   2. The row — one interactive treatment for nine screens
+   ------------------------------------------------------------------------- */
+
+/**
+ * Every list row in the domain is a `<button class="d-row mat-panel act">`.
+ *
+ * The `act` half is the foundation's six-state mixin and carries hover, press,
+ * focus and disabled; what is added here is only the geometry a row needs and
+ * the one thing a *row* does that a button does not — a lit left edge that grows
+ * when the row is the open one, so selection is not carried by fill alone.
+ */
+.d-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+}
+
+/**
+ * The selection edge, drawn on `::before`.
+ *
+ * `::after` belongs to `foundation.css` — it is the specular band, and taking it
+ * would silently switch off the breathing on every row in the domain. The file
+ * says so out loud and this is the consumer it was warning.
+ */
+.d-row::before {
+  content: "";
+  position: absolute;
+  inset-block: 22%;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, var(--row-accent, var(--accent-bright)), var(--row-accent, var(--accent)));
+  opacity: 0;
+  transform: scaleY(0.3);
+  transform-origin: center;
+  transition:
+    opacity var(--dur-micro) var(--ease-arrive),
+    transform var(--dur-ui) var(--ease-overshoot);
+}
+
+@media (hover: hover) {
+  .d-row:hover::before {
+    opacity: 0.55;
+    transform: scaleY(0.72);
+  }
+}
+
+.d-row[aria-current="true"]::before,
+.d-row.is-open::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.d-row[aria-current="true"],
+.d-row.is-open {
+  --rim-boost: 1.8;
+}
+
+/** The unread mark: a dot *and* a weight change, so it survives greyscale. */
+.d-row.is-unread .d-row-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.d-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-chip);
+  background: var(--row-accent, var(--accent-hot));
+  box-shadow: 0 0 8px var(--row-accent, var(--accent-hot));
+  flex: 0 0 auto;
+}
+
+.d-row:not(.is-unread) .d-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+}
+
+.d-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.d-row-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.d-row-sub {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.d-row-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* -------------------------------------------------------------------------
+   3. Pictures
+   ------------------------------------------------------------------------- */
+
+/**
+ * The crest.
+ *
+ * A hexagonal plate painted in `art.ts`, dropped in as a background so it can
+ * sit under a material's own grain and be moved by a `transform` on hover
+ * without the row needing an extra element. `--crest` is written inline by the
+ * caller; nothing here knows which faction it is.
+ */
+.d-crest {
+  flex: 0 0 auto;
+  width: var(--crest-size, 44px);
+  height: var(--crest-size, 44px);
+  background-image: var(--crest);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.55));
+  transition: transform var(--dur-ui) var(--ease-overshoot);
+}
+
+@media (hover: hover) {
+  .d-row:hover .d-crest,
+  .d-tile:hover .d-crest {
+    transform: translateY(-1px) rotate(-3deg) scale(1.06);
+  }
+}
+
+/** Event key art and news heroes: a real plate with a real aspect ratio. */
+.d-key {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-nested);
+  background-image: var(--key-art);
+  background-size: cover;
+  background-position: center;
+  aspect-ratio: var(--key-aspect, 16 / 9);
+  isolation: isolate;
+}
+
+/**
+ * The scrim under type that stands on key art.
+ *
+ * §4: "text over imagery always has a scrim, a shadow, or a plate. Never raw."
+ * 180° — square to the viewport, which the one-sun rule allows for a scrim
+ * because a scrim carries no direction of light.
+ */
+.d-key-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(4 2 10 / 0.05) 0%, rgb(4 2 10 / 0.55) 58%, rgb(4 2 10 / 0.9) 100%);
+}
+
+.d-key-caption {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/**
+ * An event currency's struck token, in the flow of a line of text.
+ *
+ * `vertical-align` rather than a flex row, because this sits *inside* sentences
+ * and beside numbers — "Claim ◈ 40", a balance, a shop price — and a flex child
+ * would not sit on the baseline the digits sit on. The optical nudge is the same
+ * one a typographic mark would need: a circle centred on the cap height reads
+ * low against lining figures.
+ */
+.d-token {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: var(--token-size, 16px);
+  height: var(--token-size, 16px);
+  vertical-align: calc(var(--token-size, 16px) * -0.16);
+  background-image: var(--token);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.6));
+}
+
+/** A reward, drawn as an object. 6 shapes, so the kind reads before the text. */
+.d-reward-tile {
+  flex: 0 0 auto;
+  width: var(--reward-size, 44px);
+  height: var(--reward-size, 44px);
+  border-radius: var(--r-field);
+  background-image: var(--reward-art);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.5));
+}
+
+/**
+ * The socket a picture has not arrived in yet, and the light coming on when it
+ * does.
+ *
+ * Every procedural drawing in this domain is now resolved a frame or two after
+ * its markup mounts — see the long note on `paintArt` in `kit.ts` for the
+ * half-second of blocked compositor that bought. On a warm cache the wait is one
+ * frame and invisible; on a cold one it is a handful of frames, and §7's
+ * "nothing ever pops in" applies to a picture as much as to a panel.
+ *
+ * So a pending mark is a *recess* rather than a hole: the same inset lip every
+ * `.mat-well` wears, at mark scale, which reads as a place something is meant to
+ * go. When the drawing lands the element fades and settles rather than
+ * appearing — 220ms, `--ease-arrive`, on `opacity` and `transform` only.
+ */
+[data-art] {
+  background-color: rgb(0 0 0 / 0.22);
+}
+
+.d-art[data-art] {
+  border-radius: var(--r-field);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 0.55),
+    inset 0 -1px 0 rgb(255 255 255 / 0.05);
+}
+
+/**
+ * No fill mode, on purpose.
+ *
+ * `both` or `forwards` would leave the final keyframe applied for the life of
+ * the element, and the final keyframe names `transform` — which is the property
+ * the hover lift on `.d-crest` and `.d-swatch` uses. A settle animation that
+ * permanently outranks the hover it settles into is a worse bug than the pop it
+ * was added to prevent.
+ */
+.d-art-in {
+  animation: d-art-land var(--dur-ui) var(--ease-arrive);
+}
+
+@keyframes d-art-land {
+  from {
+    opacity: 0.2;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/**
+ * A wearable, drawn as the object it is. Five shapes, so the *kind* of cosmetic
+ * reads before the name does — and so a locker with nothing in it is still a
+ * cabinet of items rather than the word "Default" four times.
+ *
+ * `is-dim` is the unearned state and it is deliberately not `opacity` alone:
+ * §A4 rules that out, and the plate underneath is already struck in dead metal
+ * by the generator, so what is left here is only the loss of the drop shadow —
+ * an object that has stopped sitting above the panel because it is not yours.
+ */
+.d-swatch {
+  flex: 0 0 auto;
+  width: var(--swatch-size, 40px);
+  height: var(--swatch-size, 40px);
+  border-radius: var(--r-field);
+  background-image: var(--swatch);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.5));
+  transition: transform var(--dur-ui) var(--ease-overshoot);
+}
+
+.d-swatch.is-dim {
+  filter: none;
+}
+
+@media (hover: hover) {
+  .d-row:hover .d-swatch,
+  .d-tile:hover .d-swatch {
+    transform: translateY(-1px) scale(1.05);
+  }
+}
+
+/** The rank crest — the object the domain is meant to be recognised by. */
+.d-rank {
+  flex: 0 0 auto;
+  width: var(--rank-size, 76px);
+  height: var(--rank-size, 76px);
+  background-image: var(--rank-art);
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 4px 12px rgb(0 0 0 / 0.6));
+  display: grid;
+  place-items: center;
+}
+
+/**
+ * The number, in the shield's centre band, under the gem.
+ *
+ * `.num`'s job is the tabular slot; the display face, the weight and the −0.02em
+ * are §4's numeric role. The shadow is a plate under the type rather than a
+ * glow: a crest is a lit metal object and light type on it needs something dark
+ * behind it, which §4 asks for by name.
+ */
+.d-rank-value {
+  font-family: var(--font-display);
+  font-size: calc(var(--rank-size, 76px) * 0.3);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--text);
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 0.9),
+    0 0 12px rgb(0 0 0 / 0.75);
+  transform: translateY(calc(var(--rank-size, 76px) * 0.035));
+}
+
+/* -------------------------------------------------------------------------
+   4. Meters
+   ------------------------------------------------------------------------- */
+
+/**
+ * A progress rail that is a groove with something in it.
+ *
+ * `.mat-well` is the groove and `.well-fill` is the object sitting in it —
+ * both are module A's, and the whole point of using them is that the meter on a
+ * mastery tile is made of the same substance as the meter in the battle HUD. All
+ * that is added here is the rank tick marks, which are what turn "how far along"
+ * into "how many more", and the width transition.
+ */
+/**
+ * An empty track is a socket, not a hole.
+ *
+ * At rank 1 — which is where ten of these sit on a fresh account — the rail had
+ * no fill in it, and at 2× it resolved to a flat `#0a0a12` rounded rectangle
+ * with six faint dividers and nothing else: no lip, no rim, no grain, no hint of
+ * what the groove is for. §1 bans a flat fill on anything larger than an icon
+ * and §A1 says a well inverts the rim; a zero-progress meter was doing neither,
+ * ten times down the Story list and four more across the Events grid.
+ *
+ * Four changes, each measured against a 2× crop:
+ *
+ * **The gradient is vertical.** It was on the 315° rig axis, which is correct
+ * for a panel and wrong for a rail: a 135°-family gradient across a 260×14 box
+ * runs almost *horizontally*, so the lit stop lands on the left **end** instead
+ * of the top **edge** and the surface reads as uniform. `foundation.css` makes
+ * exactly this exception for `--fill-well` and states why; this is the same
+ * exception one surface deeper. 180° is square to the viewport, which carries no
+ * direction of light and so does not give the screen a second sun.
+ *
+ * **The groove is tinted by whatever will fill it.** `--fill-meter` is already
+ * the faction's colour on nine of these; bleeding a few percent of it into the
+ * empty track is what makes a rail at zero say *this is a mastery track waiting*
+ * rather than *this widget failed to render*.
+ *
+ * **It takes the chip grain rather than the well grain.** The well tile is
+ * `amount: 0.008` — deliberately almost nothing, because it is tuned for a large
+ * input whose own dither is already 8% of a very dark face. A 14px rail has no
+ * such dither and needs a real pass.
+ *
+ * **The rungs are carved rather than drawn in black.** A dark line alone is a
+ * scratch; a dark line with a lit line beside it is a groove, and it is the same
+ * `--hairline-dark` over `--hairline-lit` pairing every divider in the product
+ * already uses.
+ */
+.d-meter {
+  position: relative;
+  height: 10px;
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  overflow: hidden;
+  --fill-well:
+    linear-gradient(
+      180deg,
+      rgb(2 1 6 / 0.92) 0%,
+      rgb(13 8 26 / 0.86) 38%,
+      rgb(30 21 56 / 0.7) 78%,
+      rgb(52 38 92 / 0.6) 100%
+    );
+  --mat-grain: var(--tex-grain-chip, none);
+  --mat-grain-size: var(--tex-grain-chip-size, auto);
+}
+
+/**
+ * The tint of the thing that has not arrived yet, painted under the fill.
+ *
+ * `color-mix` against `--meter-hue` rather than against `--fill-meter`, because
+ * the fill is a *gradient* and a gradient cannot be mixed. Screens that pass a
+ * colour to `meter()` set both.
+ */
+.d-meter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in srgb, var(--meter-hue, var(--accent)) 16%, transparent) 62%,
+    color-mix(in srgb, var(--meter-hue, var(--accent)) 26%, transparent) 100%
+  );
+  opacity: 0.5;
+}
+
+/**
+ * The fill scales; it does not resize.
+ *
+ * `width` was animated on every meter in the domain — ten of them at once on the
+ * Mastery grid — and §3a lists that among three non-negotiable nevers, because a
+ * width animation is a layout-and-paint on each frame where a transform is a
+ * compositor matrix. The reason it *was* a width is that a `scaleX` squashes the
+ * fill's own gradient along with the box, so the ramp on a 4%-full rail was a
+ * different ramp from the one on a full rail.
+ *
+ * The two-element form solves both: the outer box scales, and the inner one —
+ * which is the `.well-fill` object and carries the gradient — counter-scales by
+ * exactly the reciprocal, so it is always laid out at full track width and
+ * merely clipped. Every property that moves is a `transform`. The reciprocal is
+ * floored at 0.006 so a zero-value meter divides by something.
+ */
+.d-meter > i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  transform-origin: left center;
+  transform: scaleX(var(--meter-scale, 0));
+  transition: transform var(--dur-meter, 760ms) var(--ease-arrive);
+}
+
+.d-meter > i > b {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: left center;
+  transform: scaleX(calc(1 / max(var(--meter-scale, 0), 0.006)));
+  transition: transform var(--dur-meter, 760ms) var(--ease-arrive);
+}
+
+/** A leading glow at the fill edge, so the meter has a head rather than a cut. */
+.d-meter > i::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 10px;
+  transform-origin: right center;
+  transform: scaleX(calc(1 / max(var(--meter-scale, 0), 0.006)));
+  transition: transform var(--dur-meter, 760ms) var(--ease-arrive);
+  background: linear-gradient(90deg, rgb(255 255 255 / 0), rgb(255 255 255 / 0.55));
+  filter: blur(1px);
+}
+
+/**
+ * The ticks. 90° — square to the viewport, and a carved line rather than a light.
+ * `--meter-steps` is the number of segments; a 20-rank track gets 19 lines.
+ *
+ * **One tick per tile, and the gradient must not divide again.** The first
+ * version wrote the *period* as `calc(100% / steps)` and then set
+ * `background-size` to `calc(100% / steps)` as well — but percentages inside a
+ * gradient resolve against the background *tile*, not the element, so a 6-step
+ * meter drew six ticks per tile across six tiles and came out with thirty-six.
+ * It was invisible at 42% black and looked like a hatched ribbon the moment the
+ * story rows asked for a lighter ink. The tile carries exactly one line and the
+ * `background-size` does all the dividing.
+ */
+.d-meter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    var(--meter-tick, rgb(0 0 0 / 0.55)) 0 1.5px,
+    var(--meter-tick-lit, rgb(255 255 255 / 0.11)) 1.5px 2.5px,
+    transparent 2.5px
+  );
+  background-size: calc(100% / var(--meter-steps, 10)) 100%;
+  background-repeat: repeat-x;
+  opacity: 0.85;
+}
+
+.d-meter.is-tickless::after {
+  display: none;
+}
+
+/* -------------------------------------------------------------------------
+   5. Tiles — the mastery grid, the mode hubs, the story chapters
+   ------------------------------------------------------------------------- */
+
+/**
+ * Every auto-placed grid in this domain sizes its tracks in `--ui-scale` units,
+ * and that is not decoration — it is the accessibility setting working.
+ *
+ * `repeat(auto-fit, minmax(200px, 1fr))` reads as "as many columns as fit", and
+ * it is only true while the *type* is the size the 200 was chosen for.
+ * `--ui-scale` multiplies every font size on the page and leaves a px track
+ * alone, so at the 1.4 setting the profile's five record links still packed into
+ * one row of ~215px columns holding 1.4x type: measured at 1280x720, the
+ * Achievements tile's reward badge was overlapped by the tile beside it and the
+ * Leaderboards chevron was cut off by the panel edge.
+ *
+ * Multiplying the *minimum track* by the same factor is the whole fix — the grid
+ * then drops to three columns and wraps, which is what "as many as fit" meant
+ * all along. It is applied by the same rule to all eighteen grids in the domain
+ * rather than per screen, because the failure is systematic and a hand-checked
+ * list would drift the moment somebody adds a nineteenth.
+ */
+.d-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--tile-min, 268px) * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3);
+}
+
+.d-tile {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  width: 100%;
+}
+
+.d-tile > .d-crest {
+  grid-row: 1 / 3;
+  --crest-size: 52px;
+}
+
+.d-tile-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.d-tile-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.d-tile-sub {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.d-tile-foot {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+.d-tile > .d-meter {
+  grid-column: 1 / -1;
+  margin-top: var(--sp-1);
+}
+
+/**
+ * The claimable badge: a gift, and a count.
+ *
+ * It used to be a bare integer sitting one line under another bare integer — the
+ * rank — so the mastery tile printed the same number twice and meant two
+ * different things by it. A glyph plus a number cannot be confused with a rank.
+ */
+.d-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-invert);
+  background: linear-gradient(var(--light-sweep), var(--accent-gold), #d99a2b);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    inset 0 -1px 0 rgb(0 0 0 / 0.3),
+    0 2px 6px rgb(0 0 0 / 0.5);
+}
+
+.d-badge .hb-icon {
+  font-size: 0.95em;
+}
+
+/**
+ * …and where it goes when the title needs the whole tile.
+ *
+ * Placed in the crest's own grid cell, pinned to its top-right corner and
+ * nudged out over it, which is the notification-pip position every reference
+ * game uses for exactly this: a mark that belongs to the object rather than to
+ * the sentence. See the note at the mastery tile for the five ellipsised
+ * faction names that put it here.
+ */
+.d-tile > .d-tile-pip {
+  grid-row: 1;
+  grid-column: 1;
+  justify-self: end;
+  align-self: start;
+  z-index: 2;
+  transform: translate(7px, -7px);
+  padding: 1px 6px;
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------------------
+   6. Numbers, tables, stat blocks
+   ------------------------------------------------------------------------- */
+
+/**
+ * A headline statistic: a small tracked label over a big tabular figure.
+ *
+ * §4 asks for a hierarchy rather than four sizes of one weight, and the number
+ * a player reads under pressure has to be tabular so it does not shuffle the row
+ * when it gains a digit.
+ */
+.d-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(112px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3) var(--sp-4);
+  margin: 0;
+}
+
+.d-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.d-stat > dt {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* `--num-align` rather than `text-align`, because `.num` reads that property and
+   a headline figure sits under a left-aligned label — a right-aligned number in
+   an auto-fit cell drifts away from the word it belongs to. */
+.d-stat > dd {
+  margin: 0;
+  --num-align: left;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--text);
+  line-height: 1.05;
+}
+
+.d-stat.is-quiet > dd {
+  font-size: var(--fs-lg);
+  color: var(--text-dim);
+}
+
+/**
+ * A percentage never appears without the count behind it, and never without the
+ * convention that produced it.
+ *
+ * This domain printed three different win rates for the same thirty-two matches
+ * — 50% on Profile, 50% on Leaderboards, 67% on Statistics — and the Statistics
+ * curve's own footer printed a fourth reading two hundred pixels under the
+ * third. There is one definition now (`winRate` in `dashboard.ts`), and with
+ * eight draws in thirty-two *both* readings are defensible, so the definition
+ * cannot ship unlabelled: the qualifier rides the label and the denominator
+ * rides the figure.
+ */
+.d-stat-qual {
+  /* 0.85em of a `--fs-xs` label is 9.8px, which is under the 11px legibility
+     floor and was one of the three sub-11px sizes this overhaul introduced.
+     The ratio is kept — it is what makes the qualifier read as a qualifier —
+     and floored, so it only gives up its relative size at 100% and below,
+     where there is nothing left to give up. */
+  font-size: max(var(--fs-micro), 0.85em);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--text-faint);
+  opacity: 0.85;
+}
+
+.d-stat-of {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+}
+
+/**
+ * `.num` is a *type* role, and a table cell is a *layout* role. One of them has
+ * to give, and it cannot be the table.
+ *
+ * Module A's `.num` sets `display: inline-block`, for a good reason it explains
+ * at the rule: that is what makes `min-width: calc(var(--digits) * 1ch)` reserve
+ * a fixed slot, so a counter ticking from 9 to 10 does not shove the row along.
+ * Put that class on a `<td>` and the cell stops being a table cell — the engine
+ * wraps it in an anonymous one — and the column model it belonged to is gone.
+ *
+ * Measured on the Two-saves comparison, whose six rows are `<td class="num">`:
+ * the second cell came out 32px wide on "Level 1", 61px on "Clout 5,000" and
+ * 49px on "Cards 479", against a table 381px wide. So the numbers did not align
+ * with each other, and the `:nth-child(even)` zebra — painted behind the cells —
+ * ended in a different place on every other row. Two visible defects from one
+ * declaration, on a screen whose entire job is to compare two columns of figures.
+ *
+ * A table cell does not need the reserved slot: the *column* already reserves
+ * it, for every row at once, which is strictly better than each cell reserving
+ * its own. So the cell keeps `table-cell` and `min-width` moves to a hint the
+ * column sizing algorithm honours. Everything else `.num` carries — tabular
+ * figures, the right alignment, the nowrap — is unaffected, and `.d-table`
+ * declares the alignment itself anyway.
+ *
+ * `td.num` is (0,1,1) against `.num`'s (0,1,0), so this wins wherever the two
+ * stylesheets land relative to each other.
+ */
+td.num,
+th.num {
+  display: table-cell;
+}
+
+/** Right-align the numbers, left-align the label, and let a row be tracked. */
+.d-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-sm);
+}
+
+.d-table th,
+.d-table td {
+  padding: var(--sp-2) var(--sp-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+  border-bottom: 1px solid rgb(255 255 255 / 0.05);
+}
+
+.d-table th:first-child,
+.d-table td:first-child {
+  text-align: left;
+  font-variant-numeric: normal;
+}
+
+.d-table thead th {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+  border-bottom-color: rgb(255 255 255 / 0.1);
+}
+
+/**
+ * The zebra and the hover, as lit surfaces rather than as two flat fills.
+ *
+ * These were `background: rgb(255 255 255 / 0.015)` and `rgb(255 255 255 /
+ * 0.05)` — the two solid fills a review found still standing on `#privacy`, and
+ * §1 bans a solid `background:` on any surface larger than an icon without
+ * qualification. On a table the ban is not pedantry: a striped row with no light
+ * source is the single most spreadsheet-like object a game can put on screen,
+ * and the policy screens are exactly where a player is most likely to notice
+ * they have left the game.
+ *
+ * Both are now two-stop gradients on the **rig axis**, so a row is lit from the
+ * top-left like every other raised thing in the build, and the hover adds the
+ * lit rim and the unlit lip that §1 asks for by name. The declarations sit on
+ * the cells rather than the row: with `border-collapse: separate` a `tr`
+ * background is painted, but it is painted *behind* the cells' own backgrounds
+ * and cannot carry an inset shadow that lines up with a cell boundary, so a rim
+ * on the row would have been drawn under the first and last cell and nowhere
+ * else.
+ *
+ * The transition stays on `background` deliberately and is the one paint-property
+ * transition in this file. It is 110ms on a row-sized box under a pointer that
+ * has already stopped moving; the rule that matters — never animate a paint
+ * property on a *large* surface — is about the full-screen washes above.
+ */
+.d-table tbody tr:nth-child(even) > td {
+  background-image: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.032), rgb(255 255 255 / 0.008));
+}
+
+.d-table tbody tr > td {
+  transition: background-image var(--dur-micro) var(--ease-arrive);
+}
+
+.d-table tbody tr:hover > td {
+  background-image: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.085), rgb(255 255 255 / 0.025));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(0 0 0 / 0.34);
+}
+
+.d-table tbody tr:hover > td:first-child {
+  box-shadow:
+    inset 2px 0 0 var(--accent),
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(0 0 0 / 0.34);
+}
+
+/** A before → after diff, which is what a patch table is. */
+.d-was {
+  color: var(--text-faint);
+  text-decoration: line-through;
+  text-decoration-color: rgb(255 255 255 / 0.28);
+}
+
+.d-now {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.d-delta-up {
+  color: var(--success);
+}
+
+.d-delta-down {
+  color: var(--danger);
+}
+
+.d-new {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+}
+
+/* -------------------------------------------------------------------------
+   7. Chips — one component, one active state
+   ------------------------------------------------------------------------- */
+
+/**
+ * Two different selected styles used to appear in the same 40px-tall row: the
+ * result group filled solid and the mode group outlined. A player cannot learn
+ * what "selected" looks like from two examples that disagree.
+ *
+ * One state: the chip becomes a lit plate *and* grows an underline bar, so
+ * selection survives greyscale.
+ */
+.d-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.d-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 7px var(--sp-4);
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.d-chip .d-chip-count {
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.d-chip[aria-pressed="true"],
+.d-chip.is-on {
+  color: var(--text);
+  --rim-boost: 2;
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(112 78 178 / 0.95) 0%, rgb(52 30 104 / 0.96) 100%);
+}
+
+.d-chip[aria-pressed="true"] .d-chip-count,
+.d-chip.is-on .d-chip-count {
+  color: var(--accent-bright);
+}
+
+.d-chip[aria-pressed="true"]::before,
+.d-chip.is-on::before {
+  content: "";
+  position: absolute;
+  inset-inline: 22%;
+  inset-block-end: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-bright), transparent);
+}
+
+/* -------------------------------------------------------------------------
+   7a. The row-level go — the tile is the button
+   ------------------------------------------------------------------------- */
+
+/**
+ * `.mat-hero` is *one hero action per screen*, and this domain had nine.
+ *
+ * The magenta pill had quietly been promoted from "the thing this screen is for"
+ * to "a control every row gets". Squint at the Grand Tour and the frame resolved
+ * into a **3×3 lattice of identical fizzing pink lozenges**; squint at Story and
+ * it was a vertical column of ten; the Events hub put three co-equal magenta
+ * CTAs — Practice match / Boss fight / Puzzle run — under a teal HYPECON banner
+ * they shared no pigment with. §6's value-structure test fails by arithmetic
+ * there: when nine things are the hero, nothing is. It was worse than a
+ * hierarchy problem, too — the hero plate is the brightest surface in the
+ * system, so it carries the loudest grain tile, and nine of them made the
+ * noisiest object on the screen also the most repeated one.
+ *
+ * In Hearthstone a chapter list is illustrated plates where the **row** is the
+ * button and exactly one gold CTA is on screen. In MTG Arena the mode tiles
+ * carry their own art and the play button is singular. So: the row is the
+ * button, and this is the mark on it that says so — an accent-inked label with
+ * an arrow that steps forward when the row lights, over the row's own material
+ * rather than over a plate of its own.
+ *
+ * `--go-ink` is the row's colour: the chapter's faction, the stop's Current, the
+ * event's accent. Nothing here is magenta unless the thing it belongs to is.
+ */
+.d-go {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  /* 34px is the mark's geometry on a mouse; `--touch-min` is base.css's 44px
+     floor, which is 0 here and 44px on a finger. A plain `34px` scores 0,1,0
+     and beats the element-level floor, which is how this row's only action came
+     to be under the touch minimum on all three phone viewports. */
+  min-height: max(34px, var(--touch-min));
+  padding: 7px var(--sp-3) 7px var(--sp-4);
+  border-radius: var(--r-chip);
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  color: var(--go-ink, var(--accent-bright));
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.075) 0%, rgb(255 255 255 / 0.012) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5),
+    inset 0 0 0 1px color-mix(in srgb, var(--go-ink, var(--accent-bright)) 20%, transparent);
+  transition:
+    color var(--dur-micro) var(--ease-arrive),
+    box-shadow var(--dur-micro) var(--ease-arrive);
+}
+
+/** The arrow is the secondary motion: it steps forward when the row lights. */
+.d-go .d-go-arrow {
+  transition: transform var(--dur-ui) var(--ease-overshoot);
+}
+
+@media (hover: hover) {
+  :hover > .d-go .d-go-arrow,
+  :hover > * > .d-go .d-go-arrow,
+  .d-go:hover .d-go-arrow {
+    transform: translateX(3px);
+  }
+
+  :hover > .d-go,
+  :hover > * > .d-go,
+  .d-go:hover {
+    color: color-mix(in srgb, var(--go-ink, var(--accent-bright)) 80%, #fff);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.2),
+      inset 0 -1px 0 rgb(0 0 0 / 0.5),
+      inset 0 0 0 1px color-mix(in srgb, var(--go-ink, var(--accent-bright)) 46%, transparent),
+      0 0 14px -4px color-mix(in srgb, var(--go-ink, var(--accent-bright)) 60%, transparent);
+  }
+}
+
+/**
+ * Claiming is gold, everywhere, and it is not the hero.
+ *
+ * The reward language in this product is already struck in gold — `.d-badge`,
+ * the mastery rungs, the pass tiers — so a claim button that wears the magenta
+ * hero plate is both a fourth hero on the Events hub and the only gold thing on
+ * the screen that is not gold. This is `.mat-chip`'s geometry with `.d-badge`'s
+ * pigment: dark ink on struck brass, which measures 9.8:1 against the plate and
+ * cannot be confused with the play action beside it.
+ */
+.d-claim {
+  --mat-fill: linear-gradient(var(--light-sweep), var(--accent-gold) 0%, #d99a2b 100%);
+  --rim-a: 0.4;
+  --lip-a: 0.28;
+  --sheen-alpha: 0.1;
+  --sheen-hover: 0.22;
+  min-height: max(34px, var(--touch-min)); /* same floor as `.d-go` above */
+  padding: 7px var(--sp-4);
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: #2a1a02;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.2);
+}
+
+.d-claim :is(.num, .hb-icon, .d-token) {
+  color: inherit;
+}
+
+/** Done, and locked, are states rather than actions: no ring, no arrow. */
+.d-go.is-done {
+  color: var(--success);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45);
+}
+
+.d-go.is-locked {
+  color: var(--text-faint);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.03) 0%, rgb(0 0 0 / 0.16) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45);
+}
+
+/* -------------------------------------------------------------------------
+   7b. The settings row — one shape for Settings and Accessibility
+   -------------------------------------------------------------------------
+   Two screens, one click apart, each with its own switch, its own segmented
+   picker and its own label-and-hint stack. `screens.css`'s `.setting-*` set is
+   the older of the two and it predates every primitive in this project: a
+   `<button role="switch">` filled with the flat accent, a `.setting-choices`
+   track that is `rgba(0,0,0,0.35)` with no light source at all, and a
+   `transition: all` on the segment. Module A already ships both controls, lit,
+   with all six states; the geometry is the only part that was ever local.
+
+   `.d-set-row` is the geometry: label and hint on the left, control on the
+   right, a hairline between rows rather than a hard `border-top`. The 190px
+   fixed label column `screens.css` uses is deliberately not repeated — at
+   `--ui-scale: 1.4` a fixed column in `px` is the thing that pushes a switch off
+   the panel. */
+
+.screen .d-set-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) 0;
+  min-height: 44px;
+  margin: 0;
+}
+
+/* The divider between rows fades at both ends, like every other rule in the
+   game — §7 of the bar makes that a rule and a hard `border-top` breaks it. */
+.screen .d-set-row + .d-set-row {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.07) 12%,
+    rgb(255 255 255 / 0.07) 88%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+  background-position: 0 0;
+}
+
+.screen .d-set-toggle {
+  cursor: pointer;
+}
+
+/* Label, rail, read-out. The rail takes whatever is left, which is why the
+   read-out is a fixed slot and the label a `max-content` one that stops
+   growing. */
+.screen .d-set-slider {
+  grid-template-columns: minmax(120px, 0.28fr) minmax(0, 1fr) auto;
+  gap: var(--sp-4);
+}
+
+.screen .d-set-slider > .slider {
+  width: 100%;
+  min-width: 0;
+}
+
+.screen .d-set-slider > .setting-output {
+  --num-align: right;
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.screen .d-set-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.screen .d-set-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.screen .d-set-hint {
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-faint);
+  max-width: 68ch;
+}
+
+/* A dead control beside live-looking text signals by the control alone. */
+.screen .d-set-row.is-off .d-set-label,
+.screen .d-set-row:has(:disabled) .d-set-label {
+  color: var(--text-faint);
+}
+
+/**
+ * The segmented track, and why the chips sit *in* it rather than on it.
+ *
+ * `.mat-well` is the one material that inverts the rig — dark rim at the
+ * top-left, lit hairline at the bottom-right — so a row of raised chips inside
+ * one reads as keys in a channel. Two pixels of padding is the whole recess; any
+ * more and the chips stop touching their own track.
+ */
+.screen .d-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+}
+
+.screen .d-seg-opt {
+  padding: 6px var(--sp-4);
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  white-space: nowrap;
+  /* A chip at rest inside a well is nearly flush with it: the recess is the
+     object, the unselected key is only a hint of one. The selected key below
+     is where the amplitude goes. */
+  --mat-amp: 0.16;
+  --rim-a: 0.03;
+  --lip-a: 0.18;
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.05) 0%, rgb(255 255 255 / 0.008) 100%);
+}
+
+.screen .d-seg-opt.is-on {
+  color: var(--ink-hero);
+  --mat-amp: var(--amp-hero);
+  --mat-fill: var(--fill-hero);
+  --rim-a: 0.24;
+  --lip-a: 0.22;
+  --rim-boost: 1.4;
+  --sheen-alpha: 0.1;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.22);
+}
+
+/* The lit key keeps its ink in high contrast, where the plate goes lighter. */
+:root[data-contrast="high"] .screen .d-seg-opt.is-on {
+  color: var(--ink-hero);
+}
+
+/**
+ * Narrow, and at 1.4× interface scale, the control drops below its label.
+ *
+ * Seven interface-size steps in one row is 470px at 1.0 and 660px at 1.4; beside
+ * a label that also wants room, that is what pushes the last step off the panel.
+ * A single-column row is the honest answer and it is the same answer the mastery
+ * ladder gives at the same breakpoint.
+ */
+@media (max-width: 720px) {
+  .screen .d-set-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-2);
+  }
+
+  .screen .d-set-row > .switch,
+  .screen .d-set-row > .d-seg {
+    justify-self: start;
+  }
+
+  /* The slider keeps its read-out beside the rail — a percentage on its own
+     line is a percentage of nothing. */
+  .screen .d-set-slider {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .screen .d-set-slider > .setting-label {
+    grid-column: 1 / -1;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   8. Entrances, and idle
+   ------------------------------------------------------------------------- */
+
+/**
+ * The list cascade.
+ *
+ * Module E already staggers a screen's top-level panels. What it cannot do is
+ * stagger the *rows inside* one, and ten mastery tiles, twenty ladder rungs and
+ * twenty-two history rows all arriving on the same frame is the single loudest
+ * "hobby menu" tell there is. `motion.ts`'s `stagger()` writes `--enter-delay`;
+ * this consumes it, and nothing else.
+ *
+ * `backwards` matters: without it the row is drawn at its final position for the
+ * frames before its delay elapses, which is a flash of the finished list
+ * followed by it re-assembling.
+ */
+.d-enter {
+  animation: d-rise var(--dur-ui) var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+}
+
+@keyframes d-rise {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/**
+ * A number that arrives rather than appears.
+ *
+ * `tickerTo` counts the value; this is the plate under it catching a little
+ * light as it lands, which is §3's "secondary motion" — the thing that separates
+ * animated from alive — for one-fifth of a second and then never again.
+ */
+.d-count-in {
+  animation: d-count-land var(--dur-setpiece) var(--ease-arrive) var(--enter-delay, 0ms) backwards;
+}
+
+@keyframes d-count-land {
+  from {
+    opacity: 0.35;
+    filter: brightness(1.7);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   9. Reduced motion
+   ------------------------------------------------------------------------- */
+
+/**
+ * The decorative layer goes; the functional one stays and every screen stays
+ * fully usable. Both switches, because the saved setting and the OS preference
+ * are two different questions and a player who turns the OS one on after their
+ * first session must not have to find the in-game one.
+ */
+:root[data-reduced-motion="true"] .d-enter,
+:root[data-reduced-motion="true"] .d-count-in,
+:root[data-reduced-motion="true"] .d-meter > i,
+:root[data-reduced-motion="true"] .d-meter > i > b,
+:root[data-reduced-motion="true"] .d-meter > i::after,
+:root[data-reduced-motion="true"] .d-crest,
+:root[data-reduced-motion="true"] .d-art-in,
+:root[data-reduced-motion="true"] .d-go .d-go-arrow,
+:root[data-reduced-motion="true"] .d-row::before {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .d-enter,
+  .d-count-in,
+  .d-meter > i,
+  .d-meter > i > b,
+  .d-meter > i::after,
+  .d-crest,
+  .d-art-in,
+  .d-go .d-go-arrow,
+  .d-row::before {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   10. High contrast
+   ------------------------------------------------------------------------- */
+
+:root[data-contrast="high"] .d-row-sub,
+:root[data-contrast="high"] .d-row-meta,
+:root[data-contrast="high"] .d-tile-sub,
+:root[data-contrast="high"] .d-stat > dt {
+  color: var(--text-dim);
+}
+
+:root[data-contrast="high"] .d-meter::after {
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------------------
+   11. Small screens
+   -------------------------------------------------------------------------
+   844×390 landscape is the floor, and the failure there is never the width —
+   it is the height. A two-column reading screen has 390px of vertical room, so
+   the list pane has to stop being a fixed 340px column and become a short
+   scrolling strip above the article. */
+
+@media (max-width: 900px), (max-height: 460px) {
+  .screen .data-body {
+    padding-block: var(--sp-3) var(--sp-5);
+    padding-inline: clamp(12px, 3vw, 24px);
+  }
+
+  .d-grid {
+    --tile-min: 220px;
+  }
+
+  .d-rank {
+    --rank-size: 58px;
+  }
+}
+
+/**
+ * 44px, on the two viewports where a finger is the pointer.
+ *
+ * A sweep of the domain found twelve controls between 26px and 30px tall — the
+ * profile's cosmetic toggle at 144×29, three news filter chips, three inbox
+ * chips, two events chips, two doomscroll chips — against the 44px minimum the
+ * 844×390 phone-landscape target implies. They are the right size for a mouse
+ * and they are not optional on a phone, so the floor is applied where a phone
+ * is plausible rather than everywhere: `pointer: coarse` catches a real touch
+ * device and the short-viewport query catches the landscape-phone geometry the
+ * constraint names, including in a desktop capture at 844×390.
+ *
+ * `min-height` rather than padding, so the type does not move and a chip that
+ * is already tall enough is untouched.
+ */
+@media (pointer: coarse), (max-height: 460px) {
+  .d-chip,
+  .d-go,
+  .d-claim,
+  .d-badge {
+    min-height: 44px;
+  }
+
+  .d-badge.d-tile-pip {
+    min-height: 0;
+  }
+}
+
+@media (max-height: 460px) {
+  .d-key {
+    --key-aspect: 21 / 6;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   12. Second columns — the four screens that were still one
+   -------------------------------------------------------------------------
+   `hall.css` built the four-track grid and eleven screens took it. Three did
+   not, and two of those three took it and then collapsed the rail track with
+   `.d-hall-solo` — which is the hall with the composition removed and the
+   lighting kept. Measured at 1600×900 before this section:
+
+       #gauntlet    content 240…1350   span 0.70   240px of dead background each side
+       #doomscroll  content 360…1240   span 0.55   360px each side
+       #replays     content 400…1200   span 0.50   400px each side, on the empty state
+
+   None of that is a material defect and a census that counts class names cannot
+   see any of it — all three were already `.mat-panel` throughout, already lit at
+   315°, already carrying the room. They were the right materials in the wrong
+   shape, which is the exact failure `hall.css` opens by naming.
+
+   What is here is only the geometry those three screens' own stylesheets pin at
+   a width that predates the hall. Every rule is an override of a measure, and
+   each one says which declaration it is unpinning and where that declaration
+   lives, because the alternative — editing four files owned by three people —
+   is how a layout ends up meaning something different on each of them.
+
+   `.screen.<name>` rather than a bare class: `rooms.css` and `screens.css` both
+   load *after* this file, so an equal-specificity rule here loses to whatever
+   they say. The extra class is what makes the outcome a property of the CSS
+   rather than of the module graph's import order. `rooms.css` opens with the
+   same note. */
+
+/**
+ * The Gauntlet's deck, standing on the wall instead of lying under the offer.
+ *
+ * `screens.css` gives `.gauntlet-deck-list` `repeat(auto-fill, minmax(200px,
+ * 1fr))` with `max-height: 260px; overflow-y: auto`, which is right for a panel
+ * spanning a page and wrong twice over in a 350px rail: the auto-fill resolves
+ * to a single column anyway, and a 260px scroller *inside* a column that already
+ * scrolls is two nested scrollbars for one list. The rail is the scroller; the
+ * list is a list.
+ */
+.screen.gauntlet-screen .d-rail .gauntlet-deck-list {
+  grid-template-columns: minmax(0, 1fr);
+  max-height: none;
+  overflow: visible;
+  margin-top: var(--sp-2);
+}
+
+/**
+ * Two up, not three.
+ *
+ * `.d-rail-stats` floors its tracks at 96px, which in a 310px card resolves to
+ * three columns and leaves the fourth figure alone on a second row — and the
+ * one label long enough to wrap ("Cards per offer") then wraps while the three
+ * beside it do not, so a block of four equal facts reads as one odd one out.
+ * Four figures want two rows of two.
+ */
+.screen.gauntlet-screen .gauntlet-shape .d-rail-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/** `screens.css` reserves 18px under the panel for the curve's floating labels. */
+.screen.gauntlet-screen .d-rail .gauntlet-deck {
+  padding-bottom: calc(var(--sp-4) + 18px);
+}
+
+/**
+ * The curve, at rail width.
+ *
+ * Eight cost buckets across 300px is 30px a column with the gap, and the count
+ * above each bar is `--fs-xs`. It fits; what does not fit is `screens.css`'s
+ * 96px height once the labels below it are competing for the same space, so the
+ * block is shortened rather than letting the "7+" label collide with the list.
+ */
+.screen.gauntlet-screen .d-rail .gauntlet-curve {
+  height: 78px;
+  gap: 4px;
+}
+
+/**
+ * The Doomscroll's setup column was pinned to 880px by `rooms.css`.
+ *
+ * That number was correct when it was written: the screen was `.d-hall-solo`,
+ * the body was 1,120 wide, and two stacked plates at two different widths is the
+ * composition failure the rule's own comment describes. With a rail on the wall
+ * the body is ~1,060 and the record band has left the column entirely, so the
+ * cap now does the thing it was written to prevent — it centres one plate in a
+ * track and re-opens a margin on both sides of it.
+ */
+.screen.doom-screen .d-hall > .data-body .doom-setup,
+.screen.doom-screen .data-body .doom-setup {
+  max-width: none;
+  margin-inline: 0;
+}
+
+/**
+ * The four rules, as a band of recessed tiles.
+ *
+ * `.mat-well` rather than a fifth `.mat-panel`: these sit *inside* a panel, and
+ * A1 is explicit that a raised material inside a raised material is two objects
+ * where there is one. A well inverts the light — the inner shadow at the
+ * top-left, the faint rim at the bottom-right — so the tiles read as cut into
+ * the plate rather than stacked on it, which is also the cheapest way to add a
+ * depth plane to a screen that had three.
+ */
+/**
+ * `.panel` in `base.css` is background + border + radius and **no padding** —
+ * `screens.css` grants it through an explicit list of screen-specific class
+ * names, and a class added today is a class that list has never heard of. The
+ * long note on `.d-pad` in §1 is about exactly this drift; the band is stated
+ * here rather than given `.d-pad` because it wants a label above a grid rather
+ * than `.d-pad`'s flex column.
+ */
+.screen.doom-screen .doom-rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+}
+
+.screen.doom-screen .doom-rules-band {
+  --band-min: 220px;
+}
+
+.screen.doom-screen .doom-rule {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "mark figure"
+    "mark name"
+    "line line";
+  align-items: baseline;
+  column-gap: var(--sp-2);
+  row-gap: 2px;
+  padding: var(--sp-3);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+}
+
+.screen.doom-screen .doom-rule-mark {
+  grid-area: mark;
+  align-self: start;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-field);
+  color: var(--accent-bright);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+.screen.doom-screen .doom-rule-figure {
+  grid-area: figure;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  line-height: 1;
+}
+
+.screen.doom-screen .doom-rule-name {
+  grid-area: name;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.screen.doom-screen .doom-rule-line {
+  grid-area: line;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+/**
+ * The descent ladder, on the wall.
+ *
+ * `rooms.css` lays an act out as `[number] [name + blurb] [state]` across a
+ * page, which at 300px puts the state word under a two-word name and leaves the
+ * blurb at four characters a line. On the wall it becomes a stack: the number
+ * and the state on one row, the name under it, the blurb under that.
+ */
+.screen.doom-screen .d-rail .doom-act {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "no state"
+    "no text";
+  align-items: center;
+  column-gap: var(--sp-2);
+  row-gap: 2px;
+}
+
+.screen.doom-screen .d-rail .doom-act-no {
+  grid-area: no;
+}
+
+.screen.doom-screen .d-rail .doom-act-text {
+  grid-area: text;
+  min-width: 0;
+}
+
+.screen.doom-screen .d-rail .doom-act-state {
+  grid-area: state;
+  justify-self: start;
+}
+
+/** Three figures on one line is a page rule; on a wall they are a stat block. */
+.screen.doom-screen .d-rail .doom-record-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(84px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-2);
+}
+
+/**
+ * The run's own sidebar, once it is the rail rather than a column inside one.
+ *
+ * `screens.css` gives `.doom-side` a `mat-panel` box of its own and a
+ * `minmax(260px, 330px)` grid track to sit in. Standing in the rail it is the
+ * rail card, so the plate is `.d-rail-card`'s and the width is the track's; what
+ * it keeps is its internal rhythm.
+ */
+.screen.doom-screen .d-rail > .doom-side {
+  max-height: none;
+  width: auto;
+}
+
+/**
+ * 90px of the frame, back.
+ *
+ * `screens.css` gives `.doom-body` `height: calc(100% - 90px)`, which dates from
+ * before this screen was a grid item: it was subtracting a header that the grid
+ * now puts in a row of its own. In the hall the body's row is already the
+ * viewport minus the header, so the calc took a second header's worth off the
+ * bottom — a measured 90px strip of empty floor under every phase of the mode.
+ */
+.screen.doom-screen .data-body {
+  height: auto;
+}
+
+/**
+ * The Doomscroll's map, with the sidebar gone from beside it.
+ *
+ * `.doom-layout` was a two-column grid inside a body that was itself half the
+ * window — the second column existed and the screen was still narrow, which is
+ * the case a census of "does this route have two columns" gets wrong. The
+ * sidebar is the hall's rail now, so the main column holds one child and the
+ * scrolling belongs to the body, as it does on every other hall screen. Two
+ * nested scrollers is what `screens.css`'s `overflow-y: auto` on `.doom-main`
+ * would otherwise leave behind.
+ */
+.screen.doom-screen .data-body > .doom-main {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+/**
+ * The map, and the key beside it.
+ *
+ * `screens.css` caps `.doom-map` at 660px and centres it, and the note above
+ * that rule is right — the edges only read as a descent while the gap between
+ * floors is comparable to the gap between columns, so a map stretched to fill a
+ * 1,060px column stops being a map of anything. What that leaves is ~200px of
+ * panel either side of it, which is the same defect at panel scale as the one
+ * this section is about at screen scale.
+ *
+ * So the flank holds the legend. `auto` rather than a fraction, so the key is
+ * sized by its own content and the map keeps every pixel that is left; below
+ * 1080 the key drops under the map and becomes a wrapping row, because a 180px
+ * column beside a 460px map on a phone is neither.
+ */
+.screen.doom-screen .doom-map-stage {
+  --legend-w: calc(212px * var(--ui-scale, 1));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--legend-w);
+  align-items: start;
+  gap: var(--sp-4);
+}
+
+/**
+ * The track is stated, not `auto`.
+ *
+ * An `auto` track plus a percentage `max-width` on its only child is circular —
+ * the track sizes to the content, the content sizes to a percentage of the
+ * track — and Blink resolves it by giving the key about 110px, at which point
+ * every blurb wraps to one word a line and the key is less legible than the
+ * tooltip it replaced. Measured at 1600×900 before this: "Merch Table / Spend /
+ * run- / Clout / on / cards" down eleven lines.
+ */
+.screen.doom-screen .doom-legend {
+  list-style: none;
+  margin: var(--sp-5) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.screen.doom-screen .doom-legend-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-2);
+  padding: 5px var(--sp-2);
+  border-radius: var(--r-field);
+}
+
+/**
+ * The mark takes the node's own colour, so the key and the map read as one
+ * legend rather than as two. `screens.css` tints exactly three kinds — the
+ * Sponsor Drop and the Main Event in gold, the Touch Grass Break in green — and
+ * those three are restated here rather than inherited, because the class that
+ * carries them on the map carries a width as well.
+ */
+.screen.doom-screen .doom-legend-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-field);
+  background: rgb(0 0 0 / 0.28);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  color: var(--accent-bright);
+}
+
+.screen.doom-screen .doom-legend-row[data-kind="treasure"] .doom-legend-mark,
+.screen.doom-screen .doom-legend-row[data-kind="boss"] .doom-legend-mark {
+  color: var(--accent-gold);
+}
+
+.screen.doom-screen .doom-legend-row[data-kind="rest"] .doom-legend-mark {
+  color: var(--success);
+}
+
+.screen.doom-screen .doom-legend-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.screen.doom-screen .doom-legend-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.screen.doom-screen .doom-legend-blurb {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+
+@media (max-width: 1080px) {
+  .screen.doom-screen .doom-map-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .screen.doom-screen .doom-legend {
+    margin-top: 0;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+/* -------------------------------------------------------------------------
+   12a. Match History before the first match
+   -------------------------------------------------------------------------
+   §5: "Empty states are designed too. 'You own no cards' is a moment to be
+   charming, not a blank grid."
+
+   The old one was one 800px card centred in a 1600px frame — the widest dead
+   margins measured anywhere in the game, on a route reachable from the lobby,
+   from Statistics and from the end of a match. It was also, structurally, a
+   *smaller* version of the screen it stands in for: one plate where the real
+   screen has two panes, so arriving at it read as the workbench having failed to
+   load rather than as a state anybody drew.
+
+   So the empty state is now the same shape as the screen it replaces — a full
+   hero band across the top and a row of plates under it — and it answers the
+   three questions the workbench would have answered: what is written down, how
+   much of it can be replayed, and where it goes. That last one is the reason
+   this screen exists at all and it was a clause in a paragraph. */
+
+/**
+ * Centred, because the leftover height is not a lower half.
+ *
+ * The hero and its three plates come to about 670px in an ~800px body. Left at
+ * the top that is 130px of floor under the last plate, which is the same reading
+ * §2 gives an unresolved lower half; split evenly it is 65px of air above and
+ * below a composition that is plainly finished. It collapses to `start` the
+ * moment the content is taller than the box, which is what `flex-start` would
+ * have to be doing anyway at 844×390.
+ */
+.screen.replay-screen .replay-virgin-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-4);
+}
+
+/**
+ * The hero is the art, and the art reaches the panel's edges.
+ *
+ * `.d-key` is normally an inset plate with a radius; here it is the top third of
+ * the hero and it bleeds, so the heading below sits *in* the frame rather than
+ * on a picture that stops at a rectangle 40px short of it. §2's note about the
+ * mat is the same note: an environment that ends at a hard edge is a panel
+ * dropped on a photo.
+ */
+.screen.replay-screen .replay-virgin-hero {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/**
+ * The three plates under it, and why the middle one is allowed to be widest.
+ *
+ * `.d-band` is `auto-fit, minmax(--band-min, 1fr)`, so at 1600 this is three
+ * equal columns, at 1180 it is two and one, and at 844 it is a stack — the same
+ * behaviour every other band in the domain has, rather than a fourth breakpoint
+ * table for one screen.
+ */
+.screen.replay-screen .replay-virgin-band {
+  --band-min: 260px;
+}
+
+.screen.replay-screen .replay-virgin-card {
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  align-items: flex-start;
+}
+
+.screen.replay-screen .replay-virgin-card .hb-icon {
+  color: var(--accent-bright);
+}
+
+.screen.replay-screen .replay-virgin-card h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+
+.screen.replay-screen .replay-virgin-card p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/**
+ * A figure the plate is about, drawn at display size.
+ *
+ * "The most recent 8 keep a full replay" is a number a player acts on — it is
+ * the difference between a row that opens a board and a row that opens a
+ * summary — and it was the eleventh word of a sentence. `.num` because §A3 makes
+ * every number a player reads under pressure tabular, and this one sits directly
+ * above a second figure on the plate beside it.
+ */
+.screen.replay-screen .replay-virgin-figure {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  line-height: 1;
+  color: var(--accent-bright);
+}
+
+@media (max-height: 460px) {
+  .screen.replay-screen .replay-virgin-band {
+    --band-min: 220px;
+  }
+
+  .screen.replay-screen .replay-virgin-card {
+    padding: var(--sp-3);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   12b. The two reward screens, which had a hero and did not light it
+   -------------------------------------------------------------------------
+   Missions and the Hype Wave are full-bleed already, so neither shows the dead
+   margin the three above did. What they showed instead is the other half of the
+   same failure: a stack of equal-weight bands with no subject. Squinted at,
+   #missions resolved to five grey slabs of identical value, and the one figure a
+   player opens it to check — how many dailies they have banked — was the last
+   line of the last paragraph, below the fold.
+
+   Both now open on a band rather than a slab: the promise on the left, the
+   record on the right. `.d-band-lead` is `hall.css`'s 1.55fr/1fr, so the two are
+   visibly a lead and a support rather than a split. */
+
+.screen.missions-screen .missions-lead,
+.screen.pass-screen .pass-lead {
+  --band-min: 320px;
+  align-items: stretch;
+}
+
+.screen.missions-screen .missions-lead > *,
+.screen.pass-screen .pass-lead > * {
+  min-width: 0;
+}
+
+/**
+ * The Hype Wave's head, crushed to 34px at the minimum supported viewport.
+ *
+ * This one was found by lighting it. Making the head a `.d-hero` is what sent me
+ * to measure its box, and the box turned out to be wrong at 1280×720 with or
+ * without the class:
+ *
+ *     1280×720   grid-template-rows: 0px 34px 387.469px 195.438px
+ *                .rw-pass-head  y=98…132   — 34px tall, "SEASON 1" sliced
+ *     1600×900   grid-template-rows: 0px 132.141px 445.062px 179.281px
+ *                .rw-pass-head  y=98…230   — correct
+ *
+ * Verified against the same page with `d-hero` removed at runtime: identical
+ * rows, identical 34px. So the tier badge, the season name, the XP meter, the
+ * pacing state and both purchase buttons have been folded into a 34px strip on
+ * the viewport `docs/AAA-BAR.md` §9 names as the floor, and lighting the panel
+ * only made it visible.
+ *
+ * The mechanism is the track sizing algorithm. `rewardsTheme.css` gives
+ * `.rw-pass-body` `grid-template-rows: auto auto auto auto`, and an `auto` track
+ * is `minmax(auto, max-content)`. When the rows do not fit — 658px of content in
+ * a 606px box at 1280×720 — the algorithm has no positive free space to
+ * distribute, so **every track stays at its base size**, which is its
+ * min-content. The head's min-content is its padding alone, because each of its
+ * three children is itself a grid or a `min-height: 0` stack with a zero
+ * automatic minimum. The track is the one row that cannot shrink, so the head
+ * absorbs the whole shortfall.
+ *
+ * `max-content` as the base rather than `auto` is the fix: a `max-content` track
+ * cannot be shrunk below its content, so the four rows come to their real height
+ * and the body — which is already `overflow-y: auto` — scrolls, which is what a
+ * 720px window should do with 756px of pass on it.
+ *
+ * `rewardsTheme.ts` is another module's file. This is stated here, scoped to the
+ * route, and should move there when that owner next opens it.
+ */
+.screen.pass-screen .rw-pass-body {
+  grid-template-rows: max-content max-content max-content max-content;
+}
+
+/** The closing pair is a genuine half-and-half; only the head is a lead. */
+.screen.pass-screen .pass-close {
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--band-min, 300px) * var(--ui-scale, 1)), 1fr));
+}
+
+.screen.pass-screen .pass-feed-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  align-items: flex-start;
+}
+
+/**
+ * The record card: two stat pairs and a meter, on the wall side of the band.
+ *
+ * It is `.d-rail-stats` rather than `.d-stats` for the reason that block exists
+ * — six across a page, two across a column — and the numbers carry `data-count`
+ * so `countUp` ratchets them on arrival like every other figure in the domain.
+ */
+.screen.missions-screen .missions-record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  justify-content: center;
+}
+
+.screen.missions-screen .missions-record .d-rail-stats {
+  grid-template-columns: repeat(auto-fit, minmax(calc(110px * var(--ui-scale, 1)), 1fr));
+}
+
+.screen.missions-screen .missions-record-note {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  line-height: 1.5;
+}

@@ -1,0 +1,4748 @@
+/**
+ * Per-screen geometry for the data domain.
+ *
+ * `data.css` holds what all twenty-three routes share; this holds what one
+ * screen needs and no other does — where the profile's avatar sits, how wide the
+ * mastery ladder's reward column is, what an event banner's caption does at 390
+ * pixels tall.
+ *
+ * **Why almost every selector starts with the screen class.** `screens.css`
+ * belongs to another module and still carries the previous geometry for these
+ * same class names at equal specificity. Two stylesheets at the same weight are
+ * settled by load order, and load order here is a property of the module graph —
+ * which is exactly the sort of thing that is true until somebody adds an import.
+ * One extra class on the front of each selector makes the outcome a property of
+ * the CSS instead.
+ *
+ * Everything below obeys the same three rules as `data.css`: gradients are the
+ * rig axis or exactly square to the viewport, materials come from the
+ * foundation, and nothing animates a paint property.
+ */
+
+/* -------------------------------------------------------------------------
+   Profile
+   ------------------------------------------------------------------------- */
+
+.profile-screen .profile-identity {
+  display: grid;
+  grid-template-columns: auto minmax(240px, 1fr) auto;
+  grid-template-areas:
+    "face text rank"
+    "face stats stats";
+  align-items: center;
+  gap: var(--sp-4) var(--sp-5);
+  padding: var(--sp-5) var(--sp-6);
+  position: relative;
+  overflow: hidden;
+}
+
+/**
+ * The wash of the player's own colour is `.d-hero`'s now, and this is the note
+ * that says why the rule that used to be here is gone.
+ *
+ * It was a single radial at 24% of `--profile-accent`, and it was right — it is
+ * where `hall.css`'s alcove came from. Keeping both would have been worse than
+ * either: two rules declaring `background` on the same `::before`, one at
+ * (0,2,0) and one at (0,1,0), so the profile's hero would have been lit at 24%
+ * while the four other heroes in the domain were lit at 62%, from two
+ * implementations of the same idea that nobody would think to compare. The
+ * screen sets `--hall-accent` to the player's colour in `profileScreen.ts` and
+ * takes the shared light.
+ *
+ * `> *` stays: `.d-hero::before` sits at `z-index: -1` inside the panel's own
+ * isolation, which is enough for content that establishes no stacking of its
+ * own, and this panel's children include a canvas and an absolutely-positioned
+ * badge that do.
+ */
+.profile-screen .profile-identity > * {
+  position: relative;
+}
+
+.profile-screen .profile-avatar-wrap {
+  grid-area: face;
+  width: 148px;
+  height: 148px;
+}
+
+.profile-screen .profile-avatar {
+  inset: 11%;
+  overflow: hidden;
+  background: radial-gradient(120% 120% at 30% 20%, color-mix(in srgb, var(--c) 24%, #14101f), #0b0716);
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.6),
+    0 6px 18px rgb(0 0 0 / 0.55);
+}
+
+/**
+ * The slot the live portrait canvas is mounted into.
+ *
+ * It has to fill the disc on its own, because the canvas inside it arrives from
+ * `paintLeaderPortrait` at whatever intrinsic size the painter chose and is
+ * replaced in place when the painting decodes. Sizing the *slot* rather than the
+ * canvas means the swap cannot change the layout on the frame the art lands.
+ */
+.profile-screen .profile-face-slot {
+  width: 100%;
+  height: 100%;
+}
+
+.profile-screen .profile-avatar canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.profile-screen .profile-monogram {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  text-shadow: 0 2px 8px rgb(0 0 0 / 0.7);
+}
+
+.profile-screen .profile-badge {
+  right: 2px;
+  bottom: 6px;
+  width: 32px;
+  height: 32px;
+  color: var(--text-invert);
+  background: linear-gradient(var(--light-sweep), color-mix(in srgb, var(--c) 76%, #fff), var(--c));
+  border: 2px solid rgb(6 3 14 / 0.75);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    0 3px 8px rgb(0 0 0 / 0.6);
+}
+
+.profile-screen .profile-identity-text {
+  grid-area: text;
+  gap: var(--sp-1);
+}
+
+.profile-screen .profile-eyebrow {
+  margin: 0;
+  color: color-mix(in srgb, var(--profile-accent, var(--accent)) 62%, #ffffff);
+}
+
+.profile-screen .profile-name {
+  font-size: clamp(1.7rem, 3.4vw, 2.4rem);
+  margin: 0;
+}
+
+.profile-screen .profile-level {
+  margin-top: var(--sp-2);
+  display: grid;
+  grid-template-columns: auto minmax(80px, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.profile-screen .profile-level-xp {
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.profile-screen .profile-rank {
+  grid-area: rank;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  text-align: center;
+}
+
+.profile-screen .profile-stats {
+  grid-area: stats;
+  padding-top: var(--sp-3);
+  border-top: 1px solid rgb(255 255 255 / 0.06);
+}
+
+/**
+ * The five record links, now a column against the wall rather than a row across
+ * the page.
+ *
+ * They were a five-across grid of 200px tiles at the top of the scrolling stack
+ * — a navigation bar drawn as content, which is why the screen read as a
+ * document with a toolbar in the middle of it. On the rail they are what they
+ * always were: the way out of this screen, always in view.
+ *
+ * `auto-fit` still, because the same list becomes a horizontal snap strip below
+ * 1080px where the rail lies down (see `hall.css` §7) and a hard `1fr` would
+ * make five 300px tiles on a phone.
+ */
+.profile-screen .d-rail .profile-links {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 1080px), (max-height: 560px) {
+  .profile-screen .d-rail .profile-links {
+    grid-template-columns: repeat(auto-fit, minmax(calc(190px * var(--ui-scale, 1)), 1fr));
+  }
+}
+
+.profile-screen .profile-link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+}
+
+.profile-screen .profile-link > span:first-of-type {
+  flex: 1 1 auto;
+}
+
+.profile-screen .profile-link-go {
+  color: var(--text-faint);
+  transition: transform var(--dur-micro) var(--ease-arrive);
+}
+
+@media (hover: hover) {
+  .profile-screen .profile-link:hover .profile-link-go {
+    transform: translateX(3px);
+    color: var(--accent-bright);
+  }
+}
+
+.profile-screen .profile-slot {
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.profile-screen .profile-slot-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.045), rgb(255 255 255 / 0.012));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45);
+}
+
+.profile-screen .profile-slot-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.profile-screen .profile-slot-label {
+  min-width: 0;
+  margin: 0;
+}
+
+.profile-screen .profile-slot-worn {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+/**
+ * The swatch is the item, drawn.
+ *
+ * It used to be one of four icons on a tinted square, which is a *category*
+ * marker rather than a preview: four rows of grey square, and no answer to the
+ * question a locker exists to answer, which is what the thing looks like when
+ * you wear it. `cosmeticSwatch` in `art.ts` draws five different objects — a
+ * struck nameplate, a ring, a pinned shield, a card back, a speech plate — each
+ * carrying the wearer's own emblem, and `.d-swatch` in `data.css` mounts them.
+ *
+ * The row's own plate keeps a socket under the object so it reads as sitting in
+ * the locker rather than floating on the row.
+ */
+.profile-screen .profile-slot-head > .d-swatch,
+.profile-screen .profile-option > .d-swatch {
+  border-radius: var(--r-field);
+  background-color: rgb(6 3 14 / 0.5);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5);
+}
+
+.profile-screen .profile-slot-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  text-align: right;
+  max-width: 36ch;
+}
+
+.profile-screen .profile-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(220px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+}
+
+.profile-screen .profile-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background-color: transparent;
+}
+
+.profile-screen .profile-option-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.profile-screen .profile-option-text > span:first-child {
+  font-weight: 600;
+}
+
+.profile-screen .profile-option-text > .t-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-screen .profile-option.active {
+  --rim-boost: 2;
+}
+
+.profile-screen .profile-emote {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-3);
+  border: none;
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.profile-screen .profile-emote .hb-icon {
+  color: var(--accent-bright);
+}
+
+.profile-screen .profile-mastery-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.profile-screen .profile-tracks {
+  gap: var(--sp-3);
+}
+
+.profile-screen .profile-track {
+  display: grid;
+  grid-template-columns: auto minmax(110px, 190px) minmax(80px, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.profile-screen .profile-track-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-md);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-screen .profile-count {
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+}
+
+.profile-screen .profile-back-preview canvas {
+  border-radius: var(--r-field);
+  box-shadow:
+    0 8px 22px rgb(0 0 0 / 0.6),
+    0 2px 0 rgb(0 0 0 / 0.7);
+}
+
+/**
+ * The locker, cut into a cabinet and a card back standing beside it.
+ *
+ * The four slot rows stretched the full width of the panel and the card back
+ * preview sat *under* them, so at 1,150px the panel was four 1,100px rows with
+ * their contents pinned to the two ends and about 500px of nothing through the
+ * middle of each — recon defect 17 all over again, on a different screen, and
+ * arrived at the same way: a row that was the right shape at 900px and was never
+ * looked at once the container grew.
+ *
+ * The preview is the natural second column. It is the only *object* in the panel
+ * — everything else is a label and a swatch — so putting it beside the list
+ * gives the eye something to land on and takes 500px out of every row at the
+ * same time. Below 1,100px of panel it goes back under, because at that width
+ * the rows have no hole in them to fix.
+ */
+.profile-screen .profile-cosmetics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "head head"
+    "hint hint"
+    "list back";
+  align-items: start;
+  column-gap: var(--sp-5);
+}
+
+.profile-screen .profile-cosmetics > .profile-section-title {
+  grid-area: head;
+}
+
+.profile-screen .profile-cosmetics > .profile-hint {
+  grid-area: hint;
+}
+
+.profile-screen .profile-cosmetics > .profile-slots {
+  grid-area: list;
+}
+
+.profile-screen .profile-cosmetics > .profile-back-preview {
+  grid-area: back;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: calc(168px * var(--ui-scale, 1));
+  text-align: center;
+}
+
+.profile-screen .profile-cosmetics > .profile-back-preview p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+@container (max-width: 1100px) {
+  .profile-screen .profile-cosmetics {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "head"
+      "hint"
+      "list"
+      "back";
+  }
+}
+
+/**
+ * ...and the query above needs something to ask about.
+ *
+ * A media query would be wrong here: the panel's width is a function of the
+ * rail, the gutters and `--ui-scale` as well as the window, so "the window is
+ * under 1100px" and "this panel is under 1100px" are different questions and
+ * only the second one is the one being asked. `inline-size` rather than `size`,
+ * because the panel's height is content-driven and size containment would
+ * collapse it.
+ */
+.profile-screen .profile-cosmetics {
+  container-type: inline-size;
+}
+
+@media (max-width: 880px) {
+  .profile-screen .profile-identity {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "face text"
+      "rank text"
+      "stats stats";
+    padding: var(--sp-4);
+  }
+
+  .profile-screen .profile-rank {
+    flex-direction: row;
+    justify-self: start;
+  }
+
+  .profile-screen .profile-slot-locked {
+    grid-column: 1 / -1;
+    text-align: left;
+    max-width: none;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Mastery
+   ------------------------------------------------------------------------- */
+
+.mastery-screen .mastery-intro {
+  padding: var(--sp-4) var(--sp-5);
+}
+
+.mastery-screen .mastery-rule {
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+  max-width: 82ch;
+}
+
+.mastery-screen .mastery-rule strong {
+  color: var(--text);
+}
+
+.mastery-screen .mastery-tab {
+  border: none;
+  background: none;
+}
+
+.mastery-screen .mastery-track {
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* a track with something to collect is lit at the rim rather than tinted amber
+   across its whole face, which used to make the tile the loudest thing on a
+   screen full of tiles */
+.mastery-screen .mastery-track.has-reward {
+  --rim-boost: 2.2;
+  --row-accent: var(--accent-gold);
+}
+
+.mastery-screen .mastery-rank-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/**
+ * The rank appears once.
+ *
+ * The old tile printed it three times — a grey circle, "Rank 13 of 20", and an
+ * amber pill that was in fact the *unclaimed count* wearing the same shape. One
+ * crest with one number under it, and the subtitle says how much is left rather
+ * than restating where you are.
+ */
+.mastery-screen .mastery-rank-number {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.mastery-screen .mastery-togo {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.mastery-screen .mastery-togo .num {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+/* the tile's own rhythm: crest and name close, meter and foot as a pair */
+.mastery-screen .d-tile {
+  align-content: start;
+  gap: 2px var(--sp-3);
+  padding: var(--sp-3) var(--sp-4) var(--sp-3);
+}
+
+.mastery-screen .d-tile > .d-meter {
+  margin-top: var(--sp-3);
+}
+
+.mastery-screen .d-tile-foot {
+  margin-top: var(--sp-2);
+  align-items: center;
+}
+
+.mastery-screen .mastery-empty {
+  padding: var(--sp-4) var(--sp-5);
+  font-size: var(--fs-sm);
+}
+
+/* --- the ladder ---------------------------------------------------------- */
+
+.mastery-screen .mastery-detail {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.mastery-screen .mastery-detail-head {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-4);
+}
+
+.mastery-screen .mastery-detail-title-group {
+  min-width: 0;
+}
+
+.mastery-screen .mastery-detail-title-group p {
+  margin: 2px 0 0;
+}
+
+.mastery-screen .mastery-detail-title {
+  font-size: clamp(1.4rem, 2.6vw, 2rem);
+  margin: 0;
+}
+
+.mastery-screen .mastery-detail-xp {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+
+.mastery-screen .mastery-detail-xp-value {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mastery-screen .mastery-detail-meter {
+  height: 12px;
+}
+
+.mastery-screen .mastery-ladder {
+  gap: var(--sp-2);
+}
+
+/**
+ * A rung.
+ *
+ * The old version dropped the whole row to `opacity: 0.55` when it was locked,
+ * which is the one thing the interaction contract bans by name — an opacity-only
+ * state changes the text's contrast along with everything else, and a 20-rung
+ * ladder spends most of its life locked. The locked state now changes the
+ * *plate*: less amplitude, a desaturated reward object, and a lock glyph with
+ * the rank it opens at. The type stays legible.
+ */
+.mastery-screen .mastery-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  opacity: 1;
+}
+
+.mastery-screen .mastery-row.is-locked {
+  --mat-amp: 0.3;
+  --rim-a: 0.03;
+}
+
+.mastery-screen .mastery-row.is-locked .mastery-row-rewards {
+  color: var(--text-dim);
+}
+
+.mastery-screen .mastery-row.is-claimable {
+  --rim-boost: 2.4;
+  --row-accent: var(--accent-gold);
+}
+
+/**
+ * A milestone is a bigger object, not a differently-coloured one.
+ *
+ * Ranks 5, 10, 15 and 20 get a taller plate and a rim in the track's own colour,
+ * so scanning the ladder gives a rhythm — four things worth arriving at — rather
+ * than twenty equal steps.
+ */
+.mastery-screen .mastery-row.is-milestone {
+  padding-block: var(--sp-4);
+  --rim-boost: 1.8;
+  box-shadow:
+    var(--mat-cast),
+    0 0 0 1px color-mix(in srgb, var(--row-accent, var(--accent)) 30%, transparent);
+}
+
+.mastery-screen .mastery-row-rank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  min-width: 44px;
+}
+
+.mastery-screen .mastery-row-rank .num {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--text);
+  --num-align: center;
+}
+
+.mastery-screen .mastery-row.is-locked .mastery-row-rank .num {
+  color: var(--text-dim);
+}
+
+.mastery-screen .mastery-row-body {
+  gap: var(--sp-2);
+}
+
+.mastery-screen .mastery-row-rewards {
+  font-size: var(--fs-md);
+  gap: var(--sp-2) var(--sp-3);
+  color: var(--text);
+}
+
+.mastery-screen .mastery-reward {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.mastery-screen .mastery-reward .hb-icon {
+  color: var(--accent-gold);
+}
+
+.mastery-screen .mastery-reward-note {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+}
+
+.mastery-screen .mastery-reward.deferred {
+  color: var(--text-dim);
+  border: none;
+  font-style: italic;
+}
+
+.mastery-screen .mastery-tier-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+}
+
+.mastery-screen .mastery-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.mastery-screen .mastery-state.is-done {
+  color: var(--success);
+}
+
+.mastery-screen .mastery-state.is-locked {
+  color: var(--text-faint);
+}
+
+.mastery-screen .mastery-waiting {
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: normal;
+  max-width: 24ch;
+  text-align: right;
+}
+
+.mastery-screen .mastery-row-action {
+  justify-self: end;
+}
+
+.mastery-screen .mastery-claim {
+  padding: 7px var(--sp-4);
+  font-weight: 700;
+}
+
+/* --- closest rewards, the band that fills the lower half ----------------- */
+
+.mastery-screen .mastery-next {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.mastery-screen .mastery-next-head h2 {
+  margin: 0;
+}
+
+.mastery-screen .mastery-next-head p {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+}
+
+.mastery-screen .mastery-next-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(260px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3);
+}
+
+.mastery-screen .mastery-next-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+}
+
+.mastery-screen .mastery-next-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mastery-screen .mastery-next-go {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.mastery-screen .mastery-next-go .num {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--accent-bright);
+}
+
+@media (max-width: 820px) {
+  .mastery-screen .mastery-detail-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .mastery-screen .mastery-detail-xp {
+    grid-column: 1 / -1;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .mastery-screen .mastery-row {
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+
+  .mastery-screen .mastery-row-action {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+
+  .mastery-screen .mastery-waiting {
+    text-align: left;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   The Event Hub
+   ------------------------------------------------------------------------- */
+
+.events-screen .events-count {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+/**
+ * The live event is a banner with the copy standing on it, not a row with a
+ * gradient chip beside it.
+ *
+ * An event hub is the most art-forward screen a live-service card game has:
+ * Arena's tiles are full-bleed painted key art with a foil sweep and a countdown
+ * ring, Hearthstone's event pages are illustrated. What shipped was an 84×200
+ * strip of `radial-gradient(circle, accent, transparent 72%)` with a currency
+ * glyph in the middle of it, and a CSS comment saying "key art is procedural,
+ * like every other image in this build" — which was true and was not the same
+ * thing as being a picture.
+ */
+.events-screen .event-card {
+  display: block;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+  overflow: hidden;
+  background: linear-gradient(var(--light-sweep), rgb(46 34 78 / 0.9), rgb(18 12 34 / 0.94));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(0 0 0 / 0.6),
+    0 14px 34px rgb(0 0 0 / 0.5),
+    0 2px 0 rgb(0 0 0 / 0.55);
+}
+
+.events-screen .event-card.is-live {
+  background: linear-gradient(var(--light-sweep), rgb(56 40 96 / 0.92), rgb(20 13 38 / 0.95));
+}
+
+.events-screen .event-key {
+  min-height: 0;
+  border-radius: 0;
+  background-color: #07040f;
+}
+
+/**
+ * The art bleeds into the strip below it, because they are one object.
+ *
+ * They were two. The HYPECON banner's teal field ended in a **straight
+ * horizontal cut** — measured at y=556 on a 2× capture — straight into a flat
+ * violet information strip that shared none of its pigment, so the page read as
+ * a panel dropped on a photograph. §2 asks for the opposite: the environment
+ * has to reach onto the surface in front of it.
+ *
+ * Two moves and they have to be both. The scrim's last stop is re-pointed at the
+ * strip's own colour, mixed with the event accent, so the picture *arrives* at
+ * the strip instead of stopping short of it; and the strip's top 120px carries a
+ * wash of that same accent, so the colour crosses the seam in the other
+ * direction too. The caption is a later sibling, so it still sits above the ramp
+ * and keeps its contrast.
+ */
+.events-screen .event-key .d-key-scrim {
+  background: linear-gradient(
+    180deg,
+    rgb(4 2 10 / 0.05) 0%,
+    rgb(4 2 10 / 0.42) 44%,
+    color-mix(in srgb, var(--event-accent, var(--accent)) 10%, rgb(14 9 27 / 0.86)) 78%,
+    color-mix(in srgb, var(--event-accent, var(--accent)) 16%, rgb(24 16 47)) 100%
+  );
+}
+
+.events-screen .event-body {
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--event-accent, var(--accent)) 15%, transparent) 0%,
+    color-mix(in srgb, var(--event-accent, var(--accent)) 4%, transparent) 46%,
+    transparent 100%
+  );
+}
+
+.events-screen .event-key .event-name {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+  text-shadow: 0 2px 12px rgb(0 0 0 / 0.8);
+}
+
+.events-screen .event-key .event-blurb {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+  text-shadow: 0 1px 6px rgb(0 0 0 / 0.85);
+}
+
+.events-screen .event-tag {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px var(--sp-3);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgb(0 0 0 / 0.5);
+  color: var(--text-dim);
+  backdrop-filter: blur(6px);
+}
+
+.events-screen .event-tag-live {
+  background: linear-gradient(var(--light-sweep), var(--event-accent, var(--accent)), color-mix(in srgb, var(--event-accent, var(--accent)) 55%, #000));
+  color: var(--text-invert);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45);
+}
+
+/**
+ * The countdown, as a ring rather than only as a sentence.
+ *
+ * A conic gradient with no `from` starts at 0° by definition, which is a
+ * colour-stop position and not a claim about where the light is — so it is not a
+ * second sun. `--through` is the fraction of the run that has elapsed.
+ */
+.events-screen .event-key-clock {
+  position: absolute;
+  top: var(--sp-4);
+  right: var(--sp-4);
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+}
+
+.events-screen .event-key-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--event-accent, var(--accent)) var(--through, 0%),
+    rgb(255 255 255 / 0.14) var(--through, 0%)
+  );
+  mask: radial-gradient(circle, transparent 0 62%, #000 63%);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--event-accent, var(--accent)) 55%, transparent));
+}
+
+/**
+ * The token inside the countdown ring, and the one pinned to a rail card.
+ *
+ * The ring's child is centred by the grid above it; the rail card has no ring,
+ * so its token pins itself to the same top-right corner the ring occupies on the
+ * live card. Both are the drawn coin — `.event-key-symbol` and its `.is-small`
+ * variant were a Unicode character at 1.5rem and 1.15rem, and one of the three
+ * events authored `❘`, so the archive rendered its currency as a vertical bar.
+ */
+.events-screen .event-key-clock > .d-token {
+  filter: drop-shadow(0 2px 8px rgb(0 0 0 / 0.85));
+}
+
+.events-screen .d-key > .d-token {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  filter: drop-shadow(0 2px 9px rgb(0 0 0 / 0.85));
+}
+
+.events-screen .event-body {
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  gap: var(--sp-3);
+}
+
+.events-screen .event-timer {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.events-screen .event-timer .hb-icon {
+  color: var(--event-accent, var(--accent));
+}
+
+.events-screen .event-timer strong {
+  color: var(--text);
+}
+
+.events-screen .event-timer-left {
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-chip);
+  background: rgb(255 255 255 / 0.06);
+  font-size: var(--fs-xs);
+}
+
+.events-screen .event-balance {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.events-screen .event-balance strong {
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  --num-align: left;
+}
+
+.events-screen .event-balance > .d-token {
+  align-self: center;
+}
+
+.events-screen .event-currency-name {
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+}
+
+.events-screen .event-earned {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/**
+ * The one hero on the hub, ringed in the event's own accent.
+ *
+ * Three of these were `.mat-hero` and all three were the product's magenta,
+ * under a teal banner. The plate stays the hero plate — its ink contrast is
+ * tuned against that exact fill and re-tinting it per event would put an
+ * unaudited pair on screen for every event ever authored — but the *ring and
+ * the glow* are the event's, which is what ties the brightest object on the
+ * page to the picture above it without touching a contrast ratio.
+ */
+.events-screen .event-play {
+  min-height: max(40px, var(--touch-min));
+  padding: 9px var(--sp-4);
+  font-weight: 700;
+}
+
+/**
+ * …and the plate itself is struck in the event's colour.
+ *
+ * The hero material is a *light* plate with dark ink, and that is the property
+ * that lets it be re-tinted safely: mixing the accent with white at a fixed
+ * ratio bounds the plate's luminance from below no matter what hue an event
+ * authors, so `--ink-hero` cannot be stranded. Measured against the three
+ * authored accents — #3fc7c0, #e46bd6, #f0862a — the label lands at 10.9:1,
+ * 8.8:1 and 9.3:1, all far over the 4.5:1 floor and all higher than the stock
+ * magenta plate manages. A future event would have to author an almost-black
+ * accent to get near the floor, and the 32% white in the darker stop is the
+ * margin for that.
+ */
+.events-screen .event-play.is-primary {
+  --mat-fill: linear-gradient(
+    var(--light-sweep),
+    color-mix(in srgb, var(--event-accent, var(--accent)) 38%, #ffffff) 0%,
+    color-mix(in srgb, var(--event-accent, var(--accent)) 68%, #ffffff) 100%
+  );
+  --ink-hero: #170c24;
+  box-shadow:
+    var(--mat-cast),
+    0 0 0 1px color-mix(in srgb, var(--event-accent, var(--accent)) 55%, transparent),
+    0 4px 22px -8px color-mix(in srgb, var(--event-accent, var(--accent)) 85%, transparent);
+}
+
+/** The alternates are row-level marks in the same accent, not more heroes. */
+.events-screen .event-play:not(.is-primary) {
+  --go-ink: var(--event-accent, var(--accent-bright));
+}
+
+@media (pointer: coarse) {
+  .events-screen .event-play,
+  .events-screen .event-rules {
+    min-height: 44px;
+  }
+}
+
+.events-screen .event-panel {
+  padding: var(--sp-5);
+  border: none;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.events-screen .event-panel-head h3 {
+  margin: 0;
+}
+
+.events-screen .event-completion {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.events-screen .event-missions,
+.events-screen .event-shop {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.events-screen .event-missions {
+  grid-template-columns: repeat(auto-fit, minmax(calc(290px * var(--ui-scale, 1)), 1fr));
+}
+
+.events-screen .event-mission {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border: none;
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  --row-accent: var(--event-accent, var(--accent));
+}
+
+.events-screen .event-mission.is-claimed {
+  opacity: 1;
+  --mat-amp: 0.32;
+}
+
+.events-screen .event-mission-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.events-screen .event-mission-reward {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--accent-gold);
+  font-weight: 700;
+}
+
+.events-screen .event-mission-text {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.events-screen .event-mission-foot {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 34px;
+  align-items: center;
+}
+
+.events-screen .event-claimed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--success);
+}
+
+.events-screen .event-progress {
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+}
+
+.events-screen .event-shop-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border: none;
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+}
+
+.events-screen .event-shop-row.is-sold-out {
+  opacity: 1;
+  --mat-amp: 0.3;
+}
+
+.events-screen .event-shop-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.events-screen .event-shop-cost {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--accent-gold);
+  font-weight: 700;
+  font-size: var(--fs-md);
+}
+
+/**
+ * A purchase is a 44px target.
+ *
+ * It was 44×28 with 11px type and was the row's only action, on a screen the
+ * constraint says has to work on a phone in landscape.
+ */
+.events-screen .event-buy {
+  min-height: 40px;
+  min-width: 78px;
+  padding: 0 var(--sp-4);
+  font-weight: 700;
+}
+
+@media (pointer: coarse) {
+  .events-screen .event-buy {
+    min-height: 44px;
+  }
+}
+
+.events-screen .event-rails {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(360px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.events-screen .event-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.events-screen .event-rail-title {
+  margin: 0;
+}
+
+/**
+ * `auto-fit`, not `auto-fill`, and the difference is the whole bug.
+ *
+ * `auto-fill` keeps the empty columns it created, so one event in a 1,114px band
+ * sat in the first 360px slot with two ghost columns beside it. `auto-fit`
+ * collapses the empties and lets the one card have the width. Same declaration
+ * everywhere else in this file for the same reason.
+ */
+.events-screen .event-rail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(300px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3);
+}
+
+/**
+ * On the wall, the calendar is one card per row and nothing else changes.
+ *
+ * `auto-fit` at a 300px minimum would still resolve to one column inside a 300px
+ * rail, so this is technically redundant at 1600 and is not at 2560, where the
+ * rail reaches 392px and a second 300px track would appear and then immediately
+ * be too narrow for a date. Stating it removes the coincidence.
+ */
+.events-screen .d-rail .event-rail-grid {
+  grid-template-columns: 1fr;
+}
+
+.events-screen .d-rail .event-rail {
+  gap: var(--sp-2);
+}
+
+@media (max-width: 1080px), (max-height: 560px) {
+  .events-screen .d-rail .event-rail-grid {
+    grid-template-columns: repeat(auto-fit, minmax(calc(260px * var(--ui-scale, 1)), 1fr));
+  }
+}
+
+.events-screen .event-locked {
+  opacity: 1;
+  --mat-amp: 0.35;
+}
+
+.events-screen .event-locked .t-body {
+  margin: 0;
+  max-width: 80ch;
+}
+
+/* -------------------------------------------------------------------------
+   Statistics
+   ------------------------------------------------------------------------- */
+
+.stats-screen .stats-summary {
+  gap: var(--sp-4);
+}
+
+.stats-screen .stats-table-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.stats-screen .stats-table-head h3 {
+  margin: 0;
+}
+
+.stats-screen .stats-table-head .t-body {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.stats-screen .stats-trend-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: 1px solid rgb(255 255 255 / 0.06);
+}
+
+.stats-screen .stats-trend-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+/**
+ * The legend, which is what makes the shape readable rather than merely present.
+ *
+ * Each key carries the chevron that matches the bar's direction, so the mapping
+ * from direction to result is stated once and the colour is confirmation rather
+ * than the message.
+ */
+.stats-screen .stats-legend {
+  display: flex;
+  gap: var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.stats-screen .stats-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.stats-screen .stats-key.is-win {
+  color: #7ee7a8;
+}
+
+.stats-screen .stats-key.is-loss {
+  color: #ff6078;
+}
+
+.stats-screen .stats-trend,
+.stats-screen .stats-curve {
+  display: block;
+}
+
+.stats-screen .stats-trend canvas,
+.stats-screen .stats-curve canvas {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+.stats-screen .stats-curve-panel {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.stats-screen .stats-curve {
+  border-radius: var(--r-field);
+  overflow: hidden;
+}
+
+.stats-screen .stats-trend-empty {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+.stats-screen .stats-sample {
+  margin: 0;
+  font-size: var(--fs-sm);
+  max-width: 92ch;
+}
+
+/**
+ * Saturation as a focus tool.
+ *
+ * Seven fully-saturated hues in a 340px box means nothing is the hero accent,
+ * which is §6's complaint stated exactly. The list sits at a third chroma and
+ * the row under the pointer comes back to full — so the panel has one bright
+ * thing at a time and it is the one being read.
+ */
+.stats-screen .stats-rows {
+  gap: var(--sp-2);
+}
+
+.stats-screen .stats-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 50px 66px;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 5px var(--sp-2);
+  border-radius: var(--r-field);
+  font-size: var(--fs-sm);
+  filter: saturate(0.42);
+  transition:
+    filter var(--dur-micro) var(--ease-arrive),
+    background-color var(--dur-micro) var(--ease-arrive);
+}
+
+@media (hover: hover) {
+  .stats-screen .stats-rows:hover .stats-row {
+    filter: saturate(0.28);
+  }
+
+  .stats-screen .stats-rows .stats-row:hover {
+    filter: none;
+    background-color: rgb(255 255 255 / 0.045);
+  }
+}
+
+/* thin samples are labelled, not merely faded — the count is already printed */
+.stats-screen .stats-row.thin {
+  opacity: 1;
+}
+
+.stats-screen .stats-row.thin .stats-row-name {
+  color: var(--text-dim);
+}
+
+.stats-screen .stats-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.stats-screen .stats-row-bar {
+  height: 8px;
+}
+
+.stats-screen .stats-row-rate {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stats-screen .stats-row-count {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.stats-screen .stats-scroll {
+  overflow-x: auto;
+}
+
+.stats-screen .stats-deck-table th,
+.stats-screen .stats-deck-table td {
+  white-space: nowrap;
+}
+
+.stats-screen .stats-deck-table tbody tr.thin td {
+  color: var(--text-dim);
+}
+
+.stats-screen .stats-record,
+.stats-screen .stats-thin-note,
+.stats-screen .stats-none {
+  color: var(--text-faint);
+}
+
+.stats-screen .stats-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.stats-screen .stats-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 9px var(--sp-4);
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stats-screen .stats-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(320px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+/**
+ * The three rate tables, on the wall.
+ *
+ * They were a three-across band at the bottom of the scroll, which meant a
+ * player comparing "by faction" against the curve had to hold one of them in
+ * their head while scrolling to the other. Against the rail they are beside the
+ * chart at all times, which is what a small-multiple is for.
+ *
+ * Each keeps `.stats-table`'s material and its head; only the bar column gives
+ * way, because a 300px row cannot hold a name, a 190px meter, a percentage and a
+ * record and the first thing to sacrifice is the one that is decorative when the
+ * number is right there.
+ */
+.stats-screen .d-rail > .stats-table {
+  padding: var(--sp-4);
+  gap: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+}
+
+.stats-screen .d-rail .stats-table-head {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stats-screen .d-rail .stats-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--sp-2);
+}
+
+.stats-screen .d-rail .stats-row-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.stats-screen .d-rail .stats-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.stats-screen .d-rail .stats-actions button {
+  justify-content: flex-start;
+}
+
+/**
+ * The curve panel is the hero, so it is allowed to be the tallest object here.
+ *
+ * `min-height` rather than a fixed height: the canvas inside is sized from its
+ * own box by `drawSized`, and pinning the panel would pin the chart. What this
+ * does is stop a two-match history from drawing a 170px chart in a 190px panel
+ * beside a 400px summary — a hero that is the same size as everything else is
+ * not a hero, and on a screen with no data yet that was exactly what happened.
+ */
+.stats-screen .stats-curve-panel {
+  min-height: clamp(300px, 42vh, 460px);
+  justify-content: center;
+}
+
+/* -------------------------------------------------------------------------
+   Leaderboards
+   ------------------------------------------------------------------------- */
+
+.leaderboards-screen .lb-standing {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+}
+
+/**
+ * The silhouette ladder, receding, on its own depth plane.
+ *
+ * Painted rather than tinted, because the point is that the frame is *composed*
+ * — Hearthstone and Gwent both fill the lower third with world furniture so the
+ * eye never reads the bottom of the screen as content that failed to load.
+ *
+ * **The first version was on the same plane as the copy and that is what made it
+ * read as a rendering fault rather than as a backdrop.** At `opacity: 0.72`
+ * behind a mask that only fell to 0.28 at the far edge, nine carved rungs ran
+ * horizontally straight through the headline, the paragraph and the placement
+ * meter at full sharpness — same focus, same contrast band, no separation of any
+ * kind. §2 is explicit that depth is carried by "blur, desaturation, scale and
+ * parallax, not by z-index alone", and a sharp thing behind a sharp thing is
+ * simply two sharp things.
+ *
+ * So it is pushed back the way a backdrop is pushed back: blurred, desaturated,
+ * darker overall, and scaled up a touch so the blur has no soft edge to give
+ * itself away at the panel's corners.
+ *
+ * **And it moved to the side of the panel that had nothing on it.** The crest
+ * column and the copy occupy the left two thirds; the right third was bare
+ * plate, which §2 reads as an unresolved composition. Masking the art *away*
+ * from the copy and *toward* the empty third solves both complaints with one
+ * gradient: the headline stands on clean ground and the frame is composed
+ * corner to corner, which is what the reference games do with world furniture.
+ */
+.leaderboards-screen .lb-standing-art {
+  position: absolute;
+  inset: 0;
+  background-image: var(--key-art);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.62;
+  transform: scale(1.08);
+  transform-origin: 78% 50%;
+  filter: blur(3px) saturate(0.7);
+  mask-image: linear-gradient(90deg, rgb(0 0 0 / 0.22) 0%, rgb(0 0 0 / 0.4) 40%, #000 72%);
+}
+
+/**
+ * And the ground the copy stands on, which is the other half of the same fix.
+ *
+ * The mask alone leaves a soft shoulder where the ladder starts, and the longest
+ * line of body copy runs into it. §4: text over imagery always has a scrim. This
+ * is that scrim, 90° — square to the viewport, which the one-sun rule allows
+ * because a scrim carries no direction of light — running the *opposite* way to
+ * the mask, so the two together are a single wipe from clean plate under the
+ * type to lit furniture at the right-hand edge.
+ */
+.leaderboards-screen .lb-standing::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgb(6 3 14 / 0.66) 0%, rgb(6 3 14 / 0.58) 44%, rgb(6 3 14 / 0.06) 80%);
+}
+
+.leaderboards-screen .lb-standing-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-6);
+  padding: var(--sp-6);
+}
+
+.leaderboards-screen .lb-crest {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.leaderboards-screen .lb-standing-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.leaderboards-screen .lb-standing-text h2 {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.3rem);
+}
+
+.leaderboards-screen .lb-standing-text .t-body {
+  margin: 0;
+  max-width: 68ch;
+}
+
+.leaderboards-screen .lb-eyebrow {
+  margin: 0;
+  color: var(--warning);
+}
+
+.leaderboards-screen .lb-meter {
+  margin-top: var(--sp-2);
+  max-width: 420px;
+  height: 12px;
+}
+
+.leaderboards-screen .lb-meter-note {
+  margin: 0;
+  color: var(--text-faint);
+}
+
+.leaderboards-screen .lb-stats {
+  margin-top: var(--sp-2);
+  max-width: 420px;
+}
+
+.leaderboards-screen .lb-actions {
+  margin-top: var(--sp-3);
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.leaderboards-screen .lb-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 10px var(--sp-5);
+  font-weight: 700;
+}
+
+.leaderboards-screen .leaderboards-explainer,
+.leaderboards-screen .leaderboards-note {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.leaderboards-screen .leaderboards-explainer h2,
+.leaderboards-screen .leaderboards-note h3 {
+  margin: 0;
+}
+
+.leaderboards-screen .leaderboards-explainer .t-body,
+.leaderboards-screen .leaderboards-note .t-body {
+  margin: 0;
+  max-width: 84ch;
+}
+
+.leaderboards-screen .lb-works {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.leaderboards-screen .lb-work {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 7px var(--sp-3);
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.leaderboards-screen .lb-work .hb-icon {
+  color: var(--accent-bright);
+}
+
+@media (max-width: 820px) {
+  .leaderboards-screen .lb-standing-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-4);
+    padding: var(--sp-4);
+  }
+
+  .leaderboards-screen .lb-crest {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Match history / Replay Theater
+   ------------------------------------------------------------------------- */
+
+.replay-screen .replay-filters {
+  padding: 0 clamp(16px, 3.4vw, 48px) var(--sp-3);
+  gap: var(--sp-4);
+  align-items: center;
+}
+
+.replay-screen .replay-filter-group {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.replay-screen .replay-filter-label {
+  margin-right: 2px;
+}
+
+/**
+ * Three filter groups on a 390px-tall phone are three rows of chips.
+ *
+ * Measured at 844×390: RESULT, MODE and FACTION wrapped to 139px, which is
+ * **36% of the viewport height** spent on controls, leaving 145px for the list
+ * and the board together. The groups are all worth keeping — §4.5.5 asks for
+ * exactly these three — so what gives is the chip, not the set: smaller type,
+ * tighter padding, less gap. It lands in two rows at 844 and one at 1280, and
+ * the 44px touch floor is not in play because these are secondary filters rather
+ * than the primary action. Keyed on viewport *height*, because that is the axis
+ * the cost is measured on.
+ */
+@media (max-height: 520px) {
+  .replay-screen .replay-filters {
+    gap: var(--sp-2);
+    padding-bottom: var(--sp-2);
+  }
+
+  .replay-screen .replay-filter-group {
+    gap: 4px;
+  }
+
+  .replay-screen .replay-filters .d-chip {
+    padding: 4px var(--sp-3);
+    font-size: var(--fs-xs);
+  }
+}
+
+/**
+ * The workbench gets the wide measure, not the whole window.
+ *
+ * `screens.css` gives `.replay-body` a grid and a gutter and no `max-width`, so
+ * at 1600 the list and the stage spanned the full frame while the reading
+ * screens two clicks away — news, patch notes, the inbox, which are the same
+ * two-pane shape — sat inside 1440. That is the measure jumping between siblings
+ * that §8 of the recon is about. Same number, same gutter, same rhythm.
+ */
+/**
+ * ...and the list column is wide enough to hold a deck name.
+ *
+ * `screens.css` caps it at `minmax(220px, 300px)`. Measured at 1600×900 against
+ * a 34-match history: **every one of the nine visible rows truncated its title**
+ * — "Neon Idol…", "Ratio Ma…", "Kilowatt …" — and the mode-and-date line under
+ * it truncated as well, so nine rows differed only in a coloured crest and a
+ * single-letter result pip. The row is a grid of `crest | text | tag | pip`, and
+ * on a 300px track the text column resolves to about 96px.
+ *
+ * 300→400 is the smallest number at which a full deck name and "Practice · 5 Aug,
+ * 09:20" both fit, and the stage keeps 1,000px at 1440 — which is more than it
+ * can currently fill anyway. The floor rises with it, because 220px was never
+ * enough for anything.
+ */
+.replay-screen .replay-body {
+  padding-inline: clamp(16px, 3.4vw, 48px);
+  gap: var(--sp-3);
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
+}
+
+.replay-screen .replay-filters {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+}
+
+/* --- the route before the first match ------------------------------------ */
+
+/**
+ * One plate, composed, instead of two panels holding a sentence each.
+ *
+ * Measured before: content stopped at y=572 of 900 and the stage was an 1150×740
+ * rectangle with a 400px card floating in the middle of it. §2 reads an
+ * unresolved lower half as content that failed to load, and it is right to. The
+ * ladder plate is the same generator the Leaderboards silhouette uses, so the
+ * two most-empty screens in the domain are empty in the same language.
+ */
+.replay-screen .replay-body.is-virgin {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 900px;
+  padding-block: var(--sp-5) var(--sp-8);
+}
+
+.replay-screen .replay-stage.is-virgin {
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+  width: 100%;
+}
+
+/**
+ * The plate ends in a ramp, not in an edge.
+ *
+ * The heading is pulled up onto the art by 96px, and the art stopped dead
+ * underneath it — at 844×390 the ladder's carved rows ran out of plate and left
+ * **a stray light bar behind the heading**, which reads as a rendering fault
+ * rather than as a backdrop. §2: the environment reaches onto the surface in
+ * front of it; it does not stop at a line. The short-viewport case also flattens
+ * the plate and takes the overlap down, because 96px of a 200px plate is most of
+ * it.
+ */
+.replay-screen .replay-virgin-key {
+  border-radius: 0;
+  opacity: 0.9;
+  mask-image: linear-gradient(180deg, #000 0%, #000 46%, rgb(0 0 0 / 0.5) 76%, transparent 100%);
+}
+
+@media (max-height: 460px) {
+  .replay-screen .replay-virgin-key {
+    --key-aspect: 5 / 1;
+  }
+
+  .replay-screen .replay-virgin-text {
+    margin-top: -52px;
+    padding-bottom: var(--sp-4);
+  }
+}
+
+.replay-screen .replay-virgin-text {
+  margin-top: -96px;
+  position: relative;
+  z-index: 1;
+  padding: 0 var(--sp-6) var(--sp-6);
+  background: none;
+  box-shadow: none;
+  border: none;
+  max-width: none;
+}
+
+.replay-screen .replay-virgin-text .t-body {
+  max-width: 56ch;
+}
+
+.replay-screen .replay-list {
+  gap: var(--sp-2);
+  overflow-y: auto;
+  padding-right: var(--sp-1);
+}
+
+.replay-screen .replay-entry {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: none;
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  text-align: left;
+  color: var(--text);
+}
+
+/**
+ * The "no replay" qualifier, as a tag in its own track.
+ *
+ * See the note at the markup: as trailing text on an ellipsised line it came
+ * out as "not…" on eight of nine rows, which is the one word on the row a
+ * player needs. In a column of its own it is never the thing that gets cut, and
+ * it carries a lock glyph so the state reads before the words do.
+ */
+.replay-screen .replay-entry-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 3px var(--sp-2);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--text-faint);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.05), rgb(0 0 0 / 0.2));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    inset 0 -1px 0 rgb(0 0 0 / 0.4);
+}
+
+@media (max-width: 900px), (max-height: 460px) {
+  .replay-screen .replay-entry-tag > span {
+    display: none;
+  }
+}
+
+.replay-screen .replay-entry.selected {
+  --rim-boost: 2.2;
+}
+
+/**
+ * A result mark that survives greyscale.
+ *
+ * `W`, `L` and `D` are letters as well as colours, which the pips on the
+ * statistics trend were not, and the plate under each is a different *value*
+ * rather than only a different hue — a win is the lightest thing in the row.
+ */
+.replay-screen .replay-entry-result {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-chip);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--fs-sm);
+  color: var(--text-invert);
+  background: linear-gradient(var(--light-sweep), #7a7396, #423c5e);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45);
+}
+
+.replay-screen .replay-entry.replay-win .replay-entry-result {
+  background: linear-gradient(var(--light-sweep), #a9f0c6, #35a86a);
+}
+
+.replay-screen .replay-entry.replay-loss .replay-entry-result {
+  background: linear-gradient(var(--light-sweep), #ff96a8, #c02c47);
+  color: #fff;
+}
+
+.replay-screen .replay-entry-deck {
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay-screen .replay-entry-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/**
+ * A row without a replay is quieter, not dead.
+ *
+ * It used to be `disabled`, which took it out of the tab order and out of the
+ * pointer's reach — and since only the eight newest matches keep a record, most
+ * of a long history was unclickable. The result and the summary are still worth
+ * opening, so the row stays live and only its material steps down a rank.
+ */
+.replay-screen .replay-entry.is-recordless {
+  --mat-amp: 0.32;
+}
+
+.replay-screen .replay-noreplay {
+  margin: auto;
+  max-width: 480px;
+}
+
+.replay-screen .replay-note {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  padding: 0 var(--sp-3);
+}
+
+.replay-screen .replay-list-empty {
+  padding: var(--sp-4);
+}
+
+.replay-screen .replay-stage {
+  padding: var(--sp-5);
+  gap: var(--sp-4);
+}
+
+.replay-screen .replay-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.replay-screen .replay-head-text {
+  min-width: 0;
+}
+
+.replay-screen .replay-head-text .title {
+  margin: 2px 0;
+  font-size: clamp(1.3rem, 2.4vw, 1.9rem);
+}
+
+.replay-screen .replay-head-meta {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.replay-screen .replay-head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.replay-screen .replay-empty {
+  margin: auto;
+  max-width: 460px;
+}
+
+/**
+ * What a match left behind when its intents did not.
+ *
+ * Only the newest eight entries keep a replay, so on any history worth the name
+ * *most* rows land here — and what landed was one 460px plate in the middle of a
+ * 1030×740 stage saying "the result above is the whole of what this match left
+ * behind", which was not true: the `MatchSummary` survives the record and holds
+ * six real figures. They are drawn now, above the note, and the note no longer
+ * claims there is nothing.
+ */
+.replay-screen .replay-recap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/**
+ * Three across, twice, rather than `auto-fit`.
+ *
+ * Six figures under `auto-fit` resolved to five columns at 1600 and left
+ * "Perfect Resonances" alone on a second row — a widow, which reads as a layout
+ * that ran out rather than one that was chosen. Two even rows of three is the
+ * only tidy division of six that also survives 844×390.
+ */
+.replay-screen .replay-recap-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .replay-screen .replay-recap-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/**
+ * The lower half of the stage, closed with the same plate the empty route uses.
+ *
+ * Most rows in a real history have no replay — only the newest eight keep one —
+ * so this is the state the detail pane is in most of the time, and it was six
+ * figures at the top of a 740px panel with 400px of nothing under them. §2 reads
+ * an unresolved lower half as content that failed to load. The ladder
+ * silhouette is the same generator the Leaderboards standing and the
+ * no-matches-yet route already use: it composes the frame and it claims nothing,
+ * because there is no name and no number anywhere on it.
+ */
+.replay-screen .replay-noboard {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 0;
+  border-radius: var(--r-panel);
+  overflow: hidden;
+}
+
+.replay-screen .replay-noboard-key {
+  border-radius: 0;
+  opacity: 0.75;
+  mask-image: linear-gradient(180deg, transparent 0%, rgb(0 0 0 / 0.55) 26%, #000 62%, #000 100%);
+}
+
+/* With figures above it and a plate under it the note is a caption, not the
+   whole state — so it stops trying to fill the stage on its own. */
+.replay-screen .replay-noboard .replay-noreplay {
+  position: relative;
+  z-index: 1;
+  margin: -110px 0 0;
+  max-width: none;
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  background: none;
+  box-shadow: none;
+  border: none;
+}
+
+@media (max-height: 620px) {
+  .replay-screen .replay-noboard .replay-noreplay {
+    margin-top: -60px;
+  }
+}
+
+/**
+ * The timeline.
+ *
+ * `.slider` brings the groove, the chamfered thumb and the six states from
+ * `foundation.css`; what is added is height — a 900px-wide control that reads as
+ * a *timeline* rather than a volume knob — and the per-turn ticks, so the scrub
+ * has landmarks. 90°, square to the viewport: a tick row is a ruler, not a light.
+ */
+.replay-screen .replay-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.replay-screen .replay-scrub {
+  flex: 1 1 auto;
+  --slider-h: 30px;
+  --slider-track-h: 14px;
+}
+
+.replay-screen .replay-step {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--text);
+}
+
+.replay-screen .replay-counter {
+  min-width: 70px;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  --num-align: right;
+}
+
+.replay-screen .replay-caption {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-field);
+  background: rgb(255 255 255 / 0.035);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  min-height: 2em;
+  display: flex;
+  align-items: center;
+}
+
+.replay-screen .replay-warning {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  border-radius: var(--r-field);
+}
+
+@media (max-width: 900px) {
+  .replay-screen .replay-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .replay-screen .replay-head-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   News, patch notes and the inbox — the three reading screens
+   -------------------------------------------------------------------------
+   One layout between them, because they are the same screen three times: a
+   list on the left, an open item on the right, a note underneath. They used to
+   agree about that and about nothing else. */
+
+/**
+ * The list pane scrolls; the article does not.
+ *
+ * The first attempt gave *both* panes their own scroll, which is the layout the
+ * two-column reading screens want and cannot have: the page itself is the
+ * scroller, so neither column has a definite height to divide up. Worse, an
+ * `overflow-y: auto` child with `min-height: 0` contributes **nothing** to its
+ * panel's min-content height — measured on the inbox, the reader panel collapsed
+ * to the height of the list beside it and three paragraphs of the open message
+ * spilled out through the bottom of the plate.
+ *
+ * So the list gets a bounded height and its own scroll, which is the pane that
+ * genuinely needs one, and the article flows into the page like an article.
+ */
+.news-screen .news-list,
+.inbox-screen .mail-list,
+.patch-screen .patch-version-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--sp-1) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  flex: 0 1 auto;
+  max-height: min(58vh, 520px);
+  overflow-y: auto;
+}
+
+.news-screen .news-row,
+.inbox-screen .mail-row,
+.patch-screen .patch-version {
+  border: none;
+  background: none;
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.news-screen .news-row-head,
+.inbox-screen .mail-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.news-screen .mail-date,
+.inbox-screen .mail-date {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/**
+ * The thumbnail.
+ *
+ * A news feed with no picture in it is a list of links. It is 48px and
+ * procedural, seeded from the article id, in the category's colour — which is
+ * not a painting and is not pretending to be one: it is the plate an image would
+ * sit on, doing the job of telling one row from another at a glance.
+ */
+.news-screen .news-thumb {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-field);
+  background-image: var(--key-art);
+  background-size: cover;
+  background-position: center;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    0 2px 6px rgb(0 0 0 / 0.5);
+}
+
+.news-screen .news-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: var(--r-chip);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c, var(--accent-bright));
+  background: color-mix(in srgb, var(--c, var(--accent)) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c, var(--accent)) 34%, transparent);
+}
+
+.news-screen .news-list-count {
+  margin: 0;
+}
+
+.news-screen .news-hero {
+  margin: calc(var(--sp-5) * -1) calc(var(--sp-5) * -1) 0;
+  border-radius: var(--r-panel) var(--r-panel) 0 0;
+}
+
+.news-screen .news-hero-eyebrow {
+  color: color-mix(in srgb, var(--row-accent, var(--accent)) 65%, #ffffff);
+  text-shadow: 0 1px 6px rgb(0 0 0 / 0.9);
+}
+
+.news-screen .news-hero .mail-reading-subject {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  text-shadow: 0 2px 14px rgb(0 0 0 / 0.85);
+}
+
+.news-screen .news-reading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-height: 0;
+}
+
+.news-screen .news-reading-body p,
+.inbox-screen .mail-reading-body p {
+  max-width: 70ch;
+}
+
+/**
+ * The reading panes size to their content and the page scrolls.
+ *
+ * `min-height: auto`, restated, is the load-bearing half. `screens.css` puts
+ * `min-height: 0` on both reader panels — correct when they were meant to scroll
+ * inside a fixed grid, and a bug now that they are not: a grid item with
+ * `min-height: 0` has an automatic minimum size of zero, so the row collapsed to
+ * the *list* beside it and three paragraphs of the open article spilled out
+ * through the bottom of the plate and under the panel below. Measured on the
+ * inbox and reproduced on news.
+ */
+.news-screen .news-list-panel,
+.inbox-screen .inbox-list-panel,
+.patch-screen .patch-versions,
+.news-screen .news-reader,
+.inbox-screen .inbox-reader,
+.patch-screen .patch-release {
+  overflow: visible;
+  align-self: start;
+  min-height: auto;
+}
+
+/**
+ * The index follows you down the article.
+ *
+ * The patch notes for 0.2.0 are 2,250px tall and the release list beside them is
+ * 340px, so by the time a player reaches the economy table the only way back to
+ * the other release is to scroll the whole page up again — and the left third of
+ * the frame below the list is dead for 1,900px of that. Sticking the index is the
+ * fix for both at once, and it is what every long-document UI does. `top` clears
+ * the header rail; `max-height` keeps the pane from ever being taller than the
+ * window it is pinned inside.
+ */
+@media (min-width: 900px) {
+  .news-screen .news-list-panel,
+  .inbox-screen .inbox-list-panel,
+  .patch-screen .patch-versions {
+    position: sticky;
+    top: var(--sp-2);
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+  }
+}
+
+/**
+ * The contents of the open release, in the rail.
+ *
+ * Two jobs, one object. It fills the 450×370 hole the release list left under
+ * itself — §2 reads an unresolved corner as content that failed to load — and it
+ * makes a 2,250px document navigable, which is the actual reason a shipped patch
+ * notes page has one. The counts are the same numbers the sections render, so
+ * "Fixed 14" is a promise the article keeps.
+ */
+.patch-screen .patch-index ul {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.patch-screen .patch-index-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 7px var(--sp-3);
+  border-radius: var(--r-field);
+  --r-self: var(--r-field);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  text-decoration: none;
+  transition:
+    background-color var(--dur-micro) var(--ease-arrive),
+    color var(--dur-micro) var(--ease-arrive);
+}
+
+@media (hover: hover) {
+  .patch-screen .patch-index-link:hover {
+    background: rgb(255 255 255 / 0.06);
+    color: var(--text);
+  }
+}
+
+.patch-screen .patch-index-count {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.inbox-screen .mail-topic {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-field);
+  color: var(--accent-bright);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.015));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45);
+}
+
+.inbox-screen .mail-sender {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.inbox-screen .mail-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--accent-gold);
+}
+
+.inbox-screen .inbox-counts {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.inbox-screen .mail-reading-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.inbox-screen .mail-reading-mark {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-field);
+  color: var(--accent-bright);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.02));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5);
+}
+
+.inbox-screen .mail-reading-subject {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.4vw, 1.8rem);
+}
+
+.inbox-screen .mail-attachment {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+}
+
+.inbox-screen .mail-attachment .t-label {
+  margin: 0;
+}
+
+.inbox-screen .mail-reward {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--accent-gold);
+}
+
+.inbox-screen .mail-attachment > :last-child {
+  margin-left: auto;
+}
+
+.inbox-screen .mail-taken {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--success);
+}
+
+.inbox-screen .mail-retention {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.inbox-screen .mail-deferred-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(300px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-2);
+}
+
+.inbox-screen .mail-deferred {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  --mat-amp: 0.34;
+}
+
+.inbox-screen .mail-deferred .hb-icon {
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.inbox-screen .mail-deferred strong {
+  color: var(--text);
+}
+
+/* --- patch notes --------------------------------------------------------- */
+
+.patch-screen .patch-version {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.patch-screen .patch-version-number {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--accent-bright);
+  --num-align: left;
+}
+
+.patch-screen .patch-search {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: var(--sp-3);
+}
+
+.patch-screen .patch-nofilter {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
+  max-width: 44ch;
+}
+
+.patch-screen .patch-release {
+  padding: var(--sp-5);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.patch-screen .patch-release-eyebrow {
+  margin: 0;
+}
+
+.patch-screen .patch-summary {
+  font-size: var(--fs-md);
+  color: var(--text-dim);
+  max-width: 76ch;
+}
+
+.patch-screen .patch-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-top: var(--sp-4);
+}
+
+.patch-screen .patch-list {
+  margin: 0;
+  padding-left: 1.15em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  color: var(--text-dim);
+  max-width: 84ch;
+}
+
+/**
+ * The economy diff.
+ *
+ * `missions.aiDailyCapWins` in monospace next to the word "undefined" was two
+ * defects in one cell: an internal key shown to a player, and a JS primitive
+ * leaking into copy. The key is now a sentence, the missing "before" is a NEW
+ * chip, and a real change shows the old value struck through with a signed
+ * delta — which is what a diff looks like and what the column was always for.
+ */
+.patch-screen .patch-table {
+  width: 100%;
+  margin-top: var(--sp-2);
+}
+
+.patch-screen .patch-table td:first-child {
+  color: var(--text);
+}
+
+.patch-screen .patch-fields {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-sm);
+}
+
+.patch-screen .patch-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 900px) {
+  .news-screen .news-hero {
+    --key-aspect: 2.4/1;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   Settings
+   ------------------------------------------------------------------------- */
+
+.settings-screen .settings-body {
+  --data-measure: 980px;
+  gap: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+}
+
+/**
+ * The rail's two panels are the same object as the main column's, one rank down.
+ *
+ * They keep the marked head, the material and the rhythm — walking from the
+ * Audio panel to the Accessibility card must not read as walking between two
+ * designs — and lose only the horizontal room they no longer have. The
+ * Information links stop being a five-across grid and become a list, because a
+ * 300px column divided five ways is five columns of nothing.
+ */
+.settings-screen .d-rail .settings-section {
+  padding: var(--sp-4);
+  gap: var(--sp-2);
+}
+
+.settings-screen .d-rail .settings-desc {
+  max-width: none;
+}
+
+.settings-screen .d-rail .settings-links {
+  grid-template-columns: 1fr;
+}
+
+.settings-screen .d-rail .settings-link {
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-sm);
+}
+
+/**
+ * The one hero action on the screen, given the whole width of its card.
+ *
+ * `align-self: flex-start` is right in a 980px column and wrong in a 300px one —
+ * it left a 260px button in a 300px card with 40px of nothing beside it, which
+ * reads as a mistake rather than as a choice. Centred and full width, it is the
+ * shape every reference game gives its primary call to action.
+ */
+.settings-screen .d-rail .settings-cta {
+  align-self: stretch;
+  justify-content: center;
+}
+
+/**
+ * Accessibility is the light mass on a screen that is otherwise deliberately
+ * unlit. `atmosphere.ts` gives Back Office an intensity of 0.42 because nobody
+ * reads a settings tree through a neon haze; this is the single place that
+ * ration is spent, so the eye lands on the way out of here rather than on the
+ * sixth volume slider.
+ */
+.settings-screen .d-rail .settings-a11y-card {
+  --mat-fill: linear-gradient(
+    var(--light-sweep),
+    color-mix(in srgb, var(--accent) 26%, rgb(30 22 52 / 0.95)) 0%,
+    rgb(22 15 42 / 0.96) 100%
+  );
+  --row-accent: var(--accent-bright);
+}
+
+@media (max-width: 1080px), (max-height: 560px) {
+  .settings-screen .d-rail .settings-links {
+    grid-template-columns: repeat(auto-fit, minmax(calc(180px * var(--ui-scale, 1)), 1fr));
+  }
+}
+
+.settings-screen .settings-section {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/**
+ * The marked section head, and why it is not scoped to one screen.
+ *
+ * Settings and Accessibility are one click apart in the same tree and were
+ * built with two different heads: a 40px lit plate with an icon in it here, a
+ * bare `<h2>` there. Walking between them read as walking between two
+ * applications, which is the whole complaint this wave exists to answer. The
+ * selector is `.screen` rather than `.settings-screen` so the second consumer
+ * did not have to copy thirty lines to get the first one's head.
+ */
+.screen .settings-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.screen .settings-head > h2 {
+  margin: 0;
+}
+
+.screen .settings-mark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-field);
+  color: var(--accent-bright);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.02));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.12),
+    inset 0 -1px 0 rgb(0 0 0 / 0.5);
+}
+
+.settings-screen .settings-title {
+  margin: 0;
+}
+
+.settings-screen .settings-desc {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  max-width: 74ch;
+}
+
+.settings-screen .setting-row {
+  gap: var(--sp-4);
+}
+
+/**
+ * The grab area, and why the 26px is written as a floor rather than a height.
+ *
+ * `foundation.css` grows a range input to 44px under a coarse pointer by
+ * raising `--slider-h`, and this rule was quietly cancelling it — a `.settings-
+ * screen .setting-slider` scores 0,2,0 against the primitive's 0,1,0, so six
+ * volume sliders measured 30×614 on every touch viewport. The track is still
+ * 12px and still looks like a 26px control on a mouse; only the area a thumb
+ * has to land in grows.
+ */
+.settings-screen .setting-slider {
+  flex: 1 1 auto;
+  --slider-h: max(26px, var(--touch-min));
+}
+
+.settings-screen .setting-output {
+  --num-align: right;
+  color: var(--text);
+}
+
+.settings-screen .settings-cta {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 10px var(--sp-5);
+  font-weight: 700;
+}
+
+.settings-screen .settings-data-stats {
+  grid-template-columns: repeat(auto-fit, minmax(calc(140px * var(--ui-scale, 1)), 1fr));
+}
+
+/**
+ * The destructive action, cased as one.
+ *
+ * Not opacity, not a smaller size: a danger-tinted plate, a danger rim and a
+ * danger glow on hover, so it is legible as "this one is different" at a glance
+ * and stays legible in greyscale because it also carries the warning glyph.
+ */
+.settings-screen .settings-danger {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 9px var(--sp-4);
+  font-weight: 600;
+  color: #ffd7de;
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(122 30 50 / 0.92) 0%, rgb(58 12 26 / 0.95) 100%);
+  --row-accent: var(--danger);
+}
+
+@media (hover: hover) {
+  .settings-screen .settings-danger:hover {
+    color: #fff;
+    box-shadow:
+      var(--mat-cast),
+      0 0 18px rgb(255 77 106 / 0.4);
+  }
+}
+
+.settings-screen .settings-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(220px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-2);
+}
+
+.settings-screen .settings-link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+}
+
+.settings-screen .settings-link > span {
+  flex: 1 1 auto;
+}
+
+.settings-screen .settings-link-go {
+  color: var(--text-faint);
+  transition: transform var(--dur-micro) var(--ease-arrive);
+}
+
+@media (hover: hover) {
+  .settings-screen .settings-link:hover .settings-link-go {
+    transform: translateX(3px);
+    color: var(--accent-bright);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   The Custom Lobby
+   -------------------------------------------------------------------------
+   The screen the systems audit named as its single worst thing: five white
+   Windows `<select>` boxes and a raw blue checkbox on a neon-black page, with
+   the primary CTA's left cap clipped off at x=0 because the body had
+   `padding: var(--sp-3) 0`. The controls are module A's kit now; the gutter is
+   `.data-body`; what is left here is the geometry. */
+
+.custom-screen .custom-panel {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.custom-screen .custom-panel-title {
+  margin: 0;
+}
+
+.custom-screen .custom-seats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(260px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3);
+}
+
+.custom-screen .custom-seat {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+}
+
+.custom-screen .custom-seat.mat-hero {
+  color: var(--ink-hero);
+}
+
+.custom-screen .custom-seat span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.custom-screen .custom-seat strong {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+}
+
+.custom-screen .custom-seat em {
+  font-style: normal;
+  font-size: var(--fs-xs);
+  opacity: 0.8;
+}
+
+.custom-screen .custom-knobs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(180px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3);
+}
+
+.custom-screen .custom-knob {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.custom-screen .custom-knob .input,
+.custom-screen .custom-knob .field {
+  width: 100%;
+}
+
+.custom-screen .custom-knob select.input,
+.custom-screen .custom-knob .select {
+  width: auto;
+  min-width: 13em;
+}
+
+.custom-screen .custom-knob-label {
+  margin: 0;
+}
+
+.custom-screen .custom-timer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-5);
+  flex-wrap: wrap;
+}
+
+.custom-screen .custom-timer-row .custom-knob {
+  max-width: 200px;
+}
+
+.custom-screen .custom-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-bottom: 6px;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.custom-screen .custom-pays-ok {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--success);
+}
+
+.custom-screen .validation-problem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.custom-screen .custom-start {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 12px var(--sp-6);
+  font-size: var(--fs-md);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.custom-screen .custom-locked-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(280px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-2);
+}
+
+.custom-screen .custom-locked-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-tile);
+  --r-self: var(--r-tile);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  --mat-amp: 0.34;
+}
+
+.custom-screen .custom-locked-item .hb-icon {
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.custom-screen .custom-locked-item strong {
+  color: var(--text);
+}
+
+.custom-screen .custom-knob {
+  align-items: flex-start;
+}
+
+.custom-screen .custom-knobs .field {
+  max-width: 180px;
+}
+
+/* -------------------------------------------------------------------------
+   Story chapters
+   -------------------------------------------------------------------------
+   Recon defect 17: the row was 940px wide with ~400px of nothing between the
+   blurb and a bare "0 / 6", so the screen squinted down to a stack of identical
+   mid-purple bars with holes in them. The hole is now the crest and the meter. */
+
+/**
+ * The crest leads the row, and that is what closes the dead band.
+ *
+ * Recon defect 17: ~250px of nothing between where the blurb stopped and where
+ * the progress started, on every one of ten rows, so the screen squinted down to
+ * a stack of identical bars with holes in them. Putting the crest *between* them
+ * only moved the hole. The measure was the real cause — `.story-card-about` was
+ * capped at 58ch inside a `1fr` column 900px wide, so the column could never be
+ * full — so the crest moves to the head of the row where a faction mark belongs,
+ * the text column narrows to the width its own measure wants, and there is no
+ * leftover space for a hole to live in.
+ */
+.story-screen .story-card {
+  display: grid;
+  grid-template-columns: 4px auto minmax(0, 1fr) minmax(190px, 260px) auto;
+  align-items: center;
+  gap: 0 var(--sp-4);
+  padding: var(--sp-4) var(--sp-5) var(--sp-4) 0;
+  border: none;
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+  overflow: hidden;
+  text-align: left;
+}
+
+.story-screen .story-card > .d-crest {
+  margin-left: var(--sp-4);
+}
+
+.story-screen .story-card-bar {
+  align-self: stretch;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--chapter-colour, var(--accent)), transparent);
+}
+
+.story-screen .story-card-body {
+  padding: 0;
+}
+
+.story-screen .story-card-title {
+  margin: 2px 0;
+}
+
+.story-screen .story-card-about {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.story-screen .story-card-track {
+  display: grid;
+  align-items: center;
+}
+
+/**
+ * A rail that says "six episodes" while it is still empty.
+ *
+ * At the shared 10px with the shared tick alpha, an unstarted chapter's meter
+ * was a hairline the eye read as a divider, so the middle of the row still
+ * looked like nothing was there — which is the same complaint as the dead band
+ * wearing different clothes. Taller, and with the rungs cut in white rather than
+ * black, an empty track is a *count* before it is a progress bar.
+ */
+.story-screen .story-card-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.story-screen .story-card-meter .d-meter {
+  height: 14px;
+}
+
+.story-screen .story-card-meter .d-meter {
+  --meter-tick: rgb(0 0 0 / 0.62);
+  --meter-tick-lit: rgb(255 255 255 / 0.16);
+  --meter-hue: var(--chapter-colour, var(--accent));
+}
+
+.story-screen .story-card-count {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.story-screen .story-card-meta {
+  justify-self: end;
+}
+
+/**
+ * The status, as a row-level affordance rather than as a hero action.
+ *
+ * It *was* four states on four plates and the two live ones — "Start" and
+ * "Continue" — wore the full `.mat-hero` magenta. Ten rows, ten heroes: at a
+ * squint the screen resolved into a vertical column of identical pink lozenges
+ * and §6's "the most saturated thing should be the thing that matters most" was
+ * failed by arithmetic. The shape and the glyph carry the four states exactly as
+ * before; what changes is that the saturation now belongs to the *chapter*
+ * rather than to the button, and the button is the row.
+ *
+ * Geometry only, here — `.d-go` in `data.css` is the material.
+ */
+.story-screen .story-status {
+  --go-fallback: var(--chapter-colour, var(--accent-bright));
+}
+
+.story-screen .story-status.is-locked {
+  max-width: 22ch;
+  white-space: normal;
+}
+
+/** The chapter's own edge lights when the row does, so the row reads as the button. */
+.story-screen .story-card-bar {
+  transition:
+    filter var(--dur-micro) var(--ease-arrive),
+    transform var(--dur-ui) var(--ease-arrive);
+  transform-origin: top center;
+}
+
+@media (hover: hover) {
+  .story-screen .story-card:hover:not(:disabled) .story-card-bar {
+    filter: brightness(1.6) saturate(1.15);
+  }
+}
+
+.story-screen .story-card:disabled {
+  opacity: 1;
+  --mat-amp: 0.3;
+}
+
+.story-screen .story-empty {
+  margin: var(--sp-6) auto;
+  max-width: 520px;
+}
+
+/**
+ * Ten chapters as a wall of plates, not as a stack of ten identical bars.
+ *
+ * Recon defect 17 fixed the *hole inside* the row and left the row a row: ten
+ * full-width objects, one under another, differing only in the crest at the
+ * left. Squinted, that is ten stripes — the exact "row, row, row" rhythm this
+ * wave exists to break, and it survived the previous pass because every
+ * individual row had become good.
+ *
+ * Two columns of five reads as a chapter select. It also does what the room does
+ * for every other screen here: at 1600 the list now uses 1,450px of window
+ * instead of 1,120, and the pair of columns gives the eye a second axis to move
+ * along. The card's own five-track grid already folds correctly under 1000px —
+ * see the note below it — and each column is comfortably above that, so the
+ * plates keep their wide arrangement inside a narrower box.
+ *
+ * `auto-fit` rather than a literal `1fr 1fr`, so a 1280 viewport drops to one
+ * column rather than making two 560px cards that fold their own internals.
+ */
+/**
+ * Wrapping flex, **not** grid, and the reason is a Chrome intrinsic-sizing trap
+ * that cost an hour and is worth the paragraph.
+ *
+ * The obvious spelling of "two columns" is `grid-template-columns: repeat(auto-fit,
+ * minmax(600px, 1fr))`, and it renders these ten chapters as ten **32-pixel
+ * bars** — exactly the panel's own top and bottom padding, with every child
+ * clipped away. `.story-card` is a `<button>`, it is a grid container, and it
+ * carries `overflow: hidden` to clip the accent bar to the panel radius. A grid
+ * item whose overflow is not `visible` has an automatic minimum size of zero,
+ * and for a button in that state Chrome also reports a **max-content block
+ * contribution of zero** — so an `auto` row, which is `minmax(auto, max-content)`,
+ * resolves to nothing and the card is sized entirely by its padding. Measured:
+ * `grid-template-rows` came back `32px 32px 32px 32px 32px 548.469px`, where the
+ * only correct row was the one that happened to contain a plain `<div>` tall
+ * enough to stretch it. Setting `min-height: min-content` on the card fixes the
+ * *card* and not the *row*, so the cards then overlap each other.
+ *
+ * `data.css` §1 documents the flex half of this same rule — "a flex item whose
+ * own overflow is not visible has an automatic minimum size of zero" — and notes
+ * that grid children ignore `flex-shrink`. This is the other half of that note:
+ * grid children also ignore the fix.
+ *
+ * A wrapping flex row has none of it, because a flex item's height comes from
+ * laying the item out rather than from an intrinsic contribution, which is what
+ * this list did for its whole life before it had two columns. `flex-basis` at
+ * half the line does the column count and `flex-wrap` does the rest.
+ */
+.story-screen .story-list {
+  display: flex;
+  flex-flow: row wrap;
+  align-content: flex-start;
+  gap: var(--sp-3);
+}
+
+.story-screen .story-list > .story-card {
+  flex: 1 1 calc(50% - var(--sp-3));
+  min-width: min(calc(560px * var(--ui-scale, 1)), 100%);
+}
+
+/**
+ * The next chapter you can actually play is the one that gets the whole line.
+ *
+ * A chapter select whose every tile is the same size makes the player read all
+ * ten to find the one that is theirs. `.d-hero` is applied to it in
+ * `storyScreen.ts`; this is only the width, and it is a width rather than a
+ * scale so the plate stays on the same rhythm as the rest.
+ */
+.story-screen .story-list > .story-card.d-hero {
+  flex-basis: 100%;
+}
+
+/**
+ * The meter column gives way first when a card is half a line wide.
+ *
+ * 190px was the floor while a card had 1,120px to itself; at 690 it leaves the
+ * blurb about 160 and the chapter description wraps to eleven lines. A meter
+ * reads fine at 110 — it is a proportion, not a measurement — and the count
+ * under it is the precise version anyway.
+ */
+.story-screen .story-list > .story-card {
+  grid-template-columns: 4px auto minmax(0, 1fr) minmax(110px, 240px) auto;
+}
+
+/**
+ * Three lines of blurb on a half-width plate, and the whole thing on the hero.
+ *
+ * Unclamped, the ten chapter descriptions wrap to between six and eleven lines
+ * in a 189px column, so the plates came out 319, 338, 340 and 358 pixels tall —
+ * a "grid" whose tiles are all different heights is a stack that happens to have
+ * two columns, and the ragged right edge is more obviously accidental than the
+ * single column it replaced. Measured before the clamp; after it they are within
+ * a line of each other.
+ *
+ * Truncating is safe because it is not the only copy of the sentence: the
+ * chapter screen one click in prints `chapter.about` in full, at a reading
+ * measure, which is where a player who wants the flavour is going anyway. The
+ * lead plate is not clamped, because it has a whole line to itself and three
+ * lines in 1,100px would be a paragraph with a bite taken out of it.
+ */
+.story-screen .story-list > .story-card:not(.d-hero) .story-card-about {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+/**
+ * When the plates are two-up, they fold — and the question is asked of the list
+ * rather than of the window.
+ *
+ * The card's five-track arrangement wants about 900px. Half of a wide list is
+ * 690, which leaves the title column 180 and turns "The Server Is Closing" into
+ * three lines beside a meter with room to spare. `rooms.css` already had the
+ * folded arrangement for this card; it was behind `@media (max-width: 1000px)`,
+ * and a viewport query cannot see this, because at 1600px the window is wide and
+ * the card is narrow *because* the window is wide.
+ *
+ * So the container is the list and the threshold is the width at which it stops
+ * putting two cards on a line. Below it every card is full width and wants the
+ * five tracks back. The lead plate never folds — it always has the whole line.
+ */
+.story-screen .story-list {
+  container-type: inline-size;
+  container-name: storylist;
+}
+
+@container storylist (min-width: 1140px) {
+  .story-screen .story-list > .story-card:not(.d-hero) {
+    grid-template-columns: 4px auto minmax(0, 1fr);
+  }
+
+  .story-screen .story-list > .story-card:not(.d-hero) .story-card-track {
+    grid-column: 3 / -1;
+    margin-top: var(--sp-2);
+  }
+
+  .story-screen .story-list > .story-card:not(.d-hero) .story-card-meta {
+    grid-column: 3 / -1;
+    justify-self: start;
+    margin-top: var(--sp-2);
+  }
+}
+
+/**
+ * Narrow: the row folds to two rows, and both children are told where to land.
+ *
+ * The first version dropped a column and left `.story-card-meta` to be
+ * auto-placed — which put it in the *4px bar column* of an implicit second row,
+ * where `justify-self: end` on a 118px chip inside a 4px track resolved to
+ * `left: -114`. Measured at 844×390: the Start button hung off the left edge of
+ * the window. Auto-placement is fine until a rule removes the track a child was
+ * counting on; naming the columns is the fix.
+ */
+@media (max-width: 1000px) {
+  .story-screen .story-card {
+    grid-template-columns: 4px auto minmax(0, 1fr);
+  }
+
+  .story-screen .story-card-track {
+    grid-column: 3 / -1;
+    margin-top: var(--sp-3);
+  }
+
+  .story-screen .story-card-meta {
+    grid-column: 3 / -1;
+    justify-self: start;
+    margin-top: var(--sp-3);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   The mode hubs and the policy screens
+   -------------------------------------------------------------------------
+   These share one habit: a locked or deferred thing written as a bare grey
+   paragraph. A lock glyph and a plate turn the same honest sentence from a
+   backlog entry into a designed state, which is the difference §5 is asking
+   about. */
+
+.remix-screen .remix-why,
+.remix-screen .remix-deferred,
+.gauntlet-screen .gauntlet-none,
+.tour-screen .tour-none {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  font-style: normal;
+}
+
+.remix-screen .remix-why .hb-icon,
+.remix-screen .remix-deferred .hb-icon,
+.gauntlet-screen .gauntlet-none .hb-icon,
+.tour-screen .tour-none .hb-icon {
+  color: var(--text-faint);
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+
+.remix-screen .remix-why strong,
+.remix-screen .remix-deferred strong {
+  color: var(--text);
+}
+
+.remix-screen .remix-cta,
+.remix-screen .remix-play {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.remix-screen .remix-cta {
+  padding: 11px var(--sp-5);
+  font-weight: 700;
+  margin-top: var(--sp-2);
+}
+
+.remix-screen .remix-quest-line {
+  font-size: var(--fs-md);
+}
+
+/* --- the week's rule, as a lit plate rather than six lines of text -------- */
+
+/**
+ * The hero panel holds its own key art, so the padding goes on the text.
+ *
+ * `.d-pad` would inset the banner too and leave a 24px moat of panel around a
+ * picture, which is the one thing key art must not have — it is the surface, not
+ * an illustration sitting on one. So the panel is flush and the caption column
+ * carries the inset, the same arrangement the event cards use.
+ */
+.remix-screen .remix-current {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+  border-left: 3px solid var(--accent-hot, var(--accent));
+}
+
+.remix-screen .remix-key {
+  border-radius: 0;
+  margin: 0;
+}
+
+.remix-screen .remix-current-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  margin-top: -74px;
+  position: relative;
+  z-index: 1;
+}
+
+.remix-screen .remix-name {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  color: var(--text);
+  text-shadow: 0 2px 10px rgb(0 0 0 / 0.7);
+}
+
+.remix-screen .remix-rule {
+  margin: 0;
+  max-width: 62ch;
+}
+
+/**
+ * Inline, not flex, and that is the whole of the bug this replaced.
+ *
+ * `display: flex; gap: 8px` around "In force until <strong>Thu, 6 Aug 2026,
+ * 00:00</strong>, then the queue rotates." makes the `<strong>` a flex item, so
+ * the gap lands *between the strong and the comma that belongs to it* — the
+ * sentence rendered "until  Thu, 6 Aug 2026, 00:00  , then". A sentence is
+ * inline text and has to be laid out as inline text; only the leading icon needs
+ * aligning, and it can do that on its own.
+ */
+.remix-screen .remix-until,
+.remix-screen .remix-both {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.remix-screen .remix-until .hb-icon {
+  vertical-align: -2px;
+  margin-right: 4px;
+  color: var(--accent-bright, var(--accent));
+}
+
+/* --- the rotation, as ten reachable rows --------------------------------- */
+
+.remix-screen .remix-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(320px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-2);
+}
+
+.remix-screen .remix-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  text-align: left;
+  color: var(--text);
+  border-top: none;
+}
+
+.remix-screen .remix-row.is-live {
+  --mat-tint: var(--accent);
+  box-shadow: var(--mat-cast), inset 0 0 0 1px color-mix(in srgb, var(--accent) 44%, transparent);
+}
+
+/**
+ * A deferred rule is dimmed by *material*, not by opacity.
+ *
+ * §A4 is explicit that an opacity-only disabled state is a contract violation,
+ * and it is also a legibility one: `opacity: 0.62` on the old row took the
+ * explanation text to 2.9:1 against the panel. The fill desaturates and the ink
+ * steps down to a colour that still clears 4.5:1.
+ */
+.remix-screen .remix-row.is-deferred {
+  filter: saturate(0.45);
+  cursor: default;
+}
+
+.remix-screen .remix-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.remix-screen .remix-row-name {
+  font-weight: 700;
+  font-size: var(--fs-md);
+}
+
+.remix-screen .remix-row-text {
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.remix-screen .remix-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-bright, var(--accent));
+}
+
+@media (hover: hover) {
+  .remix-screen .remix-row:not(:disabled):hover .remix-go {
+    color: var(--text);
+  }
+}
+
+.remix-screen .remix-locked {
+  gap: var(--sp-1);
+}
+
+.gauntlet-screen .gauntlet-none,
+.tour-screen .tour-none {
+  align-items: center;
+}
+
+/**
+ * Four buttons that migrated off `.btn` because they can be *disabled*.
+ *
+ * `.btn:disabled` is `opacity: 0.42` and nothing else — no fill change, no
+ * border change, no icon change — which A4 rules out on all three counts, and
+ * which measured about 4.0:1 on cloudsave's "Use the account's save". `.act`'s
+ * disabled branch is the compliant one. All these rules do is give the four a
+ * touch target and a shape, since `.btn` was also where they got their height.
+ */
+.cloud-save-screen .cloud-save-btn,
+.tour-screen .tour-claim,
+.gauntlet-screen .gauntlet-redraft,
+.gauntlet-screen .gauntlet-retire {
+  min-height: 44px;
+  padding: 0 var(--sp-5);
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  justify-content: center;
+}
+
+/**
+ * The one hero action a Gauntlet phase has, at the size a hero action is.
+ *
+ * Every phase's primary was `.btn.btn-primary` — a 34px flat pill — so "Start a
+ * run" on a screen with nothing else on it was the same weight as a signpost
+ * link. On the material it is the same object as PLAY on the lobby, which is the
+ * comparison a player actually makes: the two are one click apart.
+ */
+.gauntlet-screen .gauntlet-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 52px;
+  padding: 0 var(--sp-7);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/** The hub's record, as a stat block rather than a middle-dot run-on. */
+.gauntlet-screen .gauntlet-record-stats {
+  grid-template-columns: repeat(auto-fit, minmax(calc(160px * var(--ui-scale, 1)), 1fr));
+}
+
+/**
+ * The plate that closes the hub's right third.
+ *
+ * Absolutely positioned rather than a grid column, because the panel's children
+ * are a stack of prose and the only thing that has to change is what is *behind*
+ * the empty part of it. It is masked to nothing on the left so it never runs
+ * under the text, and it goes away below 1000px where the measure already fills
+ * the panel and there is no empty third to close.
+ */
+.gauntlet-screen .gauntlet-intro {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.gauntlet-screen .gauntlet-intro-key {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 0 auto;
+  width: 42%;
+  height: 100%;
+  border-radius: 0;
+  opacity: 0.55;
+  mask-image: linear-gradient(90deg, transparent 0%, rgb(0 0 0 / 0.4) 34%, #000 100%);
+}
+
+@media (max-width: 1000px) {
+  .gauntlet-screen .gauntlet-intro-key {
+    display: none;
+  }
+}
+
+.gauntlet-screen .gauntlet-summary-grid .t-label {
+  display: block;
+  margin-top: 2px;
+}
+
+/**
+ * The offered cards, now that the tile is a material.
+ *
+ * `screens.css` still supplies the flex column and the caption; what it also
+ * supplied was `background: var(--glass)` and a `border: 1px solid`, which the
+ * material replaces — and its `transform: translateY(-4px)` hover, which `.act`
+ * replaces with a move, a scale, a rim boost and a specular wipe in 120ms. These
+ * three lines cancel the parts of the old rule the material has to own.
+ */
+.gauntlet-screen .gauntlet-card-tile {
+  border: 1px solid;
+  background: none;
+  padding: var(--sp-2);
+}
+
+@media (hover: hover) {
+  .gauntlet-screen button.gauntlet-card-tile:hover {
+    border-color: rgb(255 255 255 / calc(var(--rim-a) * var(--rim-boost)))
+      rgb(0 0 0 / calc(var(--lip-a) * 0.55)) rgb(0 0 0 / var(--lip-a))
+      rgb(255 255 255 / calc(var(--rim-a) * 0.5 * var(--rim-boost)));
+  }
+}
+
+.tour-screen .tour-claim {
+  min-height: 52px;
+  padding: 0 var(--sp-7);
+  font-size: var(--fs-lg);
+}
+
+/* -------------------------------------------------------------------------
+   The Grand Tour — the stop is the button
+   ------------------------------------------------------------------------- */
+
+/**
+ * Nine `.btn-primary` pills in a 3×3 grid.
+ *
+ * That was the domain's worst object: squint at the screen and it resolved into
+ * a lattice of identical fizzing magenta lozenges, one per tile, each of them
+ * the brightest and noisiest surface in the system, and none of them the hero
+ * because all of them were. The tile itself was inert — a card, three lines of
+ * text, and a pill nailed to the bottom of it.
+ *
+ * The stop is now the control. It is a real `<button>` carrying `.mat-panel
+ * .act`, so it gets the foundation's six states for free; the pill is replaced
+ * by `.d-go`, whose ink is the leader's own **Current** rather than the
+ * product's accent, so ten stops read as ten places rather than as ten copies of
+ * one button. The Current also lights the tile's own top-left edge on hover,
+ * which is the "lit edge" half of the affordance — a Hearthstone chapter plate
+ * lights; it does not sprout a second widget.
+ *
+ * These sit in `rooms.css` rather than in `screens.css` on purpose: the base
+ * `.tour-*` geometry is another module's and stays where it is, and every rule
+ * here is `.tour-screen`-scoped so it wins on weight without editing that file.
+ */
+.tour-screen .tour-stop-slot {
+  display: flex;
+  list-style: none;
+}
+
+.tour-screen .tour-stop {
+  position: relative;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  justify-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border-radius: var(--r-panel);
+  --r-self: var(--r-panel);
+  background: none;
+  text-align: center;
+  font: inherit;
+  color: var(--text);
+  /* The Current lights the plate's rim rather than filling a pill with it. */
+  --rim-tint: var(--c, var(--accent));
+}
+
+.tour-screen .tour-stop.locked {
+  cursor: pointer;
+}
+
+/**
+ * The Current's own edge, on the two sides the key light reaches.
+ *
+ * Drawn on `::before` because `foundation.css` owns `::after` on every material
+ * — that is the specular band, and taking it switches the breathing off.
+ */
+.tour-screen .tour-stop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--c, var(--accent)) 34%, transparent),
+    inset 1px 0 0 color-mix(in srgb, var(--c, var(--accent)) 20%, transparent);
+  opacity: 0.7;
+  transition: opacity var(--dur-micro) var(--ease-arrive);
+}
+
+@media (hover: hover) {
+  .tour-screen .tour-stop.locked:hover::before {
+    opacity: 1;
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--c, var(--accent)) 78%, transparent),
+      inset 1px 0 0 color-mix(in srgb, var(--c, var(--accent)) 52%, transparent),
+      inset 0 0 22px -8px color-mix(in srgb, var(--c, var(--accent)) 70%, transparent);
+  }
+}
+
+.tour-screen .tour-stop-card {
+  display: flex;
+  justify-content: center;
+  min-height: 184px;
+  border-radius: var(--r-tile);
+}
+
+.tour-screen .tour-stop-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.tour-screen .tour-stop-go {
+  width: 100%;
+  justify-content: center;
+  margin-top: var(--sp-2);
+}
+
+/** A won stop states a fact, so its mark is quiet and its plate is not lit. */
+.tour-screen .tour-stop.won .tour-stop-go {
+  font-weight: 600;
+  white-space: normal;
+  color: var(--text-dim);
+}
+
+.tour-screen .tour-stop.won .tour-stop-go .hb-icon {
+  color: var(--success);
+}
+
+/**
+ * Every policy and diagnostic table.
+ *
+ * `.d-table` supplies the tabular figures, the right-aligned numeric columns and
+ * the row hover; these two lines are the bits those screens need on top — a
+ * horizontal scroll so a seven-column table cannot force the page sideways at
+ * 844px, and a measure on the prose column so a DETAIL cell stops wrapping every
+ * four words while the WHERE column takes 550px.
+ */
+.policy-screen .d-table,
+.fairness-screen .d-table,
+.support-screen .d-table,
+.legal-screen .d-table,
+.cloud-save-screen .d-table,
+.gauntlet-screen .d-table {
+  width: 100%;
+}
+
+/**
+ * The scroller a wide table lives in, so the *table* can stay a table.
+ *
+ * `screens.css` puts `display: block; overflow-x: auto` on the two Gauntlet
+ * tables directly. The intent is right — six columns must not push the page
+ * sideways at 844px — and the mechanism costs the element its table layout: a
+ * `display: block` table is sized by its content, so the published odds rendered
+ * 450px wide inside an 1,100px panel with the right sixty per cent empty.
+ *
+ * The overflow belongs on a wrapper. `display: table` here is an override of
+ * that rule from another module's file, which is why the selectors name the
+ * screen; the `min-width` is what the scroll is *for*, and it is set to the
+ * point below which six columns stop being readable rather than to a round
+ * number.
+ */
+.screen .d-tablewrap {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.gauntlet-screen .d-tablewrap .gauntlet-rarity-table,
+.gauntlet-screen .d-tablewrap .gauntlet-reward-table {
+  display: table;
+  overflow: visible;
+  min-width: 480px;
+}
+
+/**
+ * A prose table is not a numeric table.
+ *
+ * `.d-table` right-aligns everything but the first column, which is exactly
+ * right for the economy diff, the Gauntlet odds and the cloud-save summary and
+ * exactly wrong for four columns of English. These four say so, and set the
+ * column widths explicitly while they are here — the old sheet put a 46ch cap on
+ * `nth-child(3)`, which on the privacy table is DETAIL, so the longest column in
+ * the game wrapped every four words while WHERE took 550px of nothing.
+ */
+.policy-screen .policy-table td,
+.policy-screen .policy-table th,
+.legal-screen .policy-table td,
+.legal-screen .policy-table th,
+.support-screen .policy-table td,
+.support-screen .policy-table th,
+.fairness-screen .fairness-odds td,
+.fairness-screen .fairness-odds th {
+  text-align: left;
+  vertical-align: top;
+}
+
+.privacy-screen .policy-table {
+  table-layout: fixed;
+}
+
+.privacy-screen .policy-table th:nth-child(1) { width: 14%; }
+.privacy-screen .policy-table th:nth-child(2) { width: 9%; }
+.privacy-screen .policy-table th:nth-child(3) { width: 50%; }
+.privacy-screen .policy-table th:nth-child(4) { width: 27%; }
+
+.privacy-screen .policy-table td {
+  max-width: none;
+}
+
+/**
+ * A section head that carries a version, a date or a count beside the title.
+ *
+ * `.stats-table-head` was doing this on four screens with a `<span class="muted">`
+ * and no marked plate, so a panel on Fairness and a panel on Statistics — two
+ * clicks apart, both a table under a heading — did not look related. This is the
+ * second cell of `.settings-head`, stacked, so the same head serves both cases.
+ */
+.screen .policy-doc-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.screen .policy-doc-head > h2 {
+  margin: 0;
+  flex: 0 1 auto;
+}
+
+.screen .policy-doc-head > .t-label {
+  margin-left: auto;
+  text-align: right;
+}
+
+/**
+ * The two destructive controls on the privacy page, cased as destructive.
+ *
+ * Same treatment as `.settings-danger` above and for the same reason: "Delete
+ * everything on this device" was visually identical to "Show it here" beside it,
+ * which is §6's "the most saturated thing on screen should be the thing that
+ * matters most" turned upside down. It keeps the warning glyph so the state
+ * survives greyscale, and it is a *panel* rather than a hero — a red hero next
+ * to the export's magenta one would be two heroes.
+ */
+.policy-screen .policy-danger {
+  color: #ffd7de;
+  --mat-fill: linear-gradient(var(--light-sweep), rgb(122 30 50 / 0.92) 0%, rgb(58 12 26 / 0.95) 100%);
+  --row-accent: var(--danger);
+}
+
+@media (hover: hover) {
+  .policy-screen .policy-danger:hover {
+    color: #fff;
+    box-shadow: var(--mat-cast), 0 0 18px rgb(255 77 106 / 0.4);
+  }
+}
+
+/** The export dump is a recess with code in it, not a bordered box. */
+.policy-screen .policy-dump {
+  margin: 0;
+  padding: var(--sp-3);
+  max-height: 320px;
+  overflow: auto;
+  border-radius: var(--r-field);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/**
+ * Every action row in the hub, one shape.
+ *
+ * `.mail-actions` is shared with the inbox and is a plain wrap; what the policy
+ * screens need on top is that the chips align to the start and sit clear of the
+ * paragraph above them, so a row of four signposts reads as a row rather than as
+ * a run-on of the prose.
+ */
+.policy-screen .mail-actions,
+.fairness-screen .mail-actions,
+.support-screen .mail-actions,
+.cloud-save-screen .mail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/**
+ * `:not([hidden])`, and it is not defensive tidiness.
+ *
+ * `[hidden]` is a *user-agent* rule — `display: none` at origin zero — so any
+ * author rule that names `display` at all out-specifies it. Adding
+ * `display: inline-flex` here made the privacy page's "Delete my account"
+ * button, which is `hidden` until there is an account to delete, appear for
+ * every signed-out player: an offer to erase something that does not exist, on
+ * the screen whose whole subject is saying exactly what is held. Caught in the
+ * capture. Any rule in this file that sets `display` on something a screen
+ * toggles with `hidden` needs the same guard.
+ */
+.policy-screen .mail-actions > button:not([hidden]),
+.fairness-screen .mail-actions > button:not([hidden]),
+.support-screen .mail-actions > button:not([hidden]),
+.cloud-save-screen .mail-actions > button:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 9px var(--sp-4);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------
+   Accessibility
+   -------------------------------------------------------------------------
+   The one screen where every control on it is also an argument about controls.
+   Everything interactive here is now module A's — `.switch`, `.d-seg`, `.field`
+   — so what is left is the specimen furniture: the live text sample, the eight
+   Current swatches and the cue list. */
+
+.a11y-screen .policy-controls {
+  gap: var(--sp-2);
+}
+
+/** The section head sits above the rows, not in the rhythm of them. */
+.a11y-screen .policy-controls > .settings-head {
+  margin-bottom: var(--sp-2);
+}
+
+/**
+ * The live sample, in a recess.
+ *
+ * It was a 1px dashed rectangle, which is the browser's own idiom for a drop
+ * target and reads as unfinished. It is also the one element on the page whose
+ * `font-size` is written from script, so it has to be a plate that can grow to
+ * 1.6rem without the panel around it moving — hence the min-height rather than a
+ * fixed one.
+ */
+.a11y-screen .a11y-preview-text {
+  margin: var(--sp-1) 0 var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  line-height: 1.5;
+  color: var(--text);
+  border-radius: var(--r-field);
+}
+
+/**
+ * The legend column takes what it needs, not a fixed 260px.
+ *
+ * `screens.css` sizes it `minmax(180px, 260px)`, and eight chips whose longest
+ * label is "CINDER" want about 120. The 140px it was over-claiming came out of
+ * the controls beside it, where "Colour-blind mode" and its hint were wrapping
+ * to three lines against a segmented picker. `auto` on a column of
+ * content-width chips is the whole fix.
+ */
+.a11y-screen .a11y-colour {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-5);
+}
+
+/* Stretched, the chips became eight 260px bars with a gem at one end; each one
+   is an object the size of its own label. */
+.a11y-screen .a11y-swatches {
+  align-items: flex-start;
+}
+
+.a11y-screen .a11y-pressure {
+  margin: var(--sp-1) 0 var(--sp-2);
+}
+
+.a11y-screen .a11y-pressure li {
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.a11y-screen .a11y-pressure strong {
+  color: var(--text);
+}
+
+/**
+ * The eight Currents, as struck chips.
+ *
+ * They were a 1px outline round a 14px square of flat colour — the one place in
+ * the game where a hue is genuinely the subject, rendered with no light on it at
+ * all. The dot is a lit gem now and the label wears `.t-label`, so the column
+ * reads as a legend rather than as a list of `<div>`s.
+ */
+.a11y-screen .a11y-swatches {
+  gap: var(--sp-1);
+}
+
+.a11y-screen .a11y-swatch {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 5px var(--sp-3);
+  border-radius: var(--r-chip);
+  --r-self: var(--r-chip);
+}
+
+.a11y-screen .a11y-swatch .t-label {
+  color: var(--text-dim);
+}
+
+.a11y-screen .a11y-swatch-dot {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border-radius: 5px;
+  background: linear-gradient(
+    var(--light-sweep),
+    color-mix(in srgb, var(--c) 76%, #fff) 0%,
+    var(--c) 52%,
+    color-mix(in srgb, var(--c) 66%, #000) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    inset 0 -1px 0 rgb(0 0 0 / 0.45),
+    0 1px 2px rgb(0 0 0 / 0.5);
+}
+
+.a11y-screen .a11y-card-preview {
+  margin-top: var(--sp-3);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  gap: var(--sp-5);
+}
+
+.a11y-screen .a11y-card-note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: 46ch;
+}
+
+.a11y-screen .a11y-card-note h3 {
+  margin: 0;
+}
+
+.a11y-screen .a11y-card-note p {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 760px) {
+  .a11y-screen .a11y-card-preview {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+  }
+}
+
+/**
+ * Thirty-four cues, as a grid of real objects.
+ *
+ * They were `.btn.btn-ghost` — a transparent pill with a 1px border — thirty-four
+ * times down one panel, which at a squint is a page of outlines. On the chip
+ * material each one is a plate with the six states, and the icon says at a
+ * glance that the row makes a sound.
+ */
+.a11y-screen .a11y-cue-list {
+  margin-top: var(--sp-2);
+}
+
+.a11y-screen .a11y-cue {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+  color: var(--text);
+}
+
+.a11y-screen .a11y-cue > .hb-icon {
+  grid-row: 1 / 3;
+  color: var(--accent-bright);
+}
+
+.a11y-screen .a11y-cue-event {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.a11y-screen .a11y-cue-character {
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+}
+
+/**
+ * The one place a `--ui-scale` of 1.6 genuinely breaks the two-column colour
+ * block, because the sample card beside it is a fixed 260px canvas.
+ */
+@media (max-width: 900px) {
+  .a11y-screen .a11y-colour {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .a11y-screen .a11y-swatches {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+/**
+ * Padding, on the panels a hand-maintained selector list forgot.
+ *
+ * `.panel` in `base.css` is background + border + radius + blur + shadow and no
+ * padding, and `screens.css` grants padding through an explicit list of forty
+ * screen-specific class names. `.support-faq`, `.support-report`,
+ * `.cloud-save-lead`, `.cloud-save-card` and `.cloud-save-actions` are not on
+ * it, so on those two screens the heading sat 1px inside the border and the
+ * search field ran edge to edge. An object whose contents touch its own edge
+ * does not read as an object; it reads as a `<div>` that happened to get a
+ * border.
+ *
+ * The real fix is `padding` on the primitive, which belongs to module A. This is
+ * the local repair for the five that are visibly broken today.
+ */
+.support-screen .support-faq,
+.support-screen .support-report,
+.support-screen .policy-note,
+.cloud-save-screen .cloud-save-lead,
+.cloud-save-screen .cloud-save-card,
+.cloud-save-screen .cloud-save-actions {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.support-screen .support-faq h2,
+.support-screen .support-report h2,
+.cloud-save-screen h2 {
+  margin: 0;
+}
+
+/**
+ * Two saves, side by side, because the screen is a comparison.
+ *
+ * They were stacked, so deciding between them meant scrolling from one to the
+ * other and holding six numbers in your head. Side by side, the row that differs
+ * is the one your eye lands on — which is the entire job of this route.
+ */
+.cloud-save-screen .cloud-save-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(320px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3);
+  align-items: stretch;
+}
+
+.cloud-save-screen .cloud-save-card {
+  min-width: 0;
+}
+
+.cloud-save-screen .cloud-save-none {
+  margin-top: var(--sp-2);
+  flex: 1 1 auto;
+}
+
+.cloud-save-screen .cloud-save-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.cloud-save-screen .cloud-save-skeleton .skeleton {
+  display: block;
+  height: 22px;
+  border-radius: var(--r-field);
+}
+
+.support-screen .support-faq .field,
+.support-screen .support-report .field,
+.support-screen .support-faq input[type="search"] {
+  max-width: 420px;
+}
+
+/**
+ * The FAQ, in two columns, with each answer on its own plate.
+ *
+ * The old markup was a flat `<dl>` — a bold question at body size, an answer at
+ * body size directly beneath it, seven times — inside a 1114px panel whose prose
+ * stopped at 740px. So the largest object on the screen wasted its right third
+ * while the reader had no edge telling them where one answer ended. `auto-fit`
+ * spends the width; the recessed plate gives the pair a boundary; and the
+ * question is a different type role from the answer, which is what §4 means by
+ * a hierarchy rather than two sizes of the same weight.
+ */
+.support-screen .support-faq-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.support-screen .support-faq-head h2 {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.support-screen .support-search {
+  flex: 1 1 240px;
+  max-width: 420px;
+  margin: 0;
+}
+
+.support-screen .support-faq-count {
+  margin-left: auto;
+  color: var(--text-faint);
+}
+
+.support-screen .support-qa {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(340px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+.support-screen .support-qa-item {
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.support-screen .support-q {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--text);
+}
+
+.support-screen .support-a {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-dim);
+  max-width: 62ch;
+}
+
+/**
+ * The story archive is a `.panel` that the padding list also forgot.
+ *
+ * 1114×476 with its contents against the border, measured by the probe. Same
+ * failure as the Remix Queue's four, same one-line repair.
+ */
+.story-screen .story-archive {
+  padding: var(--sp-5);
+}
+
+/* -------------------------------------------------------------------------
+   The Lab
+   ------------------------------------------------------------------------- */
+
+.lab-screen .lab-group {
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+
+.lab-screen .lab-group > .t-label {
+  margin: 0;
+}
+
+.lab-screen .lab-check {
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+/**
+ * The sandbox fills the frame it is given.
+ *
+ * `.lab-body` is `height: calc(100% - 90px)` with the stage as its second
+ * column, so the board panel already reaches the bottom — but the editor beside
+ * it stopped at its last group and left 300px of bare grid under a scrolling
+ * column, which reads as the column having failed rather than having ended.
+ */
+.lab-screen .lab-editor {
+  padding-bottom: var(--sp-2);
+}
+
+/**
+ * The overflow that `.scroll` used to supply, without the scrollbar it broke.
+ *
+ * `.scroll` is `overflow-y: auto` *plus* `scrollbar-width`/`scrollbar-color`,
+ * and from Chrome 121 those two standard properties make the whole
+ * `::-webkit-scrollbar` block inert — which is why every pane wearing the class
+ * showed Chrome's Fluent bar with a stepper arrow at each end instead of the
+ * game's drawn thumb. `foundation.css` §1 documents the interaction and keeps the
+ * standard properties behind an `@supports` for exactly this reason; `.scroll`
+ * predates that and sets them unconditionally. These four panes want the scroll
+ * and not the side effect, so they take the one line and leave the class.
+ */
+.lab-screen .lab-editor,
+.lab-screen .lab-ops,
+.lab-screen .lab-log,
+.lab-screen .lab-move-list,
+.story-screen .story-archive-entry {
+  overflow-y: auto;
+}
+
+/* -------------------------------------------------------------------------
+   The Doomscroll setup
+   ------------------------------------------------------------------------- */
+
+.doom-screen .doom-leader-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(320px * var(--ui-scale, 1)), 1fr));
+  gap: var(--sp-3);
+}
+
+.doom-screen .doom-leader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border: none;
+  overflow: hidden;
+  text-align: left;
+  color: var(--text);
+  min-height: 168px;
+}
+
+.doom-screen .doom-leader-art {
+  display: block;
+  width: 168px;
+  align-self: stretch;
+  overflow: hidden;
+}
+
+.doom-screen .doom-leader-art canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.doom-screen .doom-leader-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--sp-4);
+  min-width: 0;
+}
+
+.doom-screen .doom-leader-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.doom-screen .doom-leader-sub {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.doom-screen .doom-leader-blurb {
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+.doom-screen .doom-leader-deck {
+  margin-top: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.doom-screen .doom-seed-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.doom-screen .doom-seed-row label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.doom-screen .doom-seed-row .field {
+  flex: 1 1 220px;
+  max-width: 320px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- the record band, which is what the lower third is for ---------------- */
+
+/**
+ * One column, one width, for both plates.
+ *
+ * `screens.css` gives `.doom-setup` `place-items: start center`, which centres
+ * each child at its own shrink-to-fit width — so the setup panel sat at its
+ * 820px cap and the record band beside it took whatever its contents wanted.
+ * Two stacked panels at two different widths on one screen is the composition
+ * failure §7 is about; a flex column with one measure is the whole fix.
+ */
+.doom-screen .doom-setup {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-3);
+  width: 100%;
+  max-width: 880px;
+  margin-inline: auto;
+}
+
+.doom-screen .doom-setup-panel {
+  max-width: none;
+}
+
+.doom-screen .doom-record {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.doom-screen .doom-record-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.doom-screen .doom-record-head h3 {
+  margin: 2px 0 0;
+}
+
+/* Three figures on one line. `.d-stats` is an auto-fit grid, which folds to a
+   single column the moment its container is narrow — right for a six-stat strip
+   across a page, wrong for three numbers pinned to the right of a heading. */
+.doom-screen .doom-record-stats {
+  display: flex;
+  gap: var(--sp-5);
+  margin: 0;
+}
+
+.doom-screen .doom-record-of {
+  color: var(--text-faint);
+  font-size: 0.7em;
+}
+
+.doom-screen .doom-acts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.doom-screen .doom-act {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  --mat-amp: 0.34;
+}
+
+/**
+ * The act you have not reached is dimmer, but not by opacity alone.
+ *
+ * The number plate loses its light, the name loses its display weight and the
+ * state cell says "Ahead" beside a lock — three channels, so the state survives
+ * greyscale and a screen reader hears it. §6's "never signal by colour alone"
+ * is a hard constraint and a row of three identical plates in three tints is
+ * exactly what it forbids.
+ */
+.doom-screen .doom-act-no {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-chip);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  background: linear-gradient(var(--light-sweep), rgb(255 255 255 / 0.08), rgb(0 0 0 / 0.3));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    inset 0 -1px 0 rgb(0 0 0 / 0.4);
+}
+
+.doom-screen .doom-act.is-cleared .doom-act-no,
+.doom-screen .doom-act.is-next .doom-act-no {
+  color: var(--text-invert);
+  background: linear-gradient(var(--light-sweep), var(--accent-bright, #d9a5ff), var(--accent));
+}
+
+.doom-screen .doom-act.is-next {
+  box-shadow: var(--mat-cast), inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.doom-screen .doom-act-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.doom-screen .doom-act-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.doom-screen .doom-act.is-cleared .doom-act-name,
+.doom-screen .doom-act.is-next .doom-act-name {
+  font-weight: 700;
+}
+
+.doom-screen .doom-act-blurb {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doom-screen .doom-act-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.doom-screen .doom-act.is-cleared .doom-act-state {
+  color: var(--success, #6fe0a4);
+}
+
+.doom-screen .doom-act.is-next .doom-act-state {
+  color: var(--accent-bright, var(--accent));
+}
+
+/** The drawn node marks want the icon grid's colour, not a glyph's. */
+.doom-screen .doom-node-icon {
+  display: grid;
+  place-items: center;
+  line-height: 0;
+}
+
+@media (max-width: 700px) {
+  .doom-screen .doom-leader {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .doom-screen .doom-leader-art {
+    width: 100%;
+    height: 120px;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   The scrollbar, on every pane in the domain
+   -------------------------------------------------------------------------
+   `foundation.css` §7 binds the WebKit pseudo-elements unclassed, so anything
+   that scrolls is already themed on the engine this ships to. What is left is
+   Firefox, where the standard properties are behind an `@supports` that only
+   fires when `::-webkit-scrollbar` is unsupported — which is exactly Firefox,
+   so it is already handled too. This block exists only to stop the *gutter*
+   jumping the layout when a list grows past its bound. */
+
+.screen .data-body,
+.news-screen .news-list,
+.inbox-screen .mail-list,
+.patch-screen .patch-version-list,
+.replay-screen .replay-list {
+  scrollbar-gutter: stable;
+}
+
+
+

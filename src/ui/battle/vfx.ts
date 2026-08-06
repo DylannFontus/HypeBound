@@ -27,6 +27,22 @@ interface Particle {
 
 export interface VfxLayer {
   summonBurst: (position: THREE.Vector3, current: CurrentId) => void;
+  /**
+   * The dust a card kicks up when it is put down, as distinct from the light it
+   * throws. `summonBurst` is the Current arriving; this is the floor answering.
+   */
+  landing: (position: THREE.Vector3, current: CurrentId) => void;
+  /** The turn changing, swept along the arena's centre line toward `side`. */
+  turnSweep: (side: "player" | "enemy") => void;
+  /**
+   * The pool of light a carried card throws on the floor beneath it.
+   *
+   * Driven every pointer move while a card is out of the hand; `null` puts it
+   * away. It is deliberately *at the pointer* rather than at the slot: the board
+   * already lights the socket the card would land in, and a player dragging a
+   * card is looking at the card, not forty pixels below it.
+   */
+  dragPool: (point: THREE.Vector3 | null, state: "valid" | "blocked") => void;
   impact: (position: THREE.Vector3, amount: number, elemental: boolean) => void;
   /** white strike flash at the point of contact, thrown along the attack vector */
   contactSpark: (position: THREE.Vector3, direction: THREE.Vector3) => void;
@@ -36,6 +52,19 @@ export interface VfxLayer {
    * instead of trying to photograph the flash.
    */
   lastContactSpark: () => { position: THREE.Vector3; direction: THREE.Vector3 } | null;
+  /**
+   * Is anything in this layer still moving?
+   *
+   * Asked by `BattleView.facesSettled` before it blocks the main thread to draw
+   * a card face. A card render costs 150–250ms on this machine and the browser
+   * paints nothing for the whole of it, so the only question that matters is
+   * which frames it eats. A batch that begins while the handover's mote sweep is
+   * still crossing the mat freezes those motes in mid-air — measured, a 422ms
+   * long task starting 300ms before the sweep's last particle expired. Waiting
+   * for the layer to fall silent costs the same milliseconds and spends them on
+   * a board where nothing was going to move anyway.
+   */
+  busy: () => boolean;
   heal: (position: THREE.Vector3, amount: number) => void;
   statusPop: (position: THREE.Vector3, color: string) => void;
   confluence: (id: ConfluenceId, currents: [CurrentId, CurrentId]) => void;
@@ -183,6 +212,173 @@ export function createVfx(scene: BattleSceneHandles): VfxLayer {
         endScale: 0.02,
       });
     }
+  }
+
+  /**
+   * Contact: the floor answering a card being put down on it.
+   *
+   * Deliberately **not** additive and deliberately pale-violet rather than the
+   * card's Current — additive light is what `summonBurst` already does, and
+   * doing it twice makes a flash rather than an impact. This is grit lifted off
+   * the mat, thrown outward along the ground and dropping back, which is the
+   * half of a landing that says the surface is a surface. The ring is flat and
+   * wide and gone in a third of a second: any longer and it reads as a spell.
+   */
+  function landing(position: THREE.Vector3, current: CurrentId): void {
+    if (reduced()) return;
+    const palette = CURRENT_PALETTE[current] ?? CURRENT_PALETTE.prism;
+
+    spawn({
+      position: position.clone().setY(0.05),
+      velocity: new THREE.Vector3(),
+      color: palette.hi,
+      life: 0.32,
+      startScale: 1.5,
+      endScale: 5.4,
+      texture: "ring",
+    });
+
+    const count = Math.min(18, Math.max(8, Math.floor(budget() * 0.045)));
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + (i % 3) * 0.21;
+      const speed = 2.4 + (i % 5) * 0.42;
+      spawn({
+        position: position
+          .clone()
+          .setY(0.06)
+          .add(new THREE.Vector3(Math.cos(angle) * 0.85, 0, Math.sin(angle) * 0.62)),
+        velocity: new THREE.Vector3(Math.cos(angle) * speed, 0.3 + Math.random() * 0.55, Math.sin(angle) * speed * 0.6),
+        color: i % 3 === 0 ? "#ded2f6" : "#8a7ab0",
+        life: 0.4 + Math.random() * 0.26,
+        startScale: 0.28,
+        endScale: 1.15,
+        additive: false,
+      });
+    }
+  }
+
+  /**
+   * The turn changing, as an event in the room rather than a chip over the board.
+   *
+   * A line of motes runs the width of the arena along the centre seam and drifts
+   * toward whoever is now to act. It costs one spawn loop and it replaces the
+   * biggest single lump of dead time on this screen — a 1.1-second full-board
+   * DOM banner, three times a turn.
+   *
+   * ## Why it is over in a third of a second
+   *
+   * It used to live 0.42–0.62s, and it was the only thing on the board still
+   * moving when the rival's play arrived: measured on a screencast, the sweep's
+   * last mote expired at t≈1260ms after End Turn and the batch's card render
+   * blocked the main thread from t≈952ms to t≈1374ms, so the last third of the
+   * wipe was a still image of motes hanging over the mat. The wipe and the
+   * ribbon that rides with it are one event and they now finish together, inside
+   * §3's 200–320ms band for a UI transition — the motes travel the same distance,
+   * faster, and the board is genuinely at rest before the batch asks for
+   * anything.
+   */
+  function turnSweep(side: "player" | "enemy"): void {
+    if (reduced()) return;
+    const toward = side === "player" ? 1 : -1;
+    const colour = side === "player" ? "#ff8fc4" : "#8fd8ff";
+    const count = Math.min(26, Math.max(10, Math.floor(budget() * 0.06)));
+    for (let i = 0; i < count; i++) {
+      const t = i / Math.max(1, count - 1);
+      spawn({
+        position: new THREE.Vector3(-9.4 + t * 18.8, 0.16, (Math.random() - 0.5) * 0.5),
+        velocity: new THREE.Vector3((Math.random() - 0.5) * 0.9, 0.7 + Math.random() * 0.7, toward * (4.4 + Math.random() * 2.2)),
+        color: i % 4 === 0 ? "#ffffff" : colour,
+        life: 0.26 + Math.random() * 0.1,
+        startScale: 0.32,
+        endScale: 0.04,
+        texture: i % 3 === 0 ? "spark" : "soft",
+      });
+    }
+  }
+
+  /**
+   * The shadow-and-spill a held card casts on the arena under it.
+   *
+   * §3's secondary motion, applied to the one interaction the whole game is
+   * made of. Measured before this existed: a card held over the mat changed
+   * nothing anywhere near the pointer — the board lit a socket at the row, a
+   * hundred-odd pixels away, and the ground directly beneath the object being
+   * carried stayed exactly as it was. Every physical object held over a lit
+   * surface darkens it and, if the object glows, spills onto it; a card that
+   * does neither is a picture sliding over a photograph.
+   *
+   * Two quads rather than one, because the two halves behave differently. The
+   * shade is normal-blended and takes light *away*, which is the half that makes
+   * the card read as being above the floor rather than printed on it; the spill
+   * is additive and carries the legality colour, which is the half that answers
+   * "will this work". Both are pooled, both are transform-only per frame, and
+   * both are `depthWrite: false` so they never fight the mat for the depth
+   * buffer.
+   *
+   * It survives reduced motion. The setting kills decoration; this is the
+   * functional answer to a question the player has asked by picking a card up,
+   * and §3 is explicit that the functional layer stays. What it loses is the
+   * breathing — under the setting the pool is simply present at a fixed size.
+   */
+  const dragShade = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.7, 3.7),
+    new THREE.MeshBasicMaterial({
+      map: textures.soft,
+      color: 0x080512,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+      fog: false,
+    })
+  );
+  dragShade.rotation.x = -Math.PI / 2;
+  dragShade.renderOrder = 7;
+  dragShade.visible = false;
+  scene.fxGroup.add(dragShade);
+
+  const dragSpill = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.2, 5.2),
+    new THREE.MeshBasicMaterial({
+      map: textures.soft,
+      color: 0x7dffb0,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+    })
+  );
+  dragSpill.rotation.x = -Math.PI / 2;
+  dragSpill.renderOrder = 8;
+  dragSpill.visible = false;
+  scene.fxGroup.add(dragSpill);
+
+  /** 0 while nothing is carried, 1 while something is; eased in `update`. */
+  let dragStrength = 0;
+  let dragWanted = 0;
+
+  function dragPool(point: THREE.Vector3 | null, state: "valid" | "blocked"): void {
+    if (!point) {
+      dragWanted = 0;
+      return;
+    }
+    dragWanted = 1;
+    dragShade.visible = true;
+    dragSpill.visible = true;
+    /**
+     * Just clear of the mat and of the row inlay the board draws at 0.02, and
+     * below the flight plane so a card in the air is always above its own pool.
+     *
+     * The shade is offset down-and-right of the spill rather than concentric
+     * with it, because the key light is at 315° everywhere in this game and a
+     * shadow cast straight down is the tell that a thing was composited rather
+     * than lit. 0.42 world units at this framing is about eleven screen pixels,
+     * which reads as "held above the table" without detaching.
+     */
+    dragShade.position.set(point.x + 0.42, 0.03, point.z + 0.42);
+    dragSpill.position.set(point.x, 0.028, point.z);
+    (dragSpill.material as THREE.MeshBasicMaterial).color.setHex(state === "blocked" ? 0xff3b5c : 0x7dffb0);
   }
 
   function impact(position: THREE.Vector3, amount: number, elemental: boolean): void {
@@ -399,7 +595,44 @@ export function createVfx(scene: BattleSceneHandles): VfxLayer {
 
   // --- frame update ---------------------------------------------------------
   function update(delta: number, elapsed: number): void {
-    void elapsed;
+    /**
+     * The carried card's pool, eased rather than switched.
+     *
+     * A pool that appears on the frame the pointer first crosses the mat and
+     * vanishes on the frame it leaves is two pops per drag, which §7 forbids
+     * outright. `tau` here is ~90ms in and ~90ms out, which is inside §3's
+     * micro-feedback band and short enough that the answer still feels
+     * immediate.
+     */
+    if (dragStrength !== dragWanted) {
+      const lerp = 1 - Math.pow(0.0005, delta);
+      dragStrength += (dragWanted - dragStrength) * lerp;
+      if (Math.abs(dragStrength - dragWanted) < 0.004) dragStrength = dragWanted;
+      if (dragStrength === 0) {
+        dragShade.visible = false;
+        dragSpill.visible = false;
+      }
+    }
+    if (dragStrength > 0) {
+      // A slow swell while the card hovers, so the ground under a held card is
+      // alive rather than a decal. Pinned at its midpoint under reduced motion.
+      const breath = getSettings().reducedMotion ? 1 : 1 + Math.sin(elapsed * 3.1) * 0.06;
+      /**
+       * The shade carries most of the weight and the spill only tints its edge.
+       *
+       * First tuning had them the other way round and photographed badly: the
+       * pool washed the player's own leader medallion green whenever the pointer
+       * passed over it, which is a coloured lie about an object that has nothing
+       * to do with the drag. A shadow is never a lie — every card held over a lit
+       * table casts one — and the colour is only there to say *which* answer the
+       * shadow's owner is getting.
+       */
+      (dragShade.material as THREE.MeshBasicMaterial).opacity = dragStrength * 0.62;
+      (dragSpill.material as THREE.MeshBasicMaterial).opacity = dragStrength * 0.15 * breath;
+      dragShade.scale.setScalar(0.86 + dragStrength * 0.14);
+      dragSpill.scale.setScalar((0.8 + dragStrength * 0.2) * breath);
+    }
+
     for (let i = active.length - 1; i >= 0; i--) {
       const particle = active[i]!;
       particle.life -= delta;
@@ -429,10 +662,17 @@ export function createVfx(scene: BattleSceneHandles): VfxLayer {
     }
     active.length = 0;
     pool.length = 0;
+    for (const mesh of [dragShade, dragSpill]) {
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+    }
     for (const texture of Object.values(textures)) texture.dispose();
     flash.remove();
     group.removeFromParent();
   }
 
-  return { summonBurst, impact, contactSpark, lastContactSpark, heal, statusPop, confluence, resonance, defeat, screenFlash, update, dispose };
+  const busy = (): boolean => active.length > 0;
+
+  return { summonBurst, landing, turnSweep, dragPool, busy, impact, contactSpark, lastContactSpark, heal, statusPop, confluence, resonance, defeat, screenFlash, update, dispose };
 }

@@ -12,6 +12,30 @@
  * an SVG with `preserveAspectRatio="none"` over the same coordinate space. No
  * layout reads, no resize observers, and the edges cannot drift out of register
  * with the nodes because both are computed from the same two numbers.
+ *
+ * ## The wall, and why the entrance had none
+ *
+ * This screen was `.d-hall.d-hall-solo` — the room with its second column
+ * switched off — and inside that, `rooms.css` pinned the setup column to 880px
+ * and centred it. Measured at 1600×900: content from x=360 to x=1240, **360px of
+ * empty background on each side**, two slabs stacked vertically, and a further
+ * 90px of nothing under the fold because `screens.css` still gives `.doom-body`
+ * a `calc(100% - 90px)` height left over from before this was a grid.
+ *
+ * The fix is not a wider slab. The entrance asks one question — *who is
+ * posting* — and the two things a player weighs against it are how far the
+ * descent goes and how far they have got before. Those are now the wall:
+ *
+ *   setup .... the four acts as a ladder, and the account's record
+ *   run ...... the run itself — health, artifacts, fragments, deck, feed
+ *   summary .. the same ladder, showing where this run stopped
+ *
+ * During a run that replaces `.doom-layout`'s bespoke two-column grid with the
+ * hall's, which is the same arrangement arrived at one level up: a screen should
+ * get its second column by being a screen, not by each screen inventing a grid.
+ * The map keeps its own narrow aspect and gains the legend that used to exist
+ * only as a `title` attribute — eight node kinds a first run has no other way to
+ * learn, in the space the 660px map leaves beside itself.
  */
 
 import type { CardDef, ContentIndex } from "../../engine/types";
@@ -20,6 +44,7 @@ import { audio } from "../../audio/audio";
 import { renderCardToCanvas } from "../cardRenderer/renderCard";
 import { getRoguelikeData, artifactById, eventById, type NodeKind } from "../../game/doomscroll/data";
 import type { MapNode } from "../../game/doomscroll/map";
+import type { IconId } from "../art/uiIcons";
 import {
   abandonRun,
   actOf,
@@ -38,6 +63,8 @@ import {
 } from "../../game/doomscroll/run";
 import { activeRun, beginRun, doomscrollStore, finishRun, saveRun } from "../../save/doomscrollSave";
 import { completeDailyDoomscroll, getProfile, profileStore, todaysDoomscrollSeed } from "../../save/profile";
+import { count, countUp, enter, icon, quantify, railCard } from "./data/kit";
+import { paintLeaderPortrait } from "../art/leaderPortrait";
 
 export interface DoomscrollCallbacks {
   onBack: () => void;
@@ -45,15 +72,24 @@ export interface DoomscrollCallbacks {
   onFight: () => void;
 }
 
-const NODE_ICON: Record<NodeKind, string> = {
-  battle: "⚔",
-  elite: "☠",
-  event: "❔",
-  shop: "▤",
-  rest: "☘",
-  recruit: "✦",
-  treasure: "◆",
-  boss: "★",
+/**
+ * The map node marks, drawn rather than typed.
+ *
+ * These were `⚔ ☠ ❔ ▤ ☘ ✦ ◆ ★` — eight code points standing in for eight icons,
+ * rendered in whatever face the OS happened to have, at whatever weight that
+ * face draws them, and tofu on any device missing one. Module C's set covers all
+ * eight on one 24px grid at one stroke weight, which is the only way a map of
+ * forty nodes reads as one legend rather than as eight fonts.
+ */
+const NODE_ICON: Record<NodeKind, IconId> = {
+  battle: "attack",
+  elite: "skull",
+  event: "help",
+  shop: "shop",
+  rest: "kw-touch-grass",
+  recruit: "recruit",
+  treasure: "chest",
+  boss: "star-filled",
 };
 
 const NODE_NAME: Record<NodeKind, string> = {
@@ -85,18 +121,20 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
   const data = getRoguelikeData(content);
 
   const root = document.createElement("div");
-  root.className = "screen doom-screen";
+  root.className = "screen doom-screen d-hall d-hall-read";
+  /* The room is `shell.ts::dressScreen`'s — see `gauntletScreen` for the note. */
   root.innerHTML = `
-    <div class="ambient-bg"></div>
     <header class="sub-header">
-      <button class="btn btn-ghost" id="doom-back">← Lobby</button>
+      <button class="btn btn-ghost" id="doom-back">${icon("arrow-left", 16)} Lobby</button>
       <h1 class="title" id="doom-title">The Doomscroll</h1>
       <div class="sub-header-meta muted" id="doom-meta"></div>
     </header>
-    <div class="doom-body" id="doom-body"></div>
+    <div class="doom-body data-body" id="doom-body"></div>
+    <section class="d-rail" id="doom-rail" aria-label="Your run"></section>
     <div class="doom-prompt-backdrop" id="doom-prompt" hidden></div>`;
 
   const body = root.querySelector<HTMLElement>("#doom-body")!;
+  const rail = root.querySelector<HTMLElement>("#doom-rail")!;
   const titleEl = root.querySelector<HTMLElement>("#doom-title")!;
   const metaEl = root.querySelector<HTMLElement>("#doom-meta")!;
   const promptHost = root.querySelector<HTMLElement>("#doom-prompt")!;
@@ -117,42 +155,161 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     commit(resolvePrompt(data, content, run, choice));
   };
 
+  // ---- the wall ------------------------------------------------------------
+
+  /**
+   * The descent, as a ladder rather than as a sentence.
+   *
+   * It was the lower half of a full-width band under the setup panel, which is
+   * where it went when the screen had one column and something had to close the
+   * void. It is an *aside about progress* and it is the one thing on the screen
+   * that stays true across all three phases, so it is the wall.
+   *
+   * `reached` is passed rather than read, because the summary wants to light the
+   * run that just ended and the entrance wants to light the best one on record —
+   * the same ladder answering two different questions.
+   */
+  function actsCard(reached: number, label = "The descent"): string {
+    return railCard({
+      label,
+      className: "doom-acts-card",
+      body: `
+        <ol class="doom-acts">
+          ${data.acts
+            .map((act, i) => {
+              const cleared = i < reached;
+              const next = i === reached;
+              return `
+                <li class="mat-panel r-tile d-enter doom-act ${cleared ? "is-cleared" : ""} ${next ? "is-next" : ""}">
+                  <span class="doom-act-no num">${count(i + 1)}</span>
+                  <span class="doom-act-text">
+                    <span class="doom-act-name">${escape(act.name)}</span>
+                    <span class="doom-act-blurb">${escape(act.blurb)}</span>
+                  </span>
+                  <span class="doom-act-state">
+                    ${
+                      cleared
+                        ? `${icon("check", 14)} Cleared`
+                        : next
+                          ? `${icon("crosshair", 14)} Furthest`
+                          : `${icon("lock", 14)} Ahead`
+                    }
+                  </span>
+                </li>`;
+            })
+            .join("")}
+        </ol>`,
+    });
+  }
+
+  /** Three figures about the account, not about this run. */
+  function recordCard(): string {
+    const save = doomscrollStore.get();
+    return railCard({
+      label: "Your record",
+      className: "doom-record-card",
+      body: `
+        <dl class="d-rail-stats doom-record-stats">
+          <div class="d-stat"><dt>Runs</dt><dd class="num" data-count="${save.runsStarted}" data-digits="3">0</dd></div>
+          <div class="d-stat"><dt>Best</dt><dd class="num">${count(save.bestActsCleared)}<span
+            class="doom-record-of">/${count(data.acts.length)}</span></dd></div>
+          <div class="d-stat"><dt>Clout banked</dt><dd class="num" data-count="${save.lifetimeClout}" data-digits="6">0</dd></div>
+        </dl>`,
+    });
+  }
+
   // ---- setup ---------------------------------------------------------------
 
   function renderSetup(): void {
     const save = doomscrollStore.get();
     titleEl.textContent = "The Doomscroll";
     metaEl.textContent = save.runsStarted > 0
-      ? `${save.runsStarted} run${save.runsStarted === 1 ? "" : "s"} · best ${save.bestActsCleared}/${data.acts.length} acts · ${save.lifetimeClout} Clout banked`
+      ? `${quantify(save.runsStarted, "run")} · best ${save.bestActsCleared}/${data.acts.length} acts · ${save.lifetimeClout} Clout banked`
       : "A run down the feed. Your collection is not involved.";
 
+    rail.innerHTML = `${actsCard(save.bestActsCleared)}${recordCard()}`;
+
     const panel = document.createElement("div");
-    panel.className = "doom-setup scroll";
+    panel.className = "doom-setup";
     panel.innerHTML = `
-      <div class="panel panel-chrome doom-setup-panel">
-        <div class="eyebrow">Descend</div>
+      <div class="mat-panel r-panel d-hero d-enter doom-setup-panel">
+        <div class="t-label">Descend</div>
         <h2 class="title">Pick who is posting</h2>
         <p class="muted">
-          You start with a ${data.leaders[0]!.deck.length}-card temporary deck and ${data.run.startingHealth} health that
-          carries between fights. Cards you find exist only inside the run. Reaching the end of
-          ${data.acts.length === 1 ? "the act" : `all ${data.acts.length} acts`} converts run-Clout to real Clout at
-          ${data.run.cloutConversion}:1.
+          Two decks, two ways down. Whoever you take is who you are for the whole run — the rules
+          under this panel are the same either way.
         </p>
         <div class="doom-leader-grid" id="doom-leaders"></div>
         <div class="doom-seed-row">
           <label for="doom-seed">Run seed</label>
-          <input id="doom-seed" class="input" type="text" inputmode="numeric" />
-          <button class="btn btn-ghost" id="doom-reroll">Reroll</button>
-          <button class="btn btn-ghost" id="doom-daily">Today's run</button>
+          <input id="doom-seed" class="field input" type="text" inputmode="numeric" />
+          <button type="button" class="mat-chip act r-chip" id="doom-reroll">${icon("refresh", 14)} Reroll</button>
+          <button type="button" class="mat-chip act r-chip" id="doom-daily">${icon("events", 14)} Today's run</button>
         </div>
         <p class="muted doom-seed-note">
           Same seed and same choices give the same map, events, shops and offers — copy it to replay or share a run.
         </p>
         <p class="muted doom-seed-note" id="doom-daily-note">
-          <strong>Today's run</strong> is the same seed for everybody, and clearing it fills 09 §11's bonus daily slot.
+          <strong>Today's run</strong> is the same seed for everybody, and clearing it fills the bonus daily slot.
         </p>
-      </div>`;
+      </div>
+
+      ${/*
+         * The four rules a first run finds out by losing to them.
+         *
+         * They were one sentence inside the hero — "a 15-card temporary deck and
+         * 30 health that carries between fights… converts at 10:1" — which is
+         * four separate promises in a subordinate clause, under a heading nobody
+         * reads twice. As a band they are four figures at display size, which is
+         * what §3a asks numbers to be, and they close the lower third of the
+         * frame with the thing the screen is actually about rather than with a
+         * decoration.
+         *
+         * Measured before this band existed: the setup column stopped at y=645
+         * of 900 and everything under it was ambient gradient. §2 reads an
+         * unresolved lower half as content that failed to load, and it is right
+         * to.
+         */ ""}
+      <section class="mat-panel r-panel d-enter doom-rules">
+        <div class="t-label">However you go down</div>
+        <div class="d-band doom-rules-band">
+          <div class="doom-rule mat-well">
+            <span class="doom-rule-mark" aria-hidden="true">${icon("deck", 17)}</span>
+            <span class="doom-rule-figure num">${count(data.leaders[0]!.deck.length)}</span>
+            <span class="doom-rule-name">cards, lent</span>
+            <span class="doom-rule-line">A temporary deck. Your collection is not involved, and nothing you
+              find down there follows you back.</span>
+          </div>
+          <div class="doom-rule mat-well">
+            <span class="doom-rule-mark" aria-hidden="true">${icon("kw-touch-grass", 17)}</span>
+            <span class="doom-rule-figure num">${count(data.run.startingHealth)}</span>
+            <span class="doom-rule-name">health, carried</span>
+            <span class="doom-rule-line">Damage stays with you between fights. A Touch Grass Break heals
+              ${count(data.rest.heal)}; nothing else does.</span>
+          </div>
+          <div class="doom-rule mat-well">
+            <span class="doom-rule-mark" aria-hidden="true">${icon("sparkle", 17)}</span>
+            <span class="doom-rule-figure num">${count(data.artifacts.length)}</span>
+            <span class="doom-rule-name">artifacts to find</span>
+            <span class="doom-rule-line">They last the whole run and they stack. Elites and Sponsor Drops
+              are what carry them.</span>
+          </div>
+          <div class="doom-rule mat-well">
+            <span class="doom-rule-mark" aria-hidden="true">${icon("clout", 17)}</span>
+            <span class="doom-rule-figure num">${count(data.run.cloutConversion)}:1</span>
+            <span class="doom-rule-name">on the way out</span>
+            <span class="doom-rule-line">Run-Clout converts to real Clout when the run ends — cleared or
+              not, retired or dead.</span>
+          </div>
+        </div>
+      </section>`;
     body.replaceChildren(panel);
+    countUp(root);
+    /*
+     * `root`, because the ladder and the record are on the wall now and a
+     * cascade that only reaches the main column is a wall that pops.
+     */
+    enter(root, ".doom-setup-panel, .doom-rules, .d-rail-card, .doom-act", 40);
 
     const seedInput = panel.querySelector<HTMLInputElement>("#doom-seed")!;
     seedInput.value = String(Math.floor(Math.random() * 0x7fffffff));
@@ -171,14 +328,34 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     const grid = panel.querySelector<HTMLElement>("#doom-leaders")!;
     for (const leader of data.leaders) {
       const card = document.createElement("button");
-      card.className = "doom-leader btn";
+      /*
+       * A leader choice is a portrait, not a 370x140 capsule.
+       *
+       * Two defects at once. `--radius-pill` on a 370x140 content card put a
+       * lozenge inside a 20px-radius panel — three corner radii on one screen,
+       * which §7 names — and the card had no picture on the screen where the
+       * whole decision is "who am I playing as". `paintLeaderPortrait` is the
+       * painter the lobby, the queue and the sign-in screen already use, with
+       * the left edge feathered so the art bleeds into the plate rather than
+       * ending at a rectangle.
+       */
+      card.className = "doom-leader mat-panel act r-panel d-enter";
       card.type = "button";
       const def = content.leaders[leader.leaderCardId];
       card.innerHTML = `
-        <div class="doom-leader-name">${escape(leader.name)}</div>
-        <div class="doom-leader-sub muted">${escape(def?.title ?? "")}</div>
-        <p class="doom-leader-blurb muted">${escape(leader.blurb)}</p>
-        <div class="doom-leader-deck muted">${leader.deck.length}-card deck · “${escape(leader.deckName)}”</div>`;
+        <span class="doom-leader-art" aria-hidden="true"></span>
+        <span class="doom-leader-text">
+          <span class="doom-leader-name">${escape(leader.name)}</span>
+          <span class="doom-leader-sub">${escape(def?.title ?? "")}</span>
+          <span class="doom-leader-blurb">${escape(leader.blurb)}</span>
+          <span class="doom-leader-deck">${leader.deck.length}-card deck · “${escape(leader.deckName)}”</span>
+        </span>`;
+      const artHost = card.querySelector<HTMLElement>(".doom-leader-art");
+      if (artHost && def) {
+        artHost.appendChild(
+          paintLeaderPortrait(def, { width: 168, aspect: 1.15, bias: 0.2, fadeLeft: 0.34, fadeBottom: 0.18, scrim: 0.3 })
+        );
+      }
       card.addEventListener("click", () => {
         audio.play("sfx.ui.click");
         const typed = Number(seedInput.value.trim());
@@ -190,13 +367,20 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       });
       grid.appendChild(card);
     }
+    enter(panel, ".doom-leader", 60);
   }
 
   // ---- run sidebar ---------------------------------------------------------
 
   function renderSidebar(active: RunState): HTMLElement {
     const aside = document.createElement("aside");
-    aside.className = "doom-side panel panel-chrome";
+    /*
+     * `d-rail-card`, because the wall it stands against is the hall's now.
+     * `hall.css` scopes the card's padding, radius and lit left edge to `.d-rail
+     * > .d-rail-card`, so this element carries no width or plate of its own and
+     * the run's column is the same 292–392px track every other screen's is.
+     */
+    aside.className = "doom-side mat-panel d-rail-card d-enter";
 
     const healthPercent = Math.max(0, Math.round((active.health / Math.max(1, active.maxHealth)) * 100));
     const leader = content.leaders[active.leaderCardId];
@@ -210,16 +394,31 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
         <span class="doom-health-text">${active.health} / ${active.maxHealth}</span>
       </div>
       <div class="doom-side-stats">
-        <span title="Run-Clout, converted at the end of the run">◈ ${active.clout}</span>
-        <span title="Cards in the run deck">▥ ${active.deck.length}</span>
-        <span title="Battles won">⚔ ${active.battlesWon}</span>
+        <span title="Run-Clout, converted at the end of the run">${icon("clout", 14)} <span class="num">${count(active.clout)}</span></span>
+        ${/*
+            * The last two typed glyphs on this screen.
+            *
+            * The note above this rail records eight code points being replaced
+            * with drawn icons and these two were missed, which is the failure
+            * mode of a hand-checked sweep: `▥` and `⚔` render in whatever font
+            * the OS happens to have, at a weight nobody chose, and become tofu
+            * on a device that lacks them — while sitting inside the same row as
+            * a `uiIcons` Clout mark at 1.75px stroke. Both counts are `.num`
+            * for the same reason the Clout one already was.
+            */ ""}
+        <span title="Cards in the run deck">${icon("deck", 14)} <span class="num">${count(
+          active.deck.length
+        )}</span></span>
+        <span title="Battles won">${icon("attack", 14)} <span class="num">${count(
+          active.battlesWon
+        )}</span></span>
       </div>`;
     aside.appendChild(head);
 
     // --- artifacts
     const artifacts = document.createElement("div");
     artifacts.className = "doom-side-block";
-    artifacts.innerHTML = `<div class="eyebrow">Artifacts</div>`;
+    artifacts.innerHTML = `<div class="t-label">Artifacts</div>`;
     if (active.artifacts.length === 0) {
       const none = document.createElement("p");
       none.className = "muted doom-empty";
@@ -254,10 +453,10 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       track.className = "doom-side-block doom-fragments";
       track.dataset["held"] = String(held);
       track.innerHTML = `
-        <div class="eyebrow">Signal Fragments</div>
+        <div class="t-label">Signal Fragments</div>
         <div class="doom-fragment-track" aria-label="${held} of ${finale.requiresFragments} Signal Fragments">
           ${Array.from({ length: finale.requiresFragments }, (_, i) =>
-            `<span class="doom-fragment${i < held ? " doom-fragment-held" : ""}" aria-hidden="true">◈</span>`
+            `<span class="doom-fragment${i < held ? " doom-fragment-held" : ""}" aria-hidden="true">${icon("diamond", 13)}</span>`
           ).join("")}
         </div>
         <p class="muted doom-fragment-note">${
@@ -271,14 +470,14 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     // --- deck
     const deckBlock = document.createElement("div");
     deckBlock.className = "doom-side-block doom-deck-block";
-    deckBlock.innerHTML = `<div class="eyebrow">Run deck (${active.deck.length})</div>`;
+    deckBlock.innerHTML = `<div class="t-label">Run deck (${active.deck.length})</div>`;
     deckBlock.appendChild(deckRows(active));
     aside.appendChild(deckBlock);
 
     // --- log
     const logBlock = document.createElement("div");
     logBlock.className = "doom-side-block doom-log-block";
-    logBlock.innerHTML = `<div class="eyebrow">Feed</div>`;
+    logBlock.innerHTML = `<div class="t-label">Feed</div>`;
     const log = document.createElement("div");
     log.className = "doom-log scroll";
     for (const line of [...active.log].reverse().slice(0, 20)) {
@@ -402,16 +601,58 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
   function renderMap(active: RunState): HTMLElement {
     const act = actOf(data, active);
     const wrap = document.createElement("div");
-    wrap.className = "doom-map-wrap panel panel-chrome";
+    wrap.className = "doom-map-wrap mat-panel r-panel d-enter";
 
     const heading = document.createElement("div");
     heading.className = "doom-map-head";
     // the act name is already in the screen header — repeating it here costs a
     // whole floor of map that the player needs to plan a route with
     heading.innerHTML = `
-      <div class="eyebrow">Act ${active.actIndex + 1} of ${data.acts.length}</div>
+      <div class="t-label">Act ${active.actIndex + 1} of ${data.acts.length}</div>
       <p class="muted">${escape(act.blurb)}</p>`;
     wrap.appendChild(heading);
+
+    /**
+     * The legend, which existed only as a `title` attribute.
+     *
+     * Eight node kinds, each drawn as a different icon, and the only way to
+     * learn which was which was to hover a node and wait for the OS tooltip —
+     * a control surface with no legend, on the screen where every decision is
+     * "which of these do I walk into". Slay the Spire prints its key on the map;
+     * so does every roguelike since. It also happens to be the right thing to
+     * put in the ~200px the 660px map leaves either side of itself inside a
+     * 1,060px column, which is the flank this screen used to fill with nothing.
+     *
+     * `aria-hidden` is deliberate: each node button already carries its kind and
+     * blurb in its accessible name, so a screen reader that has just been told
+     * "Elite — a harder fight, guarantees an artifact" does not want the same
+     * sentence again from a decorative key.
+     */
+    const legend = document.createElement("ul");
+    legend.className = "doom-legend";
+    legend.setAttribute("aria-hidden", "true");
+    legend.innerHTML = (Object.keys(NODE_NAME) as NodeKind[])
+      .map(
+        (kind) => `
+          ${/*
+             * `data-kind`, not `doom-node-${kind}`. Those class names carry the
+             * map's *geometry* as well as its colour — `.doom-node-boss` is
+             * `width: 96px` — so borrowing them to tint a legend row would have
+             * set one row of the key to 96 pixels wide. The three kinds that
+             * have a colour get it from the attribute in `data.css` instead.
+             */ ""}
+          <li class="doom-legend-row" data-kind="${kind}">
+            <span class="doom-legend-mark">${icon(NODE_ICON[kind], 15)}</span>
+            <span class="doom-legend-text">
+              <span class="doom-legend-name">${NODE_NAME[kind]}</span>
+              <span class="doom-legend-blurb">${NODE_BLURB[kind]}</span>
+            </span>
+          </li>`
+      )
+      .join("");
+
+    const stage = document.createElement("div");
+    stage.className = "doom-map-stage";
 
     const map = document.createElement("div");
     map.className = "doom-map";
@@ -455,7 +696,9 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
     }
 
-    wrap.appendChild(map);
+    stage.appendChild(map);
+    stage.appendChild(legend);
+    wrap.appendChild(stage);
     return wrap;
   }
 
@@ -485,7 +728,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     button.dataset["node"] = node.id;
     button.disabled = !isOpen;
     button.title = `${NODE_NAME[node.kind]} — ${NODE_BLURB[node.kind]}`;
-    button.innerHTML = `<span class="doom-node-icon">${NODE_ICON[node.kind]}</span>
+    button.innerHTML = `<span class="doom-node-icon">${icon(NODE_ICON[node.kind], 18)}</span>
       <span class="doom-node-label">${NODE_NAME[node.kind]}</span>`;
     if (isOpen) {
       button.addEventListener("click", () => {
@@ -503,9 +746,9 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     const battle = battleFor(data, content, active);
     if (!battle) return null;
     const panel = document.createElement("div");
-    panel.className = "panel panel-chrome doom-brief";
+    panel.className = "mat-panel r-panel d-hero d-enter doom-brief";
     panel.innerHTML = `
-      <div class="eyebrow">${battle.kind === "boss" ? "Main Event" : battle.kind === "elite" ? "Elite" : "Battle"}</div>
+      <div class="t-label">${battle.kind === "boss" ? "Main Event" : battle.kind === "elite" ? "Elite" : "Battle"}</div>
       <h2 class="title">${escape(battle.title)}</h2>
       <p class="muted">${escape(battle.subtitle)}</p>
       <p class="muted doom-brief-note">
@@ -549,7 +792,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     tile.dataset["artifact"] = artifactId;
     tile.disabled = sold;
     tile.innerHTML = `
-      <div class="doom-artifact-glyph">◆</div>
+      <div class="doom-artifact-glyph">${icon("sparkle", 22)}</div>
       <div class="doom-artifact-name">${escape(artifact?.name ?? artifactId)}</div>
       <div class="muted doom-artifact-text">${escape(artifact?.text ?? "")}</div>
       ${price === null ? "" : `<div class="doom-tile-caption">${sold ? "Sold" : `${price} Clout`}</div>`}`;
@@ -567,7 +810,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     promptHost.removeAttribute("hidden");
 
     const panel = document.createElement("div");
-    panel.className = "panel panel-chrome doom-prompt-panel";
+    panel.className = "mat-panel r-panel doom-prompt-panel";
     const actions = document.createElement("div");
     actions.className = "row center doom-prompt-actions";
 
@@ -582,7 +825,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
 
     switch (prompt.kind) {
       case "cardPick": {
-        panel.innerHTML = `<div class="eyebrow">${escape(prompt.title)}</div>
+        panel.innerHTML = `<div class="t-label">${escape(prompt.title)}</div>
           <p class="muted">${escape(prompt.detail)}</p>`;
         const strip = document.createElement("div");
         strip.className = "doom-tile-strip";
@@ -595,7 +838,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
 
       case "artifactPick": {
-        panel.innerHTML = `<div class="eyebrow">${escape(prompt.title)}</div>
+        panel.innerHTML = `<div class="t-label">${escape(prompt.title)}</div>
           <p class="muted">Artifacts last the whole run and stack.</p>`;
         const strip = document.createElement("div");
         strip.className = "doom-tile-strip";
@@ -609,7 +852,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
 
       case "treasure": {
-        panel.innerHTML = `<div class="eyebrow">Sponsor Drop</div>
+        panel.innerHTML = `<div class="t-label">Sponsor Drop</div>
           <p class="muted">A box with your name spelled almost correctly.</p>`;
         if (prompt.artifactId) {
           const strip = document.createElement("div");
@@ -626,7 +869,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
 
       case "cardRemove": {
-        panel.innerHTML = `<div class="eyebrow">${escape(prompt.title)}</div>
+        panel.innerHTML = `<div class="t-label">${escape(prompt.title)}</div>
           <p class="muted">${
             prompt.cost > 0
               ? `Costs ${prompt.cost} Clout, charged when you actually cut something.`
@@ -640,7 +883,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
 
       case "cardUpgrade": {
-        panel.innerHTML = `<div class="eyebrow">${escape(prompt.title)}</div>
+        panel.innerHTML = `<div class="t-label">${escape(prompt.title)}</div>
           <p class="muted">${
             prompt.cost > 0
               ? `Costs ${prompt.cost} Clout, charged when you actually Remaster something.`
@@ -654,7 +897,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       }
 
       case "rest": {
-        panel.innerHTML = `<div class="eyebrow">Touch Grass Break</div>
+        panel.innerHTML = `<div class="t-label">Touch Grass Break</div>
           <h2 class="title">Outside</h2>
           <p class="muted">It is fine out here. There is a bird.</p>`;
         addAction(`Heal ${prompt.heal}`, { kind: "rest", option: "heal" }, "doom-rest-heal", false);
@@ -665,7 +908,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
 
       case "event": {
         const event = eventById(data, prompt.eventId);
-        panel.innerHTML = `<div class="eyebrow">Notification</div>
+        panel.innerHTML = `<div class="t-label">Notification</div>
           <h2 class="title">${escape(event?.title ?? "")}</h2>
           <p class="doom-event-text">${escape(event?.text ?? "")}</p>`;
         const list = document.createElement("div");
@@ -686,7 +929,7 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       case "shop": {
         const price = removalPrice(data, active);
         const discount = artifactTotal(data, active, "shopDiscountPercent");
-        panel.innerHTML = `<div class="eyebrow">Merch Table</div>
+        panel.innerHTML = `<div class="t-label">Merch Table</div>
           <h2 class="title">Everything is slightly overpriced</h2>
           <p class="muted">You have <strong id="doom-shop-clout">${active.clout}</strong> run-Clout.${
             discount > 0 ? ` Golden Play Button: ${discount}% off.` : ""
@@ -744,10 +987,17 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     const finaleName = data.acts.find((act) => act.requiresFragments !== undefined)?.name ?? "";
     const missedFinale = summary.cleared && !summary.reachedFinale && summary.fragmentsNeeded > 0;
 
+    /*
+     * The same ladder, showing where *this* run stopped rather than where the
+     * best one did. A summary that says "2/4 acts" in a stat grid and nothing
+     * else leaves the player to work out which two.
+     */
+    rail.innerHTML = `${actsCard(summary.actsCleared, "This run")}${recordCard()}`;
+
     const panel = document.createElement("div");
-    panel.className = "panel panel-chrome doom-summary";
+    panel.className = "mat-panel r-panel d-hero d-enter doom-summary";
     panel.innerHTML = `
-      <div class="eyebrow">${
+      <div class="t-label">${
         summary.reachedFinale ? "You put it back together" : summary.cleared ? "You reached the bottom" : "The feed won"
       }</div>
       <h2 class="title">${
@@ -799,6 +1049,8 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
     });
     panel.appendChild(done);
     body.replaceChildren(panel);
+    countUp(root);
+    enter(root, ".d-enter", 40);
     promptHost.setAttribute("hidden", "");
     promptHost.replaceChildren();
   }
@@ -824,20 +1076,25 @@ export function createDoomscrollScreen(content: ContentIndex, callbacks: Doomscr
       ? `Floor ${node.floor + 1} of ${run.map.floors.length} · ${NODE_NAME[node.kind]}`
       : `Floor 1 of ${run.map.floors.length} · pick a way down`;
 
-    const layout = document.createElement("div");
-    layout.className = "doom-layout";
-    layout.appendChild(renderSidebar(run));
+    /*
+     * `.doom-layout`'s two-column grid is gone and the hall's is doing the job.
+     * The sidebar was a `minmax(260px, 330px)` track inside a body that was
+     * itself 880px of a 1600px window — a second column *inside* a screen that
+     * was still one column, which is precisely the arrangement a census of "does
+     * this route have two columns" scores as a pass.
+     */
+    rail.replaceChildren(renderSidebar(run));
 
     const main = document.createElement("div");
-    main.className = "doom-main scroll";
+    main.className = "doom-main";
     if (run.status === "battle") {
       const brief = renderBattleBrief(run);
       if (brief) main.appendChild(brief);
     }
     main.appendChild(renderMap(run));
-    layout.appendChild(main);
 
-    body.replaceChildren(layout);
+    body.replaceChildren(main);
+    enter(root, ".d-enter", 40);
     renderPrompt(run);
   }
 

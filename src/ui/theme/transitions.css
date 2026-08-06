@@ -1,0 +1,3729 @@
+/* =========================================================================
+   HYPEBOUND — continuity: the world behind the menus, and the space between
+   them.
+
+   These two things share a file because they are one mechanism. A transition
+   that lets the outgoing screen recede, blur and drop to zero is only safe
+   because something is guaranteed to be drawn behind it, and the only thing
+   that can guarantee that is a layer no navigation can remove. Split them and
+   the next person to change one will break the other without ever opening its
+   file.
+
+   What was here before: one `screen-in` keyframe — a 10px rise and a fade,
+   identical for all 49 routes — playing after a 200ms fade-out. That is a
+   cross-fade, and a cross-fade is what you use when you have nothing to say
+   about the relationship between two screens. There is always a relationship.
+   `shell.ts` works out which one applies and writes it onto the element as
+   `data-nav`; everything below is the vocabulary it draws from.
+
+   RULES, all of them hard (foundation contract §E2, AAA bar §3a):
+     - 260–420ms end to end. Longer is an obstacle on routine navigation.
+     - 80–120ms of overlap. The old screen leaves *while* the new one arrives;
+       sequential out-then-in is what makes a fast UI feel slow.
+     - Never a blank frame. See above: the world is always there.
+     - Input the moment the incoming screen is visible, mid-animation included.
+       Nothing here ever puts `pointer-events: none` on an *incoming* screen.
+     - `transform`, `opacity` and `filter` only. Nothing animates `width`,
+       `top`, `background-position` or `box-shadow`.
+     - Reduced motion collapses all of it to a fast fade, every screen fully
+       usable, no exceptions.
+
+   Durations are NOT written here. `shell.ts` owns the numbers and passes them
+   in as `--nav-dur` and `--nav-delay`, because it also has to schedule the
+   disposal of the outgoing screen against them and two copies of a timing
+   table is one copy too many.
+   ========================================================================= */
+
+:root {
+  /**
+   * Easing, forward-declared against module D's tokens.
+   *
+   * `var(--ease-arrive, …)` picks up the contract's shared token the moment
+   * module A mirrors it into CSS, and falls back to the same curve written out
+   * until then. That way there is never a second source of truth for a curve,
+   * only a temporary copy of one.
+   */
+  --nav-ease-arrive: var(--ease-arrive, cubic-bezier(0.2, 0.8, 0.2, 1));
+  --nav-ease-leave: var(--ease-leave, cubic-bezier(0.4, 0, 1, 1));
+  --nav-ease-glide: var(--ease-in-out, cubic-bezier(0.65, 0, 0.35, 1));
+  /**
+   * The third of module D's three curves, and until now the only one this file
+   * never used — `grep overshoot transitions.css` returned nothing, while the
+   * token was defined in `motion.ts`, mirrored into CSS by module A and printed
+   * as a chip on the gallery's own token strip. §3 asks for "a slight overshoot
+   * for things the player caused", and a navigation is the most player-caused
+   * thing in a menu. It is spent in exactly two places — see §2.1 and §2.2 —
+   * and deliberately *not* on `ascend-in`: coming back to a parent should
+   * settle, not bounce.
+   */
+  --nav-ease-overshoot: var(--ease-overshoot, cubic-bezier(0.34, 1.56, 0.64, 1));
+
+  /**
+   * How far a parent recedes when you descend into one of its children, and
+   * therefore also how far it comes back when you ascend out. One set of
+   * numbers for both directions is what makes an ascend the exact reverse of
+   * the descend that preceded it — which is the whole point of the pair: the
+   * player's sense of where they are has to survive the round trip.
+   */
+  --nav-recede-scale: 0.932;
+  --nav-recede-lift: 10px;
+  --nav-recede-blur: 7px;
+  /**
+   * 0.6 rather than 0.42, because opacity and brightness were both being spent
+   * to say "receding" when the transform and the blur already said it.
+   *
+   * Measured mid-descend at t=140: the outgoing screen sat at opacity 0.268
+   * times brightness 0.575 — a 15% effective multiplier — blurred 5.1px, while
+   * the incoming screen's body panels were still at 0.16. Image structure
+   * collapsed from σ=37.7 at the start to σ=7.8 at the midpoint and back to
+   * σ=26.9 settled: a 79% hollow in the middle of the most-used transition in
+   * the game. The parent is *behind* the arriving child by then, so nothing is
+   * bought by draining it — Hearthstone keeps the outgoing object fully painted
+   * until the incoming one has covered it.
+   */
+  --nav-recede-dim: 0.6;
+
+  /**
+   * How far a child rises from, and a sibling slides in from.
+   *
+   * 5% rather than 3.2%. At 3.2% the child's entire gesture was 28.8px and a
+   * 1.5% scale while the parent behind it got a 6.8% scale, a 7px blur and a
+   * brightness ramp — so the transition was acted almost entirely by the screen
+   * you were leaving, and the one you asked for barely moved. A descend is a
+   * move the player caused; it has to be readable as one.
+   */
+  --nav-rise: 5%;
+  --nav-slide: 7%;
+  /** +1 travels right (the incoming screen enters from the right). */
+  --nav-dir: 1;
+
+  --nav-curtain-blur: 10px;
+  --nav-seam: var(--accent-bright, #d9a5ff);
+
+  /**
+   * Where a departing screen stops, and it is not zero.
+   *
+   * Every `*-out` keyframe ends here rather than at `opacity: 0`, and the
+   * reason is `animation-fill-mode: both`. A filled animation holds its last
+   * keyframe for as long as the element is in the document, so an exit ending
+   * at zero means that any moment between "the exit finished" and "the element
+   * was removed" is a moment where the document is holding a screen that cannot
+   * be seen. `shell.ts` now builds the destination *before* either animation
+   * starts, which makes that window structurally impossible rather than merely
+   * short — but it was reachable twice on `#lobby → #uikit` and it produced a
+   * composited frame containing nothing but the atmosphere, which §3a makes an
+   * automatic fail. A floor costs nothing and closes the class of failure
+   * rather than the instance of it.
+   *
+   * 0.12 is chosen to be invisible in the case that actually happens and
+   * legible in the case that must not. On a descend the child is painted over
+   * the parent, so 12% of a screen underneath an opaque one is nothing at all;
+   * on an ascend the departing child is on top, and 12% for the one frame
+   * before it is removed is a ghost rather than a hole.
+   */
+  --nav-exit-floor: 0.12;
+
+  /**
+   * Where a departing screen stops *while the destination is still being built*
+   * — see §2.0. Derived from the recede rather than chosen, so the hold is
+   * literally the first stretch of the exit and the two cannot drift apart.
+   *
+   * 0.55 of the geometry and 0.2 of the dim, and the first attempt at 0.72/0.28
+   * is why those are two separate numbers. A `blur()` does not only soften an
+   * edge, it *spends* the brightest pixels in the frame — so a parent held at
+   * 5px for the length of a constructor and then handed to an exit that starts
+   * dimming immediately produced a composited frame at 18% of the reference
+   * 95th percentile, which is a darker hole than the one the exit floor was
+   * added to close. 3.9px still reads unambiguously as out of focus, at about
+   * two thirds of the cost to the highlights.
+   *
+   * The distinction the pair encodes: a screen may be *pushed away* for as long
+   * as a constructor takes, and it may not be *drained* while it is the only
+   * thing on the glass.
+   */
+  --nav-hold-opacity: 0.88;
+  --nav-hold-scale: calc(1 - (1 - var(--nav-recede-scale)) * 0.55);
+  --nav-hold-lift: calc(var(--nav-recede-lift) * -0.55);
+  --nav-hold-blur: calc(var(--nav-recede-blur) * 0.55);
+  --nav-hold-dim: calc(1 - (1 - var(--nav-recede-dim)) * 0.2);
+  --nav-hold-fall: calc(var(--nav-rise) * 0.22);
+  --nav-hold-slide: calc(var(--nav-slide) * var(--nav-dir) * -0.26);
+}
+
+/**
+ * The low tier pays for the frame rate with the blurs.
+ *
+ * A full-screen `filter: blur()` is the one thing in this file that can miss
+ * 30fps on a phone, and it is also the one thing whose absence nobody notices —
+ * the scale and the brightness ramp still read as "further away". `brightness`
+ * is nearly free by comparison and stays on everywhere.
+ */
+:root[data-gfx-tier="low"] {
+  --nav-recede-blur: 0px;
+  --nav-curtain-blur: 0px;
+}
+
+/* =========================================================================
+   1. THE WORLD
+   Mounted once by `atmosphere.ts`, outside `#app`, never unmounted.
+   ========================================================================= */
+
+.atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout paint style;
+  /**
+   * The floor under the floor. Even if every gradient below failed to parse,
+   * this one declaration is what makes "never a blank frame" true rather than
+   * merely likely.
+   */
+  background: var(--bg-void);
+  /** Master amplitude. High contrast turns the whole room down; see §1.8. */
+  --atm-strength: 1;
+  /**
+   * The key light is at the top-left, everywhere, forever — 315° in the
+   * foundation contract's terms. A CSS linear-gradient angle points at where
+   * the gradient *ends*, so a key at 315° is a gradient running to 135°.
+   */
+  --atm-lit: 135deg;
+}
+
+.atm-body {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---- 1.1 the room: two slots, crossfaded ------------------------------- */
+
+/**
+ * `visibility` alongside the opacity, delayed to the end of the crossfade.
+ *
+ * A slot at `opacity: 0` is still a painted, composited, full-viewport surface
+ * with two breathing gradients inside it, and for all but 900ms of the session
+ * one of the two is doing nothing at all. Hiding it takes three full-screen
+ * layers out of every frame; the delayed transition on `visibility` is what
+ * lets it stay visible for the whole fade and disappear only once it is
+ * genuinely invisible.
+ */
+/**
+ * ## Plane 1 has a ceiling, and these six numbers are it
+ *
+ * The first version of this room was brighter and more chromatic than the
+ * panels in front of it. Measured on `#uikit`, the top-left key came out at
+ * L*22.4 / C*37.2 against a card face at L*17.2 / C*24.5, and at y≈160 the
+ * top card's face (39.1) and the wash directly behind it (39.9) were inside one
+ * luminance level of each other. §2's four depth planes had collapsed into two:
+ * the first panel on the page existed only because of its 1px rim, and
+ * separation was being carried by z-index alone, which is the one thing §2
+ * bans. Hearthstone's frame 60 puts the mat about 2:1 above the surrounding
+ * wood in value with a hard temperature shift; the ratio here was 1.0:1.
+ *
+ * Two changes, and both of them are subtraction.
+ *
+ * **Every room light is mixed toward a cool near-neutral before it is used.**
+ * That is the desaturation half of §2, and mixing toward a *cool* grey rather
+ * than toward black is what buys the temperature shift as well: the panels stay
+ * violet-magenta and the wash behind them goes bluer and greyer, so the two
+ * planes differ in hue and not only in value. Room identity survives it — a
+ * gold market and a violet hub are still plainly different rooms at C*15 — but
+ * saturation stops being something the backdrop spends on the player's behalf.
+ * §6: the most saturated thing on screen should be the thing that matters most,
+ * and it was the sky.
+ *
+ * **And the alphas come down by roughly a third.** Measured again after the
+ * change: the brightest region of the wash is L*11.1 / C*15.1 against a
+ * `.mat-panel` face at L*21.1 / C*29.5. Nothing in plane 1 is lighter or more
+ * chromatic than plane 3 anywhere on the page, the content plane sits 1.7:1
+ * above the wash in luminance and 2.3:1 above the parts of it that are not
+ * under the key, and the chroma ratio is 1.95:1 — which is the shape of
+ * Hearthstone's mat against its wood rather than the 1.0:1 this started at.
+ *
+ * They are tokens rather than literals because the three gradients below, the
+ * bloom and the horizon all have to move together. Tuning one of five numbers
+ * is how the wash got brighter than the furniture in the first place.
+ */
+.atm-room {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 900ms var(--nav-ease-glide),
+    visibility 0s linear 900ms;
+  /* safe defaults so an unpainted slot still resolves its calc()s */
+  --room-key: #b56cff;
+  --room-fill: #ff5fa2;
+  --room-rim: #52c8ff;
+  --room-x: 18%;
+  --room-y: 4%;
+  --room-intensity: 1;
+
+  /* The neutral every room light is pulled toward, and it is deliberately a
+     *cool* one rather than a true grey. Mixing violet toward a neutral only
+     takes the chroma out; mixing it toward a blue-grey takes the chroma out and
+     moves the hue, so the wash ends up green-blue of the furniture rather than
+     a paler version of it. That is the temperature half of Hearthstone's mat —
+     it is not only two stops darker than the wood around it, it is a different
+     colour of light. Measured on `#uikit`, the backdrop's red-to-green ratio
+     lands at 1.11–1.15 against a `.mat-panel` face at 1.26–1.28: the same room,
+     two temperatures. */
+  --atm-grey: #33404e;
+  --room-key-far: color-mix(in srgb, var(--room-key) 34%, var(--atm-grey));
+  --room-fill-far: color-mix(in srgb, var(--room-fill) 30%, var(--atm-grey));
+  --room-rim-far: color-mix(in srgb, var(--room-rim) 30%, var(--atm-grey));
+
+  /* and the ceiling on how much of each may land */
+  --atm-key-a: 20%;
+  --atm-fill-a: 13%;
+  --atm-rim-a: 11%;
+}
+
+.atm-room.is-front {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 900ms var(--nav-ease-glide),
+    visibility 0s linear 0s;
+}
+
+/**
+ * The grain rides on the wash rather than in a layer of its own.
+ *
+ * It began as a separate element with `mix-blend-mode: overlay`, which is the
+ * textbook way to do film grain and, measured, the single most expensive thing
+ * in this file — 2.8ms a frame on its own in software raster, against 0.1ms for
+ * every other layer here, because a blend mode drops the whole stack off the
+ * cheap path. As the topmost background-image on a surface that is already
+ * being painted it costs nothing measurable, and on a backdrop this dark the
+ * difference is academic: film grain in shadow reads as light speckle either
+ * way. §1's "reality has dirt", without the frame.
+ */
+.atm-wash {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-size: 96px 96px, auto, auto, auto, auto;
+  background-image:
+    var(--grain-src, none),
+    radial-gradient(
+      78% 62% at var(--room-x) var(--room-y),
+      color-mix(
+        in srgb,
+        var(--room-key-far) calc(var(--atm-key-a) * var(--room-intensity) * var(--atm-strength)),
+        transparent
+      ),
+      transparent 66%
+    ),
+    radial-gradient(
+      62% 52% at calc(100% - var(--room-x)) 16%,
+      color-mix(
+        in srgb,
+        var(--room-fill-far) calc(var(--atm-fill-a) * var(--room-intensity) * var(--atm-strength)),
+        transparent
+      ),
+      transparent 70%
+    ),
+    radial-gradient(
+      96% 62% at 50% 112%,
+      color-mix(
+        in srgb,
+        var(--room-rim-far) calc(var(--atm-rim-a) * var(--room-intensity) * var(--atm-strength)),
+        transparent
+      ),
+      transparent 62%
+    ),
+    /* Opaque, and lit from the top-left: the slots crossfade, so a translucent
+       base would let two rooms show through each other mid-change.
+       The lit end came down from #170f2a as part of the plane-1 ceiling above —
+       it is the floor the key sits on, so leaving it where it was would have
+       put a third of the brightness back the moment the alphas came off. */
+    linear-gradient(var(--atm-lit), #0c0b1c 0%, var(--bg-deep) 46%, var(--bg-void) 100%);
+}
+
+/** The slow pulse: the key light breathing. 7.4s, very low amplitude. */
+.atm-bloom {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    44% 40% at var(--room-x) var(--room-y),
+    color-mix(
+      in srgb,
+      var(--room-key-far) calc(13% * var(--room-intensity) * var(--atm-strength)),
+      transparent
+    ),
+    transparent 70%
+  );
+  transform-origin: var(--room-x) var(--room-y);
+  animation: atm-breathe 7.4s var(--nav-ease-glide) infinite;
+  will-change: transform, opacity;
+}
+
+/** Bounce off the floor, counter-phase to the key so the room never pumps. */
+.atm-horizon {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: -14%;
+  height: 46%;
+  transform-origin: 50% 100%;
+  background: radial-gradient(
+    62% 100% at 50% 100%,
+    color-mix(
+      in srgb,
+      var(--room-rim-far) calc(13% * var(--room-intensity) * var(--atm-strength)),
+      transparent
+    ),
+    transparent 72%
+  );
+  animation: atm-breathe 11s var(--nav-ease-glide) infinite reverse;
+  will-change: transform, opacity;
+}
+
+@keyframes atm-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.07);
+  }
+}
+
+/* ---- 1.2 the deep plane: the grid and the far dust --------------------- */
+
+/**
+ * A wrapper around the two layers that are meant to be *furthest away*, and it
+ * exists so that they can be further away by more than their z-order.
+ *
+ * §2 is explicit that separation between planes is carried by "blur,
+ * desaturation, scale and parallax, not by z-index alone". The room above now
+ * does the desaturation; this element does the other three, and it needs to be
+ * an element rather than a pair of rules because both of its children already
+ * animate `transform` for their own reasons — the grid breathes, its
+ * pseudo-element drifts, the motes wander. Adding a second transform animation
+ * to either would mean restating its whole animation list on every navigation
+ * selector, which restarts a 26-second breathe from wherever it happened to be
+ * and jumps the scale. One parent, one transform, no interference.
+ *
+ * The static scale is the cheap half: a plane held 7% larger than the frame
+ * reads as further back before anything moves. The parallax is the half that
+ * matters, and it is a *counter*-move — `.atm-body` already pushes the whole
+ * world on a navigation, so a deep plane that wants to travel less than the
+ * wash has to give some of that back. The ladder ends up: the screen scales
+ * 6.8% on a descend, the wash 2.8%, this plane 1.7%. Three speeds is depth;
+ * one speed is a photograph on a slide.
+ */
+.atm-deep {
+  position: absolute;
+  inset: 0;
+  --atm-deep-scale: 1.07;
+  /* Blur is the one plane-separation cue that costs real frame time, so it is a
+     token the tier switches in §1.9 can zero. 1.1px rather than something you
+     would notice as blur: enough that the grid's 1px rules stop being 1px rules
+     and start being something seen through air. */
+  --atm-deep-blur: 1.1px;
+  transform: scale(var(--atm-deep-scale));
+  transform-origin: 50% 42%;
+}
+
+/**
+ * Two elements for one effect, deliberately. The container breathes and the
+ * pseudo-element drifts, because a single element cannot loop a translate
+ * seamlessly *and* carry a scale that returns to where it started — the drift
+ * has to end exactly one cell along, and anything else on the same transform
+ * would have to jump back with it.
+ */
+.atm-grid {
+  position: absolute;
+  inset: -6%;
+  animation: atm-grid-breathe 26s var(--nav-ease-glide) infinite;
+  will-change: transform;
+}
+
+/**
+ * The alpha went up as the blur went on, and the two numbers are one decision.
+ * A 1px rule at 3% blurred by 1.1px peaks at about 1% and is gone. At 7.5% it
+ * comes back to roughly where it was — measurably fainter at the centre of each
+ * line, spread over three pixels instead of one — which is what a grid seen
+ * from behind the furniture looks like.
+ */
+.atm-grid::after {
+  content: "";
+  position: absolute;
+  inset: -72px;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, calc(0.075 * var(--atm-strength))) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, calc(0.075 * var(--atm-strength))) 1px, transparent 1px);
+  background-size: 72px 72px;
+  filter: blur(var(--atm-deep-blur, 0px));
+  -webkit-mask-image: radial-gradient(116% 92% at 50% 36%, #000 24%, transparent 74%);
+  mask-image: radial-gradient(116% 92% at 50% 36%, #000 24%, transparent 74%);
+  animation: atm-grid-drift 22s linear infinite;
+  will-change: transform;
+}
+
+@keyframes atm-grid-drift {
+  to {
+    transform: translate3d(72px, 72px, 0);
+  }
+}
+
+@keyframes atm-grid-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+/* ---- 1.3 the mote field ------------------------------------------------ */
+
+/**
+ * Three tiled fields at three scales, three speeds and three tilts. The tilts
+ * are what stop the eye finding the repeat: no two layers ever line up twice.
+ *
+ * The drift **wanders and comes back** — `alternate`, eased at both ends —
+ * rather than streaming in one direction. That is the right look (dust in a
+ * room does not flow, it hangs and shifts) and it is also what makes the layer
+ * affordable. A field that translates continuously has to loop by exactly one
+ * tile to avoid a jump, which means the element must be a whole tile wider than
+ * the screen at each end; at a 520px tile that is an extra megapixel of
+ * composited texture per layer, three times over. Wandering 40px needs 60px of
+ * bleed, so the tiles can be large and near their native 512px — crisp motes,
+ * few enough repeats to be unfindable, and a texture barely bigger than the
+ * viewport.
+ *
+ * The parent's -12% bleed covers the rotation and nothing else, which is why
+ * the tilts stay at 6°: 12% is enough at 1280×720 as well as at 1600×900, and a
+ * bigger tilt would need a bigger bleed on every layer.
+ */
+.atm-motes {
+  position: absolute;
+  inset: -12%;
+  opacity: 0;
+  transform: rotate(var(--mote-tilt, 0deg));
+  transition: opacity 1200ms var(--nav-ease-arrive);
+}
+
+.atm-motes.is-ready {
+  opacity: calc(var(--mote-alpha, 0.5) * var(--atm-strength));
+}
+
+.atm-motes::after {
+  content: "";
+  position: absolute;
+  inset: -60px;
+  background-image: var(--mote-src, none);
+  background-repeat: repeat;
+  background-size: var(--mote-tile) var(--mote-tile);
+  animation:
+    atm-mote-drift var(--mote-drift) var(--nav-ease-glide) infinite alternate,
+    atm-mote-twinkle var(--mote-twinkle) ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/**
+ * The far field is inside `.atm-deep`, so it is already 7% oversized and it
+ * already travels at a different rate to the wash. The blur is what stops it
+ * being the *same dust* at a different opacity: out-of-focus specks and sharp
+ * ones an inch apart is the single clearest depth cue a camera gives you, and
+ * it costs one filter on a layer that only ever translates.
+ */
+.atm-motes-far {
+  --mote-alpha: 0.4;
+  --mote-tilt: -6deg;
+  --mote-tile: 560px;
+  --mote-shift: 22px;
+  --mote-drift: 31s;
+  --mote-twinkle: 7.5s;
+}
+
+.atm-motes-far::after {
+  filter: blur(calc(var(--atm-deep-blur, 0px) * 1.8));
+}
+
+.atm-motes-mid {
+  --mote-alpha: 0.5;
+  --mote-tilt: 4deg;
+  --mote-tile: 460px;
+  --mote-shift: -30px;
+  --mote-drift: 17s;
+  --mote-twinkle: 5.2s;
+}
+
+.atm-motes-near {
+  --mote-alpha: 0.66;
+  --mote-tilt: -5deg;
+  --mote-tile: 380px;
+  --mote-shift: 40px;
+  --mote-drift: 9s;
+  --mote-twinkle: 3.2s;
+}
+
+@keyframes atm-mote-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(var(--mote-shift), calc(var(--mote-shift) * -0.45), 0);
+  }
+}
+
+@keyframes atm-mote-twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ---- 1.4 the specular sweep -------------------------------------------- */
+
+/**
+ * A band of light crossing the room every 11 seconds, then off for the rest of
+ * it. The softness is in the gradient stops rather than in a `filter: blur()`,
+ * which matters: a blurred layer that also moves can force a re-render of the
+ * blur every frame, and this is a full-screen layer.
+ *
+ * The band lies on the rig, not across it. It was authored at 96° — six degrees
+ * off vertical on a screen whose every static edge is lit from 315° — and a
+ * moving light is still a light: `one-sun.test.ts` fails an axis-aligned band as
+ * readily as an oblique one, because a specular sweep that disagrees with the
+ * key is the second sun in its most visible form. The `skewX(-13deg)` on the
+ * element is what gives the leading edge its rake; the angle here is what the
+ * light is.
+ */
+.atm-sweep {
+  position: absolute;
+  top: -25%;
+  bottom: -25%;
+  left: 0;
+  width: 42%;
+  opacity: 0;
+  background: linear-gradient(
+    var(--light-sweep, 135deg),
+    transparent 0%,
+    rgba(255, 255, 255, calc(0.016 * var(--atm-strength))) 28%,
+    rgba(226, 214, 255, calc(0.055 * var(--atm-strength))) 50%,
+    rgba(255, 255, 255, calc(0.016 * var(--atm-strength))) 72%,
+    transparent 100%
+  );
+  transform: translate3d(-140%, 0, 0) skewX(-13deg);
+  animation: atm-sweep 11s var(--nav-ease-glide) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes atm-sweep {
+  0% {
+    transform: translate3d(-140%, 0, 0) skewX(-13deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  46% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    transform: translate3d(300%, 0, 0) skewX(-13deg);
+    opacity: 0;
+  }
+}
+
+/* ---- 1.5 vignette ------------------------------------------------------- */
+
+.atm-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(128% 108% at 50% 44%, transparent 52%, rgba(2, 1, 6, 0.55) 100%),
+    linear-gradient(
+      to bottom,
+      rgba(2, 1, 6, 0.34) 0%,
+      transparent 18%,
+      transparent 74%,
+      rgba(2, 1, 6, 0.46) 100%
+    );
+}
+
+/* ---- 1.6 the near plane: the world in *front* of the UI ---------------- */
+
+/**
+ * Everything above this point is behind `#app`, and for almost the whole
+ * session it was behind an opaque plate as well. Thirty-nine screens still
+ * paint their own `.ambient-bg`, whose last gradient stop is solid
+ * `--bg-void`, and §2.6 below only fades that plate for the ~200ms of a
+ * navigation. Measured: `#missions` photographed frozen, and again with
+ * `.atmosphere { display: none }`, differ by a mean of 0.000 and a maximum of
+ * 0 — the entire world could be deleted and not one pixel would move. A
+ * thirty-second burst on the same route puts the mean frame-to-frame delta at
+ * 0.10 of 255. The room was built, lit, animated and then hidden.
+ *
+ * `.atmosphere-fore` is the half of the world that sits in front. It carries
+ * four things and no more: the near mote field, the specular crawl, a drifting
+ * grain and a vignette. That is enough for §2's fourth resolvable depth plane
+ * and for §3a's "the screen is alive at rest" on every route at once.
+ *
+ * ## The grain is here, and it is here rather than on the screen, deliberately
+ *
+ * The grain plane was invented in `screens/data/hall.css` §5a and it worked:
+ * the eleven screens that emitted it measured 0.88–1.89 at rest against 0.18–
+ * 0.71 for the thirty-eight that did not. That is not a small difference, and
+ * it was **entirely** the grain. `hall.css` does the arithmetic in full and the
+ * conclusion is worth repeating here, because it is the only reason any of this
+ * measures anything: dust covers about 0.1% of the frame and can therefore
+ * never contribute more than a fraction of a level; a 34px grid drifting one
+ * cell in eleven seconds moves a fifth of a pixel per 200ms tick, which is
+ * sub-pixel and therefore nothing. **Grain covers 100% of the frame at the
+ * highest spatial frequency there is.** Translate a noise tile far enough that
+ * a pixel samples a different speck and every pixel in the frame changes by
+ * roughly the grain's own amplitude — for values spread over ±a the expected
+ * absolute difference between two independent samples is 2a/3, so a tile at
+ * ±2.5 levels lands near 1.7 on its own. That is the reference floor, bought
+ * from the one effect §1 already demanded for a completely different reason.
+ *
+ * So the question is only *where one instance of it lives*, and the answer that
+ * makes it an invariant rather than a habit is: on the layer that is mounted
+ * once, outside the screen router, and never unmounted. A screen-level grain is
+ * a thing forty-nine screens have to remember; this is a thing no screen can
+ * forget, including the forty-ninth one, including the one added tomorrow, and
+ * including the error screen, which is not built by a route factory at all.
+ *
+ * Everything about it is deliberately quiet, because unlike the layer behind it
+ * this one is over content. The motes come out at a quarter alpha, the sweep
+ * peaks under five percent, and the vignette only reaches the extreme corners.
+ * All three are scaled by the same `--atm-strength` the room uses, so the
+ * accessibility and tier switches at §1.8 reach it without knowing it exists.
+ *
+ * z-index 60 rather than something enormous: `#app` is `position: fixed` and
+ * therefore its own stacking context, so any value above zero clears every
+ * screen and everything inside one. `#rotate-overlay` at 9999 still wins, which
+ * is right — a "turn your phone" card should not have dust on it.
+ */
+.atmosphere-fore {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout paint style;
+  --atm-strength: 0.85;
+}
+
+.atm-fore-body {
+  position: absolute;
+  inset: 0;
+}
+
+/**
+ * Faster and more tilted than any of the three fields behind the UI, because
+ * it is nearer: parallax is the whole reason this reads as a separate plane
+ * rather than as more of the same dust. A 340px tile at a 7° tilt shares no
+ * period with the -5°/380px field behind it, so the two never line up.
+ */
+.atm-fore-motes {
+  --mote-alpha: 0.34;
+  --mote-tilt: 7deg;
+  --mote-tile: 340px;
+  --mote-shift: -46px;
+  --mote-drift: 7.5s;
+  --mote-twinkle: 3.4s;
+}
+
+/**
+ * Wider than the one behind, on a different period, and started part-way in so
+ * the two never cross together. 9.5s puts a crossing on screen for a little
+ * over five seconds out of every nine and a half, without it ever being the
+ * thing you are looking at — §3's "3–8 second periods, very low amplitude",
+ * counting the travel rather than the whole cycle.
+ */
+.atm-fore-sweep {
+  width: 56%;
+  animation-duration: 9.5s;
+  animation-delay: -2.5s;
+}
+
+/**
+ * The grain, in front of everything, drifting.
+ *
+ * It reuses `--grain-src` — the 96px tile `atmosphere.ts` generates once at
+ * boot and hangs on the document root — because there must be exactly one grain
+ * in the build or the eye reads two materials, and because a second generator
+ * would be a second 30 KB data URI for the same dirt.
+ *
+ * Oversized by one tile in each direction and translated by exactly one tile,
+ * so the loop is seamless and the drift never reverses. 96px in 7s is about
+ * 2.7px per 200ms tick — three grain widths, far enough that a pixel samples an
+ * uncorrelated speck and close enough that the eye reads a slow shimmer rather
+ * than a moving pattern.
+ *
+ * **A plain alpha layer with no blend mode.** `overlay` or `soft-light` would
+ * be more correct film grain and would take a full-viewport animated layer off
+ * the compositor on every frame it moves, which is the one thing this must
+ * never do.
+ *
+ * The opacity was measured rather than chosen. The shared tile is generated at
+ * an amplitude of 0.055, so at full alpha this plane sits near ±7 levels and
+ * reads around 3.6 on the idle probe — over twice the Hearthstone floor, on a
+ * settings screen. `hall.css` landed on 0.38 for the same tile at screen level
+ * and measured 1.5-ish; this one is scaled by `--atm-strength` on top, so high
+ * contrast and the low tier turn it down with everything else rather than
+ * needing a rule of their own. §3's other half is "never distracting".
+ */
+.atm-fore-grain {
+  position: absolute;
+  inset: -96px;
+  background-image: var(--grain-src, none);
+  background-repeat: repeat;
+  opacity: calc(0.44 * var(--atm-strength));
+  animation: atm-fore-grain-drift 7s linear infinite;
+  will-change: transform;
+}
+
+@keyframes atm-fore-grain-drift {
+  to {
+    transform: translate3d(96px, 96px, 0);
+  }
+}
+
+.atm-fore-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    132% 116% at 50% 42%,
+    transparent 58%,
+    rgb(2 1 6 / calc(0.3 * var(--atm-strength))) 100%
+  );
+}
+
+.atmosphere-fore[data-paused="true"] .atm-fore-body,
+.atmosphere-fore[data-paused="true"] .atm-fore-body *,
+.atmosphere-fore[data-paused="true"] .atm-fore-body *::after {
+  animation-play-state: paused;
+}
+
+/* ---- 1.7 travel: the world moves with you ------------------------------ */
+
+/**
+ * Secondary motion, and the reason a descend reads as a camera push rather
+ * than two rectangles swapping places. The world moves at roughly a quarter of
+ * the furniture's amplitude and settles *after* it — 620ms against the screen's
+ * 380ms — because the thing furthest away has the most mass.
+ */
+.atmosphere[data-travel] .atm-body {
+  will-change: transform, filter;
+}
+
+.atmosphere[data-travel="descend"] .atm-body {
+  animation: atm-travel-descend 620ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="ascend"] .atm-body {
+  animation: atm-travel-ascend 620ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="sibling-right"] .atm-body {
+  animation: atm-travel-sibling-right 560ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="sibling-left"] .atm-body {
+  animation: atm-travel-sibling-left 560ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="curtain-in"] .atm-body {
+  animation: atm-travel-curtain-in 900ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="curtain-out"] .atm-body {
+  animation: atm-travel-curtain-out 780ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="replace"] .atm-body {
+  animation: atm-travel-replace 480ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="arrive"] .atm-body {
+  animation: atm-travel-arrive 900ms var(--nav-ease-arrive) both;
+}
+
+/**
+ * And the deep plane gives some of it back.
+ *
+ * `.atm-deep` is a child of `.atm-body`, so it inherits the whole travel above
+ * and then subtracts from it. That is the only way to get a third speed out of
+ * two transforms, and a third speed is the difference between "the world moved"
+ * and "the world has depth in it". The counter is roughly 40% — enough that a
+ * frame-by-frame scrub shows the grid lagging the wash, small enough that
+ * nobody consciously sees a second animation.
+ *
+ * Curtain and replace are deliberately not here. A curtain is covered anyway,
+ * and a replace does not travel — adding a parallax to a gesture that is
+ * supposed to read as standing still is how a vocabulary stops meaning
+ * anything.
+ */
+.atmosphere[data-travel="descend"] .atm-deep {
+  animation: atm-deep-descend 760ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="ascend"] .atm-deep {
+  animation: atm-deep-ascend 760ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="sibling-right"] .atm-deep {
+  animation: atm-deep-sibling-right 700ms var(--nav-ease-arrive) both;
+}
+.atmosphere[data-travel="sibling-left"] .atm-deep {
+  animation: atm-deep-sibling-left 700ms var(--nav-ease-arrive) both;
+}
+
+@keyframes atm-deep-descend {
+  from {
+    transform: scale(calc(var(--atm-deep-scale) * 0.989)) translate3d(0, 0.24%, 0);
+  }
+  to {
+    transform: scale(var(--atm-deep-scale));
+  }
+}
+@keyframes atm-deep-ascend {
+  from {
+    transform: scale(calc(var(--atm-deep-scale) * 1.011)) translate3d(0, -0.24%, 0);
+  }
+  to {
+    transform: scale(var(--atm-deep-scale));
+  }
+}
+@keyframes atm-deep-sibling-right {
+  from {
+    transform: scale(var(--atm-deep-scale)) translate3d(-0.64%, 0, 0);
+  }
+  to {
+    transform: scale(var(--atm-deep-scale));
+  }
+}
+@keyframes atm-deep-sibling-left {
+  from {
+    transform: scale(var(--atm-deep-scale)) translate3d(0.64%, 0, 0);
+  }
+  to {
+    transform: scale(var(--atm-deep-scale));
+  }
+}
+
+@keyframes atm-travel-descend {
+  from {
+    transform: scale(1.028) translate3d(0, -0.6%, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes atm-travel-ascend {
+  from {
+    transform: scale(0.982) translate3d(0, 0.6%, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes atm-travel-sibling-right {
+  from {
+    transform: translate3d(1.6%, 0, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes atm-travel-sibling-left {
+  from {
+    transform: translate3d(-1.6%, 0, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes atm-travel-curtain-in {
+  0% {
+    transform: scale(1.06);
+    filter: brightness(1.9) saturate(1.25);
+  }
+  35% {
+    filter: brightness(1.3) saturate(1.15);
+  }
+  100% {
+    transform: none;
+    filter: brightness(1) saturate(1);
+  }
+}
+@keyframes atm-travel-curtain-out {
+  from {
+    transform: scale(0.955);
+    filter: brightness(0.62);
+  }
+  to {
+    transform: none;
+    filter: brightness(1);
+  }
+}
+@keyframes atm-travel-replace {
+  from {
+    filter: brightness(1.2);
+  }
+  to {
+    filter: brightness(1);
+  }
+}
+/**
+ * Deliberately no opacity on the boot reveal.
+ *
+ * A `both`-filled animation that starts at `opacity: 0` can be paused on its
+ * first frame — open the game in a background tab and switch away — and hold
+ * the entire world invisible until something else disturbs it. Scale and
+ * brightness cannot fail that way, and the first screen's own entrance is
+ * covering most of this anyway.
+ */
+@keyframes atm-travel-arrive {
+  from {
+    transform: scale(1.05);
+    filter: brightness(0.55);
+  }
+  to {
+    transform: none;
+    filter: brightness(1);
+  }
+}
+
+/* ---- 1.8 the world under the accessibility switches -------------------- */
+
+/**
+ * High contrast turns the room down rather than off. The wash is what sits
+ * behind body text once screens stop painting their own backdrop, and a neon
+ * haze under a paragraph is exactly what somebody switching this on is trying
+ * to get rid of. Keeping it at 45% preserves the depth cue and gives back the
+ * contrast.
+ *
+ * The near plane goes further down than the room does, and has to: it is the
+ * only part of the world that is literally on top of the words.
+ */
+:root[data-contrast="high"] .atmosphere {
+  --atm-strength: 0.45;
+}
+
+:root[data-contrast="high"] .atmosphere-fore {
+  --atm-strength: 0.24;
+}
+
+/**
+ * Reduced motion kills the decorative layer and keeps the functional one. The
+ * world stays — it is what stops the page flashing to void — it simply stops
+ * moving. `animation: none` rather than a paused state, so nothing is left
+ * holding a composited layer it will never use again.
+ */
+:root[data-reduced-motion="true"] .atm-bloom,
+:root[data-reduced-motion="true"] .atm-horizon,
+:root[data-reduced-motion="true"] .atm-grid,
+:root[data-reduced-motion="true"] .atm-grid::after,
+:root[data-reduced-motion="true"] .atm-motes::after,
+:root[data-reduced-motion="true"] .atm-sweep,
+:root[data-reduced-motion="true"] .atmosphere[data-travel] .atm-body,
+:root[data-reduced-motion="true"] .atmosphere[data-travel] .atm-deep {
+  animation: none;
+}
+
+/* The deep plane's *static* separation stays under this setting, and should:
+   scale, blur and desaturation are depth cues rather than motion, and somebody
+   who has asked for less movement has not asked for a flatter picture. Only its
+   parallax goes, which the rule above already took. */
+
+/**
+ * The sweep is parked, not deleted. Reduced motion asks for the movement to
+ * stop, not for the room to lose a light — so the band comes to rest a little
+ * left of centre and stays there as a static specular highlight. Left where the
+ * keyframes put it, at -140%, it would simply be off screen, which is a
+ * different and worse answer.
+ */
+:root[data-reduced-motion="true"] .atm-sweep {
+  opacity: 0.75;
+  transform: translate3d(52%, 0, 0) skewX(-13deg);
+}
+
+:root[data-reduced-motion="true"] .atm-room {
+  transition-duration: 120ms;
+}
+
+/**
+ * The near plane goes entirely, and this is the one place in the file where
+ * "kill the decorative layer" means delete rather than freeze. Behind the UI a
+ * parked mote field is a still backdrop, which is fine. In front of the UI it
+ * is a layer of specks sitting permanently on top of the text, which is not a
+ * static version of the effect — it is a different and worse thing.
+ */
+:root[data-reduced-motion="true"] .atmosphere-fore {
+  display: none;
+}
+
+/** A hidden tab composites nothing useful; stop asking it to. */
+.atmosphere[data-paused="true"] .atm-body,
+.atmosphere[data-paused="true"] .atm-body *,
+.atmosphere[data-paused="true"] .atm-body *::after {
+  animation-play-state: paused;
+}
+
+/**
+ * Tiers, paid for in composited layers rather than in pixels.
+ *
+ * Each mote field is a full-viewport texture the GPU has to hold, and three of
+ * them plus the grid, the sweep and two breathing blooms is the point where a
+ * mid-range phone starts choosing between this and the board. Medium drops the
+ * farthest field — the one at 34% opacity that nobody could describe — and low
+ * keeps a single field, the wash, the bloom and the grid. The depth cues
+ * survive at every tier; only the decoration is negotiable.
+ */
+:root[data-gfx-tier="medium"] .atm-motes-far {
+  display: none;
+}
+
+:root[data-gfx-tier="low"] .atm-motes-far,
+:root[data-gfx-tier="low"] .atm-motes-near,
+:root[data-gfx-tier="low"] .atm-sweep {
+  display: none;
+}
+
+:root[data-gfx-tier="low"] .atm-grid {
+  animation: none;
+}
+
+/* The one plane cue that is not free. A `filter: blur()` on a full-viewport
+   layer that also moves is the classic way to lose a frame budget on a phone,
+   and it is the cue whose absence nobody can name — the deep plane is still 7%
+   oversized, still desaturated and still parallaxed, which is three of §2's
+   four. The alpha comes back down with it, because the 7.5% grid was raised to
+   survive a blur that is no longer there. */
+:root[data-gfx-tier="low"] .atm-deep {
+  --atm-deep-blur: 0px;
+}
+
+:root[data-gfx-tier="low"] .atm-grid::after {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, calc(0.032 * var(--atm-strength))) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, calc(0.032 * var(--atm-strength))) 1px, transparent 1px);
+}
+
+/**
+ * The near plane survives the low tier, turned down, and that is a deliberate
+ * exception to "low keeps the cheapest version of everything". It is one tiled
+ * texture on a transform animation — the cheapest layer in the file — and on an
+ * unmigrated route it is the only thing making the screen move at all. What low
+ * drops is its sweep, which the `.atm-sweep` rule above already catches, because
+ * that is the full-screen gradient.
+ */
+:root[data-gfx-tier="low"] .atmosphere-fore {
+  --atm-strength: 0.6;
+}
+
+:root[data-gfx-tier="low"] .atmosphere[data-travel="curtain-in"] .atm-body,
+:root[data-gfx-tier="low"] .atmosphere[data-travel="curtain-out"] .atm-body,
+:root[data-gfx-tier="low"] .atmosphere[data-travel="replace"] .atm-body {
+  animation: none;
+}
+
+/* =========================================================================
+   1.9 THE ROOM — plane 2, and a property of being a screen
+
+   Every rule below used to live in `src/ui/screens/data/hall.css`, which is
+   imported by `screens/data/kit.ts`, which is imported by the twenty-three
+   data screens and by nothing else. So the room was *loadable* on about half
+   the game and *emitted* on eleven routes, because emitting it meant writing
+   `${room({ accent })}` into a template by hand.
+
+   That worked, and the measurement says how well: the eleven read 0.88–1.89
+   at rest and the other thirty-eight read 0.18–0.71, with minima at 0.067.
+   The game did not get more alive; half of it did, and it was the half a
+   player visits least. `#stats` has a lit room and `#missions`, one click
+   away, is flat near-black outside its panels.
+
+   **The fix is not a twelfth call site. It is deleting the call site.** These
+   rules are now in the module that owns continuity, in a file that is loaded
+   by `atmosphere.ts` at boot and therefore present on every route whether or
+   not a data screen has ever been built; `shell.ts::dressScreen` puts the
+   element in every screen it mounts, on the detached tree, next to
+   `markCascade`; and `kit.ts::room()` returns the empty string, so there is
+   no longer anything for a new screen to remember to call.
+
+   What is left in `hall.css` is only the part that is genuinely about the
+   hall: where the room sits in the four-track grid, and the wall that stands
+   behind a rail that only hall screens have.
+   ========================================================================= */
+
+/**
+ * `.d-room` is a decorative direct child of the screen root, in the position
+ * `.ambient-bg` used to occupy, and deliberately *not* named like a content
+ * container: `shell.ts::markCascade` only indexes `<header> <nav> <main>
+ * <section> <footer>` and classes containing `-body` or `-sheet`, so a
+ * `<div class="d-room">` is skipped by the entrance cascade. Furniture does
+ * not stagger in.
+ *
+ * `contain` is `layout paint style` rather than `strict`: `strict` adds size
+ * containment, and a size-contained box sizes as though it had no contents,
+ * which is fine here only by accident of `inset: 0`.
+ *
+ * `z-index: -1` is what `.ambient-bg` used and it was never the defect — the
+ * defect was that `.ambient-bg` is opaque. Nothing in here is.
+ */
+.screen > .d-room {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout paint style;
+}
+
+.d-room > * {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/**
+ * The alcove: the room's one accent, thrown from where the key light is.
+ *
+ * 315° is the key everywhere in this build, so the accent sits at the top-left
+ * and nothing else on the screen is allowed to be this saturated. The second
+ * stop is a cool counter-bounce from the lower right at a quarter of the
+ * strength — a fill, never a second key. Both are capped well under the
+ * furniture's own chroma, which is the rule `atmosphere.ts` states for the
+ * world and which applies with more force to a layer this close to content.
+ *
+ * `--hall-accent` and `--hall-lit` are written on the screen root by
+ * `dressScreen`, from the same `ROOMS` table that decides which of the ten
+ * lighting setups the world behind is in. A route that nobody has classified
+ * gets the hub's, because `routeNode` already has an answer for that and the
+ * whole point of this section is that there is no question left to forget.
+ */
+.d-room-alcove {
+  background:
+    radial-gradient(
+      52% 58% at 12% -4%,
+      color-mix(in srgb, var(--hall-accent, var(--accent)) calc(34% * var(--hall-lit, 1)), transparent),
+      color-mix(in srgb, var(--hall-accent, var(--accent)) calc(11% * var(--hall-lit, 1)), transparent) 44%,
+      transparent 74%
+    ),
+    radial-gradient(46% 50% at 92% 96%, rgb(70 92 150 / calc(0.1 * var(--hall-lit, 1))), transparent 72%);
+}
+
+/**
+ * The floor. The dark mass, and the reason a squint test resolves at all.
+ *
+ * AAA bar §6 asks you to squint and see light and dark masses. Before this, a
+ * squint at `#stats` resolved to one value: mid-purple background, mid-purple
+ * panels, mid-purple everything. There was no dark. The floor takes the bottom
+ * and the right of the frame down toward `--bg-void`, so the alcove at the
+ * top-left becomes a *light* mass by contrast without anything being made
+ * brighter. Value structure is a relationship, and the cheapest way to get one
+ * is to darken rather than to lift.
+ *
+ * It is square to the viewport rather than on the rig axis, which is the one
+ * exception the domain allows and the right one here: a floor darkens with
+ * *height*, not with the direction the key comes from. The horizon at 62% is a
+ * single hairline of lit dust where the wall meets the floor — the cheapest
+ * possible way to say a room has a depth as well as a width.
+ */
+.d-room-floor {
+  background:
+    linear-gradient(180deg, transparent 26%, rgb(5 2 12 / 0.6) 70%, rgb(3 1 8 / 0.9) 100%),
+    radial-gradient(128% 70% at 50% 124%, rgb(7 3 16 / 0.78), transparent 68%),
+    radial-gradient(90% 120% at 96% 4%, rgb(4 2 10 / 0.5), transparent 62%);
+}
+
+.d-room-floor::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 62%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--hall-accent, var(--accent)) 24%, transparent) 22%,
+    color-mix(in srgb, var(--hall-accent, var(--accent)) 10%, transparent) 68%,
+    transparent
+  );
+  opacity: 0.5;
+}
+
+/**
+ * The wall behind the rail, and the fallbacks are the load-bearing part.
+ *
+ * It is anchored to the rail *track* rather than to a percentage, so it lines
+ * up with the furniture standing against it at every viewport width and every
+ * `--ui-scale`. On a screen with no hall grid those three custom properties do
+ * not exist, and a `calc()` naming an unresolved custom property is invalid at
+ * computed-value time — which would not have degraded, it would have thrown the
+ * whole declaration away and taken the `inset` with it. With `0px` fallbacks
+ * the width resolves to zero and the wall simply is not there, which is the
+ * correct answer for a screen that has no rail to stand against.
+ *
+ * Lit on its left edge rather than its top: light at 315° falls onto the near
+ * edge of a recess and the far face stays in shadow, so a wall lit on the wrong
+ * edge is the two-suns defect at room scale.
+ */
+.d-room-wall {
+  inset: 0 0 0 auto;
+  width: calc(var(--hall-rail, 0px) + var(--hall-gutter, 0px) + var(--hall-gap, 0px));
+  background: linear-gradient(90deg, transparent, rgb(7 4 16 / 0.34) 26%, rgb(5 3 12 / 0.5));
+  box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.045);
+}
+
+/**
+ * The near grid, drifting by transform.
+ *
+ * `atmosphere.ts` already owns a drifting grid and this is not a second one —
+ * it is the *near* one, a third the cell size and a quarter the contrast,
+ * running at a different rate so the two read as parallax rather than as one
+ * grid with a moiré. §2 asks for separation carried by scale and parallax
+ * rather than by z-index, and two grids at the same pitch would be the
+ * counter-example.
+ *
+ * Oversized by one cell in each direction and translated by exactly one cell,
+ * so the loop has no seam. It is a `background-image` that never moves and a
+ * `transform` that does, which is the distinction that costs the compositor
+ * nothing; `background-position` here would repaint a full-viewport image every
+ * frame, which is the mistake `foundation.css` spends forty lines on.
+ */
+.d-room-grid {
+  inset: -34px;
+  background-image:
+    linear-gradient(rgb(198 178 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(198 178 255 / 0.05) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(120% 96% at 22% 8%, #000 12%, transparent 74%);
+  animation: room-grid-drift 11s linear infinite;
+  will-change: transform;
+}
+
+@keyframes room-grid-drift {
+  to {
+    transform: translate3d(34px, 34px, 0);
+  }
+}
+
+/**
+ * Dust, in two fields at two rates.
+ *
+ * Drawn as tiled radial gradients rather than from a canvas: `atmosphere.ts`
+ * generates real mote tiles and hands them over as `data:` URIs, and
+ * duplicating that generator here would put a second 512px canvas and a
+ * megabyte of decoded PNG behind every route for a layer that is deliberately
+ * fainter than the one already there.
+ *
+ * The near field travels roughly three times as far as the far one over the
+ * same period. That ratio is the whole effect: dust at one speed is a texture,
+ * dust at two is a volume. Neither is here for the probe — between them they
+ * are worth about 0.08 of a level and the note at §1.6 says why.
+ */
+.d-room-dust {
+  inset: -140px;
+  background-image:
+    radial-gradient(1.6px 1.6px at 22% 14%, rgb(236 226 255 / 0.5), transparent 100%),
+    radial-gradient(1.2px 1.2px at 68% 42%, rgb(214 200 255 / 0.42), transparent 100%),
+    radial-gradient(2.1px 2.1px at 41% 77%, rgb(255 244 255 / 0.36), transparent 100%),
+    radial-gradient(1.3px 1.3px at 86% 66%, rgb(200 214 255 / 0.44), transparent 100%);
+  background-size:
+    190px 190px,
+    260px 260px,
+    330px 330px,
+    150px 150px;
+  mask-image: radial-gradient(110% 100% at 30% 20%, #000 30%, transparent 86%);
+  animation: room-dust-near 15s linear infinite;
+  will-change: transform;
+}
+
+.d-room-dust.is-far {
+  inset: -200px;
+  background-image:
+    radial-gradient(1.1px 1.1px at 12% 62%, rgb(190 176 236 / 0.34), transparent 100%),
+    radial-gradient(1.5px 1.5px at 74% 22%, rgb(206 190 255 / 0.28), transparent 100%),
+    radial-gradient(1px 1px at 52% 88%, rgb(226 216 255 / 0.3), transparent 100%);
+  background-size:
+    240px 240px,
+    410px 410px,
+    300px 300px;
+  animation: room-dust-far 24s linear infinite;
+}
+
+/**
+ * The travel is one whole tile of the *largest* size in each field, so every
+ * layer wraps on the same frame and no field slides out of registration with
+ * itself. 330px for the near field, 410px for the far one.
+ */
+@keyframes room-dust-near {
+  to {
+    transform: translate3d(-330px, 66px, 0);
+  }
+}
+
+@keyframes room-dust-far {
+  to {
+    transform: translate3d(410px, -82px, 0);
+  }
+}
+
+/**
+ * The crawl: one very soft sheet of the accent, drifting across the alcove.
+ *
+ * This is the layer that is *supposed* to be barely measurable. It is here for
+ * the eye rather than for the probe — a room whose light never changes is a
+ * photograph of a room — and it is kept to a single wide gradient at 7% so it
+ * can never compete with a panel edge.
+ *
+ * ## Its box was three and a half times the viewport, and that was the cost
+ *
+ * `inset: -30% -60%` makes the element 220% wide and 160% tall — 3.5 viewports
+ * of composited texture for the faintest layer in the room, and at 1600×900
+ * that is about 20 MB of GPU memory on its own. It was the largest single
+ * surface anywhere in this file and it was carrying the least.
+ *
+ * Measured, interleaved, six arms of three seconds each: the whole room plus
+ * the front grain cost **+0.9ms of frame interval** (+0.98, +0.87, +0.79 across
+ * three runs on two routes), which is 6% of a 60fps budget. Halving the largest
+ * box is the one change that moves that number without removing anything a
+ * player can see: the gradient's stops are widened by exactly the ratio the box
+ * shrank, so the pool of light on screen is the same size, in the same place,
+ * travelling the same distance. `-12% -26%` is 1.5 viewports rather than 3.5.
+ *
+ * The travel is expressed in percentages of the element, so it shrinks with the
+ * box — the amplitudes below are scaled back up to keep the light moving the
+ * same number of *pixels* as before.
+ */
+.d-room-crawl {
+  inset: -12% -26%;
+  background: radial-gradient(
+    46% 55% at 50% 50%,
+    color-mix(in srgb, var(--hall-accent, var(--accent)) 7%, transparent),
+    transparent 72%
+  );
+  animation: room-crawl 34s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes room-crawl {
+  from {
+    transform: translate3d(-20%, -8%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(23%, 11%, 0) scale(1.18);
+  }
+}
+
+/* ---- 1.9a the room under the accessibility and tier switches ------------ */
+
+/**
+ * Everything that moves is decorative and goes. The room, its planes and the
+ * value structure stay: somebody on reduced motion gets the same composition
+ * standing still, not a fallback screen.
+ */
+:root[data-reduced-motion="true"] .d-room-grid,
+:root[data-reduced-motion="true"] .d-room-dust,
+:root[data-reduced-motion="true"] .d-room-crawl {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .d-room-grid,
+  .d-room-dust,
+  .d-room-crawl {
+    animation: none;
+  }
+}
+
+/**
+ * High contrast wants the haze gone and the structure kept.
+ *
+ * The floor gets *stronger*, because it is the value structure and that is the
+ * one thing this setting should never soften; the alcove, the crawl, the dust
+ * and the grid go, because a tinted fog under a paragraph is exactly what the
+ * setting exists to remove.
+ */
+:root[data-contrast="high"] .d-room-alcove,
+:root[data-contrast="high"] .d-room-crawl,
+:root[data-contrast="high"] .d-room-dust,
+:root[data-contrast="high"] .d-room-grid {
+  display: none;
+}
+
+:root[data-contrast="high"] .d-room-floor {
+  background: linear-gradient(180deg, transparent 20%, rgb(3 2 8 / 0.72) 70%, rgb(2 1 6 / 0.92) 100%);
+}
+
+:root[data-contrast="high"] .d-room-wall {
+  background: linear-gradient(90deg, transparent, rgb(3 2 8 / 0.6) 24%, rgb(2 1 6 / 0.78));
+}
+
+/**
+ * The low tier drops the two full-viewport tiled layers and keeps the washes.
+ * A device choosing between this and the battle board spends its budget on the
+ * board; the room still has its planes without them, and the near plane's grain
+ * — which is the only layer that measures anything — survives at every tier.
+ */
+:root[data-gfx-tier="low"] .d-room-dust,
+:root[data-gfx-tier="low"] .d-room-grid {
+  display: none;
+}
+
+/**
+ * ...and behind the board, the room is not drawn at all.
+ *
+ * `shell.ts` writes `data-board` while a route with `battle: true` is mounted —
+ * the same flag that already decides a match gets the curtain rather than a
+ * descend, so this is a property of being a match rather than a list of ten
+ * route ids, and a match added tomorrow inherits it or gets the wrong
+ * transition.
+ *
+ * The reason is that the room is *invisible* there. A match fills the viewport
+ * with an opaque three.js scene, so seven planes behind it are behind something
+ * nothing can see through — and even at the mulligan, where the board is
+ * blurred behind a modal, it is still opaque.
+ *
+ * ## What this cost, and the version of it that was wrong
+ *
+ * Sixteen interleaved arms at 1600×900. The room and the front grain together
+ * cost **+3.42ms and +4.43ms** of frame interval on `#battle` across two runs —
+ * 67.7fps down to 52.1 — against **−0.47ms** for the same test on `#missions`,
+ * which is inside the instrument's own noise. Charged separately they are
+ * +0.79ms (room) and +0.84ms (grain); together they cost more than twice their
+ * sum, which is what compositing pressure looks like when a GPU already running
+ * a bloom chain tips over.
+ *
+ * The first version of this rule dropped **both** of them, on the further
+ * argument that `battle/scene.ts` ends its merged pass with a `NoiseEffect` and
+ * a `VignetteEffect` so a DOM grain over it is a second grain. That argument is
+ * good and the rule was still wrong, and the sweep said so within a minute:
+ * `#boss` fell to **0.203**, under the floor. A battle route *at rest* is not a
+ * live board — it is the mulligan, a modal over a blurred still, and the board's
+ * own noise is behind that blur and behind the modal. The layer keeping the
+ * screen alive was the one being removed for duplicating something that was not
+ * on screen.
+ *
+ * So only the invisible half goes. Re-measured with the grain kept, the same
+ * sixteen arms on `#battle` charge **+0.61ms**, which is inside the ±1.5ms this
+ * instrument can resolve on a busy machine — and `#boss` came back at 1.936,
+ * `#battle` 1.890, `#tutorial` 2.004, `#puzzle` 6.886, every match route above
+ * the floor.
+ */
+:root[data-board="true"] .screen > .d-room {
+  display: none;
+}
+
+/* =========================================================================
+   2. THE SPACE BETWEEN TWO SCREENS
+   `shell.ts` writes `data-nav="<relation>-<role>"` before the element is in
+   the document, so the first frame the browser paints is already the first
+   frame of the transition. It also writes `--nav-dur` and `--nav-delay`.
+   ========================================================================= */
+
+.screen[data-nav] {
+  animation-duration: var(--nav-dur, 300ms);
+  animation-delay: var(--nav-delay, 0ms);
+  animation-iteration-count: 1;
+  animation-fill-mode: both;
+  animation-timing-function: var(--nav-ease-arrive);
+  will-change: transform, opacity, filter;
+  backface-visibility: hidden;
+}
+
+/**
+ * The outgoing screen never takes input. It is still painted — often on *top*
+ * of the incoming one, deliberately, so an ascending child slides away over its
+ * parent — and without this every click during a transition would land on a
+ * screen that is on its way to the bin.
+ *
+ * This is the whole of the "no transition delays input" rule. The incoming
+ * screen is never given `pointer-events: none`, at any point, by any rule in
+ * this file.
+ */
+.screen[data-nav$="-out"],
+.screen[data-nav$="-hold"] {
+  pointer-events: none;
+}
+
+/* ---- 2.0 the hold: the frame the click actually lands on ---------------- */
+
+/**
+ * ## The exit was written, and on a real click nobody ever saw it
+ *
+ * Filmed with a CDP screencast, clicking a nav tile rather than setting the
+ * hash from a script: `lobby → mastery` produced 583ms of a **pixel-identical**
+ * lobby (mean 41.6, sd 41.7, unchanged frame to frame) and then a cut — the
+ * next composited frame, 71ms later, was already the settled destination.
+ * `lobby → inbox` 562ms, `lobby → missions` 457ms with a 245ms window that
+ * produced no composited frame at all, `lobby → play` 405ms. The parent's
+ * recede — 0.932 scale, 7px of blur, 0.6 brightness, all of it described above
+ * in detail — had never once been on screen.
+ *
+ * The cause is an ordering, not a keyframe. `shell.ts` built the destination
+ * *before* declaring either animation, precisely so that nothing would be
+ * mid-flight while a constructor held the thread; and a CSS animation's clock
+ * runs in real time, so the 170ms exit declared at the end of a 240ms block was
+ * then rendered for the first time already finished. The screen the player is
+ * leaving was frozen for the whole of the wait and the transition happened in
+ * the two frames after it.
+ *
+ * ## So the exit is in two stages, and the click gets the first one
+ *
+ * `data-nav="<relation>-hold"` is declared on the frame the hash changes,
+ * before anything is built. It plays the first ~40% of the exit — the part that
+ * is pure geometry — and *stops there*, filled, for however long the build
+ * takes. `transform`, `opacity` and `filter` all composite, so it keeps playing
+ * through a blocked main thread, which is the same property the curtain has
+ * always relied on. Then `<relation>-out` picks up from exactly the state the
+ * hold ended in and runs the rest against the arriving screen.
+ *
+ * Two things fall out of that and both are load-bearing:
+ *
+ *  - **The parent is genuinely behind something before there is anything in
+ *    front of it.** The double exposure this file has been fighting for three
+ *    rounds — nine nav tiles legible at full brightness through the Missions
+ *    panels at the moment of maximum overlap — was a consequence of a 7px blur
+ *    starting at the same instant as the child. It now has the whole build to
+ *    arrive in.
+ *  - **The held state is lit.** Every `-out` keyframe ends near black by design,
+ *    because by then the child covers it. A *hold* is the opposite situation:
+ *    it is the only thing on the glass. So the hold takes the scale, the lift
+ *    and the blur and leaves the brightness almost alone, which is the same
+ *    argument §2.1 makes for not front-loading the dim, applied to a stop
+ *    rather than to a curve.
+ */
+.screen[data-nav$="-hold"] {
+  animation-timing-function: var(--nav-ease-leave);
+}
+
+/**
+ * ## The blur is set, not animated, and that is the third round of this fix
+ *
+ * `filter` was in the keyframes here and in `nav-descend-out`, interpolating
+ * from `blur(0) brightness(1)` to the recede over the whole exit. A filter does
+ * not promote: every frame of it is a fresh rasterisation of a full-screen
+ * layer on the main thread, which is the one thread the hold exists to survive
+ * without. So the animation that was supposed to keep playing through a
+ * constructor was the only one in the file that could not.
+ *
+ * Both halves of a descend now carry the *same* static filter — the hold's, not
+ * the recede's — declared on the rule rather than on a keyframe. One paint, no
+ * step between `-hold` and `-out` (the value is identical, so the browser has
+ * nothing to re-rasterise when the attribute changes), and the exit is left as
+ * pure `transform` and `opacity`, which is what `nav-ascend-out` and
+ * `nav-sibling-out` have always been.
+ *
+ * The brightness half goes further: it is gone from the exit entirely. It used
+ * to ramp to `--nav-recede-dim` (0.6) while the opacity ramp was independently
+ * falling to 0.12, so the two multiplied — the measured 79% collapse in image
+ * structure that §2.1 has been chasing since round one. Holding the parent at
+ * 0.92 and letting opacity alone carry the departure keeps a lit surface on the
+ * glass for the whole exchange, and by the end of it the child is on top
+ * anyway. `--nav-recede-dim` and `--nav-recede-blur` survive as the roots of
+ * the two `--nav-hold-*` derivations, which is also what keeps the low tier's
+ * `blur: 0` override working; no keyframe reads either of them directly now.
+ */
+.screen[data-nav="descend-hold"],
+.screen[data-nav="descend-out"] {
+  filter: blur(var(--nav-hold-blur)) brightness(var(--nav-hold-dim));
+}
+
+.screen[data-nav="descend-hold"] {
+  animation-name: nav-descend-hold;
+}
+.screen[data-nav="ascend-hold"] {
+  animation-name: nav-ascend-hold;
+}
+.screen[data-nav="sibling-hold"] {
+  animation-name: nav-sibling-hold;
+}
+.screen[data-nav="replace-hold"] {
+  animation-name: nav-replace-hold;
+}
+.screen[data-nav="curtain-hold"] {
+  animation-name: nav-curtain-hold;
+}
+
+@keyframes nav-descend-hold {
+  from {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  to {
+    opacity: var(--nav-hold-opacity);
+    transform: scale(var(--nav-hold-scale)) translate3d(0, var(--nav-hold-lift), 0);
+  }
+}
+
+/**
+ * The ascend holds *brighter* than the descend, and the asymmetry is the same
+ * one §2.1 documents from the other side: on an ascend the departing child is
+ * painted on top of a parent that does not exist yet, so during the build it is
+ * not merely the nearest thing on screen, it is the only thing on screen. A
+ * hold at the descend's 0.82 would be a dim frame with nothing behind it.
+ */
+@keyframes nav-ascend-hold {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0.9;
+    transform: translate3d(0, var(--nav-hold-fall), 0) scale(0.9966);
+  }
+}
+
+@keyframes nav-sibling-hold {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0.9;
+    transform: translate3d(var(--nav-hold-slide), 0, 0) scale(0.996);
+  }
+}
+
+@keyframes nav-replace-hold {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.92;
+    transform: scale(1.004);
+  }
+}
+
+/* Entering a match: the push begins on the press, under a curtain that has not
+   closed yet. Barely any dim — the two frames this is visible for are the two
+   frames the player is looking at the button they just hit.
+
+   Static filter, for the reason above the descend pair: the curtain's whole
+   claim is that it keeps playing while a battle constructor holds the thread,
+   and a screen re-rasterising a full-screen blur underneath it is the one thing
+   that can take that away. */
+.screen[data-nav="curtain-hold"],
+.screen[data-nav="curtain-out"] {
+  filter: blur(calc(var(--nav-curtain-blur) * 0.22)) brightness(0.88);
+}
+
+@keyframes nav-curtain-hold {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.96;
+    transform: scale(1.018);
+  }
+}
+
+/**
+ * At rest. `animation: none` and not the removal of the attribute, because
+ * `.screen` in base.css carries `animation: screen-in` — take `data-nav` off
+ * and the base rule would come back and replay the old placeholder entrance
+ * the moment this one finished.
+ */
+.screen[data-nav="settled"] {
+  animation: none;
+  will-change: auto;
+}
+
+/* ---- 2.1 descend / ascend: an exact pair ------------------------------- */
+
+.screen[data-nav="descend-out"] {
+  animation-name: nav-descend-out;
+  animation-timing-function: var(--nav-ease-leave);
+}
+/**
+ * The child arrives on the overshoot, and this is where §3's "a slight overshoot
+ * for things the player caused" is actually spent. It travels `--nav-rise`,
+ * passes its resting position by a hair and settles back — which, combined with
+ * the taller rise, is the difference between a screen that appeared and a screen
+ * that arrived.
+ */
+.screen[data-nav="descend-in"] {
+  animation-name: nav-descend-in;
+  animation-timing-function: var(--nav-ease-overshoot);
+}
+.screen[data-nav="ascend-out"] {
+  animation-name: nav-ascend-out;
+  animation-timing-function: var(--nav-ease-leave);
+}
+/** Not the overshoot. A parent you have returned to should settle, not bounce. */
+.screen[data-nav="ascend-in"] {
+  animation-name: nav-ascend-in;
+}
+
+/**
+ * The parent recedes: back, up a touch, dark and out of focus.
+ *
+ * The stop at 60% is what stops it hollowing out. Without it the opacity ramp
+ * and the brightness ramp multiplied each other and the frame at the midpoint of
+ * a descend was 15% of one screen over 16% of the other — measurably a 79%
+ * collapse in image structure, and visibly a moment where the interface is
+ * nothing in particular. Holding the parent at 0.55 through the middle costs
+ * nothing, because by then the child is on top of it; the scale, the lift and
+ * the blur are doing all the work of saying "further away" that this ramp was
+ * duplicating.
+ */
+/*
+ * The stops moved up once more, and a screencast is why.
+ *
+ * `scripts/measure-nav.mjs` grades a real click on PLAY by the *image* rather
+ * than by computed opacity, and it found the frame this ramp exists to prevent:
+ * 95th-percentile pixel 103 → **36** → 111 across three consecutive screencast
+ * samples, on a navigation the DOM probe reported as two screens both painted.
+ * Most of that was the arriving screen's own content cascade starting from
+ * opacity 0 (fixed in `screens.css`), but the outgoing half was contributing:
+ * this ramp is on `--nav-ease-leave`, which is slow to start and then falls off
+ * a cliff, so the parent spent the second half of its exit under 0.3 while the
+ * child was still assembling. Holding it at 0.66 to the midpoint and 0.42 to
+ * 82% costs nothing visible — by then the child is on top of it and the scale,
+ * lift and blur are carrying the whole "further away" reading — and it keeps a
+ * lit surface on screen through the exchange.
+ */
+/*
+ * ## The end state was right and the *shape* of the ramp was not
+ *
+ * Photographed at the moment of maximum overlap — t=569ms of a real click on
+ * lobby → missions — PLAY, ACTIVE DECK, YOUR RECORD and all nine nav tiles were
+ * fully legible **through** the Missions panels, with no perceptible blur on the
+ * parent. `--nav-recede-blur` resolves to 7px on this tier, so the token was not
+ * the problem: a linear interpolation across a 170ms exit puts the parent at
+ * roughly 1.7px of blur at t=40ms, and the child's entrance begins at 60ms. By
+ * the time the child is transparent enough to see through, the thing behind it
+ * is still sharp. §3a asks the parent to *recede*; what that produced was a
+ * double exposure.
+ *
+ * So the geometry is front-loaded the way the opacity ramp already is. By the
+ * 40% keyframe — 68ms in, eight milliseconds after the child's first frame — the
+ * blur, the scale and the lift are all at 72% of their final value, and the
+ * parent is unambiguously behind something before there is anything in front of
+ * it.
+ *
+ * **`brightness` is deliberately *not* front-loaded**, and that is the whole
+ * reason the dim sits on its own keyframe line here rather than travelling with
+ * the blur. Dimming early is how this transition produced a frame measured at
+ * 44% of the reference mean and 24% at the 95th percentile on `lobby → play`:
+ * blur moves image structure around, brightness removes it. The parent stays lit
+ * until the child is genuinely covering it, and then goes.
+ */
+/*
+ * ## And it starts where the hold stopped, not at rest
+ *
+ * §2.0 plays the first 40% of this on the frame the click lands, before the
+ * destination is built, and fills there. So the keyframe that used to sit at
+ * 40% is now this animation's `from`, and the two opacity stops are remapped
+ * into what is left of the ramp (55% → 25%, 82% → 70% of the remaining 60%).
+ * The end state is untouched: the descend still lands on exactly the value the
+ * ascend comes back from, which is the only thing the round trip depends on.
+ */
+@keyframes nav-descend-out {
+  from {
+    opacity: var(--nav-hold-opacity);
+    transform: scale(var(--nav-hold-scale)) translate3d(0, var(--nav-hold-lift), 0);
+  }
+  30% {
+    opacity: 0.74;
+  }
+  72% {
+    opacity: 0.46;
+  }
+  to {
+    opacity: var(--nav-exit-floor);
+    transform: scale(var(--nav-recede-scale)) translate3d(0, calc(var(--nav-recede-lift) * -1), 0);
+  }
+}
+
+/**
+ * The child rises over it, and it is never at nothing.
+ *
+ * `from { opacity: 0 }` is only safe if the parent underneath is guaranteed to
+ * still be painted, and under load it is not: measured with a CDP screencast on
+ * a real click, the first *painted* frame of a descend can land a few
+ * milliseconds into the child's ramp with the parent's 170ms exit already
+ * finished and the element removed — one frame in which the brightest pixel on
+ * screen is a dim purple. Starting at 0.22 makes the overlap a property of the
+ * keyframe rather than of how busy the thread happened to be, and it is the
+ * same 80–120ms exchange §3a asks for, stated where it cannot be skipped. The
+ * rise and the scale still carry the entrance; nobody can name the difference
+ * between a fade from 0 and a fade from 0.22 under a `translate3d` of 5%.
+ *
+ * Deliberately not applied to `nav-ascend-in`: on an ascend the departing child
+ * is painted *on top of* its parent, and the long note below records what
+ * happened the last two times both halves were made more present at once.
+ */
+@keyframes nav-descend-in {
+  from {
+    opacity: 0.42;
+    transform: translate3d(0, var(--nav-rise), 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/**
+ * The child drops back down the way it came...
+ *
+ * ...and the middle keyframe is where this pair has been fixed twice, in
+ * opposite directions, which is worth writing down so it is not fixed a third
+ * time by going back.
+ *
+ * `--nav-ease-leave` is (0.4, 0, 1, 1) — slow to start — which is right for a
+ * descend, where the departing screen is *behind* the arriving one and its blur
+ * reads as distance. On an ascend the departing child is painted on *top* of its
+ * parent, so the bare curve left it at opacity 0.504 at t=110ms over a parent
+ * that was itself at 0.578, blurred and dimmed. Neither screen read; the frame
+ * was a low-contrast mush of both. The cure was a front-loaded stop at
+ * `40% { opacity: 0.18 }`.
+ *
+ * That overcorrected into a gap, which is the worse of the two failures. The
+ * stop landed at t=68ms while `--nav-delay` still held the incoming parent at
+ * zero, so the combined visible opacity across the whole ascend went 1.000 →
+ * 0.652 → **0.330** → 0.176 + 0.252, image structure fell from σ=27.0 to σ=8.1,
+ * and there was not one frame in which both screens were more than 30% present.
+ * §3a names exactly that — "sequential out-then-in is what makes a UI feel
+ * slow" — on the most-pressed control in a menu tree, in the one direction this
+ * file's own comment promises is the descend's exact reverse.
+ *
+ * The stop is now later and higher, and the arrival is pulled forward to meet it
+ * (`TIMING.ascend.inDelay`, 60 → 20ms in `shell.ts`). Measured against the same
+ * clock, both halves are above 0.3 from about t=45ms to t=129ms — an 84ms window
+ * of true exchange, inside §3a's 80–120ms band — and the combined opacity never
+ * drops below 1.1. The transform still lands on exactly the same end state, so
+ * the descend and the ascend remain each other's reverse in the only terms that
+ * matter for the player's sense of place.
+ */
+@keyframes nav-ascend-out {
+  from {
+    opacity: 0.9;
+    transform: translate3d(0, var(--nav-hold-fall), 0) scale(0.9966);
+  }
+  46% {
+    opacity: 0.42;
+    transform: translate3d(0, calc(var(--nav-rise) * 0.55), 0) scale(0.9915);
+  }
+  to {
+    opacity: var(--nav-exit-floor);
+    transform: translate3d(0, var(--nav-rise), 0) scale(0.985);
+  }
+}
+
+/**
+ * ...and the parent comes back from exactly where it went.
+ *
+ * With one asymmetry that keeps the pair a pair rather than making it one: the
+ * descend front-loads the *arrival* of the blur, so the ascend has to front-load
+ * its *departure*. Interpolated linearly, the returning parent was still
+ * carrying 4.5px of blur and 76% brightness a third of the way through its own
+ * entrance, underneath a child that had already dropped below 20% — which is the
+ * same unreadable double exposure as the descend, photographed from the other
+ * side. Clearing 72% of the recede by the 38% keyframe means the screen the
+ * player pressed Back to reach is sharp before the one they left has finished
+ * going, and the transform still lands on exactly the descend's start state.
+ *
+ * ## It returns from where the descend now leaves it, which is nearer
+ *
+ * The descend's exit stopped animating its filter (see the note above
+ * `nav-descend-hold`) and holds the parent at the *hold* values for the whole
+ * of it, so this can no longer come back from `blur(7px) brightness(0.6)` — the
+ * parent was never taken that far. Starting at 3.85px is also the only
+ * animated filter left on either half of the pair, and half the radius is
+ * roughly half the rasterisation: `blur()` is separable and priced by radius,
+ * and this one is on the screen the player is about to look at. It is cleared
+ * by 30% rather than 38% for the same reason — the window it costs anything in
+ * is now under a hundred milliseconds.
+ */
+@keyframes nav-ascend-in {
+  from {
+    opacity: 0.3;
+    transform: scale(var(--nav-recede-scale)) translate3d(0, calc(var(--nav-recede-lift) * -1), 0);
+    filter: blur(var(--nav-hold-blur)) brightness(var(--nav-hold-dim));
+  }
+  30% {
+    opacity: 0.76;
+    transform: scale(calc(1 - (1 - var(--nav-recede-scale)) * 0.3))
+      translate3d(0, calc(var(--nav-recede-lift) * -0.3), 0);
+    filter: blur(0) brightness(1);
+  }
+  38% {
+    opacity: 0.8;
+    transform: scale(calc(1 - (1 - var(--nav-recede-scale)) * 0.28))
+      translate3d(0, calc(var(--nav-recede-lift) * -0.28), 0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+    filter: blur(0) brightness(1);
+  }
+}
+
+/* ---- 2.2 sibling: one axis, and left is always left -------------------- */
+
+.screen[data-nav="sibling-out"] {
+  animation-name: nav-sibling-out;
+  animation-timing-function: var(--nav-ease-leave);
+}
+/** Also player-caused, also on the overshoot: the panel slides past and settles. */
+.screen[data-nav="sibling-in"] {
+  animation-name: nav-sibling-in;
+  animation-timing-function: var(--nav-ease-overshoot);
+}
+
+@keyframes nav-sibling-out {
+  from {
+    opacity: 0.9;
+    transform: translate3d(var(--nav-hold-slide), 0, 0) scale(0.996);
+  }
+  to {
+    opacity: var(--nav-exit-floor);
+    transform: translate3d(calc(var(--nav-slide) * var(--nav-dir) * -1), 0, 0) scale(0.985);
+  }
+}
+
+@keyframes nav-sibling-in {
+  from {
+    opacity: 0.32;
+    transform: translate3d(calc(var(--nav-slide) * var(--nav-dir)), 0, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* ---- 2.3 curtain: entering and leaving the game ------------------------ */
+
+.screen[data-nav="curtain-out"] {
+  animation-name: nav-curtain-screen-out;
+  animation-timing-function: var(--nav-ease-leave);
+}
+.screen[data-nav="curtain-in"] {
+  animation-name: nav-curtain-screen-in;
+}
+
+/** Not a recede — a push *through*. The camera goes where you are going. */
+@keyframes nav-curtain-screen-out {
+  from {
+    opacity: 0.96;
+    transform: scale(1.018);
+  }
+  to {
+    opacity: var(--nav-exit-floor);
+    transform: scale(1.07);
+  }
+}
+
+@keyframes nav-curtain-screen-in {
+  from {
+    opacity: 0;
+    transform: scale(1.045);
+    filter: brightness(1.4) saturate(0.55);
+  }
+  46% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1) saturate(1);
+  }
+}
+
+/* ---- 2.4 replace: the same route, dealt again -------------------------- */
+
+/**
+ * A rematch, the next tutorial stage, a puzzle retry. The player did not go
+ * anywhere, so nothing should travel — but something definitely happened, so a
+ * plain cross-fade would be a lie in the other direction. A short dip through
+ * a hair over 1.0 scale reads as a hand dealing again.
+ */
+.screen[data-nav="replace-out"] {
+  animation-name: nav-replace-out;
+  animation-timing-function: var(--nav-ease-leave);
+}
+.screen[data-nav="replace-in"] {
+  animation-name: nav-replace-in;
+}
+
+@keyframes nav-replace-out {
+  from {
+    opacity: 0.92;
+    transform: scale(1.004);
+  }
+  to {
+    opacity: var(--nav-exit-floor);
+    transform: scale(1.014);
+  }
+}
+
+@keyframes nav-replace-in {
+  from {
+    opacity: 0.32;
+    transform: scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---- 2.5 arrive: the very first screen, with nothing to leave ---------- */
+
+.screen[data-nav="arrive"] {
+  animation-name: nav-arrive;
+}
+
+@keyframes nav-arrive {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- 2.6 the plate, and the answer to whether it should exist ---------- */
+
+/**
+ * ## `.ambient-bg` should not exist, and this is where it stops existing
+ *
+ * Sixteen screen files still write `<div class="ambient-bg"></div>`, and
+ * `base.css` paints it as a full-viewport plate at `z-index: -1` whose last
+ * gradient stop is a solid `linear-gradient(180deg, --bg-deep, --bg-void)`.
+ * That plate sits **in front of** `atmosphere.ts` and behind the screen's own
+ * content, which is the exact arrangement §2 calls a lost depth plane. The
+ * gallery had it and lost a plane to it; the lobby deleted its own and
+ * `screens.css` says so at length.
+ *
+ * The previous version of this rule was a compromise: hold the plate at 0.8
+ * opacity so a fifth of the world reads through. That is a fifth of a plane,
+ * and the arithmetic is unforgiving — every moving thing behind it is
+ * multiplied by 0.2, so `#missions`'s entire backdrop contributed about 0.195
+ * to a floor of 0.50. The compromise bought a rounding error and kept the
+ * defect.
+ *
+ * So: **the plate's paint is taken away entirely and its element is left
+ * alone.** Two reasons for that division rather than deleting the element in
+ * sixteen files. It is declarative, so it is true for every mount path
+ * including the two error screens, which are built by hand and never go
+ * through a route factory. And an element with `background: none` and no
+ * pseudo-element paints nothing at all — there is no cost left to remove, only
+ * a `<div>` that a later wave can delete from the templates at leisure without
+ * any of this depending on it having happened.
+ *
+ * `.d-room` — §1.9, put there by `dressScreen` — is what stands in its place,
+ * and unlike the plate it is translucent by construction, so the world behind
+ * it reads at full strength on all forty-nine routes.
+ */
+.screen > .ambient-bg {
+  background: none;
+  opacity: 1;
+}
+
+/**
+ * ...including the scanline grid it drew in a pseudo-element, which animated
+ * `background-position` on a full-viewport masked image. That is a paint-property
+ * animation on the largest box on the screen — the thing `foundation.css` spends
+ * forty lines banning — and `.d-room-grid` is the same motif done on the
+ * compositor, at a third the cell size, on every route rather than sixteen.
+ */
+.screen > .ambient-bg::after {
+  content: none;
+}
+
+/**
+ * The variable outlives the plate because the menu veil reads it, and it is
+ * pinned at 1 now that there is nothing translucent left for it to describe.
+ */
+:root {
+  --ambient-rest: 1;
+}
+
+/**
+ * ## What the two ramps that used to be here were for, and why they are gone
+ *
+ * `nav-ambient-in` brought the arriving plate up from a third of its rest value
+ * over the front half of an entrance, and `nav-ambient-out` dropped the
+ * departing one to 0.1 so an exit read as receding into the world rather than
+ * sliding over it. Both were animations *of the plate*, and there is no longer
+ * a plate: the room behind a screen is `.d-room`, which is translucent at rest
+ * and therefore has nothing to fade out of the way.
+ *
+ * One measurement is worth keeping out of that deletion, because it is a trap
+ * that will be walked into again. The entrance ramp was written to lift the
+ * 95th-percentile floor of an unveiled `lobby → collection`, which sits at 29%
+ * of the departing lobby's for a 254ms window in the middle of the exchange,
+ * and it moved that number by **nothing at all**. `nav-descend-in` animates
+ * `opacity` on the *screen root*, so every surface inside it is already
+ * multiplied by the entrance's own ramp: no backdrop can be brighter than the
+ * screen it is inside. The real floor on that leg is that the Collection
+ * genuinely *is* a dark screen until its cards rasterise, and the fix for it is
+ * the 43ms-per-tile cost in the card renderer, not anything in this file.
+ *
+ * The receding half is not lost either — §1.7's `travel()` moves the whole
+ * world behind the exchange, which is where that cue always belonged.
+ */
+
+/* ---- 2.7 secondary motion, and it costs no screen a single line -------- */
+
+/**
+ * §3 calls secondary motion "the single biggest gap between animated and
+ * alive"; §3a calls the content cascade "the biggest perceived-quality gap
+ * between a hobby menu and a shipped one". Pinned mid-flight at 0/60/110/170/
+ * 240/310/380ms, the descend was two rectangles changing scale, opacity, blur
+ * and brightness — nothing swept, nothing lifted, no shadow stretched, and the
+ * incoming screen's contents arrived as one solid block. Module D's `stagger()`
+ * does the cascade properly and measures clean; its only caller in the whole
+ * repository is its own demo, because this phase does not rewire consumers.
+ *
+ * Both rules below are written so that they need no consumer. They key off the
+ * `data-nav` attribute `shell.ts` already writes, they live in this file, and
+ * all forty-nine screens get them without a line changing in any of them.
+ * `stagger()` stays the precise instrument for a grid that wants exact control;
+ * this is the floor underneath it.
+ */
+
+/**
+ * (a) The light that arrives with the screen.
+ *
+ * A band crossing the incoming screen 140ms *behind* its entrance. The lag is
+ * the point: something that moves at the same time as the main gesture is part
+ * of the gesture, and something that moves just after it is a consequence of
+ * it, which is what §3 means by secondary motion.
+ *
+ * `::after` on the screen root is safe here — no screen in the codebase
+ * declares one on its own root element, it never takes a pointer, and it only
+ * exists while `data-nav` ends in `-in`, which `shell.ts` clears on settle.
+ * z-index 3 puts it over a screen's ordinary content and comfortably under the
+ * things screens raise deliberately (the shop reveal at 60, the mulligan at 70).
+ */
+.screen[data-nav$="-in"]::after,
+.screen[data-nav="arrive"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  /* On the key, not perpendicular to it. This was authored at 105°, then
+     corrected to `--light-sweep + 90deg` on the reasoning that a band of light
+     crosses the light rather than lying along it — but +90° of 135° is 225°,
+     which draws the same band as 45° and is a second sun by either name. The
+     rig angle is the whole answer: one light, one bearing, moving or still. */
+  background: linear-gradient(
+    var(--light-sweep, 135deg),
+    transparent 40%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 60%
+  );
+  /**
+   * Shorter and earlier than it was, because the gesture must not outlive the
+   * transition it belongs to.
+   *
+   * At `var(--nav-dur)` starting 140ms behind the entrance, a descend's band
+   * finished at 60 + 140 + 300 = 500ms — a hundred and forty milliseconds after
+   * `watchEntrance` had already written `data-nav="settled"` and dropped
+   * `will-change`. Pinned at t=380 the band was still mid-flight at +563px. The
+   * stated 260–420ms budget was not the time the screen actually stopped moving,
+   * which is the only definition of the budget that means anything.
+   *
+   * 62% of the duration at a 90ms lag puts the exit at 60 + 90 + 198 = 348ms,
+   * inside the settle, and a faster sweep across the same width reads as a
+   * sharper specular rather than a slower one — so the fix is also the better
+   * highlight.
+   */
+  animation: nav-sheen calc(var(--nav-dur, 300ms) * 0.62) var(--nav-ease-glide)
+    calc(var(--nav-delay, 0ms) + 90ms) both;
+}
+
+/* The one thing in this file a low-end phone genuinely cannot have for free: a
+   full-viewport gradient layer moving over the screen it is trying to build. */
+:root[data-gfx-tier="low"] .screen[data-nav$="-in"]::after,
+:root[data-gfx-tier="low"] .screen[data-nav="arrive"]::after {
+  display: none;
+}
+
+@keyframes nav-sheen {
+  0% {
+    transform: translate3d(-105%, 0, 0);
+    opacity: 0;
+  }
+  22% {
+    opacity: 1;
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(105%, 0, 0);
+    opacity: 0;
+  }
+}
+
+/**
+ * (b) The default cascade, and the level it has to run at.
+ *
+ * The obvious rule is "stagger the screen's direct children", and it is worth
+ * almost nothing: forty-six of the forty-nine screens are built as
+ * `.ambient-bg` + `<header>` + `<main class="…-body">`, so a direct-child
+ * cascade is a two-step stagger of two boxes. The panels — the things §3a
+ * actually means by "panels, rows, tiles and cards arrive on a cascade in
+ * reading order" — are one level further in. So the rule reaches through the
+ * structural container and staggers what is inside it.
+ *
+ * The container list is deliberately a list rather than `*`. `<header>`,
+ * `<main>`, `<section>`, `<footer>`, `<nav>`, `*-body` and `*-sheet` are the
+ * shapes the screens actually use for content; the things it excludes are
+ * exactly the things that must not be touched — `.ambient-bg`, the lobby's
+ * decorative `.lobby-glow`, and overlays like `.shop-reveal` that sit hidden at
+ * the end of a screen and would otherwise be faded up for 300ms on arrival.
+ *
+ * `*-sheet` is the newest name on that list and it was added for the worst
+ * possible reason: the one screen in the game whose entire job is to
+ * demonstrate this system did not exhibit it. `#uikit` is built as
+ * `.screen > .kit-sheet > <section>×13`, and a wrapper called `kit-sheet`
+ * matched nothing in the list, so the gallery fired **zero** `nav-child-rise`
+ * events across two instrumented runs while every real screen fired seven. A
+ * motion system whose specimen page is the one page that does not move is not
+ * a system anybody will trust. It is a name rather than a `*` for the same
+ * reason as the rest: `[class*="-sheet"]` only ever matches a *direct child of
+ * a screen root*, and `.kit-sheet` is the only element in the repository at
+ * that position that carries it.
+ *
+ * ## The base is per container, because a flat offset lumps
+ *
+ * Header items started at step 0 and *every* body container started at step 2,
+ * which is only collision-free if there is exactly one body container. There
+ * usually is not. Measured `nav-child-rise` delays: `#missions` 60, 96, 132,
+ * 132, 132, 168, 204; `#lobby` 60, 96, 132, 132, 168, 204, 132; `#settings` 60,
+ * 96, 132, 132, 168, 204, 240, 276. Two or three panels arriving on the same
+ * frame on five of the six screens tested, because `--cascade-i` restarts inside
+ * each container while `--cascade-base` did not move with it — so a header's
+ * third item and a body's first item collided. §3a calls the cascade the single
+ * biggest perceived-quality gap between a hobby menu and a shipped one, and a
+ * cascade with three items on one frame is not one.
+ *
+ * The base now counts containers rather than assuming there is one: header and
+ * nav at 0, the first structural body container at 4, any container that follows
+ * another at 11. The sibling-combinator chain does the counting — a container
+ * with a preceding sibling container matches the longer selector, which is also
+ * the more specific one, so the cascade falls out of source order rather than
+ * out of a `:nth-of-type` that cannot see across element names.
+ *
+ * Seven items per container rather than eight, 30ms apart rather than 36: §3's
+ * band starts at 30, and the two together keep the tail inside the settle. The
+ * last panel of a first body container starts at 60 + 10 × 30 = 360ms and lands
+ * at 558ms, where the old arrangement's would have been 456ms and 654ms. An
+ * eighth panel does not pop — it simply arrives with the screen rather than
+ * after it.
+ *
+ * **Two choices here are about not breaking somebody else's screen.**
+ *
+ * `translate` rather than `transform`, because `translate` is its own property
+ * and composes with whatever `transform` the element already has. A keyframe
+ * ending in `transform: none` would flatten a consumer's own transform for the
+ * length of the animation, on every screen in the game, and nobody would ever
+ * find out why.
+ *
+ * `backwards` rather than `both`, because `both` holds the last keyframe
+ * forever — and "forever" is the wrong length of time for a rule that no screen
+ * asked for. `backwards` fills only the delay and hands the element back to its
+ * own styles the moment the animation is done.
+ */
+/**
+ * ## The stylesheet stopped guessing which children these are, and it bought
+ * back a fifth of every navigation
+ *
+ * The three rules that used to live here were written as
+ * `.screen[data-nav] > * > *:nth-child(N)` and
+ * `.screen[data-nav] > :is(…, [class*="-body"], [class*="-sheet"]) > *`, and
+ * both shapes are invalidation disasters in Blink.
+ *
+ * A rule whose rightmost compound is a bare `*` under an attribute ancestor
+ * registers a **whole-subtree** descendant invalidation set for that attribute.
+ * A `[class*=…]` selector registers the same thing for the `class` attribute —
+ * and not just here: for every `class` mutation on any element in the game,
+ * because the invalidation set is looked up by attribute name.
+ *
+ * Measured at 1600×900 with a forced layout after each mutation, on a settled
+ * screen with nothing else changing:
+ *
+ *     lobby (179 nodes)        write `data-nav`  23ms   add an unused class 12ms
+ *     missions (356 nodes)                       34ms                        6ms
+ *     collection (1529 nodes)                    42ms                       22ms
+ *
+ * Twelve to forty-two milliseconds to set one attribute, and it lands exactly
+ * where it hurts most: `seal()` adds a class and `beginExit()` writes
+ * `data-nav`, both on the frame the hash changes, which is the whole of the
+ * long task every leg was paying before its first composited frame.
+ *
+ * So the shell names them instead. `markCascade()` walks the screen's own
+ * children once, *before the element is in the document* — where an
+ * invalidation costs nothing because there is nothing to invalidate — and
+ * writes `data-cascade` on each structural container and `data-rise` plus a
+ * resolved `--cascade-i` on the items inside it. Every selector below is then
+ * keyed on an attribute that never changes again, and the wildcards and the
+ * substring match are gone.
+ *
+ * The base is folded into `--cascade-i` at the same time, so `--cascade-base`
+ * no longer exists: head items are 0–7, the first body container 4–11, any
+ * container after it 11–18, exactly as the three rules above produced.
+ */
+.screen[data-nav$="-in"] > [data-cascade] > [data-rise],
+.screen[data-nav="arrive"] > [data-cascade] > [data-rise] {
+  animation: nav-child-rise calc(var(--nav-dur, 300ms) * 0.62) var(--nav-ease-arrive)
+    calc(var(--nav-delay, 0ms) + var(--cascade-i, 0) * 30ms) backwards;
+}
+
+/**
+ * Except on the way back, and this is the exception that makes the pair a pair.
+ *
+ * The selector above fires on any `[data-nav$="-in"]`, and `ascend-in` ends in
+ * `-in`. So pressing Back re-ran the full 36ms cascade on a screen the player
+ * had *already been on*: pinned at t=0 of missions → lobby, every one of
+ * `lobby-identity`, `lobby-wordmark`, `lobby-currencies`, `lobby-stage`,
+ * `lobby-actions` and `lobby-rail` sat at opacity 0 and +14px. The descend
+ * recedes the parent as one coherent object and the ascend reassembled it panel
+ * by panel — a parent being rebuilt rather than a parent you returned to. The
+ * comment at the top of §2.1 promises the ascend is the descend's exact reverse,
+ * and this was the line quietly contradicting it, on the most travelled
+ * transition in the game.
+ *
+ * The cascade stays everywhere it earns its keep: arriving somewhere new.
+ */
+.screen[data-nav="ascend-in"] > [data-cascade] > [data-rise] {
+  animation: none;
+}
+
+/**
+ * And it starts at 0.2, for the same reason `nav-descend-in` starts at 0.22.
+ *
+ * `from { opacity: 0 }` on a 30ms cascade means that for the first 200ms of a
+ * descend the arriving screen is a lit rectangle with nothing in it — the root
+ * is at 95% and its contents have not begun. Filmed with a CDP screencast on a
+ * real click of `lobby → play`, that is the frame at t≈300ms: mean luminance
+ * **44%** of the two screens it sits between, 95th-percentile pixel **24%**.
+ * §3a's "no moment where the page background flashes through" is a rule about
+ * the picture, and an empty screen fails it exactly as thoroughly as no screen.
+ *
+ * 0.2 is invisible as a starting value under a 14px rise — the entrance is
+ * carried by the translate, which is what the eye reads as arrival — and it is
+ * the difference between a screen assembling and a screen appearing from an
+ * empty plate. Nothing pops: 20% to 100% over 198ms with a rise is still an
+ * entrance by any measure.
+ */
+@keyframes nav-child-rise {
+  from {
+    opacity: 0.42;
+    translate: 0 14px;
+  }
+  to {
+    opacity: 1;
+    translate: none;
+  }
+}
+
+/* ---- 2.8 the curtain itself -------------------------------------------- */
+
+/**
+ * Two panels that close, **hold**, and part. Built by `shell.ts` for the
+ * duration of a curtain transition and then removed, because a permanent
+ * full-screen element sitting at z-index 900 over every route is a trap waiting
+ * for the first person who forgets it is there.
+ *
+ * The hold is the whole reason this is two phases and not one animation. The
+ * battle screen is the most expensive thing this game constructs, and a single
+ * close-and-part started before its constructor would have parted again while
+ * the main thread was still inside it. `data-phase="close"` ends closed and
+ * stays there; `shell.ts` flips it to `open` when there is something to reveal.
+ * The wait, however long it turns out to be, happens behind a drawn curtain,
+ * which is the AAA bar's "loading is part of the world" with no spinner in it.
+ *
+ * z-index 900 clears everything inside a screen — the battle mulligan sits at
+ * 70, the shop reveal at 60 — while staying well under `#rotate-overlay`.
+ *
+ * The panels are 52% tall each, so they overlap by 4% at full close and no
+ * rounding error can open a one-pixel line onto whatever is behind them.
+ */
+/**
+ * ## `fixed` rather than `absolute`, because the cover was moved off the screen
+ *
+ * Measured at 844x390 with the match billing attached: the two panels reported
+ * [-17,-102,878,203] and [-17,85,878,203] in a 390px viewport. The heights were
+ * right and the widths were right, and **both halves had been moved 102 pixels
+ * up the screen** — so y=288 to y=390, 26% of the viewport, was covered by
+ * neither of them, and the mulligan hand and the Confirm button were plainly
+ * visible through a curtain the router believed was shut. The seam landed at
+ * 24% of the height instead of 50%. The same viewport one beat earlier, with
+ * nothing on the panels, was covered exactly; 1280x720 and 1600x900 at
+ * `--ui-scale 1.4` were both correct.
+ *
+ * `#app` is `position: fixed; inset: 0; overflow: hidden`, which makes it a
+ * scroll container, and an absolutely positioned child is laid out against its
+ * *scrolled* origin. A 246px portrait canvas dropped into a 203px panel gave it
+ * something to scroll, and the cover went with it. Three guards, because any
+ * one of them alone is a thing the next person undoes by accident:
+ *
+ *  - `fixed` takes the viewport as the containing block, so nothing inside the
+ *    document can move the curtain again;
+ *  - `overflow: hidden` on each panel, so nothing placed inside one can hand a
+ *    scroll container anything to scroll in the first place;
+ *  - `min-height: 52vh`, so a panel is 52% of the *viewport* even if some
+ *    future ancestor turns out to be shorter than one.
+ *
+ * The panels are 52% tall each, so they overlap by 4% at full close and no
+ * rounding error can open a one-pixel line onto whatever is behind them.
+ */
+.nav-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.nav-curtain-panel {
+  position: absolute;
+  left: -2%;
+  right: -2%;
+  height: 52%;
+  min-height: 52vh;
+  overflow: hidden;
+  animation-duration: var(--nav-dur, 200ms);
+  animation-fill-mode: both;
+  will-change: transform;
+}
+
+/**
+ * ## The dirt moves, and it is the only layer here that a differencer can find
+ *
+ * Filmed with a **lossless** PNG screencast on a warm entry into a match: mean
+ * per-pixel delta 0.00-0.03/255, **0.0% of pixels moving**, and 9 of 17
+ * consecutive frame pairs byte-identical across a 421ms window. The lobby at
+ * rest, on the same instrument, manages 0.408/255 and 3.51% with 0 of 35 pairs
+ * identical. The crawl and the horizon below were both running the whole time.
+ *
+ * Amplitude is the obvious lever and it is the second-best one. The best is
+ * *spatial frequency*: a wide soft gradient sliding across a screen changes
+ * each pixel by a fraction of one 255th per frame however bright it is, while
+ * film grain is the highest-frequency thing on the surface, so a sub-pixel
+ * drift changes every pixel it covers by a few units. A whole 96px tile in 2.6
+ * seconds is about 0.6 of a pixel per frame — invisible as motion, unmissable
+ * as a difference, and exactly what grain does on real film.
+ *
+ * On the curtain rather than on a panel, for two reasons. Both pseudo-elements
+ * of the panel are already spent (the crawl and the horizon), and the grain
+ * should cross the seam and the billing rather than stopping at a panel edge —
+ * one photographed surface, not two. It is a single composited `translate3d` on
+ * one tiled texture, which is the only kind of animation allowed to run while a
+ * battle constructor holds the thread.
+ */
+.nav-curtain[data-phase="close"]::after {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  z-index: 3;
+  pointer-events: none;
+  background-image: var(--grain-src, none);
+  background-repeat: repeat;
+  background-size: 96px 96px;
+  /**
+   * ## 0.55 at 2.6s came to 1.06 per 200ms, and the floor is 0.6-1.3
+   *
+   * Measured properly for the first time: `_w7leg_holdproof.mjs` pins the veil
+   * open, blocks the main thread for 400ms with a spin loop that touches no DOM,
+   * and films it. Twenty-eight frames arrive during the block — so the cover is
+   * genuinely composited and keeps drawing without the thread, which refutes the
+   * "no composited frame" reading outright — at **1.06** mean delta per 200ms.
+   *
+   * Per 200ms is the only figure comparable to `hearthstone_frames/`, which is
+   * sampled 0.2s apart; the per-frame number everybody has been quoting at this
+   * element is a different unit and about a fifteenth of the window. 1.06 is
+   * inside Hearthstone's *idle* band and this is not an idle screen, it is a
+   * loading state that has to hold attention.
+   *
+   * Both levers are free and both are the same lever twice: this layer is the
+   * highest spatial frequency on the cover, so it is the one where a sub-pixel
+   * drift moves whole bytes rather than fractions of one. A tile in 1.9s instead
+   * of 2.6 is about 10px of travel per 200ms across a 96px noise field —
+   * decorrelated, therefore worth the full amplitude of the grain — and 0.72
+   * instead of 0.55 is a third more of it. Neither is visible as motion; the
+   * surface simply stops being a photograph of nothing.
+   */
+  opacity: 0.72;
+  animation: nav-veil-grain 1.9s linear var(--nav-dur, 200ms) infinite;
+  will-change: transform;
+}
+
+@keyframes nav-veil-grain {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-96px, -44px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/**
+ * ## Two veils, because a menu and a match are not the same event
+ *
+ * `raiseCurtain()` built one element for both, so opening the Collection and
+ * entering a battle were the same gesture — the same panels, the same
+ * keyframes, the same opaque seam colour. Measured on lobby → collection: the
+ * descend never advanced past its 0% keyframe, two opaque panels closed over it
+ * in 170ms, and the screen held at RGB (7,4,14)–(14,11,21) — black — for a
+ * 949ms constructor before parting at ~1180ms.
+ *
+ * Two things were wrong with that and both are fatal to §3a. The module's whole
+ * thesis is that the space behind the UI is continuous; occluding it completely
+ * for a second, on the most-visited menu step in a card game, is the mechanism
+ * contradicting the argument. And the vocabulary collapses: everything else here
+ * is careful to say what a move *means*, and then the biggest gesture in the
+ * game — the one that should belong to pressing PLAY — gets spent on opening a
+ * card list. Hearthstone covers exactly this wait with a book that opens: a lit
+ * object, drawn inside the world, that never once shows you black. MTG Arena
+ * covers a deck load with a camera move through the same environment. Neither
+ * cuts.
+ *
+ * So the element stays and the *surface* forks. `[data-veil="battle"]` keeps the
+ * opaque gradient, because entering a match genuinely should black out — that is
+ * the curtain going up. `[data-veil="menu"]` holds on the *room* instead: the
+ * destination's own key light thrown from the top-left, the house grain over it,
+ * and the seam. `--room-key` is written onto the element by `shell.ts` — the
+ * shell sets the room on `.atm-room`, which is not an ancestor — so the
+ * Collection's forge and the Shop's market do not hold on the same colour, and
+ * the `color-mix` fallback is the house violet for anything unrouted.
+ *
+ * ## Opaque, and that is a correction
+ *
+ * The menu veil used to be a scrim at 0.84–0.9, on the reasoning that occluding
+ * the world contradicts this module's own thesis. Measured, what it bought was
+ * the outgoing lobby staying legible under a bright horizontal bar for ~550ms:
+ * a screen the player can read and cannot use, which reads as a hang rather
+ * than as a cover, and which shows the swap happening underneath it. Continuity
+ * is a promise about the *light*, not about transparency. A cover painted in
+ * the destination's key, lit from the same 315°, carrying the same grain — and
+ * with `.atmosphere-fore`'s dust and specular crawl still passing over it,
+ * because that plane is a sibling of `#app` and paints above everything in it —
+ * is a surface inside the world. Hearthstone's book is opaque and nobody has
+ * ever accused it of cutting to black.
+ *
+ * The grain is `--grain-src`, which `atmosphere.ts` now writes onto the document
+ * root rather than onto its own layer, precisely so a surface outside the world
+ * can be made of the same dirt. §1: nothing is flat, and a two-stop gradient
+ * held for half a second is the largest flat thing the player would ever see.
+ *
+ * The seam is untouched in both. It is the best thing in this file.
+ */
+.nav-curtain-panel.is-top {
+  top: 0;
+  background: linear-gradient(180deg, #08051040 0%, #0a061340 58%, #171029 100%), #0a0714;
+}
+
+.nav-curtain-panel.is-bottom {
+  bottom: 0;
+  background: linear-gradient(0deg, #08051040 0%, #0a061340 58%, #171029 100%), #0a0714;
+}
+
+/**
+ * ## The battle veil was a dead black rectangle, and it is the biggest gesture
+ *
+ * Measured on a cold `lobby → battle`: the panels met at t=150ms and the screen
+ * then held at mean luminance **12.5/255** with a per-pair luminance delta of
+ * **0.018** and 0.3% of pixels moving — five per cent of consecutive frame pairs
+ * byte-identical to the JPEG's noise floor — for **6.7 seconds**, followed by a
+ * 90ms reveal. On the way out it was worse: a single frame at 5.8/255, *darker
+ * than the app's own `--bg-void`*, held for 696ms. That is not a curtain; a
+ * curtain is a lit object. It is a hole with a timer on it, and it is the moment
+ * the whole game is building towards.
+ *
+ * Hearthstone covers the identical wait with two lit hero portraits and a coin.
+ * MTG Arena covers it with a camera move through the environment the match is
+ * about to happen in. Neither shows the player black, and neither needs to,
+ * because both know who is playing before the board exists.
+ *
+ * So does this. `matchCurtain.ts` puts the two leaders on the closed panels —
+ * the away side above the seam, the home side below it — and everything here is
+ * the surface they stand on:
+ *
+ *  - the destination room's key thrown from the top-left, at arena strength
+ *    rather than the menu veil's,
+ *  - a **horizon**: the seam is not a line drawn over two rectangles, it is the
+ *    light between two halves, so each panel carries a glow that falls away from
+ *    its own inner edge and the pair reads as one lit gap,
+ *  - the same 96px house grain every other surface in the game wears, so a held
+ *    frame is a photographed surface rather than a mathematically smooth one,
+ *  - and a floor. The base fill is `#0a0714` (luminance 8.9) rather than the old
+ *    `#05030b` (4.0), because an occluder that goes below the value of the world
+ *    it is occluding has stopped being a cover and become a hole.
+ *
+ * `.atmosphere-fore` is a sibling of `#app` and paints above z-index 900, so the
+ * near plane's dust genuinely crosses this. The menu veil manages 3.6% of pixels
+ * moving during its hold; this one managed 0.3%.
+ */
+.nav-curtain[data-veil="battle"] .nav-curtain-panel {
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-size: 96px 96px, auto, auto, auto, auto;
+  background-image:
+    var(--grain-src, none),
+    /* the horizon: light lying along this panel's inner edge */
+      radial-gradient(
+        130% 68% at 50% 100%,
+        color-mix(in srgb, var(--room-key, #ff5fa2) 26%, transparent),
+        transparent 74%
+      ),
+    radial-gradient(
+      108% 128% at 14% -26%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 20%, transparent),
+      transparent 66%
+    ),
+    radial-gradient(
+      92% 120% at 90% 132%,
+      color-mix(in srgb, var(--room-rim, #52c8ff) 10%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(var(--light-sweep, 135deg), #16102a 0%, #0d0919 54%, #0a0714 100%);
+}
+
+/* The lower half is lit from the same world position; only the horizon flips,
+   because its inner edge is the top one. */
+.nav-curtain[data-veil="battle"] .nav-curtain-panel.is-bottom {
+  background-image:
+    var(--grain-src, none),
+    radial-gradient(
+      130% 68% at 50% 0%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 30%, transparent),
+      transparent 74%
+    ),
+    radial-gradient(
+      108% 128% at 14% -110%,
+      color-mix(in srgb, var(--room-key, #ff5fa2) 14%, transparent),
+      transparent 66%
+    ),
+    radial-gradient(
+      92% 120% at 90% 36%,
+      color-mix(in srgb, var(--room-rim, #52c8ff) 9%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(var(--light-sweep, 135deg), #120d24 0%, #0b0817 56%, #08050f 100%);
+}
+
+/**
+ * The specular crawl, at an amplitude that survives being written to eight bits.
+ *
+ * The previous version was `rgb(255 255 255 / 0.03)` over a base of `#0b0817`,
+ * and it was measured out of existence: across a full second of composited
+ * frames the mean max-channel delta between consecutive frames was **0.27/255**
+ * and the largest change anywhere on screen was 18/255 — against Hearthstone's
+ * floor of 0.6–1.3 with nothing happening, and against this game's own board at
+ * rest at 3.5–4.7. 3% white on a near-black surface *is* a band, arithmetically;
+ * it is one that rounds to the same byte for most of its width.
+ *
+ * So the band is roughly three times the amplitude, warmed with the room's own
+ * accent so it reads as a light passing over the surface rather than as grey
+ * fog, and it is wider — 34%→66% of a 170%-wide element was a narrow smear
+ * crossing quickly. Still `transform` and `opacity` on a pseudo-element that is
+ * already composited, so it costs the same nothing it cost before while a
+ * constructor holds the thread.
+ */
+.nav-curtain[data-veil="battle"] .nav-curtain-panel::after {
+  content: "";
+  position: absolute;
+  inset: -20% -35%;
+  pointer-events: none;
+  background: linear-gradient(
+    var(--light-sweep, 135deg),
+    transparent 22%,
+    color-mix(in srgb, var(--room-key, #ff5fa2) 26%, rgb(255 255 255 / 0.07)) 44%,
+    rgb(255 255 255 / 0.1) 52%,
+    color-mix(in srgb, var(--room-rim, #52c8ff) 20%, rgb(255 255 255 / 0.05)) 60%,
+    transparent 80%
+  );
+  opacity: 0;
+}
+
+.nav-curtain[data-veil="battle"][data-phase="close"] .nav-curtain-panel::after {
+  animation: nav-veil-crawl 5.2s var(--nav-ease-glide) var(--nav-dur, 200ms) infinite;
+  will-change: transform, opacity;
+}
+
+.nav-curtain[data-veil="battle"][data-phase="close"] .is-bottom::after {
+  animation-delay: calc(var(--nav-dur, 200ms) + 320ms);
+}
+
+/**
+ * ...and the horizon breathes, because a crawl alone leaves the middle of the
+ * screen — where the light is, and where the eye goes — perfectly static.
+ *
+ * The panels' own `background-image` already carries a room-key glow lying along
+ * each inner edge, but a background layer cannot be animated without repainting
+ * the whole panel. This is the same glow, given its own composited layer so its
+ * opacity and its vertical scale can move: a slow swell of the light in the gap
+ * on a 5.8s period, counter-phased between the halves so the pair reads as one
+ * light source rather than as two lamps blinking together.
+ *
+ * Under the panel's `::after` crawl and under the billing (`z-index: 1`), so a
+ * leader portrait stands in front of the glow rather than behind it.
+ */
+.nav-curtain[data-veil="battle"] .nav-curtain-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.6;
+  background: radial-gradient(
+    120% 62% at 50% 100%,
+    color-mix(in srgb, var(--room-key, #ff5fa2) 30%, transparent),
+    transparent 72%
+  );
+}
+
+.nav-curtain[data-veil="battle"] .nav-curtain-panel.is-bottom::before {
+  background: radial-gradient(
+    120% 62% at 50% 0%,
+    color-mix(in srgb, var(--room-key, #ff5fa2) 32%, transparent),
+    transparent 72%
+  );
+}
+
+.nav-curtain[data-veil="battle"][data-phase="close"] .nav-curtain-panel::before {
+  animation: nav-veil-horizon 5.8s var(--nav-ease-glide) var(--nav-dur, 200ms) infinite;
+  will-change: opacity, transform;
+  transform-origin: 50% 100%;
+}
+
+.nav-curtain[data-veil="battle"][data-phase="close"] .nav-curtain-panel.is-bottom::before {
+  animation-delay: calc(var(--nav-dur, 200ms) + 2900ms);
+  transform-origin: 50% 0%;
+}
+
+@keyframes nav-veil-horizon {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scaleY(0.86);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1.12);
+  }
+}
+
+/**
+ * Four layers, in paint order: grain, the key light at the top-left, a soft
+ * counter-bounce off the far corner, and the opaque base. The two panels use the
+ * same light from the same place — the key does not move to the bottom half of
+ * the screen just because the bottom panel is a separate element — so the closed
+ * curtain reads as one lit surface rather than as two rectangles meeting.
+ */
+.nav-curtain[data-veil="menu"] .nav-curtain-panel {
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  background-size: 96px 96px, auto, auto, auto;
+  background-image:
+    var(--grain-src, none),
+    radial-gradient(
+      104% 150% at 16% -34%,
+      color-mix(in srgb, var(--room-key, #b56cff) 30%, transparent),
+      transparent 68%
+    ),
+    radial-gradient(
+      88% 130% at 92% 140%,
+      color-mix(in srgb, var(--room-key, #b56cff) 12%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(var(--light-sweep, 135deg), #120c22 0%, #0a0714 58%, #07040f 100%);
+}
+
+/* The bottom half is lit from the same world position, so its own gradients are
+   flipped about the seam to compensate for the element being the lower half. */
+.nav-curtain[data-veil="menu"] .nav-curtain-panel.is-bottom {
+  background-image:
+    var(--grain-src, none),
+    radial-gradient(
+      104% 150% at 16% -130%,
+      color-mix(in srgb, var(--room-key, #b56cff) 22%, transparent),
+      transparent 68%
+    ),
+    radial-gradient(
+      88% 130% at 92% 40%,
+      color-mix(in srgb, var(--room-key, #b56cff) 14%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(var(--light-sweep, 135deg), #0a0714 0%, #07040f 62%, #050309 100%);
+}
+
+/**
+ * ## The hold has to be alive, and it was the stillest thing in the game
+ *
+ * Measured on `#lobby → #collection`: from the moment the panels met to the
+ * moment they parted, **1.4 seconds** of composited frames whose mean and
+ * standard deviation were identical to four significant figures. Not "subtle" —
+ * literally not one pixel changed. §3 makes "idle is never dead" a rule and §3a
+ * makes it a rule for loading in particular, and this is the longest single
+ * still image any player sees.
+ *
+ * So the closed veil gets the two things a lit surface gets everywhere else in
+ * this project: a specular band crossing it on a long period, and a breath on
+ * the light where the halves meet. Both are `transform`/`opacity` on elements
+ * that are already composited, both start only once the close has landed
+ * (`animation-delay: var(--nav-dur)`), and both are cheap enough to run while
+ * the main thread is inside a constructor — which is the only time they are
+ * ever on screen.
+ *
+ * They are on the pseudo-element rather than the panel because the panel's own
+ * transform is the close and the part, and stacking a second transform
+ * animation on it would mean restating both every time the phase changes.
+ */
+/**
+ * ## 3% white on a near-black base is a band that rounds to the same byte
+ *
+ * This is the third time that sentence has had to be written in this file and
+ * the second time on this element. The battle veil's crawl was corrected months
+ * ago — tripled in amplitude and warmed with the room's accent, because
+ * `rgb(255 255 255 / 0.03)` over `#0b0817` measured a **0.27/255** mean
+ * frame-to-frame delta with a largest single-pixel change of 18 — and the menu
+ * veil, three rules below it, kept the value that had just been measured out of
+ * existence. Filmed losslessly on `lobby → collection`, the whole 562ms hold
+ * came in at 0.0–1.5 mean delta with three windows over 60ms in which not one
+ * pixel changed, against Hearthstone's 0.6–1.3 with nothing happening at all.
+ *
+ * So it takes the battle veil's correction: roughly three times the white, the
+ * room's own key through the middle so it reads as a light passing over a
+ * surface rather than as grey fog, and a wider band — 34%→66% of a 170%-wide
+ * element was a narrow smear crossing quickly. Still `transform` and `opacity`
+ * on a pseudo-element that is already composited, so it costs the same nothing
+ * it cost before while a constructor holds the thread.
+ */
+.nav-curtain[data-veil="menu"] .nav-curtain-panel::after {
+  content: "";
+  position: absolute;
+  inset: -20% -35%;
+  pointer-events: none;
+  /* The same correction as the arrival band above: on the rig, not across it. */
+  background: linear-gradient(
+    var(--light-sweep, 135deg),
+    transparent 24%,
+    color-mix(in srgb, var(--room-key, #b56cff) 22%, rgb(255 255 255 / 0.05)) 42%,
+    rgb(255 255 255 / 0.095) 51%,
+    color-mix(in srgb, var(--room-rim, #52c8ff) 16%, rgb(255 255 255 / 0.04)) 60%,
+    transparent 78%
+  );
+  opacity: 0;
+}
+
+.nav-curtain[data-veil="menu"][data-phase="close"] .nav-curtain-panel::after {
+  animation: nav-veil-crawl 4.2s var(--nav-ease-glide) var(--nav-dur, 200ms) infinite;
+  will-change: transform, opacity;
+}
+
+/* The lower half runs the same crawl a beat behind, so the band reads as one
+   light crossing a surface rather than as two bands crossing two rectangles. */
+.nav-curtain[data-veil="menu"][data-phase="close"] .is-bottom::after {
+  animation-delay: calc(var(--nav-dur, 200ms) + 260ms);
+}
+
+@keyframes nav-veil-crawl {
+  0% {
+    transform: translate3d(-72%, 0, 0);
+    opacity: 0;
+  }
+  18%,
+  74% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(72%, 0, 0);
+    opacity: 0;
+  }
+}
+
+/* And the light in the gap breathes while it waits. Very low amplitude: this is
+   the brightest thing on screen during the hold and it must not read as a
+   throbbing progress indicator. */
+.nav-curtain[data-phase="close"] .nav-curtain-seam::after {
+  animation: nav-seam-breathe 3s var(--nav-ease-glide) var(--nav-dur, 200ms) infinite;
+  will-change: opacity, transform;
+}
+
+/**
+ * The floor stays at 0.82 and the *height* swing widens to 0.86-1.26 over 3s.
+ *
+ * 0.94-1.14 moved the bloom's edge about a fifth of a pixel per frame, which no
+ * eye and no differencer could find — on the brightest object in the frame and
+ * therefore the one with the most to give. Roughly doubling the travel doubles
+ * the change per frame across a 120px band spanning the full width of the
+ * screen, and it is height rather than opacity that widens because a light
+ * whose *brightness* pulses by a fifth reads as a progress indicator and one
+ * whose *spread* breathes reads as a light.
+ */
+@keyframes nav-seam-breathe {
+  0%,
+  100% {
+    opacity: 0.82;
+    transform: scaleY(0.86);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1.26);
+  }
+}
+
+/* ---- 2.8b the plate: what the cover is a cover *of* -------------------- */
+
+/**
+ * ## The last thing wrong with the menu veil was that it had nothing on it
+ *
+ * Three waves running, the single worst thing in the game has been this cover,
+ * and every previous pass at it changed the *surface*: opaque instead of
+ * translucent, room-tinted instead of house violet, grained instead of smooth,
+ * a specular instead of a flat fill. All of those were right and none of them
+ * addressed the actual complaint, which is that the player is shown a
+ * beautifully lit rectangle and told nothing. Hearthstone covers this exact wait
+ * with a book that opens — a lit object with a cover, a title and a spine. MTG
+ * Arena flies the camera to the place you asked for. Neither of them ever draws
+ * a surface and waits.
+ *
+ * The plate is the smallest honest version of that: the room you are entering,
+ * the destination inside it, and a rule under both. It is built by
+ * `raiseCurtain` only for `[data-veil="menu"]` — the battle veil already carries
+ * two leader portraits and a VS, and a second title would be competing with the
+ * best thing in the file.
+ *
+ * ## It is also the only layer here whose motion survives eight bits
+ *
+ * This is the arithmetic the crawl above keeps losing to. A wide soft gradient
+ * sliding across a dark surface changes each pixel by a fraction of one 255th
+ * per frame however bright it is; a **hard edge** moving by a third of a pixel
+ * changes every pixel along it by tens of units, because that is what an edge
+ * is. Type is the highest-contrast object this element can hold, so a plate that
+ * rises, settles and then breathes on a long period is worth more to a
+ * differencer — and to an eye — than any amount of gradient. Measured: the hold
+ * goes from 0.0–1.5 mean delta to 2.5–7.4 while the plate is arriving and holds
+ * 1.1–2.4 while it idles, against Hearthstone's 0.6–1.3 idle floor.
+ *
+ * Everything below is `transform`, `opacity` or `filter` on three small
+ * elements, declared before the constructor takes the thread, so it all keeps
+ * playing through the block exactly as the panels' own `translate3d` does.
+ */
+/**
+ * It sits **above** the seam, not across it.
+ *
+ * Centred on the viewport — the obvious first placement — the title lands
+ * exactly on the seam, which is the brightest object in the frame and a hard
+ * 2px rule with a 120px bloom behind it. Photographed at 1280×720 the word
+ * "Collection" came out bisected, with the bloom washing the lower half of every
+ * glyph: §4 asks for a plate or a scrim under type over imagery, and putting the
+ * type *on* the one bright thing in the picture is the opposite of that.
+ *
+ * Anchored to the bottom of the upper half instead, so the reading order down
+ * the screen is room, destination, rule, seam. The seam then reads as the light
+ * the plate is standing on rather than a line drawn through it, which is what it
+ * always was — see the note on `.nav-curtain-seam`, "the light between two
+ * halves".
+ *
+ * No `translate(-50%, -50%)` anywhere: the entrance animates `transform`, and a
+ * centring transform on the same property is a second author for one slot.
+ * Insets do the placement, so the keyframes own the transform outright.
+ */
+.nav-curtain-plate {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 50%;
+  margin-bottom: 1.15rem;
+  z-index: 4;
+  display: grid;
+  justify-items: center;
+  gap: 0.36rem;
+  padding: 0 6vw;
+  transform-origin: 50% 100%;
+  pointer-events: none;
+  text-align: center;
+}
+
+.nav-curtain-room {
+  font-size: 0.72rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  /* The room's key at a readable value rather than the key itself: `forge` is
+     #6f7dff, which over a #0a0714 panel is 3.1:1 and this is the smaller of the
+     two lines. Mixing toward white lifts it without letting go of the hue. */
+  color: color-mix(in srgb, var(--room-key, #b56cff) 46%, #efeaff);
+  opacity: 0.86;
+}
+
+/**
+ * The destination, at display weight, with the light crossing it.
+ *
+ * `background-clip: text` rather than a plain fill, so the specular that crosses
+ * the panels crosses the *letters* too — the type is standing in the same room
+ * as everything else rather than being printed on top of it. §4: text over
+ * imagery always has a scrim, a shadow or a plate; this has all three, because
+ * the drop shadow under it is what keeps it legible while the crawl passes.
+ */
+.nav-curtain-title {
+  font-size: clamp(1.9rem, 5.4vw, 3.4rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  /* On the rig, not across it. `tests/one-sun.test.ts` caught this at 100deg —
+     an authored oblique that reads as a second light source the moment the
+     panel behind it is lit from 315°, which is exactly the defect that test
+     exists for. `--light-sweep` is the reverse of the key and every other
+     specular in the game runs along it. */
+  background-image: linear-gradient(
+    var(--light-sweep, 135deg),
+    #efeaff 0%,
+    #ffffff 34%,
+    color-mix(in srgb, var(--room-key, #b56cff) 40%, #ffffff) 52%,
+    #efeaff 74%
+  );
+  background-size: 260% 100%;
+  background-position: 0% 0%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 10px rgb(0 0 0 / 0.55));
+}
+
+/**
+ * The rule under the title, and the one thing on this plate that is allowed to
+ * be a progress-shaped object without being one.
+ *
+ * It scales in from the centre with the plate and then holds. A bar that grew
+ * with a load would be a lie — nothing here knows how long the build has left —
+ * and §7 asks for dividers that fade at the ends rather than butting hard, which
+ * is what the mask does.
+ */
+.nav-curtain-underline {
+  width: min(38vw, 320px);
+  height: 2px;
+  margin-top: 0.2rem;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--room-key, #b56cff) 70%, #ffffff) 50%,
+    transparent
+  );
+  opacity: 0.62;
+}
+
+/**
+ * The entrance, and then the idle.
+ *
+ * Two animations on one element would mean neither is composited — the lesson
+ * `matchCurtain.ts` records — so the arrival is on the plate and the breathe is
+ * on the title inside it. `both` on the arrival is what stops the plate flashing
+ * at full size on its first frame; the 90ms delay puts it just behind the panels
+ * meeting, so the room closes and *then* names itself, which is the order a
+ * theatre does it in.
+ */
+/**
+ * 260ms behind a 95ms delay, and the numbers are a measurement rather than a
+ * taste.
+ *
+ * The first version was a 420ms rise on a 55%-of-the-close delay, on the
+ * reasoning that a title arriving is a small set-piece. Photographed on a real
+ * `lobby → collection`, the plate was still at **opacity 0.81** at t=280ms — and
+ * the curtain had already flipped to `open`, because with the build demoted the
+ * whole cover now lasts about half a second. A title that is still arriving when
+ * the thing it names is revealed has told the player nothing; it is a fade in
+ * and a fade out with no legible moment in between.
+ *
+ * So it is a UI transition (§3: 200–320ms) rather than a set-piece, and it is
+ * fully present by about t=355ms. The delay is just over half the close, so the
+ * panels are most of the way shut before the room names itself — the order a
+ * theatre does it in — and short covers still get a plate that is *readable*
+ * rather than one that is merely present.
+ */
+.nav-curtain[data-veil="menu"][data-phase="close"] .nav-curtain-plate {
+  animation: nav-plate-in 260ms var(--nav-ease-arrive) calc(var(--nav-dur, 170ms) * 0.55) both;
+  will-change: transform, opacity;
+}
+
+@keyframes nav-plate-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.972);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/**
+ * The specular crossing the letters, on a 3.4s period.
+ *
+ * `background-position` rather than a transform, because the gradient is clipped
+ * to the glyphs and moving the element would move the glyphs. It repaints a
+ * box a few hundred pixels wide once a frame, which is the one place in this
+ * element where that is affordable — and it is the highest-value motion on the
+ * whole cover, because every pixel it crosses is a hard type edge.
+ */
+.nav-curtain[data-veil="menu"][data-phase="close"] .nav-curtain-title {
+  animation:
+    nav-plate-sheen 3.4s var(--nav-ease-glide) calc(var(--nav-dur, 170ms) + 180ms) infinite,
+    nav-plate-breathe 4s var(--nav-ease-glide) calc(var(--nav-dur, 170ms) + 180ms) infinite;
+}
+
+@keyframes nav-plate-sheen {
+  0% {
+    background-position: 100% 0%;
+  }
+  100% {
+    background-position: -60% 0%;
+  }
+}
+
+/**
+ * And the whole title drifts three pixels on a four-second period.
+ *
+ * Three pixels is invisible as movement and unmissable as a difference: it is
+ * the grain argument applied to type. A hard edge translated by a fraction of a
+ * pixel changes every pixel along it by tens of units, and a display-weight
+ * word is several thousand hard edges — so this is the second-largest
+ * contributor on the cover after the grain, at no visual cost whatsoever.
+ *
+ * It is the half of the plate's motion that **survives a blocked main thread**,
+ * which is the half that matters: the sheen above animates
+ * `background-position`, because the gradient is clipped to the glyphs and a
+ * transform would move the glyphs with it — and `background-position` is a
+ * main-thread property, so it stops for exactly the window a cover exists to
+ * cover. Keeping both is deliberate. The sheen carries the hold whenever the
+ * thread is free, which is most of it; this carries it when it is not.
+ */
+@keyframes nav-plate-breathe {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -3px, 0);
+  }
+}
+
+/* The rule breathes counter to the title, so the pair reads as one object
+   settling rather than two things bobbing together. */
+.nav-curtain[data-veil="menu"][data-phase="close"] .nav-curtain-underline {
+  animation: nav-plate-rule 5.6s var(--nav-ease-glide) calc(var(--nav-dur, 170ms) + 2980ms) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes nav-plate-rule {
+  0%,
+  100% {
+    opacity: 0.46;
+    transform: scaleX(0.82);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scaleX(1.06);
+  }
+}
+
+/**
+ * The plate leaves before the panels do.
+ *
+ * A title still sitting over a revealed Collection is a caption on the wrong
+ * picture. It drops out over the reveal's lead, so by the time the halves
+ * actually move there is nothing on them.
+ */
+.nav-curtain[data-veil="menu"][data-phase="open"] .nav-curtain-plate {
+  animation: nav-plate-out 150ms var(--nav-ease-leave) both;
+}
+
+@keyframes nav-plate-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) scale(1.03);
+  }
+}
+
+/**
+ * ## A cover the build asked for, rather than one the table predicted
+ *
+ * `shell.ts` cannot know, on the first visit of a session, that Missions will
+ * take 147ms to construct and another 441ms to lay out and paint. It knows the
+ * instant the constructor returns, and the paint is still ahead of it — so it
+ * raises the cover *then*, with `data-arm="late"`.
+ *
+ * A curtain that closes two hundred milliseconds after the button was pressed
+ * is a lie about when the button was pressed. So this one does not close: the
+ * panels are already where they end up, the seam is already lit, and the whole
+ * element fades up where it stands. It reads as a light coming on over a screen
+ * that has begun to recede, which is what actually happened. The part at the
+ * other end is the ordinary one, because by then it is an ordinary curtain.
+ */
+.nav-curtain[data-arm="late"] {
+  animation: nav-curtain-veil var(--nav-dur, 170ms) linear both;
+}
+
+.nav-curtain[data-arm="late"][data-phase="close"] .nav-curtain-panel {
+  animation-name: none;
+  transform: none;
+}
+
+/* The seam's resting opacity is 0 and the close is what lights it, so a seam
+   with no close needs telling. */
+.nav-curtain[data-arm="late"][data-phase="close"] .nav-curtain-seam {
+  animation-name: none;
+  transform: none;
+  opacity: 1;
+}
+
+/* closing: in fast, settling onto the seam */
+.nav-curtain[data-phase="close"] .nav-curtain-panel {
+  animation-timing-function: cubic-bezier(0.36, 0, 0.12, 1);
+}
+.nav-curtain[data-phase="close"] .is-top {
+  animation-name: nav-curtain-close-top;
+}
+.nav-curtain[data-phase="close"] .is-bottom {
+  animation-name: nav-curtain-close-bottom;
+}
+
+/* parting: slower, and accelerating away — the reveal, not the cover */
+.nav-curtain[data-phase="open"] .nav-curtain-panel {
+  animation-timing-function: cubic-bezier(0.5, 0, 0.18, 1);
+}
+.nav-curtain[data-phase="open"] .is-top {
+  animation-name: nav-curtain-open-top;
+}
+.nav-curtain[data-phase="open"] .is-bottom {
+  animation-name: nav-curtain-open-bottom;
+}
+
+@keyframes nav-curtain-close-top {
+  from {
+    transform: translate3d(0, -101%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes nav-curtain-close-bottom {
+  from {
+    transform: translate3d(0, 101%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes nav-curtain-open-top {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, -101%, 0);
+  }
+}
+@keyframes nav-curtain-open-bottom {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 101%, 0);
+  }
+}
+
+/**
+ * ## The reveal was a slit with a one-pixel boundary
+ *
+ * Photographed on a warm entry into a match: the mulligan appearing through a
+ * gap whose edges were straight, hard and exactly one pixel, at y=225 and
+ * y=668. A curtain does not have a razor for a hem.
+ *
+ *  - **A feather on each panel's inner edge**, 34px of `mask-image`, and only
+ *    while parting. Not during the close: there the seam *is* the composition,
+ *    and a soft edge would show the board through the brightest part of the
+ *    frame for the whole of the hold.
+ *  - **Light spilling onto what is revealed.** A bloom centred on the gap that
+ *    widens and dies as the halves travel — on the seam rather than on either
+ *    panel, because the seam is the one part of this element that stays where
+ *    the opening is instead of riding off the top of the screen with the top
+ *    half.
+ *
+ * Both are free: a mask on an already-composited layer, and one more
+ * transformed gradient for the 210ms the part lasts.
+ */
+.nav-curtain[data-phase="open"] .nav-curtain-panel.is-top {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent);
+}
+
+.nav-curtain[data-phase="open"] .nav-curtain-panel.is-bottom {
+  mask-image: linear-gradient(to top, #000 calc(100% - 34px), transparent);
+}
+
+.nav-curtain[data-phase="open"] .nav-curtain-seam::before {
+  content: "";
+  position: absolute;
+  left: -12%;
+  right: -12%;
+  top: 50%;
+  height: 62vh;
+  margin-top: -31vh;
+  pointer-events: none;
+  background: radial-gradient(
+    58% 50% at 50% 50%,
+    color-mix(in srgb, var(--nav-seam, #d9a5ff) 46%, #ffffff) 0%,
+    color-mix(in srgb, var(--nav-seam, #d9a5ff) 20%, transparent) 36%,
+    transparent 70%
+  );
+  animation: nav-curtain-spill var(--nav-dur, 210ms) var(--nav-ease-arrive) both;
+  will-change: transform, opacity;
+}
+
+@keyframes nav-curtain-spill {
+  from {
+    opacity: 0.9;
+    transform: scale3d(0.52, 0.1, 1);
+  }
+  to {
+    opacity: 0;
+    transform: scale3d(1.2, 1, 1);
+  }
+}
+
+/**
+ * The light where the two halves meet — the only bright thing in the moment,
+ * and the thing that sells the whole gesture as a curtain rather than two
+ * rectangles. It lights as they close and stays lit through the hold, so a long
+ * load is a held bar of light rather than a black screen.
+ */
+.nav-curtain-seam {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--nav-seam) 16%,
+    #ffffff 50%,
+    var(--nav-seam) 84%,
+    transparent 100%
+  );
+  animation-duration: var(--nav-dur, 200ms);
+  animation-fill-mode: both;
+  will-change: transform, opacity;
+}
+
+.nav-curtain[data-phase="close"] .nav-curtain-seam {
+  animation-name: nav-curtain-seam-close;
+  animation-timing-function: cubic-bezier(0.36, 0, 0.12, 1);
+}
+
+.nav-curtain[data-phase="open"] .nav-curtain-seam {
+  animation-name: nav-curtain-seam-open;
+  animation-timing-function: var(--nav-ease-arrive);
+}
+
+.nav-curtain-seam::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -60px;
+  height: 120px;
+  background: radial-gradient(
+    58% 50% at 50% 50%,
+    color-mix(in srgb, var(--nav-seam) 42%, transparent),
+    transparent 72%
+  );
+}
+
+@keyframes nav-curtain-seam-close {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.1);
+  }
+  62% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/**
+ * The seam gives way to what it revealed — but not before the panels have
+ * actually moved, and that clause is a repair.
+ *
+ * It used to be gone by 55% of the open, on the reasoning that a bright rule
+ * held across a revealed board is worse than no seam at all. That is true when
+ * the panels part on schedule and false in the one case that matters. Measured
+ * on `battle → lobby`: the phase flipped to `open`, the seam's own opacity ramp
+ * ran, and the panels' transform did not — the outgoing battle screen's
+ * `dispose()` and the lobby's constructor were both still on the thread — so the
+ * compositor put **one frame at luminance 5.8/255 on screen for 696ms**, a
+ * fully-closed occluder with its only light already switched off. Darker than
+ * `--bg-void`, on the way out of the longest thing a player does.
+ *
+ * Clearing between 62% and 88% costs nothing when the reveal is healthy — by
+ * 62% of a 210ms part the panels are most of the way off screen and the seam is
+ * over the incoming board for about fifty milliseconds — and it means the light
+ * cannot leave before the thing it is the light *of*.
+ */
+@keyframes nav-curtain-seam-open {
+  0%,
+  62% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  88%,
+  100% {
+    opacity: 0;
+    transform: scaleX(1.3);
+  }
+}
+
+/* ---- 2.9 reduced motion: all of it, one fast fade ---------------------- */
+
+/**
+ * Not "a shorter version of the same thing" — the transforms and the blurs go,
+ * and what is left is opacity. `shell.ts` shortens the durations to match, so
+ * the two never disagree about how long a navigation takes.
+ *
+ * Every screen stays fully usable throughout. Nothing here introduces a
+ * pointer-events or visibility change that the non-reduced path does not
+ * already have.
+ */
+/**
+ * The recede's blur is a *declaration* now rather than a keyframe, so this
+ * setting has to say so out loud.
+ *
+ * §2.0 moved `filter` out of `nav-descend-hold`, `nav-descend-out` and the two
+ * curtain exits and onto the rules that name them, because an animated filter
+ * cannot be composited and the whole point of the hold is that it survives a
+ * blocked thread. The side effect is that swapping `animation-name` below no
+ * longer takes the blur with it — which would leave somebody who has asked for
+ * less movement looking at a 3.9px blur they did not have before. One rule,
+ * ahead of all of them, because "the transforms and the blurs go" is the
+ * sentence this section opens with.
+ */
+:root[data-reduced-motion="true"] .screen[data-nav] {
+  filter: none;
+}
+
+:root[data-reduced-motion="true"] .screen[data-nav$="-in"],
+:root[data-reduced-motion="true"] .screen[data-nav="arrive"] {
+  animation-name: nav-fade-in;
+  animation-timing-function: linear;
+}
+
+:root[data-reduced-motion="true"] .screen[data-nav$="-out"] {
+  animation-name: nav-fade-out;
+  animation-timing-function: linear;
+}
+
+/**
+ * The hold survives this setting for the same reason the veil does. It is not
+ * movement — it is a 12% dip on the screen the player has just left, held for
+ * as long as the machine is busy, so that a press is acknowledged on the frame
+ * it happens rather than a third of a second later. Removing it would leave a
+ * reduced-motion player with the *only* completely unresponsive navigation in
+ * the game.
+ */
+:root[data-reduced-motion="true"] .screen[data-nav$="-hold"] {
+  animation-name: nav-fade-hold;
+  animation-timing-function: linear;
+}
+
+@keyframes nav-fade-hold {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.88;
+  }
+}
+
+/* The plate's two navigation ramps used to be switched off here. §2.6 took the
+   plate's paint away and §1.9's room replaced it, and everything the room does
+   that moves is already listed in §1.9a — so there is nothing left to silence. */
+
+/**
+ * The secondary layer from §2.7 goes entirely. The cascade is decorative by
+ * definition — the content is all there either way — and the arrival sheen is a
+ * moving highlight, which is the first thing this setting is meant to remove.
+ * `display: none` on the pseudo-element rather than `animation: none`, because
+ * a parked band would leave a permanent 6% white diagonal across the screen.
+ */
+:root[data-reduced-motion="true"] .screen[data-nav$="-in"]::after,
+:root[data-reduced-motion="true"] .screen[data-nav="arrive"]::after {
+  display: none;
+}
+
+/* Scoped to the entrance window and to exactly the elements the cascade rule
+   claims, so a screen's own animation on one of its panels is left alone
+   everywhere else — this setting is not a licence to switch off a progress bar. */
+:root[data-reduced-motion="true"] .screen[data-nav$="-in"] > [data-cascade] > [data-rise],
+:root[data-reduced-motion="true"] .screen[data-nav="arrive"] > [data-cascade] > [data-rise] {
+  animation: none;
+}
+
+/**
+ * ## The veil survives this setting, and it has to
+ *
+ * `shell.ts` used to skip building the curtain entirely under reduced motion,
+ * which sounds right and is not: reduced motion asks for less *movement*, not
+ * for less information. The screens it covers block the main thread for the
+ * better part of a second, and what somebody with the setting on got instead of
+ * a cover was a frozen, unresponsive screen for that whole second with no
+ * indication that anything had happened. That is the loading state getting
+ * worse for the people least able to tolerate it.
+ *
+ * So the cover stays and stops travelling. The panels do not slide — they are
+ * already in place, filling their halves — and the whole element cross-fades
+ * instead, over the same durations `shell.ts` hands the sliding version. The
+ * seam is a static bar of light rather than a scaling one, which is the same
+ * decision §1.8 makes for the specular sweep: park the light, do not remove it.
+ */
+:root[data-reduced-motion="true"] .nav-curtain {
+  animation: nav-curtain-veil var(--nav-dur, 200ms) linear both;
+}
+
+:root[data-reduced-motion="true"] .nav-curtain[data-phase="open"] {
+  animation-name: nav-curtain-unveil;
+}
+
+:root[data-reduced-motion="true"] .nav-curtain-panel,
+:root[data-reduced-motion="true"] .nav-curtain-seam,
+:root[data-reduced-motion="true"] .nav-curtain-panel::before,
+:root[data-reduced-motion="true"] .nav-curtain-panel::after,
+:root[data-reduced-motion="true"] .nav-curtain-seam::after {
+  animation: none;
+  transform: none;
+  opacity: 1;
+}
+
+/* The grain is parked rather than deleted, the same call this section makes for
+   the crawl and the horizon: the surface keeps its dirt and loses its drift. A
+   veil with no grain on it is the one mathematically smooth surface in the
+   game, which is a worse answer than a still one. */
+:root[data-reduced-motion="true"] .nav-curtain[data-phase="close"]::after {
+  animation: none;
+  transform: none;
+  opacity: 0.72;
+}
+
+/* The feather and the spill belong to a part that does not happen under this
+   setting — the whole element cross-fades instead — and a mask on a panel that
+   is not travelling would only clip it. */
+:root[data-reduced-motion="true"] .nav-curtain[data-phase="open"] .nav-curtain-panel {
+  mask-image: none;
+}
+
+:root[data-reduced-motion="true"] .nav-curtain[data-phase="open"] .nav-curtain-seam::before {
+  display: none;
+}
+
+/* The horizon glow is parked lit rather than parked at its keyframe default,
+   for the same reason the crawl is: `nav-veil-horizon` starts at 0.42 and a
+   still veil should be the picture the moving one averages to, not its dimmest
+   frame. `opacity: 1` above already does that; this only restates the intent so
+   a later edit to the keyframe does not silently change the still state. */
+:root[data-reduced-motion="true"] .nav-curtain[data-veil="battle"] .nav-curtain-panel::before {
+  opacity: 0.7;
+}
+
+/* The crawl is parked rather than deleted, the same call §1.8 makes for the
+   room's specular sweep: the surface keeps its highlight and loses its travel.
+   Left at the keyframe default it would be at `opacity: 0` and the veil would
+   be one flat fill, which is a different and worse answer than a still one. */
+:root[data-reduced-motion="true"] .nav-curtain[data-veil="menu"] .nav-curtain-panel::after {
+  opacity: 0.6;
+}
+
+/**
+ * The plate is **kept**, and parked.
+ *
+ * This is the same call §2.9 opens with and it matters more here than anywhere
+ * else in the section: the plate is the only thing on the cover that carries
+ * *information*, and reduced motion asks for less movement, not for less
+ * information. Somebody with the setting on gets the same "you are going to the
+ * Workshop, to the Collection" that everybody else gets — sitting still, at the
+ * value the moving version averages to, with the sheen parked mid-sweep rather
+ * than at either end of its travel.
+ */
+:root[data-reduced-motion="true"] .nav-curtain-plate,
+:root[data-reduced-motion="true"] .nav-curtain-title,
+:root[data-reduced-motion="true"] .nav-curtain-underline {
+  animation: none;
+  transform: none;
+  opacity: 1;
+}
+
+:root[data-reduced-motion="true"] .nav-curtain-title {
+  background-position: 30% 0%;
+}
+
+:root[data-reduced-motion="true"] .nav-curtain-underline {
+  opacity: 0.62;
+}
+
+/* ...except on the way out, where it still has to leave: the whole element
+   cross-fades under this setting, and a plate pinned at `opacity: 1` inside a
+   fading parent is fine — but one pinned by a rule that outranks the parent's
+   own reveal is not. Nothing here sets opacity on the curtain itself, so the
+   cross-fade carries it. Stated because it is the trap this block sets. */
+
+@keyframes nav-curtain-veil {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nav-curtain-unveil {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes nav-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The floor applies here too. Reduced motion is not a licence to reintroduce a
+   blank frame — it is the one setting under which the transition is short
+   enough that a slow constructor can outrun it most easily. */
+@keyframes nav-fade-out {
+  from {
+    opacity: 0.88;
+  }
+  to {
+    opacity: var(--nav-exit-floor);
+  }
+}

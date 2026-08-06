@@ -21,6 +21,7 @@ import {
 } from "../../game/story/archive";
 import { chapterProgress, resetChapter, storyStore } from "../../save/storySave";
 import { audio } from "../../audio/audio";
+import { count, crestMark, enter, icon, meter, quantify, room } from "./data/kit";
 
 export interface StoryCallbacks {
   onBack: () => void;
@@ -42,7 +43,16 @@ export function createStoryScreen(
   const chapter = chapterId ? story.chapters.find((entry) => entry.id === chapterId) : null;
 
   const root = document.createElement("div");
-  root.className = "screen story-screen";
+  /**
+   * `d-hall-solo`: the Stage has no wall furniture and does not pretend to.
+   *
+   * A chapter select is one object repeated — there is no second kind of thing
+   * to stand against the right-hand wall, and inventing one (a "progress"
+   * card restating what ten meters already say) would be the sort of filler that
+   * makes a two-column layout worse than a one-column one. What it takes from
+   * the hall is the room and the full width; the rail track collapses to zero.
+   */
+  root.className = "screen story-screen d-hall d-hall-solo";
 
   if (chapter) renderChapter(root, content, chapter, callbacks);
   else renderList(root, content, story, cleared, callbacks);
@@ -62,17 +72,18 @@ function renderList(
   callbacks: StoryCallbacks
 ): void {
   root.innerHTML = `
-    <div class="ambient-bg"></div>
+    ${room({ accent: "#ffb347", lit: 0.9 })}
     <header class="sub-header">
-      <button class="btn btn-ghost" id="story-back">← Modes</button>
+      <button class="btn btn-ghost" id="story-back">${icon("arrow-left", 16)} Modes</button>
       <h1 class="title">Story Chapters</h1>
-      <div class="sub-header-meta muted">${story.chapters.length} chapter${story.chapters.length === 1 ? "" : "s"}</div>
+      <div class="sub-header-meta">${quantify(story.chapters.length, "chapter")}</div>
     </header>
-    <div class="story-list scroll" id="story-list"></div>`;
+    <div class="story-list data-body" id="story-list"></div>`;
 
   const list = root.querySelector("#story-list");
   root.querySelector("#story-back")?.addEventListener("click", () => callbacks.onBack());
 
+  let heroTaken = false;
   for (const chapter of story.chapters) {
     const progress = chapterProgress(chapter.id);
     const unlocked = chapterUnlocked(chapter, cleared);
@@ -80,25 +91,82 @@ function renderList(
     const colour = chapter.faction ? `var(--faction-${chapter.faction})` : "var(--accent)";
     const lockedBy = story.chapters.find((entry) => entry.id === chapter.lockedUntil)?.title ?? chapter.lockedUntil;
 
+    /**
+     * The first chapter that is open and unfinished is the hero.
+     *
+     * It spans both columns, is lit from the room's alcove and carries the
+     * specular — see `hall.css` §3. Exactly one card can be it: the earliest
+     * unlocked chapter with episodes left, which is the one a returning player
+     * came here to continue. When every chapter is cleared nothing takes the
+     * rank, because at that point the screen is an archive and promoting an old
+     * chapter over the others would be an arbitrary choice dressed as a
+     * recommendation.
+     */
+    const isNextUp = unlocked && !done && !heroTaken;
+    if (isNextUp) heroTaken = true;
+
     const card = document.createElement("button");
-    card.className = `story-card${unlocked ? "" : " story-locked"}`;
+    card.className = `story-card mat-panel act d-enter${unlocked ? "" : " story-locked"}${
+      isNextUp ? " d-hero" : ""
+    }`;
     card.type = "button";
     card.disabled = !unlocked;
     card.style.setProperty("--chapter-colour", colour);
+    /*
+     * The dead middle band is now the chapter's own crest and its meter.
+     *
+     * Measured on the recon capture, each row was 940px wide with roughly 400px
+     * of nothing between where the blurb stopped and where the bare fraction
+     * started — so the screen squinted down to a stack of identical mid-purple
+     * bars with holes in them. A crest is the faction, a meter is the progress,
+     * and the status is a real chip rather than 11px of tracked grey.
+     */
+    const doneCount = requiredEpisodes(chapter).filter((episode) => progress.cleared.includes(episode.id)).length;
+    const total = Math.max(1, requiredEpisodes(chapter).length);
     card.innerHTML = `
       <div class="story-card-bar"></div>
+      ${chapter.faction ? crestMark(chapter.faction, 52, unlocked ? 1 : 0.4) : '<span class="d-crest"></span>'}
       <div class="story-card-body">
-        <div class="eyebrow">${chapter.faction ? escape(content.factions[chapter.faction]?.name ?? "") : "Story"}</div>
+        <div class="t-label">${chapter.faction ? escape(content.factions[chapter.faction]?.name ?? "") : "Story"}</div>
         <div class="story-card-title">${escape(chapter.title)}</div>
-        <p class="muted story-card-about">${escape(chapter.about)}</p>
+        <p class="story-card-about">${escape(chapter.about)}</p>
+      </div>
+      <div class="story-card-track">
+        <div class="story-card-meter">
+          ${meter({
+            value: doneCount / total,
+            steps: total,
+            colour: chapter.faction ? undefined : undefined,
+            animate: true,
+          })}
+          <span class="story-card-count">
+            <span class="num">${count(doneCount)}</span> of <span class="num">${count(total)}</span> episodes
+          </span>
+        </div>
       </div>
       <div class="story-card-meta">
-        <div class="story-progress">${
-          requiredEpisodes(chapter).filter((episode) => progress.cleared.includes(episode.id)).length
-        } / ${requiredEpisodes(chapter).length}</div>
-        <div class="mode-status">${
-          !unlocked ? `Locked — finish “${escape(lockedBy ?? "")}”` : done ? "Complete" : progress.cleared.length ? "Continue" : "Start"
-        }</div>
+        <!--
+          The row is the button; this is the mark that says so.
+
+          It used to be a fully-saturated magenta pill, repeated on every one of
+          ten rows, so the screen squinted down to a column of identical fizzing
+          lozenges and nothing on it was the hero. See the note on \`.d-go\` in
+          data.css. The ink is the *chapter's* faction colour, so ten rows are
+          ten colours rather than ten copies of the same one.
+        -->
+        <span class="d-go story-status ${
+          !unlocked ? "is-locked" : done ? "is-done" : progress.cleared.length ? "is-going" : "is-new"
+        }" style="--go-ink:${colour}">
+          ${
+            !unlocked
+              ? `${icon("lock", 14)} ${escape(lockedBy ?? "")}`
+              : done
+                ? `${icon("check", 14)} Complete ${icon("chevron-right", 15, "d-go-arrow")}`
+                : progress.cleared.length
+                  ? `${icon("play", 14)} Continue ${icon("chevron-right", 15, "d-go-arrow")}`
+                  : `${icon("play", 14)} Start ${icon("chevron-right", 15, "d-go-arrow")}`
+          }
+        </span>
       </div>`;
     if (unlocked) {
       card.addEventListener("click", () => {
@@ -117,21 +185,24 @@ function renderList(
       <div class="story-card-body">
         <div class="eyebrow">This chapter needs fixing</div>
         <div class="story-card-title">${escape(bad.title)}</div>
-        <pre class="story-problems scroll">${escape(formatProblems(bad.problems))}</pre>
+        <pre class="story-problems">${escape(formatProblems(bad.problems))}</pre>
         <p class="muted story-card-about">Fix the file and save — this page reloads on its own. Every other chapter still plays.</p>
       </div>`;
     list?.appendChild(card);
   }
 
   if (story.chapters.length === 0 && story.broken.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "muted story-empty";
-    empty.textContent =
-      "There are no chapters yet. Copy data/story/TEMPLATE.story.txt, write one, and it appears here.";
+    const empty = document.createElement("div");
+    empty.className = "empty story-empty";
+    empty.innerHTML = `
+      ${icon("mode-story", 40)}
+      <h3 class="t-heading">No chapters yet</h3>
+      <p class="t-body">Copy <code>data/story/TEMPLATE.story.txt</code>, write one, and it appears here the moment you save.</p>`;
     list?.appendChild(empty);
   }
 
   if (story.chapters.length > 0) renderArchive(list, story.chapters);
+  if (list) enter(list, ".story-card", 34);
 }
 
 /**
@@ -149,7 +220,7 @@ function renderArchive(list: Element | null, chapters: readonly StoryChapter[]):
   const unlocked = firstSignalUnlocked(chapters);
 
   const panel = document.createElement("section");
-  panel.className = "panel panel-tight story-archive";
+  panel.className = "mat-panel story-archive";
   panel.innerHTML = `
     <div class="eyebrow">The Archive · GLIMMR</div>
     <h2 class="story-archive-title">${found} of ${fragments.length} fragments recovered</h2>
@@ -171,7 +242,7 @@ function renderArchive(list: Element | null, chapters: readonly StoryChapter[]):
       unlocked
         ? `<details class="story-archive-capstone" open>
              <summary>The First Signal, Annotated</summary>
-             <pre class="story-archive-entry scroll">${escape(FIRST_SIGNAL_ANNOTATED)}</pre>
+             <pre class="story-archive-entry">${escape(FIRST_SIGNAL_ANNOTATED)}</pre>
            </details>`
         : `<p class="muted story-archive-locked">All ${REQUIRED_CHAPTERS} fragments unlock one more entry.</p>`
     }`;
@@ -194,18 +265,18 @@ function renderChapter(
     const colour = chapter.faction ? `var(--faction-${chapter.faction})` : "var(--accent)";
 
     root.innerHTML = `
-      <div class="ambient-bg"></div>
+      ${room({ accent: "#ffb347", lit: 0.9 })}
       <header class="sub-header">
-        <button class="btn btn-ghost" id="story-back">← Chapters</button>
+        <button class="btn btn-ghost" id="story-back">${icon("arrow-left", 16)} Chapters</button>
         <h1 class="title">${escape(chapter.title)}</h1>
         <div class="sub-header-meta muted">${
           requiredEpisodes(chapter).filter((episode) => progress.cleared.includes(episode.id)).length
         } of ${requiredEpisodes(chapter).length} played</div>
       </header>
-      <div class="story-chapter scroll">
+      <div class="story-chapter">
         <p class="story-chapter-about">${escape(chapter.about)}</p>
         <div class="episode-list" id="episode-list"></div>
-        <div class="story-recap panel panel-tight" id="story-recap" hidden></div>
+        <div class="story-recap mat-panel" id="story-recap" hidden></div>
         <div class="story-chapter-actions">
           <button class="btn btn-ghost" id="story-reset">Start this chapter over</button>
         </div>

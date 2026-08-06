@@ -52,7 +52,7 @@ export function createCoachOverlay(host: HTMLElement): CoachOverlay {
   root.appendChild(dimmer);
 
   const panel = document.createElement("div");
-  panel.className = "coach-panel";
+  panel.className = "coach-panel mat-panel";
   panel.hidden = true;
   // announced to screen readers; the visual panel is not the only channel
   panel.setAttribute("role", "status");

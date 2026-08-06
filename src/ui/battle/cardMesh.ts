@@ -5,6 +5,25 @@
  * the shared card renderer, so a card looks identical in the collection, the
  * hand and on the board. Textures are cached by a key describing everything
  * that can change the artwork, since re-rendering a card is expensive.
+ *
+ * ## Why a board card is more than a quad with a picture on it
+ *
+ * It used to be exactly that, and it read exactly like that: three enemy cards
+ * lying on the mat looked like stickers on wallpaper — identical brightness, no
+ * ground contact, no glow spill onto the surface underneath despite carrying
+ * saturated Cinder-orange and Tide-blue frames. The comment on the rim promised
+ * "physical thickness under raking light" and described something that could not
+ * happen: the rim was 0.02 world units, which projected to about a sixth of a
+ * pixel, and it was set to `metalness: 0.7` in a build with no environment map
+ * anywhere in it, so it threw away 70% of its diffuse response in exchange for a
+ * specular return that had nothing to reflect.
+ *
+ * Three things fix it, and none of them touches the face texture: a painted
+ * contact shadow so the card sits *on* something, a rim thick enough to catch
+ * the key light at 315°, and a small additive pool of the card's own Current
+ * colour bleeding onto the mat beneath it. The reference does the same three
+ * things to a board minion and none of them to a hand card, which is why they
+ * are attached here by `kind` rather than to every card object.
  */
 
 import * as THREE from "three";
@@ -12,8 +31,10 @@ import type { CardDef, CharacterInstance, CurrentId } from "../../engine/types";
 import { CARD_H, CARD_W, renderCard } from "../cardRenderer/renderCard";
 import { CURRENT_PALETTE } from "../cardRenderer/palette";
 import { BOARD } from "./scene";
+import { groundShadow } from "./board";
 import { getCardArt, onArtLoaded } from "../art/artLoader";
-import { drawEmblem, hexToRgb, type CardBackStyle } from "../cosmetics/emblem";
+import { renderCardBackToCanvas } from "../cardRenderer/renderCardBack";
+import type { CardBackStyle } from "../cosmetics/emblem";
 
 // ---------------------------------------------------------------------------
 // Texture cache
@@ -103,13 +124,21 @@ export function getCardTexture(card: CardDef, state: CardFaceState = {}): THREE.
   return texture;
 }
 
-/** Force a card's cached faces to be rebuilt (used when art finishes loading). */
+/**
+ * Force a card's cached faces to be rebuilt (used when art finishes loading).
+ *
+ * It **drops** the entries rather than disposing them, and that is the fix for
+ * a caught-once-in-five flicker: two `CardObject`s can hold the same card, both
+ * subscribe to `onArtLoaded`, and the second listener used to `dispose()` the
+ * very texture the first listener had just rebuilt and bound. A disposed
+ * `CanvasTexture` still on a live material loses its GPU handle mid-frame,
+ * which is exactly the class of failure that shows up once in five attempts and
+ * never in a debugger. Dropping the map entry gets the rebuild; the bitmap goes
+ * when the last mesh pointing at it does.
+ */
 export function invalidateCardTextures(cardId: string): void {
-  for (const [key, value] of [...textureCache.entries()]) {
-    if (key.startsWith(`${cardId}|`)) {
-      value.texture.dispose();
-      textureCache.delete(key);
-    }
+  for (const key of [...textureCache.keys()]) {
+    if (key.startsWith(`${cardId}|`)) textureCache.delete(key);
   }
 }
 
@@ -154,7 +183,18 @@ export function setPlayerCardBack(style: CardBackStyle | null): void {
  */
 const backFor = (seat: number): CardBackStyle | null => (seat === 0 ? playerCardBack : null);
 
-/** Read the back a seat is dealing. Exported so a browser check can see it. */
+/**
+ * Read the back a seat is dealing.
+ *
+ * Exported so a browser check can see it — but **not** by importing this file.
+ * A script that does `await import("/src/ui/battle/cardMesh.ts")` against a dev
+ * server which has served any HMR update gets a *second instance* of this
+ * module, because the running app holds it as `cardMesh.ts?t=<stamp>` and a
+ * different URL is a different module with its own `playerCardBack`. That
+ * mistake cost two waves and produced a feature-failure report on a working
+ * feature. `battleScreen.ts` publishes `window.hypeboundCardBack()` through its
+ * own import; read that.
+ */
 export const cardBackStyleFor = (seat: number): CardBackStyle | null => backFor(seat);
 
 /**
@@ -169,28 +209,17 @@ export function getCardBackTexture(back: CardBackStyle | null): THREE.CanvasText
   const cached = cardBackTextures.get(key);
   if (cached) return cached;
 
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 358;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    const [r, g, b] = hexToRgb(style.color);
-    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    grad.addColorStop(0, `rgb(${Math.round(r * 0.34)}, ${Math.round(g * 0.34)}, ${Math.round(b * 0.42)})`);
-    grad.addColorStop(0.5, "#160b2c");
-    grad.addColorStop(1, "#0b0518");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.55)`;
-    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.18)`;
-    ctx.lineWidth = 3;
-    drawEmblem(ctx, style.emblem, canvas.width / 2, canvas.height / 2);
-
-    ctx.strokeStyle = `rgba(${Math.min(255, r + 60)}, ${Math.min(255, g + 60)}, ${Math.min(255, b + 60)}, 0.35)`;
-    ctx.lineWidth = 6;
-    ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
-  }
+  /**
+   * The drawing lives in `cardRenderer` and not here, and that is the point.
+   *
+   * A back built next to the three.js mesh is a back nobody compares to a front,
+   * which is how it stayed a 256×358 wireframe — a vertical gradient, four
+   * stroked diamonds and one square-cornered `strokeRect` — while the face grew
+   * a lit frame band, grain, a section through its border and a contact shadow.
+   * The two are now the same object flipped over, because they are built from
+   * the same primitives in the same folder at the same size.
+   */
+  const canvas = renderCardBackToCanvas(style);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -209,12 +238,48 @@ export interface CardObjectUserData {
   seat: number;
 }
 
+/**
+ * The pool of coloured light a lit card throws onto the floor it is lying on.
+ *
+ * One bitmap for every card on the board: it is tinted per-Current by the
+ * material's `color`, which costs a uniform instead of a texture.
+ */
+let spillTexture: THREE.CanvasTexture | null = null;
+function getSpillTexture(): THREE.CanvasTexture {
+  if (spillTexture) return spillTexture;
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    grad.addColorStop(0, "rgba(255,255,255,0.5)");
+    grad.addColorStop(0.42, "rgba(255,255,255,0.2)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+  }
+  spillTexture = new THREE.CanvasTexture(canvas);
+  spillTexture.colorSpace = THREE.SRGBColorSpace;
+  return spillTexture;
+}
+
 export class CardObject extends THREE.Group {
   readonly front: THREE.Mesh;
   readonly back: THREE.Mesh;
   private readonly rim: THREE.Mesh;
+  private readonly grounding: THREE.Object3D[] = [];
+  private spill: THREE.Mesh | null = null;
+  private spillRest = 0.4;
+  /** Extra spill while a landing settles, decayed by update(). */
+  private flareAmount = 0;
   private currentKey = "";
   private lastFaceState: CardFaceState = {};
+  /** Whether the face currently on screen was drawn with real painted art. */
+  private artShown = false;
+  /** A face state parked because rebuilding it now would lose the art. */
+  private deferredFaceState: CardFaceState | null = null;
   private readonly unsubscribeArt: () => void;
 
   /** animation targets — the view sets these, update() eases toward them */
@@ -223,6 +288,15 @@ export class CardObject extends THREE.Group {
   targetScale = 1;
   /** set while the card is being dragged so easing is skipped */
   immediate = false;
+  /**
+   * While a flight tween owns this object, `update()` keeps its hands off.
+   *
+   * The token's own exponential easing is right for a card sliding along a row
+   * and wrong for the handoff from the drag ghost, which has to arrive on a
+   * named curve inside a named budget. Two easings competing for one position
+   * is how a 300ms flight becomes a 700ms drift.
+   */
+  flightHold = false;
   /** additive offset for attack lunges, cleared once the lunge returns */
   animOffset = new THREE.Vector3();
 
@@ -236,43 +310,119 @@ export class CardObject extends THREE.Group {
     const frontGeometry = new THREE.PlaneGeometry(w, h);
     this.front = new THREE.Mesh(
       frontGeometry,
-      new THREE.MeshBasicMaterial({ map: getCardTexture(card), transparent: true, toneMapped: false })
+      new THREE.MeshBasicMaterial({ map: getCardTexture(card), transparent: true })
     );
-    this.front.position.z = 0.011;
+    /**
+     * Clear of the rim's top face, which is the whole reason this number is
+     * written down. The rim is a solid box 0.06 deep, so its faces are at
+     * ±0.03; the front lived at 0.011 back when the box was 0.02 deep, and
+     * thickening the edge without moving the face buried every card on the
+     * board under a slab of its own Current colour.
+     */
+    this.front.position.z = 0.034;
     this.add(this.front);
 
     const backGeometry = new THREE.PlaneGeometry(w, h);
     this.back = new THREE.Mesh(
       backGeometry,
-      new THREE.MeshBasicMaterial({ map: getCardBackTexture(backFor(userData.seat)), transparent: true, toneMapped: false })
+      new THREE.MeshBasicMaterial({ map: getCardBackTexture(backFor(userData.seat)), transparent: true })
     );
     this.back.rotation.y = Math.PI;
-    this.back.position.z = -0.011;
+    this.back.position.z = -0.034;
     this.add(this.back);
 
-    // thin edge so the card has physical thickness under raking light
+    /**
+     * The edge of the card, thick enough to see.
+     *
+     * 0.06 world units is roughly 2.5 screen pixels at the framing this board
+     * uses, which is the smallest edge that still reads as a bevel rather than
+     * as an aliasing artefact. Metalness comes down from 0.7 to 0.35 now that
+     * there is an environment to reflect: a card edge is lacquered card stock,
+     * not chrome, and the remaining specular comes from the studio map rather
+     * than from throwing away diffuse.
+     */
     const palette = CURRENT_PALETTE[card.current as CurrentId];
     this.rim = new THREE.Mesh(
-      new THREE.BoxGeometry(w * 1.005, h * 1.005, 0.02),
+      new THREE.BoxGeometry(w * 1.022, h * 1.022, 0.06),
       new THREE.MeshStandardMaterial({
         color: palette.lo,
         emissive: palette.key,
-        emissiveIntensity: 0.28,
-        roughness: 0.42,
-        metalness: 0.7,
+        emissiveIntensity: 0.14,
+        roughness: 0.38,
+        metalness: 0.35,
+        envMapIntensity: 1.2,
       })
     );
     this.add(this.rim);
+
+    if (userData.kind === "board") this.ground(w, h, palette.key);
 
     // repaint when this card's art finishes loading
     this.unsubscribeArt = onArtLoaded((cardId) => {
       if (cardId !== this.card.id) return;
       invalidateCardTextures(cardId);
       this.currentKey = ""; // force setFaceState to rebuild
-      this.setFaceState(this.lastFaceState);
+      this.artShown = false; // the guard must not block its own recovery
+      this.setFaceState(this.deferredFaceState ?? this.lastFaceState);
     });
 
     this.setFaceUp(faceUp);
+  }
+
+  /**
+   * Put the card on the ground: a contact shadow under it and its own colour
+   * spilling out from underneath.
+   *
+   * Both are parented to the card rather than left on the board, which is the
+   * unusual choice and the deliberate one. A shadow left behind on the mat would
+   * have to be found, moved and re-sorted every time a card slid along a row,
+   * and it would sit still while the card lunged. Parented, the whole object
+   * moves as one thing — and because a card only ever lies flat or lifts
+   * straight up, the shadow never falls anywhere it should not.
+   *
+   * The offsets are in the card's own space, where +Z is world up: the mat is at
+   * y=0 and a board card at y=0.02, so -0.014 puts the shadow six thousandths of
+   * a unit above the floor. Close enough to touch, far enough not to z-fight
+   * with a surface that does not write depth.
+   */
+  private ground(w: number, h: number, accent: string): void {
+    const shadow = groundShadow(w * 1.05, h * 1.05, { lift: 5, opacity: 0.5, space: "card" });
+    shadow.position.z = -0.014;
+    this.add(shadow);
+    this.grounding.push(shadow);
+
+    const spill = new THREE.Mesh(
+      new THREE.PlaneGeometry(w * 2.1, h * 1.75),
+      new THREE.MeshBasicMaterial({
+        map: getSpillTexture(),
+        color: new THREE.Color(accent),
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false,
+      })
+    );
+    spill.position.z = -0.012;
+    spill.renderOrder = 2;
+    this.add(spill);
+    this.grounding.push(spill);
+    this.spill = spill;
+  }
+
+  /**
+   * The card's own light hitting the floor harder for a moment, because it just
+   * landed on it.
+   *
+   * §3 asks for secondary motion — "when the main thing moves, something small
+   * moves because of it" — and measured before this existed, the mat 140px to
+   * the left of a landing card changed by a mean of 1.1 across the whole
+   * landing. Nothing reacted to a card arriving. This is the cheap half of the
+   * answer: the pool the token already casts swells and settles, so the mat is
+   * visibly lit *by* the thing that arrived on it.
+   */
+  flare(strength = 1): void {
+    this.flareAmount = Math.max(this.flareAmount, strength);
   }
 
   setFaceUp(faceUp: boolean): void {
@@ -281,12 +431,32 @@ export class CardObject extends THREE.Group {
     this.back.visible = !faceUp;
   }
 
-  /** Refresh the front texture when live stats or highlight change. */
+  /**
+   * Refresh the front texture when live stats or highlight change.
+   *
+   * The guard in the middle is the whole of the intermittent blank-card defect.
+   * Caught once in five drags: a board card that has painted art re-rendered
+   * with the concentric-arc placeholder the moment the drag changed its
+   * highlight, and stayed that way for the hold. Every state change is a cache
+   * miss, a cache miss is a fresh `renderCard`, and a fresh `renderCard` asks
+   * `getCardArt` — which answers null for a frame whenever the entry has been
+   * dropped and the image has not been handed back yet. Painting that answer
+   * would throw away a face the player is looking at, so the new state is
+   * parked instead and applied when the art is back. Drawing from the last good
+   * texture is always correct; falling back to the placeholder never is.
+   */
   setFaceState(state: CardFaceState): void {
+    const hasArt = getCardArt(this.card) !== null;
+    if (this.artShown && !hasArt) {
+      this.deferredFaceState = state;
+      return;
+    }
+    this.deferredFaceState = null;
     this.lastFaceState = state;
     const key = cacheKey(this.card, state);
     if (key === this.currentKey) return;
     this.currentKey = key;
+    this.artShown = hasArt;
     const material = this.front.material as THREE.MeshBasicMaterial;
     material.map = getCardTexture(this.card, state);
     material.needsUpdate = true;
@@ -306,6 +476,15 @@ export class CardObject extends THREE.Group {
 
   /** Ease toward the animation targets. Called every frame by the view. */
   update(delta: number): void {
+    if (this.flareAmount > 0 && this.spill) {
+      // ~260ms to settle, which is the tail of the landing rather than a second
+      // animation running after it.
+      this.flareAmount = Math.max(0, this.flareAmount - delta * 3.8);
+      const material = this.spill.material as THREE.MeshBasicMaterial;
+      material.opacity = this.spillRest + this.flareAmount * 1.15;
+      this.spill.scale.setScalar(1 + this.flareAmount * 0.5);
+    }
+    if (this.flightHold) return;
     // exponential ease-out, tau ~= 0.14s — matches the slide timing measured
     // in the reference footage
     const lerp = this.immediate ? 1 : 1 - Math.pow(0.0009, delta);
@@ -323,5 +502,13 @@ export class CardObject extends THREE.Group {
     this.back.geometry.dispose();
     this.rim.geometry.dispose();
     (this.rim.material as THREE.Material).dispose();
+    for (const object of this.grounding) {
+      const mesh = object as THREE.Mesh;
+      mesh.geometry?.dispose();
+      // The maps are memoised in module B and shared by every card on the
+      // board, so the material goes and the bitmap stays.
+      (mesh.material as THREE.Material | undefined)?.dispose();
+    }
+    this.grounding.length = 0;
   }
 }

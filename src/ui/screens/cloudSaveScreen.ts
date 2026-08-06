@@ -27,6 +27,7 @@
 
 import type { Screen } from "../shell";
 import { audio } from "../../audio/audio";
+import { ago as relativeTime, count, enter, icon } from "./data/kit";
 import { adopt, type Adoption } from "../../save/cloudSaves";
 import { SaveClient } from "../../net/saveClient";
 import { profileStore } from "../../save/profile";
@@ -70,44 +71,57 @@ function summarise(profile: unknown, updated: string): Summary {
   };
 }
 
-const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
-
-/** "3 hours ago", from an ISO string. */
+/**
+ * "3 hours ago", from an ISO string — `format.ts`'s, not a second copy.
+ *
+ * This file used to build its own `Intl.RelativeTimeFormat` and walk its own
+ * three-rung unit ladder. It was already pinned to `LOCALE`, so the locale bug
+ * was fixed; what remained was a *duplicate formatter*, and it was a shorter one
+ * — day, hour, minute and nothing above — so a save last touched a fortnight ago
+ * read "14 days ago" here and "2 weeks ago" everywhere else in the game. Module
+ * D owns this. The kit re-exports it as `ago` and the only thing left local is
+ * turning an unparseable string into "unknown" rather than an em-dash, because
+ * on this screen the word has to be readable inside a sentence.
+ */
 function ago(iso: string, nowMs = Date.now()): string {
-  const then = Date.parse(iso);
-  if (!Number.isFinite(then)) return "unknown";
-  const seconds = Math.round((then - nowMs) / 1000);
-  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["day", 86400],
-    ["hour", 3600],
-    ["minute", 60],
-  ];
-  for (const [unit, size] of units) {
-    if (Math.abs(seconds) >= size) return RELATIVE.format(Math.round(seconds / size), unit);
-  }
-  return "just now";
+  return Number.isFinite(Date.parse(iso)) ? relativeTime(Date.parse(iso), nowMs) : "unknown";
 }
 
+/**
+ * One side of the comparison.
+ *
+ * The absent side used to be the sentence "Nothing to compare — this side has no
+ * save." dropped into a 1,100×190px plate, which is the blank grid §5 names. It
+ * is the same size and the same shape as the side that *does* have a save, so
+ * the two read as a pair; the difference between them is a designed empty rather
+ * than a missing table. The numbers all go through `format.ts` — `toLocaleString`
+ * with no locale is the same uncontrolled formatting the dates had, and 5000
+ * comes out as "5 000" here and "5,000" three screens away depending on the OS.
+ */
 function card(title: string, note: string, summary: Summary | null): string {
   if (!summary) {
     return `
-      <section class="panel panel-chrome cloud-save-card">
-        <h2 class="profile-section-title">${esc(title)}</h2>
-        <p class="muted">${esc(note)}</p>
-        <p class="muted">Nothing to compare — this side has no save.</p>
+      <section class="mat-panel cloud-save-card d-enter">
+        <h2 class="t-heading">${esc(title)}</h2>
+        <p class="t-body">${esc(note)}</p>
+        <div class="empty cloud-save-none">
+          ${icon("info", 34)}
+          <h3 class="t-heading">Nothing on this side</h3>
+          <p class="t-body">There is no save here to compare against, so there is nothing to lose by keeping the other one.</p>
+        </div>
       </section>`;
   }
   return `
-    <section class="panel panel-chrome cloud-save-card">
-      <h2 class="profile-section-title">${esc(title)}</h2>
-      <p class="muted">${esc(note)}</p>
-      <table class="patch-table cloud-save-table">
+    <section class="mat-panel cloud-save-card d-enter">
+      <h2 class="t-heading">${esc(title)}</h2>
+      <p class="t-body">${esc(note)}</p>
+      <table class="d-table patch-table cloud-save-table">
         <tbody>
-          <tr><td>Level</td><td class="patch-after">${summary.level}</td></tr>
-          <tr><td>Clout</td><td class="patch-after">${summary.clout.toLocaleString()}</td></tr>
-          <tr><td>Cards</td><td class="patch-after">${summary.cards.toLocaleString()}</td></tr>
-          <tr><td>Decks</td><td class="patch-after">${summary.decks}</td></tr>
-          <tr><td>Matches</td><td class="patch-after">${summary.matches.toLocaleString()}</td></tr>
+          <tr><td>Level</td><td class="patch-after num">${count(summary.level)}</td></tr>
+          <tr><td>Clout</td><td class="patch-after num">${count(summary.clout)}</td></tr>
+          <tr><td>Cards</td><td class="patch-after num">${count(summary.cards)}</td></tr>
+          <tr><td>Decks</td><td class="patch-after num">${count(summary.decks)}</td></tr>
+          <tr><td>Matches</td><td class="patch-after num">${count(summary.matches)}</td></tr>
           <tr><td>Last change</td><td class="muted">${esc(summary.updated)}</td></tr>
         </tbody>
       </table>
@@ -125,17 +139,21 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
     root.innerHTML = `
       <div class="ambient-bg"></div>
       <header class="screen-header">
-        <button class="btn btn-ghost" id="cloud-back">← Back</button>
+        <button class="btn btn-ghost" id="cloud-back">${icon("arrow-left", 16)} Back</button>
         <h1 class="title">Two saves</h1>
       </header>
 
-      <main class="cloud-save-body">
-        <section class="panel panel-chrome cloud-save-lead">
-          <p>
+      <main class="cloud-save-body data-body data-doc">
+        <section class="mat-panel cloud-save-lead d-enter">
+          <div class="settings-head">
+            <span class="settings-mark" aria-hidden="true">${icon("profile", 20)}</span>
+            <h2 class="t-heading">Pick the one you meant to keep</h2>
+          </div>
+          <p class="t-body">
             This device has a save, and so does your account. They are not the same, and
             nothing here can safely guess which one you meant to keep — so pick one.
           </p>
-          <p class="muted">
+          <p class="t-body">
             Whichever you choose becomes the save on every device you sign in on. This is
             asked once.
           </p>
@@ -145,26 +163,61 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
           ${card("On this device", "What is in this browser right now.", local)}
           ${
             loading
-              ? `<section class="panel panel-chrome cloud-save-card"><h2 class="profile-section-title">In your account</h2><p class="muted">Fetching it…</p></section>`
+              ? /*
+                 * A skeleton, not the word "Fetching".
+                 *
+                 * §A4 lists loading as one of the six states and rules out a
+                 * spinner; `.skeleton` is module A's shimmer and it has the shape
+                 * of the table that is about to arrive, so the plate does not
+                 * change size when the fetch lands.
+                 */
+                `<section class="mat-panel cloud-save-card d-enter">
+                   <h2 class="t-heading">In your account</h2>
+                   <p class="t-body">Reading what the server is holding.</p>
+                   <div class="cloud-save-skeleton" aria-hidden="true">
+                     ${'<span class="skeleton"></span>'.repeat(6)}
+                   </div>
+                 </section>`
               : card("In your account", "What the server is holding.", cloud)
           }
         </div>
 
-        <section class="panel panel-chrome cloud-save-actions">
+        <section class="mat-panel cloud-save-actions d-enter">
+          <!--
+            Both of these can be disabled, so both of them are on the
+            foundation's material rather than on .btn.
+
+            .btn:disabled in base.css is opacity 0.42 and nothing else, which is
+            a straight A4 violation on all three counts — it changes neither the
+            fill nor the border nor the icon — and measured on "Use the
+            account's save" (white ink, the whole element at 0.42, the hero
+            gradient showing through underneath) the label came out at about
+            4.0:1, under the floor. The .act disabled branch is the compliant
+            one: it re-fills the plate on the panel's violet axis, re-tunes the
+            rim and the lip, drops to the panel grain, re-points the ink to
+            --text-dim and drains the icon on its own. 7.05:1 on that plate.
+
+            Only one of the two is a hero, because only one of them is the safe
+            answer here; the other is the destructive one and reads as such.
+            That is also §6's one-hero rule, which two identical primary pills
+            side by side were breaking.
+          -->
           <div class="mail-actions">
-            <button class="btn btn-primary" id="cloud-keep-local" ${loading ? "disabled" : ""}>
-              Keep this device's save
-            </button>
-            <button class="btn btn-primary" id="cloud-keep-cloud" ${loading || !cloud ? "disabled" : ""}>
+            <button class="mat-hero act r-chip cloud-save-btn" id="cloud-keep-cloud" ${
+              loading || !cloud ? "disabled" : ""
+            }>
               Use the account's save
             </button>
+            <button class="mat-panel act r-chip cloud-save-btn" id="cloud-keep-local" ${loading ? "disabled" : ""}>
+              Keep this device's save
+            </button>
           </div>
-          <p class="muted">
+          <p class="t-body">
             <strong>Keeping this device's save</strong> replaces the copy in your account.
             There is no archive on the server, so that copy is gone — which is why this one
             asks twice.
           </p>
-          <p class="muted">
+          <p class="t-body">
             <strong>Using the account's save</strong> replaces what is in this browser. The
             copy being replaced is kept here first and is included in the export on the
             privacy page, so it is recoverable.
@@ -172,6 +225,18 @@ export function createCloudSaveScreen(callbacks: CloudSaveCallbacks, client = ne
           <p class="signin-status" id="cloud-status" role="status" aria-live="polite" hidden></p>
         </section>
       </main>`;
+
+    /*
+     * `.d-enter`, not `.mat-panel`.
+     *
+     * `enter()` writes `--enter-delay` onto whatever it is handed, and `d-rise`
+     * — the keyframe that consumes it — is attached to `.d-enter` and nothing
+     * else. Staggering the materials therefore wrote four delays onto four
+     * elements with no animation on them, so this route had no entrance at all
+     * while looking, in the source, exactly like the ten that do. Measured with
+     * `--enter-delay` read back off the DOM: 0 risers on arrival.
+     */
+    enter(root, ".d-enter", 40);
 
     root.querySelector("#cloud-back")?.addEventListener("click", () => {
       audio.play("sfx.ui.click");

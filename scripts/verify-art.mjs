@@ -167,7 +167,7 @@ console.log("\n3. A browser decodes every one of them");
 const browser = await chromium.launch({
   executablePath: CHROME,
   headless: true,
-  args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--no-sandbox"],
+  args: ["--enable-unsafe-swiftshader", "--no-sandbox"],
 });
 
 try {
