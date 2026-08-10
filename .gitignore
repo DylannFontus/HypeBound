@@ -4,6 +4,18 @@ dist/
 *.local
 .DS_Store
 
+# Derived images. `scripts/encode-assets.mjs` re-encodes every master in
+# public/assets to WebP, and `vite.config.ts` ships those instead of the masters
+# — 291 MB of public assets becomes 16 MB in dist. This folder is that output
+# plus the content-hash index that makes the encode incremental.
+#
+# Not committed, on purpose. It is derivable from files that ARE committed, and
+# committing it would put a second copy of all 296 paintings in a repository
+# that already holds the masters — the exact duplication the encode step exists
+# to keep out of dist. CI restores it from actions/cache instead (see
+# .github/workflows/deploy.yml); a cold cache costs about 80 seconds.
+.asset-cache/
+
 # Build output of the verify:* scripts. Regenerated on every run, 60 MB of PNGs,
 # and never an input to anything — the scripts assert against the live DOM and
 # save these only so a human can look at what failed.

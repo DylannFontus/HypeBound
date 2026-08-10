@@ -13,6 +13,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "validate": "vitest run tests/data-validation.test.ts",
     "balance": "node scripts/balance.mjs",
+    "encode": "node scripts/encode-assets.mjs --report",
+    "verify:weight": "node scripts/encode-assets.mjs --weigh-dist",
     "verify:ui": "node scripts/verify-ui.mjs",
     "verify:art": "node scripts/verify-art.mjs",
     "verify:assets": "node scripts/verify-art.mjs",
@@ -59,6 +61,7 @@
     "@types/node": "^22.10.0",
     "@types/three": "^0.170.0",
     "playwright-core": "^1.62.0",
+    "sharp": "^0.35.3",
     "typescript": "^5.7.0",
     "vite": "^6.0.0",
     "vitest": "^3.0.0"

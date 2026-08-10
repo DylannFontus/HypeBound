@@ -704,6 +704,154 @@ export const profileStore = createStore<PlayerProfile>({
 
 export const getProfile = (): PlayerProfile => profileStore.get();
 
+// ---------------------------------------------------------------------------
+// The display name
+// ---------------------------------------------------------------------------
+
+/**
+ * The one field of this profile a player is expected to author, and until now
+ * the only one nothing could write.
+ *
+ * `defaults()` above stamps `"New Creator"` and, before this block existed, that
+ * string had exactly one other appearance in the whole source tree: the lobby
+ * and the profile header rendering it. No screen, no hook, no debug path ever
+ * assigned `displayName`. So the owner's report is literally true — the name was
+ * unreachable, not merely awkward.
+ *
+ * **Where it lives is already right, and that is worth stating rather than
+ * changing.** `displayName` is a field of `PlayerProfile`, `profileStore` is the
+ * `profile` section of `save/cloudSaves.ts`, and that section is uploaded and
+ * downloaded whole under the checksum-verified, `If-Match`-guarded round trip in
+ * `net/saveClient.ts`. A name written here therefore rides the account's save by
+ * construction. Giving it its own field, its own endpoint or its own "which
+ * account owns this name" record would be a second copy of a fact the save
+ * already holds, free to disagree with the first — the same mistake this file
+ * refuses in half a dozen other places (see the notes on `remix`, `dailies` and
+ * `events`, none of which store what the clock can answer).
+ *
+ * What the validator is *for* is worth naming too, because a length limit looks
+ * arbitrary until you say which failure it prevents:
+ *
+ * - **A name is rendered into a leaderboard row, a match header and a chip.**
+ *   Twenty-four is what `.profile-name`'s `clamp(1.7rem, 3.4vw, 2.4rem)` fits on
+ *   a 390px viewport without wrapping into the level meter under it.
+ * - **Invisible characters are not typos, they are a spoof.** A right-to-left
+ *   override makes the string that is stored and the string that is drawn two
+ *   different things, and a zero-width space lets two accounts hold what looks
+ *   like one name. They are stripped rather than refused, because refusing a
+ *   character the player cannot see is an error message about nothing — and the
+ *   screen says out loud when the stripping changed anything.
+ * - **Something has to be readable.** A name of pure punctuation is a row on the
+ *   leaderboard nobody can refer to out loud.
+ */
+export const DISPLAY_NAME_MIN = 2;
+export const DISPLAY_NAME_MAX = 24;
+
+/** What `defaults()` starts every account with, exported so a screen can tell. */
+export const DEFAULT_DISPLAY_NAME = "New Creator";
+
+/**
+ * Characters that occupy no width, and the reason each group is here.
+ *
+ * C0 and C1 controls, DEL, the soft hyphen, the zero-width space and non-joiner,
+ * the two directional marks, the four bidi embed/override codes, the word joiner
+ * and invisible operators, the four bidi isolates, and the byte-order mark.
+ *
+ * **U+200D, the zero-width joiner, is deliberately absent.** It is the glue in
+ * every multi-person and multi-skin-tone emoji — stripping it does not tidy a
+ * name up, it silently detonates 👩‍🚀 into two unrelated pictures. That is a
+ * corruption rather than a cleanup, and the spoofing argument that justifies the
+ * rest does not reach a character whose ordinary use is this common.
+ */
+const INVISIBLE_CHARS =
+  /[\u0000-\u001F\u007F-\u009F\u00AD\u200B\u200C\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/gu;
+
+/**
+ * Whitespace runs collapse to one space, invisibles go, and the ends are
+ * trimmed. Deliberately **not** a rejection: every transformation here is one
+ * the player cannot see and therefore cannot be asked to fix.
+ */
+export function normaliseDisplayName(raw: string): string {
+  return raw.replace(INVISIBLE_CHARS, "").replace(/\s+/gu, " ").trim();
+}
+
+/**
+ * Length in **code points**, not UTF-16 units.
+ *
+ * `"🎧".length` is 2, so a `.length` limit spends half a player's allowance on
+ * one emoji and — worse — a truncation at an odd offset splits a surrogate pair
+ * and stores half a character. The input's `maxlength` is set to twice this
+ * ceiling for the same reason: a code point is at most two UTF-16 units, so the
+ * browser's own cap can never fire *before* the validator has had a chance to
+ * say what is wrong. A silent truncation is the one refusal that explains
+ * nothing.
+ */
+export const displayNameLength = (name: string): number => [...name].length;
+
+export interface NameVerdict {
+  readonly ok: boolean;
+  /** The name as it would actually be stored. */
+  readonly name: string;
+  /** Why not, in a sentence a player can act on. Empty when `ok`. */
+  readonly reason: string;
+  /** True when normalisation removed or folded something the player typed. */
+  readonly cleaned: boolean;
+}
+
+/** Pure, so the screen can call it on every keystroke and a test can enumerate it. */
+export function checkDisplayName(raw: string): NameVerdict {
+  const name = normaliseDisplayName(raw);
+  const cleaned = name !== raw;
+  const length = displayNameLength(name);
+
+  if (length === 0) {
+    return { ok: false, name, reason: "Type a name — this cannot be left empty.", cleaned };
+  }
+  if (length < DISPLAY_NAME_MIN) {
+    return {
+      ok: false,
+      name,
+      reason: `That is ${length} character. A name needs at least ${DISPLAY_NAME_MIN}.`,
+      cleaned,
+    };
+  }
+  if (length > DISPLAY_NAME_MAX) {
+    return {
+      ok: false,
+      name,
+      reason: `That is ${length} characters. Names go up to ${DISPLAY_NAME_MAX} — trim ${length - DISPLAY_NAME_MAX}.`,
+      cleaned,
+    };
+  }
+  if (!/[\p{L}\p{N}]/u.test(name)) {
+    return { ok: false, name, reason: "A name needs at least one letter or number in it.", cleaned };
+  }
+  return { ok: true, name, reason: "", cleaned };
+}
+
+/**
+ * Write the name, or say why not.
+ *
+ * `flush()` rather than leaving it to the store's 250ms debounce, because this
+ * is the one write a player makes and then immediately closes the tab to go and
+ * check on their phone. Losing it to a debounce would look exactly like the
+ * cross-device sync failing, and would be neither.
+ *
+ * Nothing here talks to the network. The upload is `cloudSaves.ts`'s subscriber
+ * on this very store, which is why the name needs no transport of its own.
+ */
+export function setDisplayName(raw: string): NameVerdict {
+  const verdict = checkDisplayName(raw);
+  if (!verdict.ok) return verdict;
+  if (getProfile().displayName !== verdict.name) {
+    profileStore.update((draft) => {
+      draft.displayName = verdict.name;
+    });
+    profileStore.flush();
+  }
+  return verdict;
+}
+
 /**
  * Does this account still need to choose a starting faction?
  *

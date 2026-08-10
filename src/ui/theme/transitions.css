@@ -820,7 +820,40 @@
  * the furniture's amplitude and settles *after* it — 620ms against the screen's
  * 380ms — because the thing furthest away has the most mass.
  */
+/**
+ * ## The single most expensive line in this file, and it was wrong for the four
+ * travels a player actually uses
+ *
+ * `.atm-body` is the whole world — two room slots, the deep plane, the mote
+ * fields, the sweep and the vignette, a dozen full-bleed children between them,
+ * several of them already promoted for their own infinite animations. Asking it
+ * to prepare for a `filter` asks the engine to build one intermediate surface
+ * that *all* of that renders into, because a filter cannot be applied to a
+ * collection of sibling layers — it has to be applied to a picture of them.
+ *
+ * Only four of the eight travels ever animate a filter: the two curtains, the
+ * replace and the boot arrive. `descend`, `ascend`, `sibling-left` and
+ * `sibling-right` — which is every routine navigation in the game — animate a
+ * bare `transform`, and were being charged for a full flatten of the world
+ * anyway, twice per screen change, once on the way up and once on the way down.
+ *
+ * Measured with `scripts/_w10ipad_layers.mjs` at 1194x834 at 2x on the low tier:
+ * peak backing store during a navigation falls from **232.4 MB to 202.5 MB**,
+ * the largest single saving of any arm in that run, against a null arm reading
+ * 0.0 MB. It is also the arm that changes the fewest pixels, which is none.
+ *
+ * The lesson generalises and is worth keeping: `will-change` is not a hint that
+ * costs nothing when it is wrong. Naming a property that needs a render surface
+ * buys that surface whether or not the property is ever set.
+ */
 .atmosphere[data-travel] .atm-body {
+  will-change: transform;
+}
+
+.atmosphere[data-travel="curtain-in"] .atm-body,
+.atmosphere[data-travel="curtain-out"] .atm-body,
+.atmosphere[data-travel="replace"] .atm-body,
+.atmosphere[data-travel="arrive"] .atm-body {
   will-change: transform, filter;
 }
 
@@ -1019,6 +1052,20 @@
  * moving. `animation: none` rather than a paused state, so nothing is left
  * holding a composited layer it will never use again.
  */
+/**
+ * `will-change: auto` alongside every one of them, and it is not tidiness.
+ *
+ * The comment below already says "`animation: none` rather than a paused state,
+ * so nothing is left holding a composited layer it will never use again" — and
+ * that was half true, because six of these eight elements declare their own
+ * `will-change` and a `will-change` promotes a layer on its own, with or without
+ * an animation to justify it. So somebody who had asked for less movement was
+ * holding the *entire* set of full-bleed compositing surfaces this file creates,
+ * permanently, for animations that had been switched off. The setting was buying
+ * stillness and paying the full price of the motion.
+ *
+ * Same correction wherever a tier or a preference cancels an animation below.
+ */
 :root[data-reduced-motion="true"] .atm-bloom,
 :root[data-reduced-motion="true"] .atm-horizon,
 :root[data-reduced-motion="true"] .atm-grid,
@@ -1028,6 +1075,7 @@
 :root[data-reduced-motion="true"] .atmosphere[data-travel] .atm-body,
 :root[data-reduced-motion="true"] .atmosphere[data-travel] .atm-deep {
   animation: none;
+  will-change: auto;
 }
 
 /* The deep plane's *static* separation stays under this setting, and should:
@@ -1091,6 +1139,7 @@
 
 :root[data-gfx-tier="low"] .atm-grid {
   animation: none;
+  will-change: auto;
 }
 
 /* The one plane cue that is not free. A `filter: blur()` on a full-viewport
@@ -1121,10 +1170,17 @@
   --atm-strength: 0.6;
 }
 
+/**
+ * These three are the travels that carry a `filter` ramp, so cancelling the
+ * animation on the low tier has to cancel the surface it was preparing for as
+ * well — otherwise the tier that can least afford a flatten of the whole world
+ * is the only one that pays for it with nothing playing.
+ */
 :root[data-gfx-tier="low"] .atmosphere[data-travel="curtain-in"] .atm-body,
 :root[data-gfx-tier="low"] .atmosphere[data-travel="curtain-out"] .atm-body,
 :root[data-gfx-tier="low"] .atmosphere[data-travel="replace"] .atm-body {
   animation: none;
+  will-change: auto;
 }
 
 /* =========================================================================
@@ -1424,10 +1480,18 @@
  * value structure stay: somebody on reduced motion gets the same composition
  * standing still, not a fallback screen.
  */
+/**
+ * And the promotion goes with the animation, for the reason at §1.8: all three
+ * of these declare `will-change: transform`, there are two rooms in the document
+ * for the length of every navigation, and `.d-room-crawl`'s box is one and a
+ * half viewports. Left behind, a reduced-motion player holds six full-bleed
+ * surfaces per screen change for six animations that never run.
+ */
 :root[data-reduced-motion="true"] .d-room-grid,
 :root[data-reduced-motion="true"] .d-room-dust,
 :root[data-reduced-motion="true"] .d-room-crawl {
   animation: none;
+  will-change: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1435,6 +1499,7 @@
   .d-room-dust,
   .d-room-crawl {
     animation: none;
+    will-change: auto;
   }
 }
 
@@ -1470,6 +1535,42 @@
 :root[data-gfx-tier="low"] .d-room-dust,
 :root[data-gfx-tier="low"] .d-room-grid {
   display: none;
+}
+
+/**
+ * ...and the crawl is parked rather than dropped, which leaves the room lit and
+ * takes the layer away.
+ *
+ * With the dust and the grid gone above, the crawl is the only thing left in a
+ * low-tier room that animates — and it is the biggest box in it. The note on
+ * `.d-room-crawl` records that its element was once 3.5 viewports and was halved
+ * to 1.5 for exactly this reason; on the low tier, one and a half viewports of
+ * composited texture per screen, and therefore three during a navigation, is
+ * still the most expensive thing the room owns. Measured at 1194x834 at 2x with
+ * `scripts/_w10ipad_layers.mjs`: 130.0 MB to 122.9 MB at rest and 232.4 MB to
+ * 218.1 MB at the peak of a navigation.
+ *
+ * Parked, not deleted, and parked *mid-travel* — the same decision §1.8 makes
+ * for the specular sweep. `animation: none` on its own would drop the element
+ * back to `transform: none`, which is not where the light spends most of its
+ * cycle; holding it near the middle of the 34s alternate keeps the pool of
+ * accent light where a player is used to seeing it. What the tier loses is the
+ * drift, which is the cue §1.9 itself describes as "here for the eye rather than
+ * for the probe", and the front plane's grain — untouched at every tier — is
+ * what actually keeps a low-tier screen alive at rest.
+ *
+ * **`translate()` and not `translate3d()`**, which is the whole saving and was
+ * got wrong once on the way here. The first version of this rule parked the
+ * layer with the same `translate3d(…, 0)` the keyframes use, and the census came
+ * back completely unchanged: a 3D transform is itself a promotion trigger, so
+ * cancelling the animation and then handing the element a `translate3d` swaps
+ * one reason to composite a one-and-a-half-viewport texture for another. The
+ * parked position is static, so it has no business claiming the z axis.
+ */
+:root[data-gfx-tier="low"] .d-room-crawl {
+  animation: none;
+  will-change: auto;
+  transform: translate(2%, 2%) scale(1.09);
 }
 
 /**
@@ -1523,14 +1624,54 @@
    frame of the transition. It also writes `--nav-dur` and `--nav-delay`.
    ========================================================================= */
 
+/**
+ * ## `will-change` is a promise, and this one was promising `filter` on every
+ * screen in every transition while almost none of them touch a filter
+ *
+ * `will-change: filter` does not mean "this element might have a filter". It
+ * means "prepare to interpolate one", and preparing to interpolate a filter is
+ * not the same class of preparation as preparing to move something. A transform
+ * or an opacity can be applied to an already-rasterised layer by the compositor;
+ * a filter has to be *fed* a rasterised source, so the engine sets up an
+ * intermediate surface the size of the element and renders the whole subtree
+ * into it. On a screen root that surface is the viewport, and on a retina tablet
+ * the viewport is four megapixels.
+ *
+ * Two screens carry `data-nav` for the length of every navigation, so the file
+ * was asking for two of those surfaces per screen change. Exactly **two** of the
+ * eleven states ever interpolate a filter — `ascend-in`, which clears the hold's
+ * blur, and `curtain-in`, which comes up out of a flare. `descend`, `sibling`,
+ * `replace` and every `-hold` and `-out` animate `transform` and `opacity` and
+ * nothing else; §2.0 went to some trouble to make that true, and then this line
+ * told the engine otherwise anyway.
+ *
+ * Measured at 1194x834 at 2x — an iPad Pro 11" in landscape, which is the device
+ * the stall was reported on — with `scripts/_w10ipad_layers.mjs` reading
+ * Chromium's own `LayerTree`: dropping `filter` from here takes the peak
+ * composited backing store during a navigation from 232.4 MB to 224.9 MB, and
+ * the null arm in the same run reads 0.0 MB. Nothing moves by a pixel.
+ *
+ * `backface-visibility: hidden` stays, and that is a deliberate non-change: the
+ * same census says it is worth one layer and zero bytes here, so removing it
+ * would be trading a measured nothing against a well-known WebKit flicker
+ * mitigation on an engine this machine cannot test.
+ */
 .screen[data-nav] {
   animation-duration: var(--nav-dur, 300ms);
   animation-delay: var(--nav-delay, 0ms);
   animation-iteration-count: 1;
   animation-fill-mode: both;
   animation-timing-function: var(--nav-ease-arrive);
-  will-change: transform, opacity, filter;
+  will-change: transform, opacity;
   backface-visibility: hidden;
+}
+
+/** The two states that genuinely interpolate one. See `nav-ascend-in` (§2.1)
+    and `nav-curtain-screen-in` (§2.3) — both ramp a filter to identity over the
+    first third of an entrance, and both want the surface prepared in advance. */
+.screen[data-nav="ascend-in"],
+.screen[data-nav="curtain-in"] {
+  will-change: transform, opacity, filter;
 }
 
 /**
@@ -1709,6 +1850,42 @@
 .screen[data-nav="curtain-hold"],
 .screen[data-nav="curtain-out"] {
   filter: blur(calc(var(--nav-curtain-blur) * 0.22)) brightness(0.88);
+}
+
+/**
+ * ## The low tier keeps the dim and loses the `blur(0px)` wrapped around it
+ *
+ * §0 zeroes `--nav-recede-blur` and `--nav-curtain-blur` on this tier, which
+ * leaves the two rules above declaring `blur(0px) brightness(k)`. A zero-radius
+ * blur is still a blur function in the list, and an engine is entitled to set up
+ * the separable-convolution pass — a viewport-sized scratch surface, on the
+ * largest element in the document, twice per descend — before discovering that
+ * the radius makes it a no-op. Restating the same filters without the term is
+ * pixel-identical by construction and takes the possibility away on the tier
+ * that has already decided it cannot afford a blur.
+ *
+ * **The `brightness()` half deliberately stays**, and that is a measurement
+ * rather than a preference. `scripts/_w10ipad_pixels.mjs` photographed the hold
+ * and both ends of the exit at this tier, with the filter and with `none`: mean
+ * differences of 8.78, 9.46 and 5.17 levels of 255, with a 95th percentile up to
+ * 36. That is a change a player can see, and the only thing buying it would be a
+ * compositing saving on an engine this machine cannot run. Removing a visible
+ * dim on the strength of reasoning about an untestable browser is precisely the
+ * trade that produced twelve lying instruments.
+ *
+ * These sit here rather than beside the reduced-motion switches in §2.9 on
+ * purpose: that section takes the filter off entirely, and it has to keep
+ * winning for somebody who is on the low tier *and* has reduced motion on.
+ * Source order is the whole of what decides that.
+ */
+:root[data-gfx-tier="low"] .screen[data-nav="descend-hold"],
+:root[data-gfx-tier="low"] .screen[data-nav="descend-out"] {
+  filter: brightness(var(--nav-hold-dim));
+}
+
+:root[data-gfx-tier="low"] .screen[data-nav="curtain-hold"],
+:root[data-gfx-tier="low"] .screen[data-nav="curtain-out"] {
+  filter: brightness(0.88);
 }
 
 @keyframes nav-curtain-hold {
@@ -1962,6 +2139,43 @@
     opacity: 1;
     transform: scale(1) translate3d(0, 0, 0);
     filter: blur(0) brightness(1);
+  }
+}
+
+/**
+ * The same subtraction as the descend pair, applied to the one animated filter
+ * left in the file. On this tier `--nav-hold-blur` is `0px`, so the `from` and
+ * the 30% keyframe were interpolating a blur radius from zero to zero on the
+ * *incoming* screen — the one the player is about to look at, and the only
+ * element still carrying `will-change: filter`. The brightness ramp is kept for
+ * the reason measured above; a second keyframe set is the only way to drop one
+ * function from a list without dropping the other.
+ */
+:root[data-gfx-tier="low"] .screen[data-nav="ascend-in"] {
+  animation-name: nav-ascend-in-flat;
+}
+
+@keyframes nav-ascend-in-flat {
+  from {
+    opacity: 0.3;
+    transform: scale(var(--nav-recede-scale)) translate3d(0, calc(var(--nav-recede-lift) * -1), 0);
+    filter: brightness(var(--nav-hold-dim));
+  }
+  30% {
+    opacity: 0.76;
+    transform: scale(calc(1 - (1 - var(--nav-recede-scale)) * 0.3))
+      translate3d(0, calc(var(--nav-recede-lift) * -0.3), 0);
+    filter: brightness(1);
+  }
+  38% {
+    opacity: 0.8;
+    transform: scale(calc(1 - (1 - var(--nav-recede-scale)) * 0.28))
+      translate3d(0, calc(var(--nav-recede-lift) * -0.28), 0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+    filter: brightness(1);
   }
 }
 
@@ -3275,9 +3489,16 @@
   animation: nav-curtain-veil var(--nav-dur, 170ms) linear both;
 }
 
+/* A late-armed veil never slides, so the panels and the seam have no travel to
+   prepare for. `will-change: auto` on both, for the reason at §1.8: the base
+   rules declare `will-change: transform`, and a promotion outlives the animation
+   that justified it unless it is taken back by name. These are the two largest
+   elements the curtain owns — half a viewport each — and this is the arm where
+   they are guaranteed to be still. */
 .nav-curtain[data-arm="late"][data-phase="close"] .nav-curtain-panel {
   animation-name: none;
   transform: none;
+  will-change: auto;
 }
 
 /* The seam's resting opacity is 0 and the close is what lights it, so a seam
@@ -3286,6 +3507,7 @@
   animation-name: none;
   transform: none;
   opacity: 1;
+  will-change: auto;
 }
 
 /* closing: in fast, settling onto the seam */
@@ -3608,6 +3830,11 @@
   animation-name: nav-curtain-unveil;
 }
 
+/* And the promotion goes with the movement, on all five. Under this setting the
+   veil cross-fades where it stands and nothing here ever travels, so the
+   `will-change: transform` the base rules declare is a standing claim on five
+   surfaces — two of them half a viewport — for animations that cannot run. §1.8
+   makes the same correction for the world; this is the curtain's half of it. */
 :root[data-reduced-motion="true"] .nav-curtain-panel,
 :root[data-reduced-motion="true"] .nav-curtain-seam,
 :root[data-reduced-motion="true"] .nav-curtain-panel::before,
@@ -3616,6 +3843,7 @@
   animation: none;
   transform: none;
   opacity: 1;
+  will-change: auto;
 }
 
 /* The grain is parked rather than deleted, the same call this section makes for
@@ -3626,6 +3854,7 @@
   animation: none;
   transform: none;
   opacity: 0.72;
+  will-change: auto;
 }
 
 /* The feather and the spill belong to a part that does not happen under this
@@ -3673,6 +3902,7 @@
   animation: none;
   transform: none;
   opacity: 1;
+  will-change: auto;
 }
 
 :root[data-reduced-motion="true"] .nav-curtain-title {

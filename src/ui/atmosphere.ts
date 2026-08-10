@@ -226,16 +226,55 @@ type AtmosphereTier = "high" | "medium" | "low";
  * the graphics-quality setting is going to want to, and a background layer that
  * quietly overrides an explicit "low" would be the worst possible way to find
  * that out.
+ *
+ * ## `deviceMemory` does not exist outside Chromium, and the `?? 4` was doing
+ * the classifying
+ *
+ * `navigator.deviceMemory` is a Chromium-only API. It is not implemented in
+ * WebKit and not in Gecko, and the fallback made "the engine has never heard of
+ * this property" indistinguishable from "this device measured four gigabytes,
+ * which is small". The consequence was not a slightly wrong answer, it was **no
+ * answer at all**: with `memory` pinned at 4 the first condition collapses to
+ * `coarse`, so every touch device on Safari was `low` and every desktop Safari
+ * was `medium`, whatever silicon was underneath. The core count was never
+ * consulted on that engine and the high tier was unreachable on it.
+ *
+ * Read out of a real WebKit 26.5 build with `scripts/_w10ipad_recon.mjs`, at an
+ * iPad Pro 11" viewport with touch on, against Chromium on the same page:
+ *
+ *     chromium   deviceMemory 16   cores 12   coarse true   -> high
+ *     webkit     deviceMemory  —   cores  8   coarse true   -> low
+ *
+ * So an iPad Pro M5 has been rendering the picture written for a cheap phone.
+ *
+ * **And it stays that way in this pass, on purpose.** The three signals are now
+ * separate and the absent one is named as absent, so the next reader can see the
+ * decision being made rather than a number that was never measured — but the
+ * *outcome* for every device is deliberately unchanged. The one device this
+ * would move is the iPad, the only direction it could move is up, and up means
+ * reinstating a full-viewport `--nav-recede-blur`, a third mote field, the
+ * specular sweep and the room's dust and grid on the machine that is currently
+ * reported as stalling. Promoting the tier is the opposite of a fix for that,
+ * and it is not a change to make blind on an engine nobody here can profile.
  */
 function detectTier(): AtmosphereTier {
   const declared = typeof document !== "undefined" ? document.documentElement.dataset["gfxTier"] : undefined;
   if (declared === "high" || declared === "medium" || declared === "low") return declared;
   if (typeof navigator === "undefined") return "medium";
-  const memory = (navigator as { deviceMemory?: number }).deviceMemory ?? 4;
-  const cores = navigator.hardwareConcurrency ?? 4;
+  /** Chromium only. `undefined` means unmeasured, which is not the same as small. */
+  const memory = (navigator as { deviceMemory?: number }).deviceMemory;
+  const smallMemory = memory !== undefined && memory <= 4;
+  const unknownMemory = memory === undefined;
+  const fewCores = (navigator.hardwareConcurrency ?? 4) <= 4;
   const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-  if (coarse && (memory <= 4 || cores <= 4)) return "low";
-  if (memory <= 4 || cores <= 4) return "medium";
+  /**
+   * An unmeasured device is treated as a constrained one. That is the
+   * conservative direction and it is what every non-Chromium engine has always
+   * been given; see the note above for why this pass declines to change it.
+   */
+  const constrained = smallMemory || unknownMemory || fewCores;
+  if (coarse && constrained) return "low";
+  if (constrained) return "medium";
   return "high";
 }
 

@@ -42,6 +42,46 @@
  * The parts of §4.5.4 that need the server (profile visibility, other players'
  * profiles, add friend / challenge / block) are absent rather than stubbed, in
  * keeping with how every other online feature is treated.
+ *
+ * ## The name, and why it was not a sync bug
+ *
+ * The owner reported *"can't edit profile name and it should be linked to the
+ * account"*, which reads as two faults. It was one. `displayName` had **no
+ * writer anywhere in the source** — `defaults()` stamped "New Creator", the
+ * lobby and this header drew it, and nothing in forty-nine screens ever assigned
+ * it. The account half needed no mechanism at all: `displayName` is a field of
+ * `PlayerProfile`, `profileStore` is the `profile` section of `cloudSaves.ts`,
+ * and that section already makes the checksum-verified, `If-Match`-guarded round
+ * trip. The name could not travel because it could not change.
+ *
+ * So this screen adds the writer and nothing else. It does not invent a name
+ * endpoint, and it does not keep a second record of which account a name belongs
+ * to — the save it lives in *is* the account's copy, and a second record of that
+ * fact would be free to disagree with the first.
+ *
+ * Two decisions in here are worth reading off the code rather than inferring:
+ *
+ * **The Save button's loading state is real work, not a flourish.** A6 asks for
+ * six interaction states and `loading` is the one nobody can honestly fake: the
+ * write itself is synchronous localStorage. When there *is* an account, the
+ * button holds `data-state="loading"` across an actual `syncNow()` — so the
+ * state means "your name is going up right now" and the sentence underneath it
+ * afterwards is a report rather than a promise. Signed out, no import happens,
+ * no request is made and the button never enters the state, because the privacy
+ * screen promises offline play transmits nothing and a rename is not an
+ * exception to it.
+ *
+ * **The header repaints when the store changes, and not while you are typing.**
+ * A name pulled down from the account on this screen has to appear on it; a
+ * re-render mid-keystroke would eat the caret. The subscription therefore checks
+ * `editing` first and compares the name before doing anything, so an unrelated
+ * profile write — a match landing, a mission claimed — never repaints the
+ * screen at all.
+ *
+ * The layout of the editor is inline rather than in `data/rooms.css` because
+ * this pass owns the screen and not the domain's stylesheet. Everything visual
+ * comes from the shared kit — `.field-group`, `.field`, `.field-note`, `.act`
+ * and the three materials — and the inline rules are only where the pieces sit.
  */
 
 import type { CardDef, ContentIndex, FactionId } from "../../engine/types";
@@ -51,14 +91,21 @@ import { WEARABLE_KINDS } from "../../game/cosmetics";
 import {
   achievementBoard,
   achievementsUnclaimed,
+  checkDisplayName,
+  DEFAULT_DISPLAY_NAME,
+  DISPLAY_NAME_MAX,
+  displayNameLength,
   equipCosmetic,
   emoteWheel,
   factionMastery,
   getProfile,
   myCosmetics,
+  profileStore,
+  setDisplayName,
   wearing,
   xpForLevel,
 } from "../../save/profile";
+import { currentAccount } from "../../auth/account";
 import { drawEmblem, hexToRgb } from "../cosmetics/emblem";
 import { paintLeaderPortrait } from "../art/leaderPortrait";
 import { WIN_RATE_QUALIFIER, winRate } from "../../game/stats/dashboard";
@@ -237,6 +284,76 @@ function paintBack(canvas: HTMLCanvasElement, back: Cosmetic | null, color: stri
   ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
 }
 
+/**
+ * Where the editor's pieces sit — and only that.
+ *
+ * Grouped and named so it is obvious this is placement rather than decoration,
+ * and so the next pass can lift the four of them into `data/rooms.css`
+ * unchanged. Not one of them declares a colour, a border, a radius or a shadow:
+ * those all arrive from `.field`, `.field-group`, `.field-note` and the three
+ * materials, which is what stops this control from being a fifth opinion about
+ * what an input looks like.
+ *
+ * `min-width: 0` on the input is the one that is not obvious. It is a flex item
+ * inside a `min-width: 0` column, and without it a long name sets the input's
+ * intrinsic width and pushes Save and Cancel off the right-hand edge of a 390px
+ * viewport — the fourth unreachable control this effort would have shipped.
+ */
+const NAME_ROW = "display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;min-width:0";
+const NAME_FORM = "margin:0;max-width:34rem";
+const NAME_LABEL_ROW = "display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-2);min-width:0";
+const NAME_CONTROLS = "display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;min-width:0";
+const NAME_INPUT = "flex:1 1 9rem;min-width:0";
+
+/** How long to wait for the upload before saying so, rather than spinning forever. */
+const NAME_PUSH_TIMEOUT_MS = 6000;
+
+/** The status line under the name: what it says, and whether it is a fault. */
+interface NameStatus {
+  text: string;
+  tone: "hint" | "error" | "done";
+}
+
+/**
+ * Where this name currently lives, said without overclaiming.
+ *
+ * The distinction the copy has to hold is between "on your account" and "on its
+ * way to your account", because the upload is a 30-second debounce on a network
+ * that may not be there. Signed out it is neither, and saying so is the honest
+ * version of the privacy screen's promise rather than a nag.
+ *
+ * It deliberately does **not** print the email, even though `signInScreen.ts`
+ * does and the account object is right here. This is the screen a player
+ * screenshots and streams; "which account am I in" is a question the sign-in
+ * screen already answers, and the question this line exists to answer is where
+ * the name is stored. One address on a stream overlay is not worth it.
+ *
+ * The untouched-default case gets its own sentence, because `"New Creator"` is
+ * not a name somebody chose — it is the placeholder `defaults()` stamps, and
+ * until today it was the only name the game could hold. Saying so once, on the
+ * screen with the control on it, is the difference between a player discovering
+ * the feature and a player assuming it still does not exist.
+ */
+function whereTheNameLives(current: string): NameStatus {
+  if (current === DEFAULT_DISPLAY_NAME) {
+    return {
+      text: currentAccount()
+        ? "New Creator is the name the game gave you. Pick your own and it travels with your account."
+        : "New Creator is the name the game gave you. Pick your own — and sign in, and it travels with your account.",
+      tone: "hint",
+    };
+  }
+  return currentAccount()
+    ? {
+        text: "Signed in — your name is part of the save your account carries, so it shows on any device you sign in on.",
+        tone: "hint",
+      }
+    : {
+        text: "Saved on this device. Sign in and the name moves onto your account, so every device you play on shows it.",
+        tone: "hint",
+      };
+}
+
 export function createProfileScreen(content: ContentIndex, callbacks: ProfileCallbacks): Screen {
   const root = document.createElement("div");
   /**
@@ -253,6 +370,14 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
 
   /** which slot's picker is open, or null */
   let picking: CosmeticKind | null = null;
+  /** true while the name editor is open, which suppresses the store repaint */
+  let editing = false;
+  /** the last name this screen painted, so an unrelated profile write is a no-op */
+  let painted = getProfile().displayName;
+  /** what the line under the name currently says, or null for "where it lives" */
+  let status: NameStatus | null = null;
+  /** set on the way out, so a sync that lands after the screen has gone stays quiet */
+  let gone = false;
   const bag = disposeBag();
 
   const render = (): void => {
@@ -359,6 +484,68 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
         </li>`;
     };
 
+    /**
+     * The name: a heading with a way in, or the way in opened.
+     *
+     * The heading keeps its class and its markup exactly, because
+     * `rooms.css`'s `clamp(1.7rem, 3.4vw, 2.4rem)` on `.profile-name` is what
+     * makes it the largest type on the screen and this is not the pass that
+     * relitigates that. What is new is the row around it and a chip that reads
+     * as an action, in the same material the four cosmetic slots use for
+     * "Change" — because renaming yourself is the same kind of act as changing
+     * your card back, and giving it a louder control would rank it above the
+     * PLAY button on the lobby.
+     *
+     * The status line is present in **both** states, always, and never
+     * conditionally rendered. It is the `aria-live` region the validator writes
+     * into, and a live region that is inserted at the moment it first has
+     * something to say is a live region screen readers are entitled to ignore.
+     */
+    const nameBlock = (name: string): string => {
+      const line = status ?? whereTheNameLives(name);
+      const note = `<p class="field-note" id="profile-name-status" role="status" aria-live="polite"
+                       ${line.tone === "error" ? 'data-tone="error" style="color:var(--danger)"' : ""}>${esc(
+                         line.text
+                       )}</p>`;
+
+      if (!editing) {
+        return `
+          <div class="profile-name-row" style="${NAME_ROW}">
+            <h2 class="profile-name t-display" id="profile-name">${esc(name)}</h2>
+            <button type="button" class="mat-chip act r-chip" id="profile-rename"
+                    aria-label="Change your display name">
+              ${icon("edit", 14)} Rename
+            </button>
+          </div>
+          ${note}`;
+      }
+
+      return `
+        <form class="field-group profile-name-form" id="profile-name-form" novalidate style="${NAME_FORM}">
+          <div style="${NAME_LABEL_ROW}">
+            <label class="t-label" for="profile-name-input">Display name</label>
+            <span class="t-label num" id="profile-name-count" aria-hidden="true">${displayNameLength(
+              name
+            )}/${DISPLAY_NAME_MAX}</span>
+          </div>
+          <div style="${NAME_CONTROLS}">
+            <input class="field" type="text" id="profile-name-input" name="display-name"
+                   value="${esc(name)}"
+                   maxlength="${DISPLAY_NAME_MAX * 2}"
+                   autocomplete="nickname" autocapitalize="words" spellcheck="false"
+                   enterkeyhint="done" aria-describedby="profile-name-status"
+                   style="${NAME_INPUT}">
+            <button type="submit" class="mat-hero act r-chip" id="profile-name-save">
+              ${icon("check", 14)} Save
+            </button>
+            <button type="button" class="mat-panel act r-chip" id="profile-name-cancel">
+              ${icon("close", 14)} Cancel
+            </button>
+          </div>
+          ${note}
+        </form>`;
+    };
+
     const link = (id: string, label: string, iconId: Parameters<typeof icon>[0], badgeCount = 0): string => `
       <button type="button" class="mat-panel act r-tile profile-link d-enter" id="${id}">
         ${icon(iconId, 20)}
@@ -400,7 +587,7 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
             <p class="t-label profile-eyebrow">${
               face ? esc(content.factions[face.faction as FactionId]?.name ?? "") : "Unaffiliated"
             }</p>
-            <h2 class="profile-name t-display">${esc(profile.displayName)}</h2>
+            ${nameBlock(profile.displayName)}
             <p class="profile-title ${title ? "" : "muted"}" id="profile-title">
               ${title ? esc(title.name) : "No title equipped"}
             </p>
@@ -591,12 +778,222 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
       });
     }
 
+    wireName();
+
     enter(root);
     countUp(root);
     bag.add(rovingList(root.querySelector<HTMLElement>(".profile-links"), ".profile-link"));
   };
 
+  /** Put a sentence under the name without rebuilding the screen around it. */
+  const say = (line: NameStatus): void => {
+    status = line;
+    const node = root.querySelector<HTMLElement>("#profile-name-status");
+    if (!node) return;
+    node.textContent = line.text;
+    if (line.tone === "error") {
+      node.dataset["tone"] = "error";
+      node.style.color = "var(--danger)";
+    } else {
+      delete node.dataset["tone"];
+      node.style.removeProperty("color");
+    }
+  };
+
+  /**
+   * Close the editor and hand focus back to the control that opened it.
+   *
+   * Without the second half, saving or cancelling drops focus onto `<body>` and
+   * a keyboard player is returned to the top of a screen that is 2,000px tall on
+   * a phone. It is the cheapest half of this whole feature and the one most
+   * often left out.
+   */
+  const closeEditor = (line: NameStatus | null): void => {
+    editing = false;
+    status = line;
+    render();
+    root.querySelector<HTMLElement>("#profile-rename")?.focus();
+  };
+
+  /**
+   * Send the account's save up now, rather than in thirty seconds.
+   *
+   * `cloudSaves.ts` already subscribes to this store and debounces uploads by
+   * `SYNC_DEBOUNCE_MS`, which is right for a deck being rearranged and wrong for
+   * the one write a player makes and then immediately goes to check on another
+   * device. So this is a nudge at the existing mechanism, not a second one: the
+   * same `syncNow`, the same checksum gate, the same `If-Match`. If it has
+   * nothing to send it sends nothing.
+   *
+   * Three things it deliberately does:
+   *
+   * - **Imported dynamically, and only when signed in.** A signed-out profile
+   *   screen must not so much as pull the network module into its graph, which
+   *   is what `scripts/verify-fairness.mjs` checks by recording every request
+   *   the page makes.
+   * - **Raced against a deadline.** `fetch` has no timeout, and a captive portal
+   *   answers neither way. A button stuck in `loading` forever is worse than a
+   *   sentence saying the upload has not happened yet.
+   * - **Reports rather than promises.** `awaitingChoice` is not a failure — it
+   *   means the account is holding a save this device has not reconciled with,
+   *   and the only honest thing to say is which screen resolves that.
+   */
+  const pushToAccount = async (): Promise<NameStatus> => {
+    const later: NameStatus = {
+      text: "Saved. It will reach your account the next time this device syncs.",
+      tone: "done",
+    };
+    try {
+      const { syncNow } = await import("../../save/cloudSaves");
+      const report = await Promise.race([
+        syncNow(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), NAME_PUSH_TIMEOUT_MS)),
+      ]);
+      if (!report) return later;
+      if (report.awaitingChoice.length > 0) {
+        return {
+          text: "Saved here. Your account is holding a different save — open Cloud saves to choose which one wins.",
+          tone: "error",
+        };
+      }
+      if (report.pushed.includes("profile")) {
+        return {
+          text: "Saved to your account. Your other devices pick it up the next time they load.",
+          tone: "done",
+        };
+      }
+      if (report.problems.length > 0) return later;
+      // Nothing to push means the account already agrees with this device.
+      return { text: "Saved to your account.", tone: "done" };
+    } catch {
+      return later;
+    }
+  };
+
+  /**
+   * The whole interaction, attached fresh after every render.
+   *
+   * Validation runs on **every keystroke and on submit**, from the one pure
+   * function in `save/profile.ts`, so the sentence a player reads while typing
+   * and the sentence they read when refused cannot drift apart. Save is never
+   * disabled for an invalid value: a dead button is a refusal with no reason
+   * attached, which is exactly what the owner reported about the old screen.
+   */
+  function wireName(): void {
+    root.querySelector<HTMLElement>("#profile-rename")?.addEventListener("click", () => {
+      audio.play("sfx.ui.click");
+      editing = true;
+      status = { text: `Letters, numbers, spaces and emoji, up to ${DISPLAY_NAME_MAX} characters.`, tone: "hint" };
+      render();
+      const input = root.querySelector<HTMLInputElement>("#profile-name-input");
+      input?.focus();
+      input?.select();
+    });
+
+    const form = root.querySelector<HTMLFormElement>("#profile-name-form");
+    if (!form) return;
+
+    const input = root.querySelector<HTMLInputElement>("#profile-name-input");
+    const counter = root.querySelector<HTMLElement>("#profile-name-count");
+    const save = root.querySelector<HTMLButtonElement>("#profile-name-save");
+    const cancel = root.querySelector<HTMLButtonElement>("#profile-name-cancel");
+    if (!input || !save) return;
+
+    /** Returns the verdict so submit can reuse exactly what the keystroke saw. */
+    const review = (announce: boolean): ReturnType<typeof checkDisplayName> => {
+      const verdict = checkDisplayName(input.value);
+      const length = displayNameLength(verdict.name);
+      if (counter) {
+        counter.textContent = `${length}/${DISPLAY_NAME_MAX}`;
+        /*
+         * The counter turns only on **length**, not on validity. A name that is
+         * refused for having no letters in it is not a name that is too long,
+         * and a count that goes red for it is a second signal pointing at the
+         * wrong thing — which is how a player ends up deleting characters to fix
+         * a fault that had nothing to do with how many there were.
+         */
+        counter.style.color = length > DISPLAY_NAME_MAX ? "var(--danger)" : "";
+      }
+      input.setAttribute("aria-invalid", String(!verdict.ok));
+      if (!verdict.ok) say({ text: verdict.reason, tone: "error" });
+      else if (announce) {
+        say({
+          text: verdict.cleaned
+            ? "Invisible characters and extra spaces were removed. Save to keep it."
+            : `Letters, numbers, spaces and emoji, up to ${DISPLAY_NAME_MAX} characters.`,
+          tone: "hint",
+        });
+      }
+      return verdict;
+    };
+
+    input.addEventListener("input", () => review(true));
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeEditor(null);
+    });
+    cancel?.addEventListener("click", () => closeEditor(null));
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const verdict = review(false);
+      if (!verdict.ok) {
+        // Said, not merely refused: the reason is already under the field and
+        // the caret goes back to the thing that has to change.
+        say({ text: verdict.reason, tone: "error" });
+        input.focus();
+        return;
+      }
+
+      setDisplayName(input.value);
+      painted = getProfile().displayName;
+      audio.play("sfx.ui.click");
+
+      if (!currentAccount()) {
+        closeEditor({ text: "Saved on this device.", tone: "done" });
+        return;
+      }
+
+      /**
+       * The sixth state, and the only place in this control where it is true.
+       * The field goes with it — an input a player can still type into while its
+       * value is being uploaded is an input that will disagree with what landed.
+       */
+      save.dataset["state"] = "loading";
+      save.disabled = true;
+      input.disabled = true;
+      if (cancel) cancel.disabled = true;
+      say({ text: "Sending it to your account…", tone: "hint" });
+
+      void pushToAccount().then((line) => {
+        // The screen may have been navigated away from while that was in the
+        // air. Repainting a detached tree is harmless; stealing focus is not.
+        if (gone || !root.isConnected) return;
+        closeEditor(line);
+      });
+    });
+  }
+
   render();
+
+  /**
+   * A name that arrives from the account has to show up here.
+   *
+   * This is the half of "linked to the account" a player actually sees: device B
+   * pulls the profile section and the header is already open. Three guards, and
+   * each one is a bug that would otherwise be reported as something else — never
+   * while the editor is open (it would eat the caret mid-word), never when the
+   * name did not change (a match landing would restart every counter on the
+   * screen), and never after dispose.
+   */
+  const stopWatchingName = profileStore.subscribe((profile) => {
+    if (gone || editing) return;
+    if (profile.displayName === painted) return;
+    painted = profile.displayName;
+    status = null;
+    render();
+  });
 
   /** Automation hook, the same shape the other screens expose. */
   (window as unknown as { hypeboundProfile?: unknown }).hypeboundProfile = {
@@ -612,12 +1009,38 @@ export function createProfileScreen(content: ContentIndex, callbacks: ProfileCal
     },
     emotes: () => emoteWheel(content),
     face: () => faceOf(content)?.id ?? null,
+    /**
+     * The name half of the hook.
+     *
+     * `rename` deliberately goes through **`setDisplayName`**, the same function
+     * the form does, rather than writing the store — a probe that bypasses the
+     * validator measures a code path no player can take, which is how an
+     * instrument in this project comes to report a pass for something broken.
+     * `type` is the one that goes through the DOM, so an automated check can
+     * assert on the live validation without knowing the markup.
+     */
+    name: () => getProfile().displayName,
+    editing: () => editing,
+    check: (value: string) => checkDisplayName(value),
+    rename: (value: string) => setDisplayName(value),
+    open: () => root.querySelector<HTMLElement>("#profile-rename")?.click(),
+    type: (value: string) => {
+      const input = root.querySelector<HTMLInputElement>("#profile-name-input");
+      if (!input) return false;
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    },
+    submit: () => root.querySelector<HTMLFormElement>("#profile-name-form")?.requestSubmit(),
+    status: () => root.querySelector<HTMLElement>("#profile-name-status")?.textContent?.trim() ?? "",
     refresh: render,
   };
 
   return {
     root,
     dispose: () => {
+      gone = true;
+      stopWatchingName();
       bag.run();
       delete (window as unknown as { hypeboundProfile?: unknown }).hypeboundProfile;
     },

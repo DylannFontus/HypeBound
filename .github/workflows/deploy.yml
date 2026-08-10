@@ -31,6 +31,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 20 resolves to the latest 20.x, which clears sharp's >=20.9.0 floor.
+      # Anything older than that will fail at `npm ci`, not at build time.
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -47,6 +49,27 @@ jobs:
           enablement: true
 
       - run: npm ci
+
+      # Re-encoding 338 images on every push would be its own bug.
+      #
+      # `vite build` runs `scripts/encode-assets.mjs`, which turns the owner's
+      # PNG masters into the WebP that actually ships. From cold that is about
+      # 80 seconds; from a warm cache it is a few seconds of hashing. The cache
+      # is keyed by the *content* of public/assets, so a checkout's fresh mtimes
+      # cannot invalidate it — and `restore-keys` means a push that repaints one
+      # card restores the previous cache and re-encodes exactly that one card,
+      # because the encoder's own index is keyed per file by SHA-1.
+      #
+      # Free: GitHub gives every repository 10 GB of Actions cache and this is
+      # about 16 MB. Bump the version prefix by hand if the cache ever needs
+      # discarding wholesale; POLICY_VERSION in the encoder handles the ordinary
+      # case of a quality setting changing.
+      - name: Restore the asset encode cache
+        uses: actions/cache@v4
+        with:
+          path: .asset-cache
+          key: asset-encode-v1-${{ hashFiles('public/assets/**', 'scripts/encode-assets.mjs') }}
+          restore-keys: asset-encode-v1-
 
       # Runs before the build so a broken rule fails the job for the honest
       # reason, rather than surfacing as a confusing type error downstream.

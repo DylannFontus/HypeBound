@@ -8,11 +8,36 @@
  * Loading is fire-and-forget: the first render uses the placeholder, and when
  * the real image arrives the card's cached textures are invalidated so it
  * re-renders with the art. Nothing blocks on the network.
+ *
+ * ## WebP is asked for first, and that is the whole fix for a 122 MB folder
+ *
+ * The masters are PNG and stay PNG: `public/assets/art/<id>.png` is 512x680,
+ * hand-painted, and the source of truth. But a 512x680 PNG averages 423 KB and
+ * the same picture as WebP averages 31 KB, so a build that shipped the masters
+ * shipped 122 MB of card art and the deployed page looked, to the owner, as
+ * though the art had never wired up at all. Every wiring check passed. The
+ * pictures were simply arriving long after anyone was still looking.
+ *
+ * `scripts/encode-assets.mjs` produces the WebP at build time and `dist` gets
+ * that instead of the master, so putting WebP ahead of PNG here is what makes
+ * the light file the one requested. PNG stays in the list behind it and is not
+ * a formality: it is what a freshly dropped painting resolves to in dev before
+ * anything has encoded it, and it is what would keep the game working if the
+ * encode step were ever removed.
+ *
+ * The order is the same in dev and in production **on purpose**. The obvious
+ * shortcut — `import.meta.env.PROD ? webpFirst : pngFirst` — would mean
+ * `verify:art`, which loads every card through a real browser against the dev
+ * server precisely so it sees what is served, could never once look at the
+ * format the player receives. This project's status document lists thirteen
+ * instruments that returned a confident wrong answer; several were measuring a
+ * build nobody ships. Instead the dev server encodes on demand
+ * (`vite.config.ts::lightAssets`), so dev and production request the same file.
  */
 
 import type { CardDef } from "../../engine/types";
 
-const EXTENSIONS = ["png", "webp", "jpg"];
+const EXTENSIONS = ["webp", "png", "jpg"];
 const ART_BASE = "assets/art";
 
 type ArtState = "missing" | "loading" | "loaded";

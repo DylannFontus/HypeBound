@@ -156,6 +156,232 @@ export function decideSync({ localChecksum, localIsDefault, remote, link }: Sync
 }
 
 // ---------------------------------------------------------------------------
+// Merging two saves that both moved
+// ---------------------------------------------------------------------------
+
+/**
+ * The algebra. The rules that use it are `cloudSaves.ts`'s, and they are there
+ * rather than here because they are knowledge of the save *schema* — the names
+ * of the counters, which arrays are ledgers — and this file is the one the
+ * Workers bundle is allowed to reach. What crosses the boundary is arithmetic
+ * over shapes; what stays on the client is what the shapes mean.
+ *
+ * ## Why a merge exists at all
+ *
+ * `decideSync` returns `conflict` and will not pick a winner, and that is still
+ * right: nothing about two revision numbers says which afternoon a player would
+ * rather keep. But refusing to *decide* was implemented as refusing to *act*,
+ * and a device that will not act never syncs again in either direction. That is
+ * not neutrality, it is a silent, permanent halt — measured: four consecutive
+ * sync passes on a returning device, every one of them `conflict`, every one of
+ * them a no-op, while the other device's matches piled up on the server.
+ *
+ * The way out is not to pick. It is to notice that the two saves are not rival
+ * answers to one question, they are one save plus two disjoint sets of things
+ * that happened, and most of a save is untouched by either. So:
+ *
+ * - **A subtree only one side changed is taken from that side.** No rule
+ *   needed, and this is nearly all of it — a match moves a dozen fields out of
+ *   several hundred.
+ * - **Where both sides changed, a rule applies** if there is one: counters take
+ *   both deltas, ledgers union, logs union by id.
+ * - **Where both sides changed and there is no rule, the account's copy wins.**
+ *   Never a value neither device held, and never worse than the
+ *   last-writer-wins this replaces.
+ *
+ * ## The ancestor
+ *
+ * A three-way merge needs the common ancestor, so `cloudSaves.ts` keeps the
+ * last agreed payload per section. When it is missing — storage cleared, or the
+ * first sync after this shipped — `hasBase: false` degrades every counter to a
+ * maximum instead of a sum. That under-credits a player who earned Clout on
+ * both devices, and it is the conservative direction: unions still union, so no
+ * *match* is lost, only some arithmetic about it.
+ */
+export type MergeRule =
+  /** A number that accumulates. `remote + (local - base)`, so both deltas land. */
+  | { readonly kind: "counter" }
+  /** A high-water mark. The larger of the two. */
+  | { readonly kind: "max" }
+  /** An unordered ledger of primitives. Union, remote's order first. */
+  | { readonly kind: "set" }
+  /**
+   * A list of records with an identity. Union by `id`, remote winning a tie.
+   *
+   * `time` sorts the result when the list has an order; without it the union
+   * keeps remote's order and appends what only local had, which is what makes
+   * this safe for `decks` — the entries the account's copy already had do not
+   * move, so an index stored elsewhere still points at the same one.
+   *
+   * Nothing is truncated. Every one of these lists is trimmed by the game on
+   * its next write, so a union that is briefly over the limit heals itself, and
+   * duplicating the limits here would be two constants free to disagree.
+   */
+  | { readonly kind: "list"; readonly id: string; readonly time?: string; readonly newestFirst?: boolean }
+  /** Take the account's copy whole. For live run state, PRNG state, anything atomic. */
+  | { readonly kind: "remote" };
+
+/**
+ * Rules by dotted path, with `*` standing in for a map key.
+ *
+ * Lookup tries the exact path, then replaces trailing segments with `*` one at
+ * a time — so `mastery.faction.idols` finds `mastery.faction.*`. The empty
+ * string is the root, which is how a whole section opts out of merging.
+ */
+export type MergeRules = Readonly<Record<string, MergeRule>>;
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+function ruleFor(path: string, rules: MergeRules): MergeRule | undefined {
+  const exact = rules[path];
+  if (exact) return exact;
+  if (path === "") return undefined;
+  const parts = path.split(".");
+  for (let keep = parts.length - 1; keep >= 1; keep--) {
+    const pattern = [...parts.slice(0, keep), ...parts.slice(keep).map(() => "*")].join(".");
+    const rule = rules[pattern];
+    if (rule) return rule;
+  }
+  return undefined;
+}
+
+export interface MergeOptions {
+  /** False when the common ancestor is unavailable; counters degrade to maxima. */
+  readonly hasBase?: boolean;
+}
+
+/**
+ * Three-way merge of one save section.
+ *
+ * `base` is what both sides last agreed on, `local` is this device's copy and
+ * `remote` is the account's. Pure: no clock, no storage, no randomness, so the
+ * same three inputs always produce the same output on both devices — which
+ * matters, because both of them are going to run it.
+ */
+export function mergeThreeWay(
+  base: unknown,
+  local: unknown,
+  remote: unknown,
+  rules: MergeRules,
+  options: MergeOptions = {},
+  path = ""
+): unknown {
+  const asLocal = canonicalJson(local);
+  const asRemote = canonicalJson(remote);
+  if (asLocal === asRemote) return remote;
+
+  const asBase = canonicalJson(base);
+  // Only one side moved. This is most of a save, and it needs no policy.
+  if (asBase === asLocal) return remote;
+  if (asBase === asRemote) return local;
+
+  const rule = ruleFor(path, rules);
+  if (rule) return applyRule(rule, base, local, remote, options);
+
+  if (isPlainObject(local) && isPlainObject(remote)) {
+    const merged: Record<string, unknown> = {};
+    const baseObject = isPlainObject(base) ? base : {};
+    for (const key of new Set([...Object.keys(local), ...Object.keys(remote)])) {
+      const value = mergeThreeWay(
+        baseObject[key],
+        local[key],
+        remote[key],
+        rules,
+        options,
+        path === "" ? key : `${path}.${key}`
+      );
+      if (value !== undefined) merged[key] = value;
+    }
+    return merged;
+  }
+
+  /**
+   * Two scalars, or two arrays with no rule. The account's copy wins.
+   *
+   * Element-wise merging of an unruled array is the one thing this must never
+   * do: a deck's card list, a PRNG's four words and a run's node path are all
+   * arrays whose elements only mean anything together.
+   */
+  return remote;
+}
+
+function applyRule(rule: MergeRule, base: unknown, local: unknown, remote: unknown, options: MergeOptions): unknown {
+  switch (rule.kind) {
+    case "counter": {
+      if (typeof local !== "number" || typeof remote !== "number") return remote ?? local;
+      if (options.hasBase === false) return Math.max(local, remote);
+      const from = typeof base === "number" ? base : 0;
+      // Clamped at zero because a spend recorded on both sides could otherwise
+      // take a currency negative, and no screen in the game renders that.
+      return Math.max(0, remote + (local - from));
+    }
+    case "max":
+      if (typeof local !== "number" || typeof remote !== "number") return remote ?? local;
+      return Math.max(local, remote);
+    case "set": {
+      if (!Array.isArray(local) || !Array.isArray(remote)) return remote ?? local;
+      const seen = new Set(remote.map((item) => canonicalJson(item)));
+      const union = [...remote];
+      for (const item of local) {
+        const key = canonicalJson(item);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        union.push(item);
+      }
+      return union;
+    }
+    case "list": {
+      if (!Array.isArray(local) || !Array.isArray(remote)) return remote ?? local;
+      /**
+       * Remote first, and remote wins a shared id.
+       *
+       * Both halves matter. Remote wins because the account's copy is the later
+       * of the two by revision. Remote goes *first* because a `Map` keeps the
+       * order of first insertion, so the entries the account already had stay
+       * exactly where they were and this device's extras are appended — which
+       * is the property that lets `decks` be merged at all, given that
+       * `activeDeckIndex` is an index into it.
+       */
+      const byId = new Map<string, unknown>();
+      for (const entry of remote) byId.set(identityOf(entry, rule.id), entry);
+      for (const entry of local) {
+        const key = identityOf(entry, rule.id);
+        if (!byId.has(key)) byId.set(key, entry);
+      }
+      const union = [...byId.values()];
+      if (!rule.time) return union;
+      const time = rule.time;
+      const direction = rule.newestFirst === false ? 1 : -1;
+      return union.sort((a, b) => direction * (numberAt(a, time) - numberAt(b, time)));
+    }
+    case "remote":
+      return remote;
+  }
+}
+
+/**
+ * The key an entry unions on.
+ *
+ * An entry missing the id field falls back to its whole canonical form, so it
+ * survives the union as itself rather than colliding with every other entry
+ * that is also missing it — which would silently collapse a log to one row.
+ */
+function identityOf(entry: unknown, field: string): string {
+  if (isPlainObject(entry)) {
+    const value = entry[field];
+    if (typeof value === "string" || typeof value === "number") return `${field}:${String(value)}`;
+  }
+  return `raw:${canonicalJson(entry)}`;
+}
+
+function numberAt(entry: unknown, field: string): number {
+  if (!isPlainObject(entry)) return 0;
+  const value = entry[field];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+// ---------------------------------------------------------------------------
 // Canonical form and checksums
 // ---------------------------------------------------------------------------
 

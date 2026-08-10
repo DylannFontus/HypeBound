@@ -16,13 +16,43 @@
  *   B. a second fresh browser with a *different* save signs in to the same
  *      account, is asked which to keep, and chooses the cloud
  *   C. the save that was replaced is still recoverable on B
- *   D. deleting the account removes the save from the server too
+ *   D. **the owner's report**: A plays, B plays, A comes back and must have B's
+ *      progress — including the case where both played while apart
+ *   E. deleting the account removes the save from the server too
  *
  * Step B is the one worth the wall-clock. It is the only path where the game
- * overwrites a real collection, and the only one with a person in it.
+ * overwrites a real collection, and the only one with a person in it. Step D is
+ * the one this feature was actually being used for.
  *
  * Not part of `npm test`: it creates and destroys real accounts against the
  * live project. Run by hand, with a dev server on :5173.
+ *
+ * ## Four ways this script has measured nothing, and what it does about them
+ *
+ * Every one of these produced a confident answer rather than an error.
+ *
+ * 1. **`page.goto(origin + "#play")` is not a reload.** From any other hash it
+ *    is a same-document navigation, so "the player reopened the game" never
+ *    started a new document and the boot-time sync never ran — which made a
+ *    working build look broken. `reopen()` uses `page.reload()` and counts the
+ *    `load` events to prove exactly one document arrived.
+ * 2. **The dev server hot-reloads the page out from under the scenario.** With
+ *    other work going on in the repo, a save to any file full-reloads every
+ *    open page; that is what destroyed an execution context mid-run and what
+ *    put two boots inside one "reopen". The Vite HMR socket is intercepted.
+ * 3. **`bringToFront()` does not change `document.visibilityState`** in
+ *    headless Chromium — measured: `visible` before and after, and not one
+ *    `visibilitychange` event. A backgrounding test built on it would have
+ *    asserted nothing at all. `background()`/`foreground()` therefore drive the
+ *    property and the event directly, and assert the app's own listener ran.
+ *    The `online` trigger, by contrast, is genuinely fired by the browser via
+ *    `context.setOffline`, so at least one of the three return paths is
+ *    exercised end to end without simulation.
+ * 4. **A module imported inside `page.evaluate` need not be the one the app is
+ *    using.** If it is not, a write "through the store" lands in a store
+ *    nothing uploads from and every subsequent assertion is about a phantom.
+ *    `assertOneStore` compares the imported store's object identity against
+ *    `window.hypebound.profile()`, which the running application hands out.
  */
 
 import { chromium } from "playwright-core";
@@ -53,12 +83,171 @@ const browser = await chromium.launch({
   args: ["--enable-unsafe-swiftshader", "--no-sandbox"],
 });
 
+const loads = new Map();
+
 /** A browser with its own storage — the whole point is that they share nothing. */
 async function freshMachine(label) {
   const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
   const page = await context.newPage();
+  loads.set(label, 0);
+  /**
+   * Silence hot module replacement.
+   *
+   * The dev server reloads every open page when any file in the repo changes,
+   * and a reload arriving in the middle of a scenario is indistinguishable from
+   * the application reloading itself. It has already cost this script one
+   * destroyed execution context and one scenario that quietly ran twice.
+   */
+  await page.routeWebSocket(/localhost:5173/, () => {});
+  page.on("load", () => loads.set(label, loads.get(label) + 1));
   page.on("pageerror", (e) => console.log(`   [${label}] page error: ${e.message.slice(0, 160)}`));
+  page.label = label;
   return page;
+}
+
+/**
+ * Reopening the game — a real document load, not a hash change.
+ *
+ * The count is the guard. `page.goto` to a URL that differs only in its hash is
+ * a same-document navigation, so the boot path never runs, and a script that
+ * calls that "reopening" is testing nothing while reporting a pass.
+ */
+async function reopen(page, settleMs = 7000) {
+  const before = loads.get(page.label);
+  /**
+   * `domcontentloaded` and then a fixed settle, rather than `networkidle`.
+   *
+   * Network idleness is not a property of this application: it holds live
+   * connections and the dev server is shared with whatever else is being worked
+   * on, so `networkidle` timed out here on a page that had loaded perfectly
+   * well. The `load` counter below is the actual gate, and it does not care how
+   * busy the socket was.
+   */
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(settleMs);
+  const after = loads.get(page.label);
+  if (after !== before + 1) throw new Error(`[${page.label}] expected one document load, saw ${after - before}`);
+}
+
+/**
+ * Is the store this script writes through the one the application holds?
+ *
+ * `window.hypebound.profile` is `getProfile`, which returns the live store's
+ * cache object, so reference equality settles it. Without this check a
+ * duplicated module would make every write here land somewhere the game never
+ * uploads from — storage would show the change, the sync would upload the old
+ * value, and the two would disagree with no error anywhere.
+ */
+async function assertOneStore(page) {
+  const verdict = await page.evaluate(async () => {
+    const { profileStore } = await import("/src/save/profile.ts");
+    if (typeof window.hypebound?.profile !== "function") return "no-handle";
+    return window.hypebound.profile() === profileStore.get() ? "shared" : "duplicated";
+  });
+
+  if (verdict === "shared") {
+    ok(`[${page.label}] this script and the game share one profile store`);
+    return true;
+  }
+  if (verdict === "duplicated") {
+    fail(`[${page.label}] the imported store is a second copy — every assertion below is about a phantom`);
+    return false;
+  }
+  /**
+   * A third answer, and the reason this check is not a boolean.
+   *
+   * The first version of it read `window.hypebound?.profile?.() === store.get()`
+   * and reported machine B as a duplicated module. It was not: `main.ts`
+   * **returns early from boot** when a browser still needs to pick a starter
+   * deck, before it publishes the debug handle — so a browser that has not
+   * reloaded since choosing one has no handle to compare against, and
+   * `undefined === anObject` is false for a reason that has nothing to do with
+   * module identity. Collapsing "cannot tell" into "duplicated" is how an
+   * instrument accuses the thing it is measuring.
+   */
+  fail(`[${page.label}] the game has not published its debug handle, so store identity cannot be checked here`);
+  return false;
+}
+
+/**
+ * Finish a match, as far as the sync layer can tell.
+ *
+ * The sync layer sees store mutations and nothing else, so a real match and
+ * this differ only in how long they take. Written through `update` for the
+ * reason recorded above: a direct `localStorage` edit is overwritten by the
+ * in-memory cache on the next flush.
+ */
+async function playMatch(page, { id, clout }) {
+  await page.evaluate(
+    async (match) => {
+      const { profileStore } = await import("/src/save/profile.ts");
+      profileStore.update((profile) => {
+        profile.clout = (profile.clout ?? 0) + match.clout;
+        profile.stats.matchesPlayed = (profile.stats.matchesPlayed ?? 0) + 1;
+        profile.history = [
+          {
+            id: match.id,
+            playedAt: Date.now(),
+            deckName: "verify",
+            leaderCardId: "l",
+            opponentLeaderCardId: "o",
+            result: "win",
+            turns: 7,
+            mode: "casual",
+          },
+          ...(profile.history ?? []),
+        ];
+      });
+      profileStore.flush();
+    },
+    { id, clout }
+  );
+  const written = await profileOf(page);
+  if (!written?.history?.some((entry) => entry.id === id)) {
+    fail(`[${page.label}] the match write never reached storage`);
+  }
+}
+
+/**
+ * Put the tab in the background, and prove the application noticed.
+ *
+ * The property is overridden rather than genuinely changed because headless
+ * Chromium does not background a tab when another is brought to the front —
+ * measured, `visible` before and after, zero events. What is under test is the
+ * listener and everything downstream of it, which this exercises exactly; that
+ * the browser fires `visibilitychange` at all is platform behaviour and not
+ * this build's to prove.
+ */
+async function background(page) {
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+    window.__hbSawHidden = false;
+    document.addEventListener("visibilitychange", () => (window.__hbSawHidden = document.visibilityState === "hidden"), { once: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  const seen = await page.evaluate(() => window.__hbSawHidden === true);
+  if (!seen) fail(`[${page.label}] the page never saw itself go to the background`);
+}
+
+async function foreground(page) {
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+  });
+}
+
+/** Poll until a condition holds, so a wait is never a guess about a duration. */
+async function until(page, describe, predicate, timeoutMs = 45000, stepMs = 1000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (await predicate()) return true;
+    if (Date.now() >= deadline) {
+      fail(`${describe} (waited ${(timeoutMs / 1000).toFixed(0)}s)`);
+      return false;
+    }
+    await page.waitForTimeout(stepMs);
+  }
 }
 
 /** Choose a starter deck, which is what creates a non-default profile. */
@@ -106,6 +295,50 @@ const manifestFrom = (page) =>
     return await response.json();
   });
 
+/**
+ * The profile as the *server* holds it, read with a raw fetch.
+ *
+ * Deliberately not through `SaveClient`: this is the independent witness the
+ * assertions are checked against, and a witness that shares a module with the
+ * thing under test is not one.
+ */
+/**
+ * Read once, up front, and never inside a scenario.
+ *
+ * `import("/src/config.ts")` is a request to the dev server, so a reader that
+ * fetched the config each time threw `Failed to fetch` the moment a machine was
+ * put offline — reporting a broken script where the intended answer was "this
+ * device cannot reach the save service", which is the whole point of that step.
+ */
+let SERVER_URL = "";
+
+const cloudProfile = (page) =>
+  page.evaluate(async (base) => {
+    const session = JSON.parse(localStorage.getItem("hypebound-auth:session") ?? "null");
+    if (!session) return { error: "signed out" };
+    try {
+      const response = await fetch(`${base}/me/saves/profile`, {
+        headers: { authorization: `Bearer ${session.accessToken}` },
+      });
+      if (response.status === 404) return { absent: true };
+      if (!response.ok) return { error: `status ${response.status}` };
+      const body = await response.json();
+      const data = JSON.parse(body.payload);
+      return {
+        revision: body.revision,
+        clout: data.clout,
+        matches: data.stats?.matchesPlayed,
+        history: (data.history ?? []).map((entry) => entry.id),
+      };
+    } catch {
+      // Unreachable is an answer, not a crash: it is what "this device is
+      // offline" looks like from here, and a step below asserts on exactly it.
+      return { error: "unreachable" };
+    }
+  }, SERVER_URL);
+
+const localHistory = async (page) => ((await profileOf(page))?.history ?? []).map((entry) => entry.id);
+
 async function waitForSection(page, section, timeoutMs = 30000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -124,6 +357,7 @@ try {
   console.log("A. A fresh machine makes an account and its save goes up");
   const a = await freshMachine("A");
   await startPlaying(a, "neon-idols");
+  SERVER_URL = await a.evaluate(async () => (await import("/src/config.ts")).ONLINE.serverUrl);
   await waitForProfile(a);
 
   /**
@@ -312,7 +546,226 @@ try {
   else fail(`the archive is not in the export (hook present: ${inExport.hooked})`);
 
   // -------------------------------------------------------------------------
-  console.log("\nD. Deleting the account removes the save from the server");
+  /**
+   * The scenario the owner reported, in the owner's words: play on one device,
+   * play on another with the same account, come back to the first.
+   *
+   * It failed for a reason that had nothing to do with the pull. `syncNow`
+   * treated `conflict` as "do nothing", and nothing ever resolved a conflict —
+   * so the first time both sides moved, that device stopped syncing in both
+   * directions, permanently and silently. Measured before the fix: four
+   * consecutive passes on the returning device, all four deciding `conflict`,
+   * all four no-ops, while the other device's matches piled up on the server.
+   *
+   * D5 is the part that matters most. It is the case that used to wedge, and
+   * the assertion is not "somebody won" — it is that *both* matches survive.
+   */
+  console.log("\nD. Progress made on a second device comes back to the first");
+
+  /**
+   * Both devices are reopened first, which is the state a real one is in.
+   *
+   * It also matters for a reason worth recording: a browser that has just
+   * chosen a starter deck is still running the document that `main.ts`
+   * **returned early** from — before the boot-time `syncNow`, before
+   * `startAutoSync`, and before the debug handle. Machine B had been in that
+   * state since scenario B, so it had auto-sync only because signing in started
+   * it. A reload puts both devices on the ordinary boot path.
+   */
+  await reopen(a);
+  await reopen(b);
+  const storesAreShared = (await assertOneStore(a)) && (await assertOneStore(b));
+
+  if (storesAreShared) {
+    // --- D1: leaving pushes, rather than waiting out the debounce -----------
+    const beforePush = Date.now();
+    await playMatch(a, { id: "A-match-1", clout: 100 });
+    await background(a);
+    const pushed = await until(
+      a,
+      "A's match never reached the server after the tab went to the background",
+      async () => (await cloudProfile(a))?.history?.includes("A-match-1"),
+      20000
+    );
+    if (pushed) {
+      const took = Date.now() - beforePush;
+      ok(`A's match reached the server ${(took / 1000).toFixed(1)}s after going to the background`);
+      // The debounce is 30s. Anything at or beyond it means the tab-away push
+      // did not happen and the ordinary timer got there first, which is the
+      // window that lets two devices diverge in the first place.
+      if (took < 25000) ok("and it did not wait out the 30s upload debounce");
+      else fail(`it waited ${(took / 1000).toFixed(1)}s, so leaving the page did not push`);
+    }
+
+    // --- D2: coming back pulls ----------------------------------------------
+    await foreground(b);
+    const bPulled = await until(
+      b,
+      "B came back to the foreground and never pulled A's match",
+      async () => (await localHistory(b)).includes("A-match-1")
+    );
+    if (bPulled) ok("B came back to the foreground and picked up A's match");
+
+    // --- D3 and D4: the report, in both directions --------------------------
+    await playMatch(b, { id: "B-match-1", clout: 200 });
+    await background(b);
+    await until(b, "B's match never reached the server", async () => (await cloudProfile(b))?.history?.includes("B-match-1"), 20000);
+
+    await foreground(a);
+    const aGotIt = await until(
+      a,
+      "A came back and still did not have B's match — this is the reported bug",
+      async () => (await localHistory(a)).includes("B-match-1")
+    );
+    if (aGotIt) ok("A came back to the first device and B's match was there");
+
+    // --- D5: both devices played while apart --------------------------------
+    console.log("\n   Both played while apart — the case that used to wedge for ever");
+    await a.context().setOffline(true);
+    await playMatch(a, { id: "A-offline", clout: 1000 });
+    await foreground(a);
+    await a.waitForTimeout(3000);
+
+    const strandedCloud = await cloudProfile(a);
+    if (strandedCloud?.error) ok("A is offline and cannot reach the save service, as intended");
+    else fail(`A was supposed to be offline, but the save service answered: ${JSON.stringify(strandedCloud)?.slice(0, 90)}`);
+
+    await playMatch(b, { id: "B-solo", clout: 2000 });
+    await background(b);
+    await until(b, "B's second match never reached the server", async () => (await cloudProfile(b))?.history?.includes("B-solo"), 20000);
+
+    const cloutBefore = (await profileOf(a))?.clout ?? 0;
+
+    /**
+     * Coming back online is the one return trigger the browser fires for real
+     * here, so it is the one worth using for the scenario that matters most.
+     */
+    await a.evaluate(() => {
+      window.__hbSawOnline = false;
+      window.addEventListener("online", () => (window.__hbSawOnline = true), { once: true });
+    });
+    await a.context().setOffline(false);
+    await a.waitForTimeout(1500);
+    if (await a.evaluate(() => window.__hbSawOnline === true)) ok("A observed a real `online` event from the browser");
+    else fail("A never saw an `online` event, so this scenario is not testing the trigger it claims to");
+
+    const converged = await until(
+      a,
+      "A never reconciled: it holds one of the two afternoons and the other is gone",
+      async () => {
+        const held = await localHistory(a);
+        return held.includes("A-offline") && held.includes("B-solo");
+      },
+      60000
+    );
+
+    const finalA = await profileOf(a);
+    const finalIds = (finalA?.history ?? []).map((entry) => entry.id);
+    if (converged) {
+      ok(`both afternoons survived on A: ${JSON.stringify(finalIds)}`);
+    } else {
+      fail(`A holds ${JSON.stringify(finalIds)} — a match a player played was thrown away`);
+    }
+
+    /**
+     * The arithmetic, not just the list. A merge that keeps both history
+     * entries and then picks one side's Clout has still quietly deleted the
+     * rewards for one of them.
+     */
+    if ((finalA?.clout ?? 0) >= cloutBefore + 2000) {
+      ok(`the Clout from both devices is there (${cloutBefore} + 2000 → ${finalA?.clout})`);
+    } else {
+      fail(`Clout went ${cloutBefore} → ${finalA?.clout}; one device's earnings were dropped`);
+    }
+
+    // And the merge has to reach the server, or the other device never sees it.
+    const uploaded = await until(
+      a,
+      "the reconciled save never reached the server",
+      async () => {
+        const cloud = await cloudProfile(a);
+        return cloud?.history?.includes("A-offline") && cloud?.history?.includes("B-solo");
+      },
+      45000
+    );
+    if (uploaded) ok("and the reconciled save went up, so the other device gets it too");
+
+    // --- the pair converges, rather than trading revisions -------------------
+    /**
+     * Two attempts, because they fail differently and the difference matters.
+     *
+     * If coming back to the foreground converges B, the return trigger works.
+     * If only a reload does, the merge is fine and the *trigger* is broken —
+     * which is the original bug wearing a different hat, and worth saying so
+     * rather than reporting a generic "did not converge".
+     */
+    const bothAfternoons = async () => {
+      const held = await localHistory(b);
+      return held.includes("A-offline") && held.includes("B-solo");
+    };
+
+    await foreground(b);
+    if (await until(b, "B did not converge on returning to the foreground", bothAfternoons, 30000)) {
+      ok("B converged on the same save, so the two devices agree again");
+    } else {
+      const link = await b.evaluate(() => JSON.parse(localStorage.getItem("hypebound:cloud-link") ?? "null"));
+      const cloud = await cloudProfile(b);
+      console.log(
+        `      B holds ${JSON.stringify(await localHistory(b))}; link ${JSON.stringify(link?.sections?.profile)};` +
+          ` the server holds ${JSON.stringify(cloud?.history)} at revision ${cloud?.revision}`
+      );
+      await reopen(b);
+      if (await until(b, "B never converged at all, even after reopening the game", bothAfternoons, 20000)) {
+        fail("B converged only after a reload — coming back to the foreground did not trigger a sync");
+      }
+    }
+
+    /**
+     * The wedge test. Before the fix the device was not merely wrong once, it
+     * was stuck: every later pass decided `conflict` and did nothing, for ever.
+     * One more match on each side has to keep flowing.
+     */
+    await playMatch(a, { id: "A-after", clout: 10 });
+    await background(a);
+    const stillWorks = await until(
+      a,
+      "the device stopped syncing after reconciling — it is wedged, exactly as before",
+      async () => (await cloudProfile(a))?.history?.includes("A-after"),
+      30000
+    );
+    if (stillWorks) ok("and syncing keeps working afterwards, rather than wedging");
+  }
+
+  // -------------------------------------------------------------------------
+  console.log("\nE. Deleting the account removes the save from the server");
+
+  /**
+   * Quiet machine A first.
+   *
+   * It is still signed in with a token that has not expired, and it now syncs
+   * on a good deal more than a local write — so a background pass landing
+   * between the delete and the check would re-create the very rows this step is
+   * looking for. "A second device with a live token can re-upload after a
+   * deletion" is a real question and a separate one; it predates this change,
+   * and answering it here would only make this step flaky.
+   */
+  await a
+    .evaluate(async () => {
+      const { stopAutoSync } = await import("/src/save/cloudSaves.ts");
+      stopAutoSync();
+    })
+    /**
+     * Housekeeping, not an assertion, so it does not get to fail the run.
+     *
+     * It has thrown "execution context was destroyed" when the dev server
+     * restarted underneath the run — which happens whenever `vite.config.ts` is
+     * saved by anyone. Worth quieting A, not worth reporting a defect in the
+     * game because somebody else pressed Ctrl-S.
+     */
+    .catch((error) => console.log(`   (could not quiet machine A: ${String(error).slice(0, 80)})`));
+
+  await b.goto(`${ORIGIN}/#privacy`, { waitUntil: "networkidle" });
+  await b.waitForSelector(".privacy-screen");
   await b.evaluate(() => {
     localStorage.removeItem("__e2e_alert");
     window.prompt = () => "DELETE";
