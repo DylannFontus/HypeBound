@@ -27,6 +27,10 @@ export default {
     const origin = request.headers.get("Origin");
 
     if (request.method === "OPTIONS") {
+      // `/admin/*` is not merely uncorsed, it is un-preflightable. A browser
+      // that cannot get a preflight past this line can never send the real
+      // request, whatever it puts in its headers.
+      if (url.pathname.startsWith("/admin/")) return new Response(null, { status: 403 });
       return preflight(origin, env);
     }
 
@@ -99,6 +103,62 @@ export default {
         body: request.method === "PUT" ? await request.text() : undefined,
       });
       return cors(await stub.fetch(forwarded), origin, env);
+    }
+
+    /**
+     * The operator's door onto one account's profile save — `scripts/grant.mjs`.
+     *
+     * ## It is a byte proxy, and refusing to make it anything more is the design
+     *
+     * `saves/store.ts` opens with the claim that this server never parses a
+     * save, and draws the conclusion from it: *"a compromised server can
+     * withhold or corrupt a save but cannot mint currency out of one."* A route
+     * that spliced a grant into a payload server-side would be the shortest
+     * possible way to delete that sentence. So the read-modify-write lives in
+     * the operator's terminal, where `--dry-run` can print it, and this
+     * forwards bytes and an `If-Match` exactly as `/me/saves` does — meaning a
+     * grant races a player's own write on precisely the same terms, and loses
+     * loudly with a 409 rather than quietly overwriting whatever they did next.
+     *
+     * ## Three ways it is closed to the client, not one
+     *
+     * The header it needs is a secret that exists only in the Worker's
+     * environment and the operator's gitignored `.dev.vars`, and is in no
+     * bundle; `Access-Control-Allow-Headers` does not list it, so no browser
+     * would be permitted to send it; and any request arriving with an `Origin`
+     * at all is refused here before the token is even looked at. A page cannot
+     * reach this by being clever, only by not being a page.
+     *
+     * The account is named in the path rather than derived from a token — the
+     * one place in this file where the subject is not the caller — so the shape
+     * is deliberately narrow: one hard-coded section, and an id pattern that
+     * cannot express an email address. The server has no Supabase credential
+     * and therefore no way to resolve one; refusing the shape says so at the
+     * boundary instead of leaving it to be discovered.
+     */
+    const admin = /^\/admin\/saves\/([A-Za-z0-9_-]{8,64})\/profile$/.exec(url.pathname);
+    if (admin) {
+      if (origin !== null) return new Response("forbidden", { status: 403 });
+      if (!env.ADMIN_TOKEN || request.headers.get("X-Hypebound-Admin") !== env.ADMIN_TOKEN) {
+        // Same precedent, and the same safe direction, as `/match/:id/init`:
+        // with no `ADMIN_TOKEN` configured the route is closed entirely rather
+        // than open.
+        return new Response("forbidden", { status: 403 });
+      }
+
+      const stub = env.SAVE_STORE.get(env.SAVE_STORE.idFromName(admin[1]!));
+      if (request.method === "GET") return stub.fetch(new Request("https://saves/section/profile"));
+      if (request.method !== "PUT") return new Response("method not allowed", { status: 405 });
+
+      return stub.fetch(
+        new Request("https://saves/section/profile", {
+          method: "PUT",
+          headers: request.headers.has("If-Match")
+            ? { "If-Match": request.headers.get("If-Match")!, "content-type": "application/json" }
+            : { "content-type": "application/json" },
+          body: await request.text(),
+        })
+      );
     }
 
     /**

@@ -50,7 +50,8 @@
     "verify:decks": "node scripts/verify-decks.mjs",
     "verify:events": "node scripts/verify-events.mjs",
     "verify:remix": "node scripts/verify-remix.mjs",
-    "verify:custom": "node scripts/verify-custom.mjs"
+    "verify:custom": "node scripts/verify-custom.mjs",
+    "verify:animation-budget": "node scripts/verify-animation-budget.mjs"
   },
   "dependencies": {
     "postprocessing": "^6.39.4",

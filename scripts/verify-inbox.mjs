@@ -15,6 +15,8 @@
  * - nothing that owes you something can be deleted or swept up by "clear read";
  * - a deletion survives a reload, because a delete that forgets itself is worse
  *   than no delete button at all;
+ * - an operator grant from `scripts/grant.mjs` arrives, pays once, and cannot be
+ *   made to pay a second time by asking twice or by reloading;
  * - the senders that cannot exist are printed with their reasons.
  *
  * It also checks the lobby's Daily Missions rail, which until this feature was
@@ -24,6 +26,22 @@
  * message is present today". The shipped calendar moves on, and a verification
  * that starts failing in November because a real banner run ended is a
  * verification nobody trusts.
+ *
+ * ## Two selectors here went stale, and the failures did not say so
+ *
+ * This script names classes the screens no longer render. `bf769db` renamed the
+ * lobby's mission rows from `.mission-list .mission .mission-text` to the
+ * `.lobby-mission-*` family, and `73702c8` renamed the reading footer's
+ * retention line from `.faint` to `.mail-retention`. Neither rename was wrong;
+ * both were invisible from here, and the two failures they produced described
+ * the game rather than the script — *"the lobby's mission rail is empty"* for a
+ * rail that renders three real missions, and a 30-second `locator.innerText`
+ * timeout that crashed the run outright for a line that is on screen.
+ *
+ * That is the standing hazard with a selector: a verification written against
+ * markup fails as an accusation. Every assertion below that can be phrased
+ * against a *behaviour* — `window.hypeboundInbox`, the wallet number, an exit
+ * code — is, and the ones that cannot say what they are pinned to.
  */
 import { chromium } from "playwright-core";
 import path from "node:path";
@@ -59,9 +77,24 @@ const settleOn = async (selector) => {
   await page.waitForFunction(() => document.querySelectorAll(".screen-out").length === 0, null, { timeout: 20000 });
 };
 
-/** Clout as the header actually renders it, not as a second module instance believes it. */
+/**
+ * Clout as the header actually renders it, not as a second module instance
+ * believes it.
+ *
+ * `data-value` first, text second. The lobby's currency chips count up from
+ * zero over `DUR.setpiece`, so an `innerText` read taken in the wrong 700ms
+ * window reports a number that is true of one animation frame and of nothing
+ * else — and the arithmetic downstream ("claiming paid N Clout") would then be
+ * wrong by however far the ticker had got. Where the truth is on the element as
+ * an attribute, read the attribute.
+ */
 const walletOn = async (selector) =>
-  Number((await page.locator(selector).innerText()).replace(/[^0-9]/g, ""));
+  page.evaluate((sel) => {
+    const node = document.querySelector(sel);
+    if (!node) throw new Error(`no element matches ${sel}`);
+    const declared = node.getAttribute("data-value");
+    return Number(declared ?? node.textContent.replace(/[^0-9]/g, ""));
+  }, selector);
 
 await seedPlayedAccount(page);
 
@@ -84,7 +117,9 @@ else ok(`the badge shows ${lobbyBadge} unread`);
  * name a mission that exists in the data.
  */
 const railCheck = await page.evaluate(async () => {
-  const rows = [...document.querySelectorAll(".lobby-rail .mission-list .mission .mission-text")].map((n) =>
+  // `.lobby-mission-*`, not `.mission-*`: the rail was renamed in bf769db and
+  // this line spent the interval reporting an empty rail that was full.
+  const rows = [...document.querySelectorAll(".lobby-rail .lobby-mission-list .lobby-mission-name")].map((n) =>
     n.textContent.trim()
   );
   const raw = await (await fetch("/data/missions.json")).json();
@@ -140,7 +175,9 @@ const reading = (await page.locator(".mail-reading-subject").innerText()).trim()
 if (!reading) fail("nothing is open in the reading pane");
 else ok(`reading "${reading}"`);
 
-const retention = await page.locator(".mail-reading-foot .faint").innerText();
+// `.mail-retention`, not `.faint`: renamed in 73702c8, and the stale selector
+// did not report a missing line — it hung for 30s and killed the whole run.
+const retention = await page.locator(".mail-reading-foot .mail-retention").innerText();
 if (!/Clears from your inbox|will not expire/i.test(retention)) fail(`no retention line on the open message: "${retention}"`);
 else ok(`the open message states its retention: "${retention.trim()}"`);
 
@@ -238,7 +275,10 @@ await page.reload({ waitUntil: "networkidle" });
 /** The lobby is where `syncHypeWave` runs, so the package must post from there. */
 await page.goto("http://localhost:5173/#lobby", { waitUntil: "networkidle" });
 await settleOn(".lobby-screen");
-const cloutBefore = await walletOn(".lobby-currencies .currency:first-child .currency-value");
+// `.lobby-currency-value`, not `.lobby-currencies .currency .currency-value`:
+// the third selector bf769db left behind in this file, and the second that
+// failed by hanging for 30s rather than by saying anything.
+const cloutBefore = await walletOn(".lobby-currency:first-child .lobby-currency-value");
 
 await page.goto("http://localhost:5173/#inbox", { waitUntil: "networkidle" });
 await settleOn(".inbox-screen");
@@ -284,7 +324,125 @@ else {
   else ok("once taken, the message deletes like any other");
 }
 
-// --- 7. shots and console --------------------------------------------------------
+// --- 7. an operator grant ---------------------------------------------------------
+/**
+ * `scripts/grant.mjs` writes a record into `inbox.grants` on the account's
+ * profile section, and the client derives a claimable message from it. This is
+ * the client half of that, and the property it exists to prove is the one that
+ * costs real money to get wrong: **a granted attachment pays exactly once**.
+ *
+ * The grant is written through `profileStore.update`, which is precisely what a
+ * cloud pull does (`cloudSaves.ts` calls `store.replace` with the downloaded
+ * payload) — so this exercises the same in-memory state a real grant produces,
+ * without needing a server. What it therefore does *not* prove is the network
+ * half; `node scripts/grant.mjs --self-test` proves that against the Durable
+ * Object's own `applyPut`.
+ */
+console.log("\n7. A grant sent from the terminal pays once, and only once");
+
+await page.goto("http://localhost:5173/#inbox", { waitUntil: "networkidle" });
+await settleOn(".inbox-screen");
+
+/**
+ * The control, and it is not a formality.
+ *
+ * Everything below asks "is the grant message there and does it behave?" — and
+ * a check that cannot tell present from absent would pass on a build where
+ * grants do nothing at all. So first, with no grant on the account, count zero.
+ */
+const grantsBefore = await page.evaluate(() =>
+  window.hypeboundInbox.list().filter((m) => m.id.startsWith("grant:")).length
+);
+if (grantsBefore !== 0) fail(`the inbox already lists ${grantsBefore} grant messages before one was sent`);
+else ok("control: with nothing in inbox.grants, the inbox derives no grant mail");
+
+/** Same three navigations, and the same reason, as the Welcome Back block above. */
+await page.reload({ waitUntil: "networkidle" });
+const sent = await page.evaluate(async () => {
+  const { profileStore } = await import("/src/save/profile.ts");
+  const { checkGrantRecord } = await import("/src/game/inbox/grants.ts");
+  const storage = await import("/src/save/storage.ts");
+  const record = { id: "verify-inbox", clout: 4321, reason: "verifying the grant path", issuedAt: Date.now() - 60_000 };
+  // Built with the module the terminal tool validates against, so this cannot
+  // seed a record the real tool would have refused to send.
+  const problems = checkGrantRecord(record, Date.now());
+  profileStore.update((draft) => {
+    draft.inbox = { ...draft.inbox, grants: [record] };
+  });
+  storage.flushAllStores();
+  return { record, problems };
+});
+if (sent.problems.length > 0) fail(`the seeded grant is not a valid record: ${sent.problems.join("; ")}`);
+await page.reload({ waitUntil: "networkidle" });
+
+await page.goto("http://localhost:5173/#inbox", { waitUntil: "networkidle" });
+await settleOn(".inbox-screen");
+
+const grantId = `grant:${sent.record.id}`;
+const granted = (await page.evaluate(() => window.hypeboundInbox.list())).find((m) => m.id === grantId);
+if (!granted) fail(`a grant on the account produced no mail (looked for ${grantId})`);
+else {
+  ok(`"${granted.subject}" arrived with ${granted.attachment[0].amount} Clout attached`);
+
+  if (granted.attachment.length !== 1 || granted.attachment[0].amount !== sent.record.clout) {
+    fail(`the attachment carries ${JSON.stringify(granted.attachment)}, not ${sent.record.clout} Clout`);
+  } else ok(`the attachment is exactly the granted amount (${sent.record.clout})`);
+
+  if (granted.expiresAt !== null) fail("the grant carries an expiry — F6 forbids losing a grant by waiting");
+  else ok("it is marked as never expiring while it still owes something");
+
+  if (!granted.body.some((p) => p.includes(sent.record.reason))) {
+    fail(`the reason "${sent.record.reason}" is not in the message the player reads`);
+  } else ok(`the recorded reason is quoted to the player: "${sent.record.reason}"`);
+
+  const before = await walletOn("#inbox-clout");
+
+  if (await page.evaluate((id) => window.hypeboundInbox.remove(id), grantId)) {
+    fail("delete threw away an unclaimed grant");
+  } else ok("delete refuses it while the attachment is unclaimed");
+
+  await page.evaluate(() => window.hypeboundInbox.clearRead());
+  if (!(await page.evaluate((id) => window.hypeboundInbox.list().some((m) => m.id === id), grantId))) {
+    fail('"clear read" threw away an unclaimed grant');
+  } else ok('"clear read" left it alone');
+
+  const onArrival = await walletOn("#inbox-clout");
+  if (onArrival !== before) fail(`the grant paid itself on arrival: ${before} → ${onArrival}`);
+  else ok(`nothing was paid on arrival (${onArrival} Clout, unchanged)`);
+
+  await page.evaluate((id) => window.hypeboundInbox.open(id), grantId);
+  await page.locator("#mail-claim").click();
+  await page.waitForTimeout(150);
+  const afterFirst = await walletOn("#inbox-clout");
+  if (afterFirst - before !== sent.record.clout) {
+    fail(`claiming paid ${afterFirst - before} Clout, the grant says ${sent.record.clout}`);
+  } else ok(`claiming paid exactly ${sent.record.clout} Clout (${before} → ${afterFirst})`);
+
+  const twice = await page.evaluate((id) => window.hypeboundInbox.claim(id), grantId);
+  const afterSecond = await walletOn("#inbox-clout");
+  if (twice !== null || afterSecond !== afterFirst) {
+    fail(`asking again paid ${JSON.stringify(twice)} and moved the wallet to ${afterSecond}`);
+  } else ok(`asking a second time returns null and the wallet stays at ${afterSecond}`);
+
+  /**
+   * And across a reload, which is the case the ledger exists for. `inbox.claimed`
+   * is never pruned precisely so an id cannot age out and become payable again;
+   * this is that promise measured rather than restated.
+   */
+  await page.reload({ waitUntil: "networkidle" });
+  await settleOn(".inbox-screen");
+  const thrice = await page.evaluate((id) => window.hypeboundInbox.claim(id), grantId);
+  const afterReload = await walletOn("#inbox-clout");
+  if (thrice !== null || afterReload !== afterFirst) {
+    fail(`after a reload the grant paid again: ${JSON.stringify(thrice)}, wallet ${afterFirst} → ${afterReload}`);
+  } else ok(`after a reload it still refuses, wallet unchanged at ${afterReload}`);
+
+  if (!(await page.evaluate((id) => window.hypeboundInbox.remove(id), grantId))) {
+    fail("a claimed grant still cannot be deleted");
+  } else ok("once taken, it deletes like any other message");
+}
+
+// --- 8. shots and console --------------------------------------------------------
 /**
  * And the empty state, which this run has genuinely arrived at by deleting
  * everything rather than by being shown a mock of one.

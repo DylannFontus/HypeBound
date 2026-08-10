@@ -1127,6 +1127,81 @@
   animation: none;
 }
 
+/* =========================================================================
+   THE IDLE SHEEN UNDER THE ANIMATION BUDGET
+
+   `transitions.css` §0a carries the model in full; the part that binds here is
+   its second half. A composited full-bleed layer is free while it is still —
+   twenty-four of them hold 62.5fps on the harness — and the instant *anything*
+   above them changes a composited value, the whole stack is re-blended for the
+   damaged region. One mover over eight static full-viewport layers is 4.6fps.
+
+   That makes the idle sheen a bigger cost than its own size suggests, because
+   the plates it runs on are not small. Measured on WebKit 26.5 at an iPad Pro's
+   1194x834 at 2x, tier low, `#fairness`: `section.mat-panel.fairness-faq` is
+   **0.61 of the viewport** and its `::after` was crossing it sixty times a
+   second, on a page carrying thirteen other full-viewport surfaces. The
+   application's single remaining mover measured twenty-five times more
+   expensive than the harness's own equivalent, and this is why: it is not the
+   band that costs, it is everything underneath the band.
+
+   Two tiers, two answers, and the high tier is untouched.
+
+   **Medium quantises.** `steps(n)` charges `n / period` instead of the display
+   rate, and at ten changes a second the band advances a fraction of a pixel per
+   step — indistinguishable from continuous, at a sixth of the price. The counts
+   differ per rank because the periods do; the rate is what is being held
+   constant.
+
+   **Low stops the panel and the chip and keeps the hero.** A screen has between
+   six and forty plates and exactly one hero, so the hero is the one place where
+   §3a's "a breathing glow on the primary action" costs a single layer rather
+   than forty. What answers "the screen is alive at rest" on this tier is the
+   film grain on the persistent front plane, which `transitions.css` §1.8a keeps
+   running at every tier for precisely this reason — it is one layer for the
+   whole application rather than one per plate.
+   ========================================================================= */
+
+:root[data-gfx-tier="medium"] .mat-hero::after {
+  animation-timing-function: steps(62); /* 6.2s x 10/s */
+}
+
+:root[data-gfx-tier="medium"] .mat-panel::after {
+  animation-timing-function: steps(86); /* 8.6s x 10/s */
+}
+
+:root[data-gfx-tier="medium"] .mat-chip::after {
+  animation-timing-function: steps(114); /* 11.4s x 10/s */
+}
+
+:root[data-gfx-tier="low"] .mat-panel::after,
+:root[data-gfx-tier="low"] .mat-chip::after {
+  animation: none;
+}
+
+/**
+ * ...and the hero goes too, which is a correction to the paragraph above.
+ *
+ * The plan was to keep it: one plate, quantised to five changes a second, on the
+ * one object a player is looking at. That reasoning assumed a small mover damages
+ * a small region, and `scripts/_w12budget_small.mjs` was written to check it
+ * before relying on it. It does not. Over a stack of eight full-viewport layers,
+ * a 140x48 button animating a transform measured **5.4fps** against **4.8** for a
+ * layer covering the whole screen — the same cost to within noise, because the
+ * compositor re-blends the stack whatever size the thing that moved was.
+ *
+ * So on this tier the rate term is not "how much moves", it is "how often
+ * anything moves at all", and a second mover doubles the bill however small it
+ * is. The low tier gets exactly one: the grain on the persistent front plane,
+ * which covers every route at once instead of one plate.
+ *
+ * The hero keeps its hover, its active state and its focus ring, all of which
+ * are transient and none of which is running while the player is reading.
+ */
+:root[data-gfx-tier="low"] .mat-hero::after {
+  animation: none;
+}
+
 /* Radius utilities. A material picks a sensible default for its rank; these
    override it when the role differs — a hero that is a pill, a panel used as
    a tile. They set `--r-self` alongside `border-radius` so the focus ring in

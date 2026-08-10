@@ -287,9 +287,15 @@ const JUSTIFIED: readonly { sheet: string; line: number; source: string; reason:
   },
   {
     sheet: "foundation.css",
-    line: 3040,
+    line: 3115,
     source: "45deg",
-    reason: "The same chevron arm, restated a hair heavier under data-contrast=\"high\".",
+    reason:
+      "The same chevron arm, restated a hair heavier under data-contrast=\"high\". " +
+      "Moved from 3040 by the idle sheen's tier budget, which inserted 75 lines " +
+      "above it; the declaration itself is untouched. The sibling assertion " +
+      "\"registers no exception that has stopped existing\" is what forces this " +
+      "number to be corrected rather than left to rot, which is the whole reason " +
+      "a line-keyed allowlist is safe to use.",
   },
 ];
 

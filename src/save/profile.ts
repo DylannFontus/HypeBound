@@ -145,7 +145,7 @@ import { remixData, remixQuest, type RemixQuest } from "../game/remix";
  */
 import { weekIndex as remixWeekIndex } from "../game/weeklyBoss";
 import { bannerCardBackId, checkInCosmeticForMonth } from "../game/cosmetics";
-import { buildMail, type MailInput, type MailMessage } from "../game/inbox";
+import { buildMail, type MailGrantRecord, type MailInput, type MailMessage } from "../game/inbox";
 import { newsArticles, releases, unseenVersions, type NewsArticle } from "../game/news";
 import { doomscrollStore } from "./doomscrollSave";
 import {
@@ -430,6 +430,12 @@ export interface PlayerProfile {
    * facts the save already holds (see `src/game/inbox/`), so this is three sets
    * of ids and nothing else.
    *
+   * `grants` is the one exception, and it is still not a message: it is the
+   * record of an operator having decided to send one, written from outside the
+   * game by `scripts/grant.mjs` and read here so the inbox can derive the mail
+   * from it. Absent on every account nobody has sent anything to, which is
+   * nearly all of them.
+   *
    * `claimed` is a permanent ledger and is never trimmed, for the reason
    * `mastery.claimed` and `achievements.claimed` are not: an id that aged out
    * would make an attachment claimable a second time. `read` and `deleted` are
@@ -440,7 +446,7 @@ export interface PlayerProfile {
    * NOTE: the save store merges defaults shallowly, so a field added *inside*
    * this object is not back-filled on an existing save. Read it defensively.
    */
-  inbox: { read: string[]; claimed: string[]; deleted: string[] };
+  inbox: { read: string[]; claimed: string[]; deleted: string[]; grants?: MailGrantRecord[] };
   /**
    * News and patch notes — §4.2.2 and §4.2.3.
    *
@@ -2808,6 +2814,7 @@ function mailInput(profile: PlayerProfile): MailInput {
     welcomeBackAt: profile.hypeWave?.welcomeBackAt ?? 0,
     archivedSeasonIds: (profile.hypeWave?.archives ?? []).map((archive) => archive.seasonId),
     claimed: profile.inbox?.claimed ?? [],
+    grants: profile.inbox?.grants ?? [],
     eventConversions: Object.values(profile.events?.state ?? {}).flatMap((state) =>
       (state.conversions ?? []).map((entry) => ({ eventId: state.eventId, ...entry }))
     ),

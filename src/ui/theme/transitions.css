@@ -164,6 +164,124 @@
 }
 
 /* =========================================================================
+   0a. THE ANIMATION BUDGET — what a full-bleed layer actually costs, and the
+   unit the tiers below spend.
+
+   ## The quantity is not the one this was launched to fix
+
+   An owner reported half a second of freeze on every page change on an iPad
+   Pro M5, smooth on a desktop. Wave 10 attributed it to compositor memory and
+   took 44.8 MB off the backing store, which was a real improvement and did not
+   touch the stall. The follow-up measured the arms on Playwright WebKit 26.5 at
+   an iPad Pro's 1194x834 at 2x, tier low, with no WebGL context anywhere:
+
+       blank page                63.2 fps      animation: none    33-39 fps
+       every HYPEBOUND route     0.9-1.1 fps   reduced motion     62.5 fps
+       will-change: auto         1.0 fps       filter: none        1.3 fps
+
+   — and concluded, reasonably, that the number of running animations is the
+   cause. **It is not, and a dose-response control says so.** Three arms built
+   by the harness itself on a blank page, same clock, same context
+   (`scripts/_w12budget_area.mjs`):
+
+       80 layers of 120px, 160 running animations ............ 27.3 fps
+       16 full-viewport promoted layers, none animating ...... 62.4 fps
+       ONE full-viewport layer, one transform animation ...... 23.2 fps
+
+   A hundred and sixty running animations on small boxes cost less than two on
+   one full-bleed layer, and a static promoted full-bleed layer is free. So the
+   price is not paid per animation and not paid for the promotion; it is paid
+   **per composited frame on which a viewport-sized layer's animated value
+   changes**. It is a bandwidth cost.
+
+   `scripts/_w12budget_steps.mjs` pins it exactly. The same layer animated over
+   7s and over 200s — a hundredth of the displacement per frame — cost the same
+   to within noise (26.1 vs 26.5 fps at n=1, 9.2 vs 9.2 at n=4). Distance is
+   free; *changing* is what costs. And therefore:
+
+       n=4 full-bleed layers    continuous ....... 9.2 fps
+                                steps(12) ....... 43.7 fps
+                                paused .......... 62.5 fps
+
+   ## So the budget is a rate, and its unit is changes per second
+
+   A continuously animating full-viewport layer spends 60 of them a second. The
+   same layer on `steps(n)` over a period `p` spends `n / p`. A parked one
+   spends none. That is the whole model, and it is why the tiers below quantise
+   rather than delete: a layer on a step clock keeps its full travel, its full
+   period and its resting appearance, and pays for a dozen frames instead of
+   six hundred.
+
+   Measured on the application at the same viewport and tier
+   (`scripts/_w12budget_bleed.mjs`), a settled route was carrying **8.6-9.3
+   viewports of animated full-bleed area across six or seven layers**, of which
+   7.6 belonged to `atmosphere.ts`. That is the number the tier blocks in §1.8a
+   spend down, and `scripts/_w12budget_verify.mjs` is the instrument that holds
+   them to it.
+
+   ## What this does NOT license
+
+   Lowering an animation's *frequency* by lengthening its period buys nothing —
+   that is the 7s/200s arm above, and it is the intuitive fix that does not
+   work. Only quantising or stopping does.
+
+   ## CORRECTION, and it is instrument fourteen: this harness has no compositor
+
+   Everything above is measured and reproducible and the *instruction* it gives
+   is right. The **explanation** attached to it was wrong for two days and is
+   corrected here rather than quietly rewritten, because the wrong version is
+   the one a reader will otherwise reconstruct.
+
+   The story above is a compositing story: layers, blending, backing store. Three
+   results do not fit it, and they were only noticed because the budget was
+   applied and the frame rate did not move.
+
+     - `steps(35)` on the grain measured **identical to continuous** in the
+       application (1.7fps both ways) while buying 3.5x in the harness's own
+       dose page.
+     - The mover's size and content stopped mattering: a quarter-viewport layer,
+       a plain gradient and no background at all all measured 2.0fps.
+     - `scripts/_w12budget_promote.mjs` gave every static full-bleed layer its
+       own `will-change: transform`, and then `translateZ(0)`, and the frame rate
+       did not move — 1.6 to 1.7. Promotion is the one intervention that must
+       change a compositing result.
+
+   And the arm that settles it: the same script rebuilt the dose page with layers
+   painting **as many gradients as this file's do**, one simple mover over five
+   static layers:
+
+       5 static layers x 1 gradient each ..... 4.9 fps
+       5 static layers x 3 gradients each .... 2.6 fps
+       5 static layers x 6 gradients each .... 1.3 fps
+       5 static layers x 9 gradients each .... 1.2 fps   <- the application's number
+
+   If those layers were composited, the number of gradients *inside* each one
+   would be irrelevant — each is rasterised once into its own texture and then
+   blended. It is not irrelevant; it is the dominant term. **Playwright's WebKit
+   on a machine with no GPU is repainting the whole page on every frame anything
+   changes.** Its fps is a paint number wearing a compositing label, and the
+   62x spread that launched this work is a property of the harness, not a
+   photograph of the iPad.
+
+   ## Why the work below still stands, and what it is really buying
+
+   The two quantities this section spends — how many full-viewport surfaces
+   exist, and how often anything changes — are the *same two* on a real
+   compositor, for a different reason. Backing store is the sum of the layer
+   areas, which is what wave 10 measured at 232.4 MB during a navigation on an
+   iPad Pro's viewport; blend cost is that sum times the change rate. On iOS the
+   memory half bites first: exceed what the compositor will hold and layers are
+   evicted and **re-rasterised**, which is a half-second on a page change and
+   nothing at all on a desktop with headroom to spare.
+
+   So: fewer full-viewport surfaces, changing less often, is the correct
+   instruction on both engines. What must not be claimed is a frame rate. The
+   honest figures this file can offer are demand figures — depth and rate — and
+   `scripts/verify-animation-budget.mjs` reports exactly those and deliberately
+   does not report fps.
+   ========================================================================= */
+
+/* =========================================================================
    1. THE WORLD
    Mounted once by `atmosphere.ts`, outside `#app`, never unmounted.
    ========================================================================= */
@@ -279,6 +397,35 @@
   --atm-key-a: 20%;
   --atm-fill-a: 13%;
   --atm-rim-a: 11%;
+
+  /**
+   * The fold, and why it is a multiplier rather than a second stylesheet.
+   *
+   * §1.8b removes `.atm-bloom` and `.atm-horizon` as *elements* on the low tier
+   * and paints what they were painting into the wash's own background stack
+   * instead. Several background images on one element are one composited layer;
+   * the same images on two more elements are two more layers, and by §0a's model
+   * every layer in the stack is charged on every frame anything above it moves.
+   *
+   * The obvious way to write that is a low-tier copy of the whole
+   * `background-image` list with two extra entries, and it is the wrong way: the
+   * list would then exist twice, and the next person to retune the key light
+   * would retune one of them. So the folded gradients live in the one list,
+   * permanently, multiplied by a number that is **0 unless the element they
+   * stand in for has been removed** — and a 0% `color-mix` is fully transparent.
+   *
+   * There are two multipliers rather than one because the fold is only legal
+   * when nothing paints *between* the layer being folded and the wash it is
+   * folded into, and that is true of different layers on different tiers.
+   * `.atm-bloom` and `.atm-horizon` are siblings of `.atm-wash` inside
+   * `.atm-room` with nothing between them, so folding those is correct wherever
+   * they are removed — medium and low. `.atm-vignette` is the *last* child of
+   * `.atm-body`, so folding it to the bottom of the stack is only correct once
+   * the deep plane, the mote fields and the sweep have all gone, which happens
+   * on the low tier alone.
+   */
+  --atm-fold-lights: 0;
+  --atm-fold-vignette: 0;
 }
 
 .atm-room.is-front {
@@ -304,10 +451,49 @@
 .atm-wash {
   position: absolute;
   inset: 0;
-  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
-  background-size: 96px 96px, auto, auto, auto, auto;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-size: 96px 96px, auto, auto, auto, auto, auto, auto, auto, auto;
   background-image:
+    /* The vignette, folded — see `--atm-fold`, and see §1.8b for why it is
+       correct to fold the *topmost* layer of `.atm-body` into its *bottom* one.
+       It is only correct on the low tier, and only because everything that
+       would otherwise sit between them (the deep plane, the mote fields, the
+       sweep, the bloom and the horizon) is `display: none` there. On any tier
+       where one of those paints, `--atm-fold` is 0 and the real element is
+       still doing the job. */
+    radial-gradient(128% 108% at 50% 44%, transparent 52%, rgb(2 1 6 / calc(0.55 * var(--atm-fold-vignette))) 100%),
+    linear-gradient(
+      to bottom,
+      rgb(2 1 6 / calc(0.34 * var(--atm-fold-vignette))) 0%,
+      transparent 18%,
+      transparent 74%,
+      rgb(2 1 6 / calc(0.46 * var(--atm-fold-vignette))) 100%
+    ),
     var(--grain-src, none),
+    /* The bloom, folded. Zero everywhere but the low tier — see `--atm-fold`.
+       13% x 0.8 is the alpha the animated element averages to once §1.8a parks
+       it at mid-cycle, and 44%/40% x 1.035 is the size it is parked at. */
+      radial-gradient(
+        45.5% 41.4% at var(--room-x) var(--room-y),
+        color-mix(
+          in srgb,
+          var(--room-key-far) calc(10.4% * var(--room-intensity) * var(--atm-strength) * var(--atm-fold-lights)),
+          transparent
+        ),
+        transparent 70%
+      ),
+    /* The horizon, folded, restated in viewport coordinates. Its element is
+       120% wide and 46% tall sitting 14% below the bottom edge, so its own
+       "62% 100% at 50% 100%" becomes this once the box is gone. */
+      radial-gradient(
+        74.4% 46% at 50% 114%,
+        color-mix(
+          in srgb,
+          var(--room-rim-far) calc(10.4% * var(--room-intensity) * var(--atm-strength) * var(--atm-fold-lights)),
+          transparent
+        ),
+        transparent 72%
+      ),
     radial-gradient(
       78% 62% at var(--room-x) var(--room-y),
       color-mix(
@@ -1165,22 +1351,363 @@
  * unmigrated route it is the only thing making the screen move at all. What low
  * drops is its sweep, which the `.atm-sweep` rule above already catches, because
  * that is the full-screen gradient.
+ *
+ * The *strength* exception stands; the claim about cost in the sentence above
+ * does not, and §1.8a is where it is corrected. "One tiled texture on a
+ * transform animation" is not the cheapest layer in the file — measured, it is
+ * the single most expensive one, because at `inset: -12%` plus a 60px bleed it
+ * is 1.93 viewports and it changes its transform on every frame.
  */
 :root[data-gfx-tier="low"] .atmosphere-fore {
   --atm-strength: 0.6;
 }
 
 /**
- * These three are the travels that carry a `filter` ramp, so cancelling the
- * animation on the low tier has to cancel the surface it was preparing for as
- * well — otherwise the tier that can least afford a flatten of the whole world
- * is the only one that pays for it with nothing playing.
+ * Every travel, not only the three that carry a `filter` ramp.
+ *
+ * The original rule caught `curtain-in`, `curtain-out` and `replace`, on the
+ * argument that cancelling an animation has to cancel the surface it was
+ * preparing for. True, and much too narrow. `.atm-body` is the parent of the
+ * entire world, so a transform animation on it re-composites every layer
+ * underneath it on every frame it runs — the most expensive single thing this
+ * file can do, by the model in §0a — and `descend`, `ascend` and the two
+ * siblings are the four travels a player actually uses. They ran on this tier
+ * for 620ms of every navigation, with `.atm-deep`'s counter-move running 760ms
+ * beside them, which is precisely the window the owner reported as a freeze.
+ *
+ * What is lost on this tier is the world's parallax response to a page change:
+ * the furniture still travels, the room behind it now stands still. That is the
+ * cue §1.7 itself describes as secondary motion, it is a quarter of the
+ * screen's amplitude, and it is the one thing in the file whose cost lands
+ * entirely inside the half-second being complained about.
  */
-:root[data-gfx-tier="low"] .atmosphere[data-travel="curtain-in"] .atm-body,
-:root[data-gfx-tier="low"] .atmosphere[data-travel="curtain-out"] .atm-body,
-:root[data-gfx-tier="low"] .atmosphere[data-travel="replace"] .atm-body {
+:root[data-gfx-tier="low"] .atmosphere[data-travel] .atm-body,
+:root[data-gfx-tier="low"] .atmosphere[data-travel] .atm-deep {
   animation: none;
   will-change: auto;
+}
+
+/* =========================================================================
+   1.8a THE BUDGET, SPENT — which layers keep a clock, and how fast it ticks
+
+   §0a establishes the unit: composited full-bleed value-changes per second. A
+   continuous layer spends 60. Everything below is that budget divided up, and
+   the division is deliberately *proportional* rather than a switch — every
+   layer keeps its travel, its period and its resting appearance at every tier;
+   what changes is how many frames it is allowed to charge for.
+
+       high    unbounded. A desktop absorbs the demand invisibly, which is the
+               whole shape of the original report, and nothing in this section
+               touches that tier. The picture at rest and in motion is exactly
+               what it was.
+       medium  ~10 changes/s per layer, breathes parked. Six sevenths off.
+       low     one layer keeps a clock at 5 changes/s. Everything else parks.
+
+   Low is the tier a real iPad Pro is given — `detectTier` has no
+   `navigator.deviceMemory` on WebKit, so it reads constrained, and a touch
+   device that is constrained is low. That is documented at length in
+   `atmosphere.ts` and it is why this section is written for low first.
+
+   ## Parked, not deleted — and parked where the moving version averages to
+
+   The idiom is already this file's, from `.atm-sweep` at §1.8 and
+   `.d-room-crawl` at §1.9a: a still layer should be the picture the moving one
+   averages to, not whichever end of its travel the keyframes happen to start
+   at. Every park below therefore states its resting value, in **2D** — a
+   `translate3d` on a parked layer is a promotion trigger with no animation to
+   justify it, which `tests/compositor-budget.test.ts` guards and which this
+   file has already got wrong once.
+   ========================================================================= */
+
+/**
+ * The breathing lights, parked at mid-cycle, on both constrained tiers.
+ *
+ * `atm-breathe` runs opacity 0.6 -> 1 -> 0.6 against scale 1 -> 1.07 -> 1 on
+ * two full-bleed radial gradients whose alphas are already capped at 13%. It is
+ * the least visible motion in the file and one of the most expensive: two
+ * layers, 1.63 viewports between them, 120 changes a second. Parked at 0.8
+ * opacity and 1.035 scale — the arithmetic mean of the cycle — the room is lit
+ * exactly as brightly as it averages to and neither light moves.
+ */
+:root[data-gfx-tier="medium"] .atm-bloom,
+:root[data-gfx-tier="medium"] .atm-horizon,
+:root[data-gfx-tier="low"] .atm-bloom,
+:root[data-gfx-tier="low"] .atm-horizon {
+  /* Removed rather than parked, because `--atm-fold-lights` has painted both of
+     them into the wash by the time this rule applies. `animation: none` and the
+     release beside it are kept even though `display: none` implies them: they
+     are what `tests/compositor-budget.test.ts` reads, and a later edit that
+     brought the element back would otherwise bring the promotion back silently. */
+  display: none;
+  animation: none;
+  will-change: auto;
+}
+
+/**
+ * The four drifting fields on medium: a step clock at roughly ten changes a
+ * second each.
+ *
+ * Ten is chosen rather than five because this tier keeps more layers and a
+ * coherent pattern — a grid, a field of dust — is a harder thing to quantise
+ * than noise. At ten the step is a fraction of a pixel on every one of them and
+ * the drift is indistinguishable from continuous; what changes is that the
+ * compositor is asked for it eleven times a second instead of sixty.
+ *
+ * The counts are each layer's own period times the rate, which is why they are
+ * all different numbers: `steps()` takes a count, and the thing being held
+ * constant is the rate.
+ */
+/**
+ * The step count is per animation, not per element, and the mote fields are
+ * where that bites.
+ *
+ * `.atm-motes::after` runs two — `atm-mote-drift` on a long period and
+ * `atm-mote-twinkle` on a short one — and `animation-timing-function` is a
+ * comma-separated list matched positionally against `animation-name`. A single
+ * value is reused for both, which sounds harmless and is not: `steps(170)`
+ * across the drift's 17s is ten changes a second, and the same count across the
+ * twinkle's 5.2s is thirty-three. The first version of this section did exactly
+ * that and the verifier caught it charging the twinkle at three times the rate
+ * the budget had allowed for. Both entries, always, in the order the `animation`
+ * shorthand declares them.
+ */
+:root[data-gfx-tier="medium"] .atm-grid {
+  animation-timing-function: steps(260); /* atm-grid-breathe, 26s x 10/s */
+}
+
+:root[data-gfx-tier="medium"] .atm-grid::after {
+  animation-timing-function: steps(220); /* atm-grid-drift, 22s x 10/s */
+}
+
+:root[data-gfx-tier="medium"] .atm-motes-mid::after {
+  animation-timing-function: steps(170), steps(52); /* drift 17s, twinkle 5.2s */
+}
+
+:root[data-gfx-tier="medium"] .atm-motes-near::after {
+  animation-timing-function: steps(90), steps(32); /* drift 9s, twinkle 3.2s */
+}
+
+:root[data-gfx-tier="medium"] .atm-sweep {
+  animation-timing-function: steps(110); /* 11s x 10/s */
+}
+
+:root[data-gfx-tier="medium"] .atm-fore-motes::after {
+  animation-timing-function: steps(75), steps(34); /* drift 7.5s, twinkle 3.4s */
+}
+
+/**
+ * And the room's own four, which the first pass at this section left out
+ * entirely — it budgeted the world and forgot that since wave 8 every one of
+ * forty-nine routes carries a room as well. On this tier they were four
+ * full-bleed layers at the display rate against the world's six at ten a
+ * second, so the thing that had been fixed was the smaller half.
+ */
+:root[data-gfx-tier="medium"] .d-room-grid {
+  animation-timing-function: steps(110); /* 11s x 10/s */
+}
+
+:root[data-gfx-tier="medium"] .d-room-dust {
+  animation-timing-function: steps(150); /* 15s x 10/s */
+}
+
+:root[data-gfx-tier="medium"] .d-room-dust.is-far {
+  animation-timing-function: steps(240); /* 24s x 10/s */
+}
+
+:root[data-gfx-tier="medium"] .d-room-crawl {
+  animation-timing-function: steps(340); /* 34s x 10/s */
+}
+
+/**
+ * And low parks the drifts outright.
+ *
+ * The grid, the one surviving mote field behind the UI and the mote field in
+ * front of it are 5.14 viewports between them and 300 changes a second, and
+ * §1.6 has already done the arithmetic that says what they are worth to the
+ * one measurement this project trusts: dust covers about a tenth of a percent
+ * of the frame, and a drifting grid moves a fifth of a pixel per 200ms tick.
+ * Both are for the eye. Neither is what keeps a route measuring alive — the
+ * grain is, and the grain is the one layer below that keeps a clock.
+ *
+ * Parked, the dust still hangs in the room and the grid is still a grid seen
+ * through air. What a low-tier device loses is the wander, and what it gets for
+ * it is the five hundred milliseconds it was spending on the wander.
+ */
+:root[data-gfx-tier="low"] .atm-grid::after,
+:root[data-gfx-tier="low"] .atm-motes-mid::after,
+:root[data-gfx-tier="low"] .atm-fore-motes::after {
+  animation: none;
+  will-change: auto;
+}
+
+/**
+ * ## The grain keeps its clock, and quantising it changes nothing measurable
+ *
+ * This is the layer §1.6 spends four hundred words on: grain covers 100% of the
+ * frame at the highest spatial frequency there is, so translating it far enough
+ * that a pixel samples a different speck changes *every* pixel by roughly its
+ * own amplitude. It is the reason forty-nine routes measure alive instead of
+ * eleven, and it is the one thing in this file that must survive every tier.
+ *
+ * It also quantises better than anything else here, for two reasons.
+ *
+ * **The step count is chosen so the per-200ms displacement is unchanged.** §1.6
+ * records the shipped figure: "96px in 7s is about 2.7px per 200ms tick — three
+ * grain widths, far enough that a pixel samples an uncorrelated speck". A
+ * 96px tile in 7s at `steps(35)` is 2.74px per step and exactly five steps a
+ * second, so every 200ms window contains exactly one step of exactly the
+ * distance the continuous version travelled in it. The idle probe samples per
+ * 200ms. It cannot tell the difference, because arithmetically there is none —
+ * and the cost falls from 60 changes a second to 5.
+ *
+ * **And discrete is what grain *is*.** Film grain does not interpolate; it is
+ * re-drawn per frame with no relationship to the frame before. A noise field
+ * that jumps 2.7px five times a second is not a compromised version of a
+ * drifting one, it is closer to the thing being imitated. `jump-end` — the
+ * default — gives 35 positions covering [0, 96) and never lands on 96, which is
+ * the same speck as 0; the tile therefore loops seamlessly by construction.
+ *
+ * Medium takes the same treatment at ten a second, where the step is 1.37px.
+ */
+:root[data-gfx-tier="medium"] .atm-fore-grain {
+  animation-timing-function: steps(70); /* 7s x 10/s, 1.37px a step */
+}
+
+:root[data-gfx-tier="low"] .atm-fore-grain {
+  animation-timing-function: steps(35); /* 7s x 5/s, 2.74px a step — one per idle sample */
+}
+
+/* =========================================================================
+   1.8b THE DEPTH HALF OF THE BUDGET — the low tier stops holding layers it is
+   only paying to blend
+
+   Quantising was half the answer and on its own it was not enough, which is
+   worth recording because the measurement is counter-intuitive and the wrong
+   conclusion is easy to reach twice.
+
+   With §1.8a applied, a settled `#settings` at this tier was carrying **one**
+   moving layer at five changes a second and still measured 1.1fps. Deleting the
+   entire world from the document moved it to 2.4. Stopping that one animation
+   moved it to 47. The mover was not expensive; **the stack under it was**, and
+   the stack was fifteen full-viewport surfaces deep.
+
+   `scripts/_w12budget_stack.mjs` isolates exactly that, on a blank page:
+
+       24 static full-bleed layers, nothing moving ......... 62.5 fps
+       1 moving layer, nothing under it ................... 24.2 fps
+       1 moving layer over  4 static full-bleed layers ..... 7.2 fps
+       1 moving layer over 16 ............................. 2.6 fps
+
+   A static layer is free until something moves, and then it is charged, every
+   frame, along with every other layer in the stack. Depth and rate multiply.
+
+   (On this harness "charged" means repainted rather than re-blended — see the
+   correction at the end of §0a. The instruction is the same on a real
+   compositor, where the charge is backing store and blend instead; what does
+   not transfer is the size of the constant.)
+
+   ## This is also the wave-10 measurement, arrived at from the other side
+
+   Wave 10 counted Chromium's `LayerTree` and found 232.4 MB of backing store at
+   the peak of a navigation on an iPad Pro's viewport, and shaved 44.8 MB off it
+   by removing an over-broad `will-change: filter`. Backing store is the sum of
+   the layer areas; blend cost is the same sum multiplied by how often anything
+   moves. They are one quantity, and reducing the *number of full-viewport
+   layers* is the only lever that moves both — which is why removing a
+   `will-change` did not fix the stall while removing layers does. On iOS the
+   memory half is the sharper edge: exceed what the compositor will hold and
+   layers are evicted and re-rasterised rather than merely re-blended, and a
+   re-rasterisation of a four-megapixel surface is exactly the shape of a
+   half-second freeze on a page change and of nothing on a desktop.
+
+   ## What is removed, and what stands in for it
+
+   Everything below is already *parked* by §1.8a — none of it moves on this tier
+   — so what goes is a static paint, and each one is either folded into a layer
+   that has to exist anyway or priced by this file's own earlier arithmetic.
+
+     `.atm-bloom`, `.atm-horizon`   folded into `.atm-wash`, see `--atm-fold`.
+                                    Same light, same place, one fewer layer each.
+     `.atm-grid`                    a 3.2%-alpha grid, on the tier where §1.8's
+                                    deep-plane blur is already 0. §1.6 prices its
+                                    motion at a fifth of a pixel per 200ms tick.
+     `.atm-motes-mid`,              §1.6 again: dust covers about a tenth of a
+     `.atm-fore-motes`              percent of the frame and can never contribute
+                                    more than a fraction of a level. Parked, they
+                                    are a tenth of a percent of *still* dust.
+     `.d-room-crawl`                folded into `.d-room-alcove`.
+
+   What is deliberately **kept** on this tier is the whole of the value
+   structure — the wash, both vignettes, the room's alcove and floor — and the
+   grain, which is the one thing §1.6 measured as actually carrying "alive at
+   rest" across all forty-nine routes.
+   ========================================================================= */
+
+:root[data-gfx-tier="medium"] .atm-room {
+  --atm-fold-lights: 1;
+}
+
+:root[data-gfx-tier="low"] .atm-room {
+  --atm-fold-lights: 1;
+  --atm-fold-vignette: 1;
+}
+
+:root[data-gfx-tier="low"] .atm-grid,
+:root[data-gfx-tier="low"] .atm-motes-mid,
+:root[data-gfx-tier="low"] .atm-fore-motes,
+:root[data-gfx-tier="low"] .atm-vignette {
+  display: none;
+}
+
+/**
+ * And the front plane keeps one layer, which is the grain.
+ *
+ * `.atm-fore-vignette` is the last thing standing between this tier and a stack
+ * shallow enough to afford the one animation that matters. It is a corner
+ * darkening at `rgb(2 1 6 / 0.3)` scaled by `--atm-strength`, which on this tier
+ * is 0.6 — so 18% black in the extreme corners, over content, on top of a back
+ * vignette that is stronger and is now folded into the wash and still there.
+ *
+ * Dropping it is the one change in §1.8b that is not pixel-neutral, and it is
+ * the direction that is safe to be wrong in: removing a darkening that sits over
+ * text can only raise contrast, never lower it, so the accessibility floor
+ * cannot move. §2's depth cue survives in the wash's copy.
+ */
+:root[data-gfx-tier="low"] .atm-fore-vignette {
+  display: none;
+}
+
+/**
+ * The crawl, folded into the alcove for the same reason and by the same
+ * mechanism as the bloom.
+ *
+ * §1.9a already parks it here rather than deleting it, on the argument that the
+ * room should keep its pool of accent light and lose only the drift — and that
+ * argument stands. What changes is that a parked light does not need an element:
+ * `.d-room-alcove` is the layer that paints the room's accent already, and one
+ * more radial gradient in its stack is free where one more element is not. The
+ * pool lands where §1.9a parks it, at `translate(2%, 2%) scale(1.09)`, which is
+ * why the gradient below is offset and enlarged rather than centred.
+ */
+:root[data-gfx-tier="low"] .d-room-crawl {
+  display: none;
+}
+
+:root[data-gfx-tier="low"] .d-room-alcove {
+  background:
+    radial-gradient(
+      52% 58% at 12% -4%,
+      color-mix(in srgb, var(--hall-accent, var(--accent)) calc(34% * var(--hall-lit, 1)), transparent),
+      color-mix(in srgb, var(--hall-accent, var(--accent)) calc(11% * var(--hall-lit, 1)), transparent) 44%,
+      transparent 74%
+    ),
+    radial-gradient(46% 50% at 92% 96%, rgb(70 92 150 / calc(0.1 * var(--hall-lit, 1))), transparent 72%),
+    /* the crawl, parked where §1.9a parks it */
+      radial-gradient(
+        50% 60% at 52% 52%,
+        color-mix(in srgb, var(--hall-accent, var(--accent)) 7%, transparent),
+        transparent 72%
+      );
 }
 
 /* =========================================================================
@@ -1687,6 +2214,41 @@
 .screen[data-nav$="-out"],
 .screen[data-nav$="-hold"] {
   pointer-events: none;
+}
+
+/**
+ * ## And it stops decorating itself, because it is about to be thrown away
+ *
+ * For the length of every navigation there are two screens in the document, and
+ * therefore **two rooms**. Each one carries `.d-room-grid`, two `.d-room-dust`
+ * fields and `.d-room-crawl` — four full-bleed layers changing a composited
+ * value sixty times a second, by §0a's model the most expensive shape available
+ * — and one of the two is receding, blurred, dimmed and underneath the other.
+ * It is competing for the exact frames the transition needs, to draw furniture
+ * in a room the player has already left.
+ *
+ * `animation-play-state` rather than `animation: none`, and the distinction is
+ * the one §1.8 draws: a paused layer holds the value it had reached, so if the
+ * exit stalls and the parent is on screen longer than intended it is a still
+ * frame of the room the player was looking at rather than a jump back to the
+ * top of six keyframes. It is also measured completely free — the dose control
+ * in §0a reads 62.5fps with eight paused full-bleed layers against 5.3 with
+ * eight running ones — so there is nothing to buy by going further.
+ *
+ * **The children are named rather than reached with `*`,** and that is not
+ * style. §2.7 records what a rightmost bare `*` under an attribute ancestor
+ * costs in Blink: a whole-subtree descendant invalidation set for that
+ * attribute, measured at 23ms on the lobby and 42ms on the Collection for a
+ * single `data-nav` write, on the frame the hash changes. `data-nav` is written
+ * twice per navigation. A rule that saved four composited layers and cost
+ * another forty-millisecond invalidation would be a straight loss, and the
+ * whole point of naming `.d-room` as a direct child and its three moving layers
+ * as direct children of that is that every combinator here is `>` and every
+ * rightmost compound is a class.
+ */
+.screen[data-nav$="-out"] > .d-room > :is(.d-room-grid, .d-room-dust, .d-room-crawl),
+.screen[data-nav$="-hold"] > .d-room > :is(.d-room-grid, .d-room-dust, .d-room-crawl) {
+  animation-play-state: paused;
 }
 
 /* ---- 2.0 the hold: the frame the click actually lands on ---------------- */
@@ -2345,14 +2907,26 @@
 }
 
 /**
- * ...including the scanline grid it drew in a pseudo-element, which animated
- * `background-position` on a full-viewport masked image. That is a paint-property
- * animation on the largest box on the screen — the thing `foundation.css` spends
- * forty lines banning — and `.d-room-grid` is the same motif done on the
- * compositor, at a third the cell size, on every route rather than sixteen.
+ * ...including the scanline grid it drew in a pseudo-element, and including the
+ * animation that was still running on the box `content: none` deleted.
+ *
+ * `grid-drift` animates `background-position` on a full-viewport masked image —
+ * a paint-property animation on the largest box on the screen, which is the
+ * thing `foundation.css` spends forty lines banning — and taking the content
+ * away did not take it with it. Measured on WebKit 26.5 at 1194x834 at 2x, four
+ * routes deep: `getAnimations({ subtree: true })` reported `grid-drift` on
+ * `div.ambient-bg` as **running**, at one viewport of area, on every screen
+ * that still emits the plate. A layer that paints nothing, animating a paint
+ * property, on a box that does not exist.
+ *
+ * `content: none` stays first in this rule because
+ * `tests/every-screen-is-a-room.test.ts` asserts on the shape of it, and because
+ * it is the declaration that matters; the second line is only closing the door
+ * the first one left ajar.
  */
 .screen > .ambient-bg::after {
   content: none;
+  animation: none;
 }
 
 /**

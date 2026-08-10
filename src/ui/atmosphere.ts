@@ -96,6 +96,7 @@
  */
 
 import "./theme/transitions.css";
+import { getSettings, settingsStore } from "../save/settings";
 
 /** The ten lighting setups. A route names one; it never invents its own. */
 export type AtmosphereRoom =
@@ -258,6 +259,32 @@ type AtmosphereTier = "high" | "medium" | "low";
  * and it is not a change to make blind on an engine nobody here can profile.
  */
 function detectTier(): AtmosphereTier {
+  /**
+   * The player's own answer, and until this pass it was a setting that did
+   * nothing at all.
+   *
+   * `Settings.quality` has existed as `"auto" | "high" | "medium" | "low"` since
+   * the save format was written, it is on the settings screen, and `grep` finds
+   * **no reader anywhere in `src/`** — `battle/scene.ts` has a `QualityTier` of
+   * its own and detects it independently. So somebody who had been told the game
+   * was heavy, opened Settings and chose Low got a stored preference and an
+   * unchanged picture.
+   *
+   * That matters more than a tidy-up here, because the tier is what the whole
+   * animation budget in `transitions.css` §1.8a keys on. Without this line the
+   * budget is only reachable by owning a device the heuristic happens to
+   * classify correctly, and the one device it is written for — an iPad Pro,
+   * which reads `low` only because WebKit has no `navigator.deviceMemory` — is
+   * classified correctly by accident rather than by choice.
+   *
+   * It is consulted before the declared attribute rather than after because a
+   * preference is a stronger statement than whatever a previous boot wrote onto
+   * the root, and `mountAtmosphere` writes that attribute from this function's
+   * own result.
+   */
+  const preference = getSettings().quality;
+  if (preference === "high" || preference === "medium" || preference === "low") return preference;
+
   const declared = typeof document !== "undefined" ? document.documentElement.dataset["gfxTier"] : undefined;
   if (declared === "high" || declared === "medium" || declared === "low") return declared;
   if (typeof navigator === "undefined") return "medium";
@@ -652,6 +679,31 @@ export function mountAtmosphere(host: HTMLElement | null = null): Atmosphere {
   };
   document.addEventListener("visibilitychange", visibility);
 
+  /**
+   * Re-answer the tier question when the player changes the setting.
+   *
+   * Everything the budget does is a stylesheet reaction to `data-gfx-tier`, so
+   * rewriting the attribute is the whole of applying it — the room's layers
+   * appear and disappear and the step clocks change on the next frame, with no
+   * remount and nothing to tear down. Somebody who opens Settings on a stalling
+   * tablet and chooses Low sees the difference while the panel is still open,
+   * which is the only way a graphics setting is ever actually evaluated.
+   *
+   * What deliberately does **not** happen is regenerating the mote tiles. Their
+   * count is chosen once, on an idle callback, from the tier at boot; moving
+   * *up* a tier therefore leaves a field or two unpainted until the next load.
+   * That is the conservative direction — the layers a raised tier would add are
+   * exactly the ones a struggling device should not be handed mid-session — and
+   * a full remount to fix it would blank the world, which is the one thing this
+   * module exists to make impossible.
+   */
+  const applyTier = (): void => {
+    const next = detectTier();
+    if (document.documentElement.dataset["gfxTier"] === next) return;
+    document.documentElement.dataset["gfxTier"] = next;
+  };
+  const unwatchSettings = settingsStore.subscribe(applyTier);
+
   const api: Atmosphere = {
     root,
     fore,
@@ -687,6 +739,7 @@ export function mountAtmosphere(host: HTMLElement | null = null): Atmosphere {
       body.removeEventListener("animationend", clearTravel);
       body.removeEventListener("animationcancel", clearTravel);
       document.removeEventListener("visibilitychange", visibility);
+      unwatchSettings();
       root.remove();
       fore.remove();
       // The grain outlives this element now that it lives on the root, so it

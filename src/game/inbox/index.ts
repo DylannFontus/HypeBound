@@ -52,6 +52,17 @@ import { hypeWaveData, seasonEnd, seasonStart } from "../progression/hypeWave";
 import { bannerData, runEnd, runStart } from "../economy/banner";
 import { newsArticles } from "../news";
 import { LOCALE } from "../../ui/format";
+import { checkGrantRecord, grantMessage, usableGrants, type MailGrantRecord } from "./grants";
+
+export {
+  GRANT_CLOUT_CAP,
+  GRANT_REASON_MAX,
+  checkGrantRecord,
+  grantMailId,
+  grantMessage,
+  usableGrants,
+  type MailGrantRecord,
+} from "./grants";
 
 const DAY_MS = 86_400_000;
 
@@ -159,6 +170,19 @@ export interface MailInput {
     clout: number;
     at: number;
   }[];
+  /**
+   * Compensation grants an operator sent, from `scripts/grant.mjs`.
+   *
+   * Optional because absent unambiguously means "none" — unlike `ifMatch` next
+   * door in the save client, where a default would be a caller who had not
+   * thought about it. Every account that has never been sent one omits this,
+   * which is nearly all of them, and a required field would make every existing
+   * caller pass an empty array to say nothing.
+   *
+   * See `./grants.ts` for why this is the one stored fact in a folder whose
+   * whole argument is that mail should be derived.
+   */
+  grants?: readonly MailGrantRecord[];
 }
 
 /**
@@ -401,6 +425,25 @@ export function buildMail(content: ContentIndex, input: MailInput, now: number):
   }
 
   // -------------------------------------------------------------------------
+  // Operator grants — `scripts/grant.mjs`
+  // -------------------------------------------------------------------------
+
+  /**
+   * Compensation and support, the way every live game has it.
+   *
+   * These go through `post` like everything else rather than being appended
+   * directly, and that is the whole reason the delivery was built this way: a
+   * grant inherits the retention rule (it never expires while unclaimed), the
+   * claim ledger (`inbox.claimed`, which is never pruned, so it pays once and
+   * once only) and the reward animation, instead of becoming a second route by
+   * which currency can appear — and therefore a second route by which it can go
+   * wrong.
+   */
+  for (const grant of usableGrants(input.grants ?? [], now)) {
+    post(grantMessage(grant));
+  }
+
+  // -------------------------------------------------------------------------
   // Limited-time events — 09 §14
   // -------------------------------------------------------------------------
 
@@ -480,9 +523,37 @@ export function checkInboxData(content: ContentIndex): string[] {
 
   const archivedSeasonIds = hypeWaveData().seasons.map((season) => season.id);
   for (const moment of moments) {
+    /**
+     * A grant is checked at every one of those moments too, from a record built
+     * here rather than from a fixture.
+     *
+     * Operator grants are the one sender with no shipped data behind them, so
+     * nothing else in this function would ever look at their wording. Feeding a
+     * synthetic one through the same loop means the derived subject, the three
+     * paragraphs and the attachment are held to exactly the standard every other
+     * message is — and a reason worded like a template hole, or an amount that
+     * came out zero, fails here rather than in somebody's inbox.
+     */
+    const synthetic: MailGrantRecord = {
+      id: "data-check",
+      clout: 250,
+      reason: "proving the grant sender produces a well-formed message",
+      issuedAt: moment,
+    };
+    for (const problem of checkGrantRecord(synthetic, moment)) {
+      problems.push(`grant sender: the check's own record is invalid — ${problem}`);
+    }
+
     const messages = buildMail(
       content,
-      { createdAt: moment, welcomeBackAt: moment, archivedSeasonIds, claimed: [], eventConversions: [] },
+      {
+        createdAt: moment,
+        welcomeBackAt: moment,
+        archivedSeasonIds,
+        claimed: [],
+        eventConversions: [],
+        grants: [synthetic],
+      },
       moment
     );
 

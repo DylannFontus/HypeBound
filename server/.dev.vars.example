@@ -12,6 +12,18 @@
 # refused, which is the honest behaviour rather than a permissive one.
 SUPABASE_URL=""
 
-# Guards POST /match/:id/init until the matchmaker (§9) exists to own it.
+# Guards two routes, and it is worth knowing both before treating this as a
+# development convenience:
+#
+#   POST /match/:id/init          creates a match, until the matchmaker (§9) owns it
+#   GET|PUT /admin/saves/:id/profile   reads and writes ONE named account's profile
+#                                      save, for `node scripts/grant.mjs`
+#
+# The second names an account in the path rather than deriving it from a token,
+# so this string is the only thing between a stranger and any player's save.
+# Treat it like a password, not like a feature flag. It is never in the client
+# bundle, is refused on any request carrying an Origin header, and with this
+# left empty both routes are closed entirely.
+#
 # Generate one with: openssl rand -base64 32
 ADMIN_TOKEN=""
