@@ -211,6 +211,57 @@ The design this implements is
 Until a service actually exists, the mode it powers is listed as *coming online*
 rather than stubbed — see the architecture contract §7.
 
+### The desktop app — Windows
+
+`npm run desktop:build` produces `HYPEBOUND.exe` and an NSIS installer. The
+shell is [Tauri](https://tauri.app) ([`src-tauri/`](src-tauri/)), which renders
+in **WebView2 — the Chromium that Edge ships**. That is the whole argument for
+it over Electron: it is the exact engine every screenshot and `verify:*` script
+in this project has been measured against, so the desktop build renders what has
+already been checked. Electron would pin its own Chromium and put all of that
+back in question. It is also ~6 MB of shell against Electron's ~150 MB, on a
+game that is already 86 MB of art.
+
+| Command | What it does |
+|---|---|
+| `npm run desktop` | Opens the app against the **already-running** Vite server on 5173. It does not start one. |
+| `npm run desktop:build` | Runs `npm run build`, then compiles the release exe and the installer. |
+
+Two artefacts land under `src-tauri/target/release/` (gitignored — it grows to
+about 2.3 GB):
+
+- `HYPEBOUND.exe` — ~87 MB, and **standalone**. The whole of `dist/` is embedded
+  in the binary, so it needs no folder beside it and no installation. This is
+  the file to copy onto a stick.
+- `bundle/nsis/HYPEBOUND_<version>_x64-setup.exe` — ~85 MB. Installs per-user,
+  so it never asks for an administrator prompt; nothing here writes outside the
+  user's own profile.
+
+Both need the WebView2 runtime, which ships with Windows 10 1803 and later — so
+in practice, present.
+
+The web build is untouched by all of this: nothing under `src/` imports a Tauri
+API, `vite.config.ts` is unchanged, and the desktop shell exposes no commands
+for the page to call. Both builds run identical JavaScript.
+
+Three things a desktop player finds different, none of them bugs:
+
+- **The save starts empty.** WebView2 gives the app its own storage partition,
+  so `localStorage` is not shared with the browser. A player who has been
+  playing on the web arrives at a fresh collection. *Export my data* on the
+  privacy screen and the cloud save behind an account are the two ways across.
+- **The window remembers its size**, which no browser tab does. That state lives
+  in the OS app-data folder, not in `localStorage`, so it is deliberately
+  outside both the `hypebound:` export and the privacy screen's delete sweep.
+- **No fullscreen key.** The window maximises; it does not go fullscreen. See
+  the note in [`src-tauri/tauri.conf.json5`](src-tauri/tauri.conf.json5) for why
+  a half-working F11 was rejected.
+
+Signing in works exactly as it does on the web, because it was already the one
+design that ports without trouble: `src/auth/account.ts` posts an email and a
+password straight to Supabase's REST endpoint. There is no OAuth provider and no
+magic link, so there is no redirect that a desktop origin would break.
+
 ---
 
 ## Product principles (non-negotiable)

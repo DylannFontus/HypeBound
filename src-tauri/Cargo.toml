@@ -1,0 +1,89 @@
+# The Rust half of the desktop shell, and why it is this small.
+#
+# HYPEBOUND is a web game that happens to be packaged for Windows. The whole of
+# the game — rules engine, renderer, screens, saves — is TypeScript running in a
+# webview, and nothing in this crate knows a single thing about cards. That is
+# the point: every line of Rust added here is a line the web build cannot run,
+# so it is a line that has to be verified twice. Keeping the crate at "open a
+# window, point it at the bundle" means the desktop build and the web build are
+# the same program, and a bug in one is a bug in both rather than a bug in one
+# of them.
+#
+# Hence no `serde`, no `serde_json`, no command handlers. Tauri's template ships
+# them because most apps grow an IPC surface; this one has none, and an unused
+# dependency in a manifest is a claim that something needs it.
+#
+# NOTE ON VERSIONS. `version` below is a placeholder that nothing reads.
+# `tauri.conf.json5` sets its own `version` to `../package.json`, so the number
+# on the installer, the exe's file properties and the Add/Remove Programs entry
+# all come from the same place the web build takes it from. Two version numbers
+# that must be edited together are one version number and a latent bug.
+#
+# NOTE ON ATTRIBUTION. `data/policies.json` credits every package in
+# `package.json`, and `tests/fairness.test.ts` fails the build both ways — an
+# uncredited dependency AND a credited non-dependency. Nothing in this file is a
+# dependency by that definition, so listing `tauri` there would fail the test as
+# hard as omitting `@tauri-apps/cli` would. The crates below are therefore
+# credited transitively, through the `@tauri-apps/cli` entry that does appear in
+# the manifest and does say what it drags in. Every one of them is MIT or
+# Apache-2.0; nothing here costs anything, and nothing here may be allowed to.
+# If this crate ever grows a dependency that is neither, it needs its own line on
+# the legal page and the checker needs teaching about Cargo.
+
+[package]
+name = "hypebound-desktop"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77.2"
+description = "Desktop shell for HYPEBOUND"
+publish = false
+
+# The binary is `HYPEBOUND.exe`, not `hypebound-desktop.exe`.
+#
+# Cargo names the output after the package, and the first build duly produced
+# `target/release/hypebound-desktop.exe`. Inside the installer that does not
+# matter — the bundler renames it to `productName` on the way in — but the
+# unbundled binary is itself a complete portable game, and handing somebody a
+# file named after the wrapper crate rather than the thing it runs is a small
+# lie about what it is. Tauri offers `mainBinaryName` for this and its own
+# schema recommends against it: renaming at bundle time leaves `cargo run` and
+# `cargo build` still producing the old name. Setting the target name fixes it
+# at the source, for every tool at once.
+[[bin]]
+name = "HYPEBOUND"
+path = "src/main.rs"
+
+# `config-json5` on both crates, and it is not optional here.
+#
+# The npm CLI reads tauri.conf.json5 out of the box, so `tauri info` printed the
+# config back correctly and everything looked settled. The Rust half is a
+# separate decision: `tauri-build` refuses a format it was not compiled for, and
+# only says so once the build script runs — "supported (but disabled) format
+# encountered .json5 - try enabling `config-json5`". Two crates read the config,
+# the build script to embed it and the runtime to re-read it, so the feature
+# goes on both or the disagreement simply moves later in the build.
+
+[build-dependencies]
+tauri-build = { version = "2", features = ["config-json5"] }
+
+[dependencies]
+tauri = { version = "2", features = ["config-json5"] }
+# Remembers the window's size and position between runs. Hand-rolling this is
+# forty lines and one classic bug: restoring a window onto a monitor that has
+# since been unplugged, which puts the game off-screen with no way back. The
+# plugin checks the geometry against the monitors that exist now. MIT/Apache-2.0,
+# from the Tauri organisation itself — no new licence and no cost.
+tauri-plugin-window-state = "2"
+
+# A game's release build, tuned for a binary that already carries 86 MB of art.
+# `opt-level = "s"` and `lto` are about the ~6 MB of Rust, not about the assets,
+# so they buy less here than in a small app — but the shell spends its life
+# idling around a webview, and none of it is on a hot path where the lost
+# optimisation could be felt. `strip` removes debug symbols, which is the one
+# setting that measurably matters at this size.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

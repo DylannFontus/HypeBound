@@ -48,3 +48,22 @@ access.txt
 credentials.txt
 secrets.txt
 *.secrets
+
+# The Rust build directory for the desktop shell. 2.3 GB of incremental
+# compilation state and a copy of every dependency's object files, all of it
+# reproducible from src-tauri/Cargo.toml by `npm run desktop:build`. Cargo.lock
+# beside it IS committed, for the usual reason: it is the record of which
+# versions were actually built and tested.
+src-tauri/target/
+
+# Permission schemas that tauri-build regenerates on every single build. They
+# describe the app's IPC surface, which here is empty — this shell exposes no
+# commands — so they are four files of derived JSON that would churn in every
+# diff and tell nobody anything.
+src-tauri/gen/schemas/
+
+# NSIS's toolchain, downloaded on first bundle into the Tauri CLI's cache. On
+# this machine that cache lives outside the repo, but the CLI has historically
+# also written it here, and a 30 MB installer-builder is not source.
+src-tauri/WixTools*/
+src-tauri/NSIS*/

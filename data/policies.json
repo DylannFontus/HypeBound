@@ -122,6 +122,11 @@
         "use": "schema validation for every data file the game loads"
       },
       {
+        "package": "@tauri-apps/cli",
+        "license": "Apache-2.0 OR MIT",
+        "use": "builds the Windows desktop shell around the same web build; never ships to a player, and the game imports nothing from it"
+      },
+      {
         "package": "@types/node",
         "license": "MIT",
         "use": "type definitions for the Node APIs the test suite reads the repo with"

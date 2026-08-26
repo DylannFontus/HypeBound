@@ -1,0 +1,213 @@
+/*
+ * The desktop shell's whole configuration.
+ *
+ * JSON5 rather than JSON, for one reason: this project's rule is that a file
+ * explains why it exists, and `tauri.conf.json` cannot hold a comment. The
+ * `_readme` array that `data/policies.json` uses is not available here either —
+ * Tauri's schema rejects unknown keys outright, which was checked rather than
+ * assumed ("Additional properties are not allowed ('_readme' was unexpected)").
+ * The CLI reads `.json5` in preference to `.json`, so the prose lives where the
+ * settings live.
+ *
+ * ## Why Tauri and not Electron
+ *
+ * Tauri renders in WebView2, which IS the Chromium that Edge ships — the exact
+ * engine every screenshot, `verify:*` script and visual measurement in this
+ * project has been run against. Electron pins its own Chromium, so the first
+ * task after adopting it would be re-verifying nine waves of visual work
+ * against an engine nobody here has tested. The size difference is real as well
+ * (~6 MB against ~150 MB on top of an 86 MB game) but it is the second reason.
+ *
+ * ## The version is not written down here
+ *
+ * `version` points at `../package.json`. The installer, the exe's file
+ * properties and the Add/Remove Programs entry then all read the number the web
+ * build reads. Two version numbers that must be edited together are one version
+ * number and a latent bug.
+ */
+{
+  // `config.schema.json`, not `schema.json` — the file the CLI package actually
+  // ships. A wrong $schema path fails silently: editors just stop offering
+  // completions and validation, and nothing in the build ever complains.
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+
+  "productName": "HYPEBOUND",
+  "version": "../package.json",
+
+  /*
+   * Reverse-DNS of a domain the owner actually controls — the game deploys to
+   * dylannfontus.github.io. Windows uses this as the uninstall registry key and
+   * as the app-data folder name, so it is effectively permanent: changing it
+   * later makes an upgrade install look like a second, unrelated program.
+   */
+  "identifier": "io.github.dylannfontus.hypebound",
+
+  "build": {
+    /*
+     * Empty on purpose. This project runs one long-lived Vite server on 5173
+     * and `npm run desktop` attaches to it. A shell that spawned its own would
+     * fight the running one for the port and then serve from whichever won.
+     */
+    "beforeDevCommand": "",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+
+  "app": {
+    "windows": [
+      {
+        "title": "HYPEBOUND",
+
+        /*
+         * ## The window is landscape because the game is
+         *
+         * `src/ui/shell.ts::watchOrientation` shows a rotate overlay when the
+         * viewport is portrait AND its short side is under 820 px. A 1280x720
+         * floor makes that unreachable: the width can never drop below 1280, so
+         * a portrait window would have to be over 1280 tall, and its short side
+         * would then be 1280 — not under 820.
+         *
+         * That is the outcome worth having. The overlay is unreachable here
+         * rather than disabled here, so no desktop-only branch had to be added
+         * to shared UI code and nothing about the phone build changed.
+         *
+         * 1600x900 as the default: 16:9 like the board, and it leaves room for
+         * the taskbar on the 1920x1080 display that is still the commonest one.
+         */
+        "width": 1600,
+        "height": 900,
+        "minWidth": 1280,
+        "minHeight": 720,
+
+        "resizable": true,
+        "maximizable": true,
+        "center": true,
+
+        /*
+         * Not fullscreen at launch, and there is no F11 toggle in this build.
+         *
+         * Launching fullscreen would be the wrong default for a shell with no
+         * in-page way out: WebView2 does not handle F11 itself, and the game has
+         * no exit-fullscreen control because on the web the browser owns that
+         * chrome. A window with no title bar and no keybinding is a window you
+         * have to Alt-F4. Maximise gets most of the benefit and cannot trap
+         * anyone.
+         *
+         * A real toggle means either injecting a desktop-only script into the
+         * page — which ends the property that both builds run identical code —
+         * or taking the global-shortcut plugin, which would swallow F11 system
+         * wide even while the game is unfocused. Neither earns its place in a
+         * first build. Both remain open.
+         */
+        "fullscreen": false,
+
+        /*
+         * The game's own near-black. Without it the window paints white for the
+         * frame or two before the boot plate arrives, which on this palette
+         * reads as the classic broken-webview flash. Same value as the
+         * `theme-color` meta in index.html.
+         */
+        "backgroundColor": "#0b0614"
+      }
+    ],
+
+    "security": {
+      /*
+       * ## An allowlist of two services, not a wildcard
+       *
+       * `connect-src *` is one character and hands any future bug the whole
+       * internet. This game talks to exactly two origins, both declared in
+       * `src/config.ts`: the Supabase project that holds accounts, and the
+       * Cloudflare Worker that runs matches — the latter over both HTTPS and
+       * WebSocket, which are separate schemes to a CSP and so are named twice.
+       * If `ONLINE` ever moves, this list has to move with it. That is the cost
+       * of an allowlist and it is the right one to pay.
+       *
+       * What the other directives are doing, since a CSP is unreadable
+       * otherwise:
+       *
+       *   script-src 'self'   the bundle and nothing else. No 'unsafe-eval': the
+       *                       source contains no `eval` and no `new Function`,
+       *                       which was grepped rather than hoped.
+       *   style-src  'unsafe-inline'
+       *                       index.html carries a <style> block for the boot
+       *                       plate and nine screens inject <style> elements at
+       *                       runtime. All first-party; the directive cannot
+       *                       tell that.
+       *   img-src    data: blob:
+       *                       canvases become textures through `toDataURL`
+       *                       (ui/art/texture.ts, ui/atmosphere.ts) and card-back
+       *                       previews go through object URLs.
+       *   media-src  'self'   the 42 .flac and 17 .mp3 cues, fetched out of the
+       *                       bundle by src/audio/audio.ts.
+       *   connect-src ipc: …  Tauri's message channel on Windows. Process-local,
+       *                       not a network origin. Present even though this
+       *                       shell exposes no commands, because the runtime's
+       *                       own bootstrap uses it.
+       *   worker-src 'none'   there are none, and saying so makes a future one a
+       *                       deliberate edit here rather than a silent arrival.
+       */
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost https://vnvaqwbnmawcnvhodbel.supabase.co https://hypebound.dylann-andre-fontus-1.workers.dev wss://hypebound.dylann-andre-fontus-1.workers.dev; worker-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'none'",
+
+      /*
+       * Dev is looser in exactly two places, and only in dev.
+       *
+       * Vite serves the page over HTTP from localhost and pushes hot updates
+       * over a WebSocket on the same port, so both schemes are allowed; and its
+       * client injects inline module script, so 'unsafe-inline' is permitted for
+       * scripts here and nowhere else. Neither relaxation reaches the `csp`
+       * above, which is what a player actually runs.
+       */
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:5173 http://localhost:5173 https://vnvaqwbnmawcnvhodbel.supabase.co https://hypebound.dylann-andre-fontus-1.workers.dev wss://hypebound.dylann-andre-fontus-1.workers.dev; object-src 'none'; base-uri 'self'"
+    }
+  },
+
+  "bundle": {
+    "active": true,
+
+    /*
+     * NSIS only. The MSI target needs the WiX toolset, a second download for an
+     * installer that offers this app nothing extra — and the standalone
+     * `HYPEBOUND.exe` that every target is built from is already a complete,
+     * portable game, because the whole of `dist/` is embedded inside it.
+     *
+     * "currentUser" so installing needs no administrator prompt. Nothing here
+     * writes outside the user's own profile, so asking for elevation would be
+     * asking for a privilege the app never uses.
+     */
+    "targets": ["nsis"],
+
+    /*
+     * Every one of these is a downscale of
+     * `public/assets/brand/hb-mark-master.png`, generated from that master by
+     * `npx tauri icon` — the rule `scripts/make-brand-icons.mjs` states for the
+     * favicons, for the reason it states: six independent generations of "the
+     * same logo" are six slightly different logos.
+     *
+     * In particular this .ico is NOT `public/favicon.ico`. That one carries
+     * 16/32/48 because a browser tab never asks for more, and Windows asks for
+     * 256 on the taskbar and in large-icon views — it would have been upscaled
+     * from 48 and looked like it. This one carries 16/24/32/48/64/256.
+     *
+     * `icons/` holds a little more than this list names — `64x64.png` and the
+     * 512px `icon.png` — because it is the unedited output of that one command,
+     * and pruning it by hand would mean re-pruning it by hand every time the
+     * mark is redrawn. On Windows only the .ico is consumed, by `build.rs`,
+     * which writes it into the executable's resource table; the PNGs are here
+     * for the platforms this build does not yet target.
+     */
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+
+    "publisher": "Dylann Fontus",
+    "copyright": "HYPEBOUND",
+    "shortDescription": "A neon-nightlife collectible card game.",
+    "longDescription": "HYPEBOUND — a comedic internet-culture collectible card game. Plays entirely offline; signing in is optional and is only needed for online matches.",
+
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}
