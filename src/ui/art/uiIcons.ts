@@ -112,6 +112,10 @@
  */
 
 /** The grid every path is drawn on. Nothing here is authored at another size. */
+// `styleSheet.ts` is itself a leaf with no imports, so the rule above — that
+// this module stays out of the rules engine's dependency graph — still holds.
+import { createStyleElement } from "../styleSheet";
+
 export const ICON_GRID = 24;
 
 /**
@@ -1104,9 +1108,41 @@ function opticalOf(options: IconOptions | undefined): IconOptical {
   return typeof options?.size === "number" ? opticalFor(options.size) : "ui";
 }
 
-function hostAttributes(options: IconOptions | undefined, optical: IconOptical): string {
+/**
+ * The class that says **which mark this is**, by the name the caller asked for.
+ *
+ * Nothing in this module uses it. It exists because a drawing and a painting of
+ * the same thing need a shared handle, and this is the only place that knows
+ * both the name a screen used and the markup it got back.
+ *
+ * `hb-mark-clout` on every Clout icon in the game lets `screens.css` paint
+ * `assets/icons/currency/clout.png` over it — the mechanism `iconAssets.ts` was
+ * written for when the currencies were still Unicode glyphs, and which was
+ * orphaned the day the glyphs became drawings. Before this class existed the
+ * painted currency and interface sets had, between them, **zero** consumers:
+ * `has-icon-currency-clout` was on `<html>` and `.currency-icon.clout` was in
+ * no screen's markup, so the check that watched them passed and the pictures
+ * were never requested by anything.
+ *
+ * ## By the name asked for, not the name drawn
+ *
+ * `resolve()` maps `shop` onto the `merch-drop` drawing and `sparkle` onto the
+ * `glimmer` one. An alias borrows a *silhouette*; it does not inherit a
+ * *painting*. Keying this on the resolved id would put a purple Glimmer crystal
+ * — a currency — on the shop's "Open the banner" heading and on a roguelike
+ * artifact, because those two asked for a sparkle and got the crystal's outline
+ * by coincidence of the alias table. Keying it on the asked-for name cannot do
+ * that: the picture only ever appears where somebody named the thing it is a
+ * picture of.
+ */
+export const markClass = (id: IconId | string): string => `hb-mark-${id}`;
+
+function hostAttributes(options: IconOptions | undefined, optical: IconOptical, asked: string): string {
   const rung = optical === "ui" ? "" : ` ${ICON_CLASS}-${optical}`;
-  const classes = options?.class ? `${ICON_CLASS}${rung} ${options.class}` : `${ICON_CLASS}${rung}`;
+  const mark = ` ${markClass(asked)}`;
+  const classes = options?.class
+    ? `${ICON_CLASS}${rung}${mark} ${options.class}`
+    : `${ICON_CLASS}${rung}${mark}`;
   let out = ` class="${escapeAttribute(classes)}" viewBox="0 0 ${ICON_GRID} ${ICON_GRID}" focusable="false"`;
 
   if (options?.size !== undefined) {
@@ -1139,7 +1175,7 @@ export function icon(id: IconId, options?: IconOptions): string {
   const optical = opticalOf(options);
   const title = options?.label ? `<title>${escapeAttribute(options.label)}</title>` : "";
   return (
-    `<svg${hostAttributes(options, optical)} stroke-width="${ICON_OPTICAL[optical]}">` +
+    `<svg${hostAttributes(options, optical, id)} stroke-width="${ICON_OPTICAL[optical]}">` +
     `${title}<use href="#${SYMBOL_PREFIX}${target}"/></svg>`
   );
 }
@@ -1156,7 +1192,7 @@ export function iconInline(id: IconId, options?: IconOptions): string {
   const optical = opticalOf(options);
   const title = options?.label ? `<title>${escapeAttribute(options.label)}</title>` : "";
   return (
-    `<svg xmlns="${XMLNS}"${hostAttributes(options, optical)} ` +
+    `<svg xmlns="${XMLNS}"${hostAttributes(options, optical, id)} ` +
     `${SYMBOL_ATTRS}>${title}${ART[target]}</svg>`
   );
 }
@@ -1272,7 +1308,7 @@ export function installIconSprite(doc: Document | undefined = globalThis.documen
   if (!mount) return; // called from <head> before the parser reached <body>
 
   if (!doc.getElementById("hb-icon-style")) {
-    const style = doc.createElement("style");
+    const style = createStyleElement(doc);
     style.id = "hb-icon-style";
     style.textContent = ICON_CSS;
     (doc.head ?? mount).appendChild(style);

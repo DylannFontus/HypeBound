@@ -1,0 +1,50 @@
+/*
+ * Undo, on the live page, every repair this pass made — so the sweep can be
+ * asked to prove it still reports them.
+ *
+ * A quiet report is only worth reading if the instrument that produced it has
+ * been shown to shout at something it should shout at. `calibrate()` proves
+ * that against *planted* objects, which is the half that can be run before
+ * every sweep; this is the other half, and it proves it against the *real*
+ * ones. Run:
+ *
+ *   node scripts/verify-mobile.mjs --injectcss scripts/_fit/revert.css \
+ *     --viewports 844x390,1280x720 --scales 100,160 \
+ *     --routes "battle?seed=4",play
+ *
+ * and every finding below has to come back. If it does not, the de-noising has
+ * eaten the findings and the clean sheet is worthless.
+ *
+ * Last run: three of the four returned as failures and the fourth returned as a
+ * letterbox rather than a distortion — which is `foundation.css` §11 doing
+ * exactly what it exists to do, turning an invisible squash into a visible bar.
+ */
+
+/*
+ * 1. The mulligan card, painted 1.575:1 from a 0.753:1 source at 160%.
+ *    `renderCardToCanvas` writes the geometry inline, so restoring an inline-
+ *    strength width is what puts the squash back.
+ */
+@media (max-height: 560px) {
+  .mulligan-card canvas { width: 180px !important; }
+}
+
+/* 2. Two type sizes under the 11px legibility floor: 9.9px and 10.56px. */
+.obs-label { font-size: 0.62rem; }
+.history-entry.turn { font-size: 0.66rem; }
+
+/*
+ * 3. The play screen's feature 2x2. A row minimum of zero under an item that
+ *    clips its own overflow — which is what `overflow: hidden` does to a grid
+ *    item's automatic minimum size — so the card ate the difference at 160%.
+ */
+.mode-features {
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  overflow-y: visible;
+  padding: 0;
+  margin: 0;
+}
+
+/* 4. The tail list's hand-computed row height, thirteen pixels short at 160%. */
+.mode-tail-list { grid-auto-rows: minmax(max(54px, calc(2.3rem + 11px)), 1fr); }
+.mode-tail-list > .mode-card { min-height: 0; }

@@ -8,13 +8,51 @@
  */
 
 import type { CurrentId, StatusId } from "../../engine/types";
-import { iconPath } from "../art/iconAssets";
+import { iconMinPx, iconPath } from "../art/iconAssets";
 import { scaledAsset } from "../art/texture";
 
 type IconFn = (ctx: CanvasRenderingContext2D) => void;
 
 /**
- * The painted icon, resampled once at the size it is about to be drawn.
+ * How big this box will actually be on the player's screen, in CSS pixels.
+ *
+ * Three coordinate systems meet here and only one of them is the answer. The
+ * caller works in **card space**, where a card is always 512 wide. The context
+ * is under a `scale(width/512 * dpr)` transform, so multiplying by the
+ * transform gives **device** pixels of the destination surface. And the surface
+ * is shown at `canvas.style.width` CSS pixels for `canvas.width` device pixels,
+ * which is the last ratio and the one that turns device pixels back into the
+ * size a person sees.
+ *
+ * Skipping that last step is the mistake worth naming: on a 2x display a badge
+ * that is 9px on screen measures 18 in device pixels, and a rule written in
+ * device pixels would hand a retina player a painting and a 1x player a
+ * drawing — same size, same screen, two different icon sets. The size a person
+ * sees does not depend on their display, so neither does this.
+ *
+ * A surface with no `style.width` is an offscreen the caller sized itself —
+ * `placeholderArt::crestStamp` is the one that matters, and it asks for a
+ * silhouette at 91px — so its own dimensions are already the honest answer.
+ */
+function onScreenPx(ctx: CanvasRenderingContext2D, cardSpaceSize: number): { css: number; device: number } {
+  let scale = 1;
+  const probe = (ctx as CanvasRenderingContext2D & { getTransform?: () => DOMMatrix }).getTransform;
+  if (typeof probe === "function") {
+    const matrix = probe.call(ctx);
+    scale = Math.max(Math.abs(matrix.a), Math.abs(matrix.d)) || 1;
+  }
+  const device = cardSpaceSize * scale;
+
+  const canvas = ctx.canvas as HTMLCanvasElement | undefined;
+  const declared = canvas?.style ? Number.parseFloat(canvas.style.width) : Number.NaN;
+  const ratio = Number.isFinite(declared) && canvas && canvas.width > 0 ? declared / canvas.width : 1;
+  return { css: device * ratio, device };
+}
+
+/**
+ * The painted icon, or null when it would be smaller than it can survive.
+ *
+ * ## The resample, which was always the reason this function existed
  *
  * The nineteen Current and crest masters are 512×512 and the card draws them
  * into boxes of 28 to 44 pixels. Going straight there in one `drawImage` makes
@@ -25,19 +63,42 @@ type IconFn = (ctx: CanvasRenderingContext2D) => void;
  * bitmap, which is both the mipmap the GPU would have built and roughly a
  * hundredth of the work.
  *
- * The size wanted is in **device** pixels, and the card renderer draws in
- * card-space under a scale transform, so the transform is what has to be asked.
- * `getTransform` is not in the 2D context type in every lib version this project
- * builds against, hence the probe rather than a straight call.
+ * ## The threshold, which is new, and which is measured
+ *
+ * A mipmap makes a downscale *clean*. It does not make it *legible*, and this
+ * function had no opinion about the difference — so the painted set was used at
+ * every size the card asks for, and every size the card asks for is small.
+ * Measured on a real screen: a Current badge is **7.2 CSS px** in the collection
+ * grid, **5.1–6.8** on the battle board and **18** on the detail card's hero;
+ * a crest is **10.7** on a card face.
+ *
+ * At those sizes a 512px painting is not the artwork, it is an average of the
+ * artwork. `scripts/screenshots/assets/audit/31-badge-painted.png` and
+ * `31-badge-procedural.png` are the same card badge with and without the file,
+ * captured at 4x on a live collection: the painted GALE has lost both outer
+ * swooshes and reads as a dark blob, and the drawn glyph reads as wind. The
+ * hero card at 18px (`33-herobadge-*.png`) says the same thing less kindly,
+ * because the painting is teal on a teal banner and the drawing is struck in
+ * the frame's own key colour.
+ *
+ * So: `minPx` from the manifest, in CSS pixels, and the drawn glyph below it.
+ * The drawn set was authored on a 24-unit grid at one stroke weight *to be read
+ * at exactly these sizes*, which is the whole reason it exists — using it here
+ * is what it is for, not a fallback.
+ *
+ * The one place on a card that clears the bar is the unpainted-art watermark:
+ * `placeholderArt::crestStamp` asks for a 91px silhouette, and there the
+ * owner's emblem is the emboss.
  */
-function paintedAt(path: string, ctx: CanvasRenderingContext2D, cssSize: number): CanvasImageSource | null {
-  let scale = 1;
-  const probe = (ctx as CanvasRenderingContext2D & { getTransform?: () => DOMMatrix }).getTransform;
-  if (typeof probe === "function") {
-    const matrix = probe.call(ctx);
-    scale = Math.max(Math.abs(matrix.a), Math.abs(matrix.d)) || 1;
-  }
-  return scaledAsset(path, cssSize * scale);
+function paintedAt(
+  group: string,
+  id: string,
+  ctx: CanvasRenderingContext2D,
+  cardSpaceSize: number
+): CanvasImageSource | null {
+  const { css, device } = onScreenPx(ctx, cardSpaceSize);
+  if (css < iconMinPx(group, id)) return null;
+  return scaledAsset(iconPath(group, id), device);
 }
 
 // ---------------------------------------------------------------------------
@@ -229,7 +290,7 @@ export function drawCurrentIcon(
    * `docs/ASSET-BRIEF.md` §2.2). Re-tinting it flat would throw that away and
    * make eight hand-made icons look like the eight shapes they replaced.
    */
-  const painted = paintedAt(iconPath("current", current), ctx, radius * 2);
+  const painted = paintedAt("current", current, ctx, radius * 2);
   if (painted) {
     ctx.drawImage(painted, cx - radius, cy - radius, radius * 2, radius * 2);
     return;
@@ -414,7 +475,7 @@ export function drawFactionCrest(
   color: string,
   factionId?: string
 ): void {
-  const painted = factionId ? paintedAt(iconPath("crest", factionId), ctx, radius * 2) : null;
+  const painted = factionId ? paintedAt("crest", factionId, ctx, radius * 2) : null;
   if (painted) {
     ctx.drawImage(painted, cx - radius, cy - radius, radius * 2, radius * 2);
     return;

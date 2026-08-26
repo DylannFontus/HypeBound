@@ -74,6 +74,7 @@ import {
   type CoinKind,
 } from "./rewardKit";
 import { installRewardsTheme } from "./rewardsTheme";
+import { createStyleElement } from "../../styleSheet";
 
 /* -------------------------------------------------------------------------
    the room the reveal happens in
@@ -846,7 +847,7 @@ const ROOM_CSS = `
  */
 function installRevealRoom(doc: Document | undefined = globalThis.document): void {
   if (!doc || doc.getElementById(ROOM_STYLE_ID)) return;
-  const style = doc.createElement("style");
+  const style = createStyleElement(doc);
   style.id = ROOM_STYLE_ID;
   style.textContent = ROOM_CSS;
   doc.head.append(style);

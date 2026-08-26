@@ -25,6 +25,7 @@ import { parseCardText } from "../cardRenderer/renderCard";
 import { icon } from "../art/uiIcons";
 import { getSettings } from "../../save/settings";
 import { audio } from "../../audio/audio";
+import { createStyleElement } from "../styleSheet";
 
 export interface HudCallbacks {
   onEndTurn: () => void;
@@ -257,7 +258,7 @@ const HUD_CSS = `
  */
 function installHudStyle(doc: Document | undefined = globalThis.document): void {
   if (!doc || doc.getElementById(HUD_STYLE_ID)) return;
-  const style = doc.createElement("style");
+  const style = createStyleElement(doc);
   style.id = HUD_STYLE_ID;
   style.textContent = HUD_CSS;
   doc.head.append(style);

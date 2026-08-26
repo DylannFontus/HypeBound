@@ -30,6 +30,8 @@ import { chromium } from "playwright-core";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { seedPlayedAccount } from "./lib/account.mjs";
+import { installTap, readTap } from "./lib/asset-tap.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ART_DIR = path.join(ROOT, "public", "assets", "art");
@@ -118,6 +120,36 @@ function presentFile(base) {
   }
   return null;
 }
+
+/**
+ * The smallest box a group's paintings survive, per-id override first.
+ *
+ * The same lookup `iconAssets.ts::iconMinPx` does, from the same file, because
+ * a verifier holding its own copy of a threshold is a verifier that will one
+ * day pass a build the game disagrees with.
+ */
+function minPxFor(group, base) {
+  const id = base ? base.split("/").pop() : undefined;
+  const override = id === undefined ? undefined : MANIFEST.icons.minPxById?.[id];
+  const key = group.startsWith("icons/") ? group.slice("icons/".length) : group;
+  return override ?? MANIFEST.icons.minPx?.[key] ?? 0;
+}
+
+/**
+ * Groups §5 cannot photograph, and precisely why.
+ *
+ * A list like this is how a status file starts lying, so it holds a *reason*
+ * rather than a name, the reason is a state a player reaches rather than a
+ * shrug, and it is printed on every run where anyone can argue with it. Nothing
+ * goes in here because it is inconvenient; a group with no home belongs in the
+ * failing branch, loudly.
+ */
+const UNREACHED = new Map([
+  [
+    "icons/confluence",
+    "on screen only during a live Confluence — two Currents played in one turn. §5b checks the race instead.",
+  ],
+]);
 
 const declared = declaredAssets();
 const declaredBases = new Set(declared.map((asset) => asset.base));
@@ -245,38 +277,262 @@ try {
     }
 
     // -----------------------------------------------------------------------
-    console.log("\n5. The interface icons are actually wired to the interface");
+    console.log("\n5. Every declared group reaches a pixel a player can see");
 
     /**
-     * A file that decodes is not the same as a file that is used.
+     * The question nobody had asked, and the reason twelve paintings were
+     * invisible for a month.
      *
-     * The currency and interface icons are swapped in by `installIconStyles()`,
-     * which sets a class and a custom property on the root element for each one
-     * it finds. If that never ran — or ran before the file existed, or looked in
-     * the wrong folder — the game keeps drawing the Unicode glyph and looks
-     * completely normal. Nothing errors. This is the only check that can tell
-     * "there is no icon yet" apart from "there is an icon and it is being
-     * ignored".
+     * §3 and §4 prove a file decodes. That was the whole of this verifier, and
+     * both passed every single run while the currency icons and the entire
+     * interface set were being requested by nothing at all. The check that used
+     * to live here made it worse rather than better: it asserted that
+     * `installIconStyles()` had put `has-icon-currency-clout` on `<html>`, which
+     * it always had, and reported "all 12 present interface icon(s) are in use".
+     * They were not in use. The class was on the root and the *selector it
+     * enables* — `.currency-icon.clout` — matched no element on any screen,
+     * because the overhaul had replaced those glyphs with drawings and taken the
+     * hooks with them. A check on a class is a check on a cause; the effect is a
+     * pixel, and only a pixel will do.
+     *
+     * So this section runs the real game in a real browser, on the routes a
+     * player actually opens, with a tap on every path an asset can take to the
+     * screen:
+     *
+     *   - `CanvasRenderingContext2D.drawImage`, with taint propagated through
+     *     the intermediate surfaces `texture.ts::scaledAsset` builds, so an icon
+     *     that arrives on a card via three halvings is still attributed to the
+     *     file it came from.
+     *   - `texImage2D` **and `texSubImage2D`**, because three.js uploads through
+     *     the second on a WebGL2 context and a tap that hooked only the first
+     *     reported the battle backdrop as never uploaded while a screenshot of
+     *     the same match showed it filling the frame.
+     *   - a scan of every element's computed `background-image`, `mask-image`
+     *     and friends, plus `<img src>`, for the assets CSS paints.
+     *
+     * Everything is then filtered by whether the surface it landed on is
+     * connected, sized, unhidden, non-transparent and inside the viewport.
      */
-    const htmlGroups = ["currency", "ui"];
-    const expectWired = [];
-    for (const group of htmlGroups) {
-      for (const id of MANIFEST.icons.groups[group] ?? []) {
-        if (presentFile(`${MANIFEST.icons.dir}/${group}/${id}`)) expectWired.push({ group, id });
+
+    /**
+     * THE CONTROL, and it runs first because a tap that cannot fail is not a
+     * measurement.
+     *
+     * The same route is loaded twice: once served normally, and once with every
+     * request under `assets/` aborted. The first must report assets and the
+     * second must report none. If the ablated run still finds something, the
+     * tap is reporting its own existence rather than the game's behaviour and
+     * every number below it is void — which is the failure mode this project
+     * has hit fourteen times, so it is checked rather than assumed, on every
+     * run, in the check itself.
+     */
+    const CONTROL_ROUTE = "lobby";
+
+    /**
+     * The routes, and what each one is here to prove. Deliberately few: this
+     * runs in a browser and every entry costs a page load, so each is the
+     * cheapest screen that shows its group rather than the most interesting.
+     */
+    const ROUTES = [
+      { route: "lobby", proves: "the currencies, the interface set and the wordmark" },
+      { route: "collection", proves: "crest watermarks on cards with no painting yet" },
+      { route: "starter", raw: true, proves: "the eleven crests as list thumbnails" },
+      { route: "banner", proves: "a featured leader's crest at full size" },
+      { route: "puzzle?n=13", proves: "a board backdrop, and Current medallions on mat units" },
+    ];
+
+    const seen = new Map();
+    const merge = (assets) => {
+      for (const [key, value] of Object.entries(assets)) {
+        const at = seen.get(key) ?? { onScreen: 0, cssOnScreen: 0, gl: 0, painted: 0, boxes: [] };
+        at.onScreen += value.onScreen;
+        at.cssOnScreen += value.cssOnScreen;
+        at.gl += value.gl;
+        at.painted += value.painted;
+        at.boxes.push(...value.boxes);
+        seen.set(key, at);
+      }
+    };
+
+    const visit = async ({ route, raw = false, block = null }) => {
+      const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+      await page.addInitScript(installTap);
+      if (block) await page.route(block, (request) => request.abort());
+      try {
+        if (raw) await page.goto(ORIGIN, { waitUntil: "networkidle" });
+        else await seedPlayedAccount(page, ORIGIN);
+        await page.goto(`${ORIGIN}/?nointro#${route}`, { waitUntil: "networkidle" });
+        await page
+          .waitForFunction(() => document.querySelectorAll(".screen-out").length === 0, null, { timeout: 20000 })
+          .catch(() => {});
+        await page.waitForTimeout(2600);
+        return await page.evaluate(readTap);
+      } finally {
+        await page.close();
+      }
+    };
+
+    const declaredKeys = new Set(declared.map((asset) => asset.base));
+    const declaredOnly = (assets) =>
+      Object.fromEntries(Object.entries(assets).filter(([key]) => declaredKeys.has(key)));
+
+    const live = await visit({ route: CONTROL_ROUTE });
+    const dark = await visit({ route: CONTROL_ROUTE, block: "**/assets/**" });
+    const liveCount = Object.keys(declaredOnly(live.assets)).length;
+    const darkCount = Object.keys(declaredOnly(dark.assets)).length;
+
+    if (liveCount === 0) {
+      fail(`control: ${CONTROL_ROUTE} reported no declared asset at all — the tap is not attached`);
+    } else if (darkCount > 0) {
+      fail(
+        `control: ${CONTROL_ROUTE} with every asset request aborted still reported ${darkCount} ` +
+          `(${Object.keys(declaredOnly(dark.assets)).slice(0, 3).join(", ")}) — the tap is reporting itself, ignore §5`
+      );
+    } else {
+      ok(`control: ${CONTROL_ROUTE} paints ${liveCount} declared asset(s), and 0 with the files blocked`);
+    }
+
+    if (darkCount === 0 && liveCount > 0) {
+      merge(live.assets);
+      for (const entry of ROUTES) {
+        if (entry.route === CONTROL_ROUTE) continue;
+        const result = await visit(entry);
+        merge(result.assets);
+      }
+
+      /**
+       * A group passes when **any** of its members reached a pixel.
+       *
+       * Per member would be wrong and would rot into noise: a seeded account
+       * holds one faction's leader, so ten of the eleven crests have no reason
+       * to be on any screen this harness opens, and failing on them would mean
+       * a red check that everybody learns to ignore. A whole group with nothing
+       * on screen anywhere is a different animal — that is a folder of the
+       * owner's paintings the game pretends to use, and it is exactly what was
+       * true of `icons/currency` and `icons/ui` when this was written.
+       */
+      const groups = new Map();
+      for (const asset of declared) {
+        const at = groups.get(asset.group) ?? { total: 0, arrived: 0, shown: 0, best: 0, viaGpu: false, tooSmall: [] };
+        at.total++;
+        const hit = seen.get(asset.base);
+        if (presentFile(asset.base)) at.arrived++;
+        if (hit && (hit.onScreen > 0 || hit.cssOnScreen > 0 || hit.gl > 0)) {
+          at.shown++;
+          if (hit.gl > 0) at.viaGpu = true;
+          for (const box of hit.boxes) {
+            const size = Math.min(box.w, box.h);
+            if (box.how !== "webgl" && size > at.best) at.best = size;
+            /**
+             * The size rule, enforced where it can actually be checked.
+             *
+             * `data/asset-manifest.json` says the smallest box each group's
+             * paintings survive, `iconAssets.ts::refreshPaintedIcons` and
+             * `cardRenderer/icons.ts::paintedAt` are supposed to honour it, and
+             * neither can be trusted to have done so — the first version of the
+             * stylesheet gate keyed off the optical rung and the lobby passes
+             * `optical: "hero"` on a 19px mark, so a rule that looked right in
+             * the file was wrong on the screen. This measures the box that was
+             * painted, on the screen it was painted on.
+             */
+            if (box.how !== "webgl" && size > 0 && size + 0.5 < minPxFor(asset.group, asset.base)) {
+              at.tooSmall.push(`${asset.base.split("/").pop()} at ${size.toFixed(1)}px`);
+            }
+          }
+        }
+        groups.set(asset.group, at);
+      }
+
+      for (const [group, at] of [...groups].sort()) {
+        if (at.arrived === 0) {
+          ok(`${group.padEnd(16)} no files yet, so nothing to see`);
+          continue;
+        }
+        if (UNREACHED.has(group)) {
+          console.log(`   note: ${group.padEnd(10)} ${UNREACHED.get(group)}`);
+          continue;
+        }
+        if (at.shown === 0) {
+          fail(
+            `${group}: ${at.arrived} file(s) present, decoding, and reaching **no pixel on any route** — ` +
+              `the game asks for them and nothing draws them`
+          );
+        } else {
+          /**
+           * "Largest box" is blank for a group that only reaches the screen as
+           * a GPU texture, and that is not a gap in the report.
+           *
+           * A texture has no box: the battle backdrop is uploaded at 1920x1080
+           * and then mapped onto geometry a camera looks at from an angle, and
+           * the number of pixels it occupies is a question for the renderer.
+           * Printing the upload size there would be a made-up measurement in a
+           * column of real ones.
+           */
+          const size = at.best > 0 ? `largest box ${at.best.toFixed(0)}px` : at.viaGpu ? "as a GPU texture" : "size unknown";
+          ok(`${group.padEnd(16)} ${at.shown}/${at.arrived} on screen, ${size}`);
+        }
+        for (const small of [...new Set(at.tooSmall)]) {
+          fail(`${group}: painted below its own minPx — ${small}, needs ${minPxFor(group)}`);
+        }
       }
     }
 
-    if (expectWired.length === 0) {
-      ok("no interface icons present yet, so nothing to wire");
-    } else {
-      await page.goto(ORIGIN, { waitUntil: "networkidle" }).catch(() => null);
-      await page.waitForTimeout(1200);
-      const installed = await page.evaluate(() => [...document.documentElement.classList].filter((c) => c.startsWith("has-icon-")));
-      const notWired = expectWired.filter(({ group, id }) => !installed.includes(`has-icon-${group}-${id}`));
-      for (const { group, id } of notWired) {
-        fail(`${group}/${id}.png exists but the interface never picked it up — the glyph is still showing`);
+    // -----------------------------------------------------------------------
+    console.log("\n5b. The Confluence emblems are decoded before the moment they are needed");
+
+    /**
+     * The one group this section cannot photograph, said plainly.
+     *
+     * A Confluence emblem exists on screen only while a player is holding a
+     * live Confluence — two different Currents played in the same turn — and
+     * `hud.ts` builds it as `<img src="${getAsset(...).src}">`. There is no
+     * fallback race in the markup and no class to install: either `getAsset`
+     * has the file at that instant or the button shows the two parent initials
+     * instead, silently, in the loudest moment of a match.
+     *
+     * So the failure worth checking is the **race**, and the race is checkable
+     * without reaching the state: did the nine files load during an ordinary
+     * boot? `iconAssets.ts` warms them for exactly this reason and this is the
+     * check that the warming still happens.
+     *
+     * This is a weaker claim than the rest of §5 and is labelled as one. What
+     * would make it as strong is a harness that can drive a match to a live
+     * Confluence; the scripted puzzles (`p13-sanctuary`, `p33-eclipse`) set one
+     * up in two moves and their coaching beat would not dismiss under a
+     * synthetic click, so that is where the work is.
+     */
+    {
+      const confluences = (MANIFEST.icons.groups.confluence ?? []).filter((id) =>
+        presentFile(`${MANIFEST.icons.dir}/confluence/${id}`)
+      );
+      if (confluences.length === 0) {
+        ok("no Confluence emblems yet, so nothing to warm");
+      } else {
+        const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+        const loaded = new Set();
+        page.on("response", (response) => {
+          const url = response.url();
+          const at = url.indexOf("/assets/icons/confluence/");
+          if (at >= 0 && response.status() === 200) {
+            loaded.add(url.slice(at + "/assets/icons/confluence/".length).replace(/\.[a-z]+$/i, ""));
+          }
+        });
+        try {
+          await page.goto(`${ORIGIN}/?nointro#lobby`, { waitUntil: "networkidle" });
+          await page.waitForTimeout(2200);
+        } finally {
+          await page.close();
+        }
+        const cold = confluences.filter((id) => !loaded.has(id));
+        if (cold.length === 0) {
+          ok(`all ${confluences.length} decoded at boot — the emblem cannot lose its race`);
+        } else {
+          fail(
+            `${cold.join(", ")} did not load during boot — the first Confluence of a match would ` +
+              `show two letters instead of the emblem`
+          );
+        }
       }
-      if (notWired.length === 0) ok(`all ${expectWired.length} present interface icon(s) are in use`);
     }
   }
 } finally {

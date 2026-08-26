@@ -205,7 +205,14 @@ exact moment the player is most receptive.
 ```
 npx vitest run tests/one-sun.test.ts tests/material-contrast.test.ts \
   tests/camera-truth.test.ts tests/card-light.test.ts \
-  tests/never-a-blank-frame.test.ts tests/texture-light-rig.test.ts
+  tests/never-a-blank-frame.test.ts tests/texture-light-rig.test.ts tests/csp-styles.test.ts
+```
+
+And the one that needs the binary rather than a browser, because nothing above
+can see inside it:
+
+```
+npm run desktop:build && npm run verify:desktop
 ```
 
 As of the wave-3 shell pass: `one-sun`, `card-light`, `material-contrast`,
@@ -219,7 +226,7 @@ Still failing, and still nobody's:
   spread across `art/`, `cardRenderer/`, `battle/` and `screens/`. Two were in
   `shell.ts` and are now module-private; the rest are the wiring pass.
 
-## Measurement is the hard part — five instruments have lied so far
+## Measurement is the hard part — six instruments have lied so far
 
 Every one produced a confident wrong answer rather than an error. Distrust the
 instrument before the work.
@@ -236,6 +243,23 @@ instrument before the work.
    page running at 75. Caught by the agent that wrote it.
 5. **A grain measurement that cropped over button text** read 18.5% when the real
    figure was 2.36%. Sample text-free regions.
+
+6. **Every browser check is blind to the packaged app's CSP.** The web build
+   ships no Content-Security-Policy at all, so 1931 unit tests, every
+   screenshot and every `verify:*` script ran in an environment that cannot
+   produce the .exe's most consequential difference. Tauri appends a
+   per-response `nonce-...` to `style-src`, and CSP says a directive carrying a
+   nonce **ignores `'unsafe-inline'`** - which silently dropped all nine
+   stylesheets the app installs at runtime. The symptom was three steps
+   downstream and looked like an art bug: `.hb-icon` takes its `width: 1em`
+   from one of those sheets, so every icon sized from its host laid out at 0x0,
+   the size gate in `iconAssets.ts` measured 0 against a `minPx` of 14,
+   correctly withheld `hb-mark-fits`, and the wallet rendered a bare number.
+   Nothing along that chain was broken. `src/ui/styleSheet.ts` is the fix and
+   `scripts/verify-desktop.mjs` is the instrument: it drives the real binary
+   over WebView2's remote debugging port, plants a nonce-less `<style>` as a
+   calibration control, and asserts every sheet applies and no icon is 0-wide.
+   **Run `npm run verify:desktop` before believing the .exe works.**
 
 Also: **rAF gap traces cannot see a compositor curtain.** rAF runs on the main
 thread, so it reports blocking whether or not the player sees anything wrong.

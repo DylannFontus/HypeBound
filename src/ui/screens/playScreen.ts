@@ -40,6 +40,7 @@ import { paintLeaderPortrait, paintVenue } from "../art/leaderPortrait";
 import { stagger } from "../motion";
 import { artAttr, paintArt } from "./data/kit";
 import type { EmblemShape } from "../cosmetics/emblem";
+import { createStyleElement } from "../styleSheet";
 
 export interface PlayCallbacks {
   onStartAiMatch: (difficulty: AiDifficulty) => void;
@@ -294,7 +295,7 @@ const TILE_ART_CSS = `
 
 function installTileArt(doc: Document | undefined = globalThis.document): void {
   if (!doc || doc.getElementById(TILE_ART_STYLE_ID)) return;
-  const style = doc.createElement("style");
+  const style = createStyleElement(doc);
   style.id = TILE_ART_STYLE_ID;
   style.textContent = TILE_ART_CSS;
   doc.head.append(style);

@@ -20,6 +20,12 @@ import {
   type Settings,
 } from "../../save/settings";
 import { audio } from "../../audio/audio";
+import {
+  desktopFullscreen,
+  isDesktopShell,
+  onDesktopFullscreenChange,
+  setDesktopFullscreen,
+} from "../../desktop/window";
 import { getProfile, profileStore } from "../../save/profile";
 import { count, enter, icon, quantify, room, segmented, toggleRow } from "./data/kit";
 
@@ -250,6 +256,52 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
 
   // ---- gameplay ------------------------------------------------------------
   const gameplay = section("Gameplay & Presentation", "settings", undefined, band);
+
+  /**
+   * The desktop shell's fullscreen switch, and why it is *here*.
+   *
+   * It is not a section of its own because a section needs a mark, the icon set
+   * has no display glyph, and the two candidates that read as a screen already
+   * mean Replay Theater and Reaction — the set's own rule is that no two icons
+   * share a shape, and borrowing one to mean a third thing breaks it from the
+   * other end. This panel is already titled *Presentation*, and fullscreen is
+   * the largest presentation decision the desktop build offers, so it goes at
+   * the top of it rather than inventing a home.
+   *
+   * It exists only on the desktop, on the runtime's own evidence rather than a
+   * user-agent guess. A browser cannot honour this — `requestFullscreen` needs a
+   * user gesture on the element, and the browser's own F11 already owns the
+   * window — so on the web there is nothing here at all rather than a switch
+   * that half works.
+   *
+   * `toggleRow` is the kit's, so this is the same `.switch` in the same
+   * `.d-set-row` as everything under it. The one thing it does not do is write
+   * through `updateSettings`: the state lives in its own store, and the
+   * subscription below is what keeps the switch true when F11 is pressed while
+   * this screen is open.
+   */
+  let stopFullscreenWatch: (() => void) | null = null;
+  if (isDesktopShell()) {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = toggleRow({
+      label: "Fullscreen",
+      hint: "F11 anywhere in the game toggles it, and Escape leaves it. Leaving restores the window size and position you had.",
+      key: "fullscreen",
+      on: desktopFullscreen(),
+    });
+    const row = wrap.firstElementChild as HTMLElement;
+    gameplay.appendChild(row);
+
+    const input = row.querySelector<HTMLInputElement>("input.switch");
+    input?.addEventListener("change", () => {
+      setDesktopFullscreen(input.checked);
+      audio.play("sfx.ui.toggle");
+    });
+    stopFullscreenWatch = onDesktopFullscreenChange((on) => {
+      if (input) input.checked = on;
+    });
+  }
+
   choice<AnimationSpeed>(gameplay, "Animation speed", "animationSpeed", [
     { value: "full", label: "Full" },
     { value: "fast", label: "Fast" },
@@ -337,5 +389,13 @@ export function createSettingsScreen(callbacks: SettingsCallbacks): Screen {
 
   root.querySelector("#set-back")?.addEventListener("click", () => callbacks.onBack());
   enter(root, ".settings-section", 42);
-  return { root };
+  /**
+   * The only thing on this screen that outlives its own DOM.
+   *
+   * Every other control here writes to the settings store and forgets; the
+   * fullscreen switch is subscribed to a module-level set, so leaving the screen
+   * without unsubscribing would leak one closure per visit, each one writing to
+   * an `<input>` that is no longer in the document.
+   */
+  return { root, dispose: () => stopFullscreenWatch?.() };
 }

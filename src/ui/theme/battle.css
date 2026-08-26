@@ -37,6 +37,25 @@
   z-index: 0;
 }
 
+/**
+ * The one canvas in the game that fills rather than contains.
+ *
+ * `foundation.css` §11 makes `object-fit: contain` the default for every
+ * replaced element, so that a box of the wrong shape letterboxes visibly
+ * instead of squashing invisibly. This surface is the exception, and it is the
+ * exception for a reason rather than a preference: three.js resizes the drawing
+ * buffer to this element's own box, so the two aspects are equal by
+ * construction and `contain` can never do anything — except during the frames
+ * of a live window resize, where the buffer is one frame behind the box. The
+ * desktop build made that a real state: somebody dragging the corner of
+ * HYPEBOUND.exe would see the void through a bar down the edge of the board on
+ * every frame of the drag. Stretching by a pixel for one frame is what every
+ * game does; showing a hole is not.
+ */
+.battle-board-host > canvas {
+  object-fit: fill;
+}
+
 
 /* ---- hand bar ----------------------------------------------------------- */
 
@@ -1438,7 +1457,8 @@
   margin-top: var(--sp-2);
   padding-top: var(--sp-2);
   color: var(--text);
-  font-size: 0.66rem;
+  /* The floor token, not a literal: 0.66rem is 10.6px at 100%. */
+  font-size: var(--fs-micro);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   border-top: 1px solid transparent;
@@ -2373,7 +2393,26 @@
      * change.
      */
     max-height: clamp(96px, calc(40vh - (var(--ui-scale, 1) - 1) * 18vh), 40vh);
-    width: auto;
+    /*
+     * `!important`, and it is load-bearing rather than lazy.
+     *
+     * `renderCardToCanvas` writes `style.width` and `style.height` onto the
+     * canvas so a dpr-scaled backing store lands on the right number of CSS
+     * pixels. An inline declaration outranks every selector, so the `width:
+     * auto` this rule has always declared **never won** — `max-height` moved one
+     * axis, the inline width held the other, and the card was painted at
+     * 1.575:1 from a 0.753:1 source. A portrait card crushed into a landscape
+     * box: 1.53x out of shape at 100% and 2.09x at 160%, on the screen a player
+     * meets before every single match, and invisible to every check in the
+     * project because nothing had ever compared a canvas's backing store to its
+     * box. Freeing the width is what makes `max-height` scale both axes
+     * together, which is what the note above always claimed it did.
+     *
+     * The height stays inline on purpose. `height: auto` would take the canvas
+     * back to its *intrinsic* size, which is the dpr-multiplied backing store —
+     * a 180px card would lay out 540px wide on a 3x phone.
+     */
+    width: auto !important;
   }
   /* Still over the 44px touch floor with the panel's own scale applied, and the
      only control on this screen. */
@@ -2716,7 +2755,10 @@
    * phone. The label is one short phrase; it is allowed to shrink rather than
    * break.
    */
-  .obs-label { font-size: 0.62rem; letter-spacing: 0.06em; }
+  /* `--fs-micro` rather than a literal: 0.62rem is 9.9px at 100% and
+     `verify:mobile` counts anything that rounds under 11. The token is the
+     floor and it is the *only* thing allowed below `--fs-xs`. */
+  .obs-label { font-size: var(--fs-micro); letter-spacing: 0.06em; }
 }
 
 /* A resource label never wraps: the pair only works if both read identically. */

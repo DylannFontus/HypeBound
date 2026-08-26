@@ -89,6 +89,7 @@ import { audio } from "../../audio/audio";
 import { icon } from "../art/uiIcons";
 import { getCardArt, onArtLoaded } from "../art/artLoader";
 import { DUR, motionEnabled, tickerTo } from "../motion";
+import { createStyleElement } from "../styleSheet";
 import {
   CURRENT_SIGIL,
   bindScrollFades,
@@ -1236,7 +1237,7 @@ const STYLE_ID = "hb-gallery-room";
 
 function installGalleryStyles(): void {
   if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
-  const style = document.createElement("style");
+  const style = createStyleElement(document);
   style.id = STYLE_ID;
   style.textContent = GALLERY_CSS;
   document.head.appendChild(style);

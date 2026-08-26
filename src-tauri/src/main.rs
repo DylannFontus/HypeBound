@@ -7,6 +7,16 @@ hands it the bundled `dist/`, and gets out of the way. There are deliberately no
 build stops being the same program as the web build, and every screen has to be
 reasoned about twice. It is not, and they do not.
 
+That claim needed one qualification when fullscreen arrived, and it is worth
+stating precisely rather than leaving the sentence above quietly false. The page
+can now call *Tauri's own* window commands — six of them, listed and argued in
+`capabilities/fullscreen.json5` — because F11 has to be caught where the keyboard
+is, and the keyboard is in the webview. What has not changed is that no code in
+this crate is reachable from the page, so there is still nothing here for a
+screen to reason about; and `src/desktop/window.ts` asks the runtime whether it
+is inside this shell rather than being compiled differently, so the two builds
+are still one bundle taking one branch.
+
 ## Trap one: the console window
 
 `windows_subsystem = "windows"` is the difference between a game and a game with
@@ -51,8 +61,31 @@ fn main() {
          * sweep. That is correct: a window rectangle is not something the game
          * knows about you, and it is not something "delete my data" should have
          * an opinion on.
+         *
+         * ## The flags are spelled out because one of them is now a feature
+         *
+         * `StateFlags::all()` is already `Builder::default()`'s value, so this
+         * line changes no behaviour today. It is here because the sixth flag,
+         * FULLSCREEN, is what makes "the game reopens fullscreen if you left it
+         * fullscreen" true — restored natively, before the first frame, rather
+         * than by the page noticing after it has booted and jumping. A feature
+         * resting on another crate's *default* is a feature one minor version
+         * bump can delete with nothing failing to compile.
+         *
+         * Its one rough edge is handled on the TypeScript side rather than here:
+         * the plugin's `Resized`/`Moved` handlers skip a maximised window and a
+         * minimised one but not a fullscreen one, so the geometry it persists
+         * while fullscreen is the monitor's. `src/desktop/window.ts` keeps the
+         * real windowed rectangle and puts the window back on it. Doing that in
+         * Rust would mean racing the plugin's own event handler for who writes
+         * the cache last, which is a fight decided by plugin registration order —
+         * exactly the kind of invisible dependency this file exists to avoid.
          */
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::all())
+                .build(),
+        )
         .run(tauri::generate_context!())
         .expect("the HYPEBOUND window could not be created");
 }

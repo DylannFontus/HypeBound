@@ -1,0 +1,60 @@
+/*
+ * What the page is allowed to ask the shell to do. All of it, on one screen.
+ *
+ * Before this file existed there were no capabilities at all, and that was not
+ * an oversight — it was the correct configuration for a shell with no IPC
+ * surface. Tauri v2 denies every command that no capability names, so an app
+ * that calls nothing needs to grant nothing, and `src/main.rs` says in as many
+ * words that it has no `#[tauri::command]` handlers on purpose.
+ *
+ * Fullscreen is the first thing that cannot be done that way. F11 has to be
+ * caught in the page, because WebView2 owns the keyboard and Tauri exposes no
+ * key hook on the Rust side; the global-shortcut plugin would catch it system
+ * wide, including while the game is minimised, which is worse than not having
+ * it. So the page has to be able to reach the window — and this file is the
+ * exact list of how far it may reach.
+ *
+ * ## Six commands, not `core:default`
+ *
+ * `core:default` would have been one line and would have granted the whole of
+ * `core:window`, `core:webview`, `core:app`, `core:menu`, `core:tray`,
+ * `core:path`, `core:event`, `core:image` and `core:resources` — window
+ * creation, navigation, the filesystem's path resolver, the lot. The CSP in
+ * `tauri.conf.json5` names two origins rather than writing `connect-src *` for
+ * the same reason this names six commands rather than a default set: the cost
+ * of an allowlist is that it has to be edited when the app grows, and that is
+ * the point of it.
+ *
+ * Reading the list: `is_fullscreen` and `set_fullscreen` are the feature.
+ * `inner_size` and `outer_position` read the rectangle to come back to, and
+ * `set_size` and `set_position` put the window back on it — which is a fix, not
+ * a flourish: `tauri-plugin-window-state` saves the *fullscreen* rectangle as
+ * the window's geometry, so without these six a player who quits fullscreen
+ * comes back to a monitor-sized window with its bottom edge behind the taskbar.
+ * `src/desktop/window.ts` has the full account.
+ *
+ * Nothing here can create a window, navigate one, read a file or spawn a
+ * process, and nothing added later should be able to without an edit here.
+ */
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "fullscreen",
+  "description": "Lets the page put its own window in and out of fullscreen, and put it back on the rectangle it had.",
+
+  /*
+   * The window created from `app.windows[0]`, which sets no `label` and so takes
+   * Tauri's default of "main" (tauri-utils 2.9.3, config.rs:2363). Naming it
+   * rather than leaving the list empty means a second window added later starts
+   * with no permissions rather than inheriting these.
+   */
+  "windows": ["main"],
+
+  "permissions": [
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-inner-size",
+    "core:window:allow-outer-position",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position"
+  ]
+}

@@ -55,6 +55,30 @@
   },
 
   "app": {
+    /*
+     * ## The one thing the page is allowed to know about the shell
+     *
+     * True injects Tauri's own API bundle at `window.__TAURI__` — an
+     * initialisation script inside the webview, not a file in `dist/`, so the
+     * web build is byte-identical and `package.json` gains nothing. It is on for
+     * exactly one feature: `src/desktop/window.ts` needs `setFullscreen`,
+     * `isFullscreen`, `innerSize`, `outerPosition`, `setSize` and `setPosition`.
+     *
+     * The alternative was `@tauri-apps/api` in `package.json`, which would be a
+     * runtime dependency only one of the two builds could ever load, and which
+     * `tests/fairness.test.ts` would then demand a legal entry for. The
+     * alternative to *both* was hand-encoding the IPC payloads — `Size` is a
+     * tagged enum, `set_size` takes inner size while `set_position` takes outer
+     * position — which is four chances to get a wire format subtly wrong in
+     * exchange for saving an injected script the shell already injects a
+     * smaller version of.
+     *
+     * What this opens is bounded by `capabilities/fullscreen.json`, which grants
+     * six commands and no more. The API being present is not the same as the API
+     * being permitted; without a capability naming a command, calling it fails.
+     */
+    "withGlobalTauri": true,
+
     "windows": [
       {
         "title": "HYPEBOUND",
@@ -85,20 +109,29 @@
         "center": true,
 
         /*
-         * Not fullscreen at launch, and there is no F11 toggle in this build.
+         * ## Not fullscreen at launch — but no longer never fullscreen
          *
-         * Launching fullscreen would be the wrong default for a shell with no
-         * in-page way out: WebView2 does not handle F11 itself, and the game has
-         * no exit-fullscreen control because on the web the browser owns that
-         * chrome. A window with no title bar and no keybinding is a window you
-         * have to Alt-F4. Maximise gets most of the benefit and cannot trap
-         * anyone.
+         * This value is the *first* launch only. From the second onwards
+         * `tauri-plugin-window-state` restores whatever the player left, because
+         * `StateFlags` defaults to all six and the sixth is FULLSCREEN. That is
+         * why the choice persists without anything here having to know about it,
+         * and why it is restored before the first frame instead of after the
+         * page boots and jumps.
          *
-         * A real toggle means either injecting a desktop-only script into the
-         * page — which ends the property that both builds run identical code —
-         * or taking the global-shortcut plugin, which would swallow F11 system
-         * wide even while the game is unfocused. Neither earns its place in a
-         * first build. Both remain open.
+         * The previous note here said a toggle would mean "either injecting a
+         * desktop-only script into the page, which ends the property that both
+         * builds run identical code, or taking the global-shortcut plugin, which
+         * would swallow F11 system wide". Both were true of the options it
+         * considered and there is a third: `withGlobalTauri` below hands the
+         * page the API, `src/desktop/window.ts` asks the *runtime* whether it is
+         * running inside this shell, and the web build ships the same bytes and
+         * takes the other branch. Nothing is injected per build, nothing is
+         * registered system wide, and F11 only exists while the game has focus.
+         *
+         * Still false rather than true, for the reason the old note gave: a
+         * first launch that opens with no title bar, before the player has been
+         * anywhere near a settings screen, is a window somebody has to guess
+         * their way out of.
          */
         "fullscreen": false,
 

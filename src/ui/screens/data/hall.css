@@ -1,3 +1,21 @@
+/*
+ * Every auto-fit track floor in this file is wrapped in `min(..., 100%)`.
+ *
+ * The same invariant as `src/ui/theme/screens.css`, and the header there has the
+ * full account: a grid track can never be allowed to be wider than the grid.
+ * `repeat(auto-fit, minmax(F, 1fr))` produces a flat `F` column once the
+ * container is narrower than `F`, the row overflows, and any ancestor that is
+ * `overflow: hidden` turns "off-screen" into "unreachable".
+ *
+ * That header fixed twenty-one tracks and named these two files as the same trap
+ * left unrepaired, because they had a different owner during the overhaul. It is
+ * worse here than there: every floor below is multiplied by `--ui-scale`, so a
+ * window that is correct at 100% crosses the container at 140% without anything
+ * about the window changing. `verify:mobile` reported it as unreachable controls
+ * on `#profile` at 140% and 160% on every phone-landscape shape, clean at 100%.
+ *
+ * `min(F, 100%)` is the same rule above the floor and gives way below it.
+ */
 /**
  * The eleven documents, made into rooms.
  *
@@ -213,7 +231,7 @@
  */
 .d-band {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(calc(var(--band-min, 300px) * var(--ui-scale, 1)), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(calc(var(--band-min, 300px) * var(--ui-scale, 1)), 100%), 1fr));
   gap: var(--sp-3);
   align-items: start;
 }
@@ -491,7 +509,7 @@
  */
 .d-rail-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(calc(96px * var(--ui-scale, 1)), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(calc(96px * var(--ui-scale, 1)), 100%), 1fr));
   gap: var(--sp-2) var(--sp-3);
   margin: 0;
 }
@@ -562,7 +580,24 @@
     flex-direction: row;
     max-height: 40vh;
     overflow-x: auto;
-    overflow-y: hidden;
+    /*
+     * `auto`, not `hidden`, and the difference is a control nobody can press.
+     *
+     * The strip is capped at 40vh, which on a 667x375 phone in landscape is
+     * 150px, and the profile rail's card holds five record links stacked at
+     * about 44px each. With `overflow-y: hidden` the last of them sat 232px
+     * below the cap: rendered perfectly, past an edge, and unreachable — the
+     * horizontal `auto` above scrolls the wrong axis to help. `verify:mobile`
+     * reported it on `#profile` and `#events` at every interface size on the
+     * two shapes narrow enough to lay the rail down.
+     *
+     * A vertical scroll inside a horizontal snap strip is not lovely. It is
+     * also the only one of these that is honest: AAA-BAR §9 does not score an
+     * unreachable control, it fails outright, and capping a container whose
+     * contents are set by the player's type size cannot be made safe by
+     * choosing a bigger cap.
+     */
+    overflow-y: auto;
     scroll-snap-type: x proximity;
     padding-block: var(--sp-3) 0;
     gap: var(--sp-2);
@@ -571,6 +606,25 @@
   .screen.d-hall > .d-rail > * {
     scroll-snap-align: start;
     min-width: min(300px, 78vw);
+  }
+
+  /*
+   * The card has to give as well, and letting only the rail scroll was half a
+   * fix that measured like none at all.
+   *
+   * `.d-rail > .d-rail-card` is `overflow: hidden`, for the rounded corner. Laid
+   * down the rail runs in `row`, so every card is stretched by the default
+   * `align-items: stretch` to the rail's full 40vh — 150px on a 667x375 phone —
+   * while the profile's card holds five record links at about 44px each. The
+   * content overflows the *card*, so the card clips it, and a scrollbar on the
+   * rail never reaches it. `verify:mobile` still reported all five unreachable
+   * after the rail was fixed, which is what said the clip was one level down.
+   *
+   * `overflow-x` stays `hidden`: the strip scrolls sideways, the card does not.
+   */
+  .screen.d-hall > .d-rail > .d-rail-card {
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .screen.d-hall > .data-body {

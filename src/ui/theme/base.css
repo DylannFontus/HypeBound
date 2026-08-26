@@ -87,8 +87,16 @@
    * 100% — and then the overhaul wrote a dozen literals underneath it, because
    * a compact layout is easier to reach by shrinking type than by rethinking a
    * row: 0.58rem on the deck slot index (9.3px), 0.62rem on its badges (9.9px),
-   * 0.64rem on the curve note. `verify:mobile` counts anything that rounds
-   * below 11px and found twelve of them per viewport.
+   * 0.64rem on the curve note. `verify:mobile` counts anything below 11px and
+   * found twelve of them per viewport.
+   *
+   * It used to count anything that *rounded* below 11, which forgave every
+   * literal in the half-pixel above the floor: `0.66rem` on the battle log's
+   * turn markers is 10.56px and passed for as long as the rounding did. A floor
+   * that forgives the pixel under it is not a floor, so the comparison is strict
+   * now — and it was measured before it was tightened, because a stricter rule
+   * that floods is worse than a loose one. Across all sixteen swept routes,
+   * exactly two elements sit between 10.5 and 11px.
    *
    * This is the smallest size the interface is allowed to set, and it is read
    * as "the smaller of `--fs-xs` and a 0.7rem that cannot go under 11px".

@@ -36,6 +36,8 @@
  * is at 315° everywhere, forever.
  */
 
+import { createStyleElement } from "../../styleSheet";
+
 const STYLE_ID = "hb-rewards-theme";
 
 /* -------------------------------------------------------------------------
@@ -3140,7 +3142,7 @@ const CSS = `
  */
 export function installRewardsTheme(doc: Document | undefined = globalThis.document): void {
   if (!doc || doc.getElementById(STYLE_ID)) return;
-  const style = doc.createElement("style");
+  const style = createStyleElement(doc);
   style.id = STYLE_ID;
   style.textContent = CSS;
   doc.head.append(style);

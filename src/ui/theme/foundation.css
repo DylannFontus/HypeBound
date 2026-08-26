@@ -3192,3 +3192,46 @@ select.field {
     --slider-h: 44px;
   }
 }
+
+/* -------------------------------------------------------------------------
+   11. Replaced media never distorts
+   -------------------------------------------------------------------------
+
+   One rule, and it exists because a squashed picture is the single visual
+   defect that no reviewer in this project has ever caught and no test has ever
+   looked for. A card painted at 1.575:1 from a 0.753:1 source sat on the
+   mulligan — the screen a player meets before every match — through nine waves
+   of review, because a still of a crushed card still reads as a card and the
+   only thing that would have found it is a number.
+
+   The mechanism is always the same and it is always an accident. `<img>` and
+   `<canvas>` are replaced elements whose two axes move together, and the
+   initial `object-fit` is `fill`, which is the one value that pulls them apart.
+   So any rule that constrains one axis and leaves the other definite — a
+   `max-height` on a canvas the card renderer has given an inline width, a
+   `height: 100%` on a portrait in a box that is not its shape — stretches the
+   painting, silently, at exactly the window sizes nobody photographs.
+
+   `contain` makes that impossible, and it was measured before it was written
+   rather than after. `scripts/_fit/imgs.mjs` walks every `<img>` and `<canvas>`
+   on eleven routes at 1600x900, 3440x1440 and 844x390 and prints the ones whose
+   box is not the shape of their picture: **every single one of them already
+   declares `object-fit: cover`**, deliberately, so there is nothing anywhere in
+   the game for this default to letterbox. It changes no pixel today and makes
+   one class of defect unreachable tomorrow.
+
+   Where a box does go out of shape later, an invisible squash becomes a visible
+   bar — which a person can see and `verify:mobile` reports on its own line. A
+   site that genuinely wants to crop says `cover` and outranks this; a site that
+   genuinely wants to stretch does not exist, because §1 of the bar bans it.
+
+   The one exception is the live 3D surface, and it is declared in `battle.css`
+   beside the board rather than here: its drawing buffer is resized to its own
+   box every frame, so it is the one canvas whose two aspects are equal by
+   construction and the one where a mid-resize letterbox would show the void
+   through the edge of a window the player is dragging. */
+
+img,
+canvas {
+  object-fit: contain;
+}

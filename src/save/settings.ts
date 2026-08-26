@@ -11,6 +11,7 @@
  */
 
 import { createStore } from "./storage";
+import { installDesktopWindow } from "../desktop/window";
 import { activePalette, applyColorblindMode, type ColorblindMode } from "../ui/cardRenderer/palette";
 import { setPatterns } from "../ui/cardRenderer/hatch";
 import { setRulesLens } from "../ui/cardRenderer/renderCard";
@@ -239,6 +240,19 @@ export function applySettings(settings: Settings = getSettings()): void {
   setPatterns(patternsActive(settings));
   setRulesLens(settings.rulesLens);
   if (typeof document === "undefined") return;
+  /**
+   * The desktop window is a presentation surface too.
+   *
+   * This is here rather than in `main.ts::boot` for one reason: `applySettings`
+   * is the funnel that already runs at boot *and* on every change, and `main.ts`
+   * belongs to another owner. The call is idempotent — it binds F11 and Escape
+   * once and then costs a boolean — and on the web build it returns before it
+   * has read anything, because `window.isTauri` is not defined there. It is
+   * deliberately not passed `settings`: the fullscreen preference is **not** a
+   * `Settings` field, because `settingsStore` syncs between devices and a window
+   * rectangle must not. See `src/desktop/window.ts`.
+   */
+  installDesktopWindow();
   const root = document.documentElement;
   root.dataset["reducedMotion"] = String(settings.reducedMotion);
   root.dataset["contrast"] = settings.highContrast ? "high" : "normal";

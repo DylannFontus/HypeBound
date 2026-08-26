@@ -36,6 +36,7 @@ import { getCardArt, onArtLoaded } from "../art/artLoader";
 import { parseCardText } from "../cardRenderer/renderCard";
 import { icon, type IconId } from "../art/uiIcons";
 import { DUR, EASE, cssEase, motionEnabled } from "../motion";
+import { createStyleElement } from "../styleSheet";
 
 // ---------------------------------------------------------------------------
 // text
@@ -1125,7 +1126,7 @@ const STYLE_ID = "hb-collection-kit";
  */
 export function installKitStyles(): void {
   if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
-  const style = document.createElement("style");
+  const style = createStyleElement(document);
   style.id = STYLE_ID;
   style.textContent = KIT_CSS;
   document.head.appendChild(style);
@@ -2101,7 +2102,27 @@ body.hb-drag-active:has(.hb-drag-ghost.is-refused) * { cursor: not-allowed !impo
    */
   grid-template-columns: minmax(0, 1fr);
   padding: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  /*
+   * auto on the block axis, as the last resort behind the pinned footer.
+   *
+   * The three-row grid keeps the footer off the bottom for as long as there is
+   * a middle row left to give up. Once the header and the footer *together*
+   * exceed the panel there is nothing left to take, and the footer is pushed
+   * out of a box that clips. At 667x375 with 1.6x type the action row wraps to
+   * two lines, head plus foot come to 182px inside a 172px panel, and three
+   * pixels of the 44px "Auto-Complete" button sat outside it - rendered, and
+   * impossible to press. verify:mobile reported all four buttons in the row.
+   *
+   * hidden on the inline axis is kept deliberately: the minmax column above
+   * exists so that over-wide content ellipsises instead of scrolling sideways,
+   * and this must not undo it.
+   *
+   * No backticks in this comment, and none anywhere in this stylesheet: the
+   * whole sheet is a template literal, so one would end the string.
+   */
+  overflow-y: auto;
+  overscroll-behavior: contain;
   gap: 0;
 }
 .db-v2 .builder-side-head {

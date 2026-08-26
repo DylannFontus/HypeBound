@@ -68,6 +68,7 @@ import * as THREE from "three";
 import type { CurrentId } from "../../engine/types";
 import { CURRENT_PALETTE, hexToRgba, mix } from "../cardRenderer/palette";
 import { getAsset } from "./assetLoader";
+import { createStyleElement } from "../styleSheet";
 
 // ---------------------------------------------------------------------------
 // 0. The light rig
@@ -1711,7 +1712,7 @@ export function installTextureVars(): void {
     declarations.push(`  ${alias.name}-size: var(${target}-size);`);
   }
 
-  const style = document.getElementById(STYLE_ID) ?? document.createElement("style");
+  const style = document.getElementById(STYLE_ID) ?? createStyleElement(document);
   style.id = STYLE_ID;
   style.textContent = `:root {\n${declarations.join("\n")}\n}\n`;
   // Appended last so that, against a declaration of equal specificity in
